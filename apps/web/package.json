@@ -1,0 +1,21 @@
+{
+  "name": "@unquote/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@unquote/ui": "workspace:*",
+    "lz-string": "^1.5.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.2.2",
+    "vite": "^8.0.8"
+  }
+}

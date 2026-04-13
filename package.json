@@ -1,0 +1,33 @@
+{
+  "name": "unquote",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "oxlint . --ignore-pattern node_modules --ignore-pattern dist --ignore-pattern .output --ignore-pattern .wxt",
+    "format": "oxfmt . --write",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.7.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "jsdom": "^27.0.1",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.16.0",
+    "turbo": "^2.5.8",
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.4"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

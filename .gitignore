@@ -1,0 +1,26 @@
+# workspace metadata
+.agents
+.claude
+skills-lock.json
+
+# dependencies
+node_modules
+
+# build outputs
+dist
+coverage
+
+# turbo / vite / wxt caches
+.turbo
+apps/*/.turbo
+packages/*/.turbo
+apps/extension/.output
+apps/extension/.wxt
+
+# system files
+.DS_Store
+
+
+
+# benchmark case
+benchmark/case*.jsonl

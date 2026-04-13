@@ -1,0 +1,43 @@
+import { defineConfig } from "wxt";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  outDir: "../../dist",
+  outDirTemplate: "extension",
+  webExt: {
+    disabled: true,
+  },
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
+  manifest: {
+    name: "Unquote",
+    description: "Expand stringified JSON and browse JSONL locally.",
+    permissions: ["activeTab", "contextMenus", "scripting", "storage"],
+    commands: {
+      open_unquote: {
+        suggested_key: {
+          default: "Ctrl+Shift+U",
+          mac: "Command+Shift+U",
+        },
+        description: "Open Unquote",
+      },
+    },
+    action: {
+      default_icon: {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png",
+      },
+    },
+    icons: {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png",
+    },
+    options_ui: {
+      page: "options.html",
+      open_in_tab: true,
+    },
+  },
+});
