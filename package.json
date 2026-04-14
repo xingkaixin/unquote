@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs"
+    "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs",
+    "deploy-web": "pnpm --filter @unquote/web build && wrangler pages deploy dist/web --project-name=unquote"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
