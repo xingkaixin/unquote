@@ -28,8 +28,8 @@ describe("UnquoteApp", () => {
   it("renders and parses input", async () => {
     const user = userEvent.setup();
     render(<UnquoteApp initialInput='{"payload":"{\\"ok\\":true}"}' />);
-    await user.click(screen.getByRole("tab", { name: "Output" }));
-    await waitFor(() => expect(screen.getAllByText(/Record #1/i).length).toBeGreaterThan(0));
+    await user.click(screen.getByRole("tab", { name: "输出" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("展开全部")[0]).toBeInTheDocument();
     expect(screen.getAllByText("复制全部")[0]).toBeInTheDocument();
   });

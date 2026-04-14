@@ -24,7 +24,7 @@ export const RecordList = ({
   onRestoreRecord,
   onHoverPath,
 }: RecordListProps) => (
-  <div className="flex flex-col gap-4">
+  <div className="flex flex-col gap-3">
     {records.map((record, index) => (
       <JsonTree
         key={record.id}

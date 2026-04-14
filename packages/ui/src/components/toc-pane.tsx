@@ -10,7 +10,7 @@ interface TocPaneProps {
 }
 
 export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
-  <Card className="hidden min-h-0 flex-1 overflow-hidden border-zinc-900/10 bg-[#fffdf9] shadow-[0_20px_50px_rgba(15,23,42,0.06)] lg:flex lg:flex-col">
+  <Card className="hidden min-h-0 flex-1 overflow-hidden bg-surface-50 lg:flex lg:flex-col">
     <CardHeader>
       <CardTitle>记录导航</CardTitle>
       <CardDescription>
@@ -18,8 +18,8 @@ export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
       </CardDescription>
     </CardHeader>
     <CardContent className="flex min-h-0 flex-1 flex-col px-2 pb-2">
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
-        <div className="flex flex-col gap-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="flex flex-col gap-1">
           {result.records.map((record) => {
             const active = activeRecordId === record.id;
             const variant = record.node ? "success" : "danger";
@@ -27,15 +27,15 @@ export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
               <Button
                 key={record.id}
                 variant="ghost"
-                className={`h-auto justify-start rounded-2xl border px-3 py-3 text-left ${active ? "border-zinc-900/10 bg-white shadow-sm" : "border-transparent bg-transparent"}`}
+                className={`h-auto justify-start rounded-md border px-3 py-2.5 text-left ${active ? "border-border bg-surface-100 shadow-sm" : "border-transparent"}`}
                 onClick={() => onSelect(record)}
               >
-                <div className="flex w-full flex-col gap-2">
+                <div className="flex w-full flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs text-zinc-500">#{record.lineNumber}</span>
+                    <span className="font-mono text-[11px] text-text-muted">#{record.lineNumber}</span>
                     <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
                   </div>
-                  <span className="truncate text-sm text-zinc-800">{record.summary}</span>
+                  <span className="truncate text-[13px] text-text-secondary">{record.summary}</span>
                 </div>
               </Button>
             );

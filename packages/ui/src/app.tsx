@@ -4,6 +4,7 @@ import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
 import { RecordList } from "./components/record-list";
+import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
@@ -31,6 +32,13 @@ export const UnquoteApp = ({
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
   const [restoredRecordIds, setRestoredRecordIds] = useState<Set<string>>(new Set());
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
+  const [theme, setTheme] = useState<"system" | "light" | "dark">(() => {
+    try {
+      return (localStorage.getItem("unquote-theme") as "system" | "light" | "dark") ?? "system";
+    } catch {
+      return "system";
+    }
+  });
   const outputRef = useRef<HTMLDivElement>(null);
   const result = useParser(sourceText, mode === "auto" ? undefined : mode);
   const detectedFormat = mode === "auto" ? result.format : mode;
@@ -43,6 +51,24 @@ export const UnquoteApp = ({
     const firstRecord = result.records[0];
     setActiveRecordId((current) => current ?? firstRecord?.id ?? null);
   }, [result.records]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else if (theme === "light") {
+      root.classList.remove("dark");
+    } else {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const apply = (e: MediaQueryListEvent | MediaQueryList) => {
+        root.classList.toggle("dark", e.matches);
+      };
+      apply(mq);
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
+    localStorage.setItem("unquote-theme", theme);
+  }, [theme]);
 
   const handleSourceChange = (value: string) => {
     setSourceText(value);
@@ -146,7 +172,7 @@ export const UnquoteApp = ({
 
   const statsLabel = `${result.stats.total} total · ${result.stats.success} ok · ${result.stats.failed} err`;
   const output = (
-    <div ref={outputRef} className="flex flex-col gap-4">
+    <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
         detectedFormat={detectedFormat}
         pathLabel={hoveredPath}
@@ -172,28 +198,22 @@ export const UnquoteApp = ({
   );
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f1e6_0%,#f3ede0_34%,#efe9db_100%)] text-zinc-950">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 lg:px-6 lg:py-5">
-        <header className="rounded-[28px] border border-zinc-900/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(248,244,236,0.96))] px-5 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] lg:px-7">
-          <div className="flex flex-col gap-2">
-            <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-zinc-500">
-              UNQUOTE
-            </div>
-            <div className="max-w-4xl">
-              <h1 className="font-serif text-[clamp(1.8rem,2.3vw,2.8rem)] leading-none tracking-[-0.03em]">
-                Stringify 进去的，Unquote 拿出来。
-              </h1>
-            </div>
-            <p className="max-w-3xl text-sm leading-6 text-zinc-600">
-              递归检测、展开、还原。JSON 和 JSONL 粘贴即用，agent 日志和模型输出的日常查看工具。
-            </p>
-          </div>
-        </header>
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-[var(--background)]/80 px-4 py-2 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <span className="text-[15px] font-semibold tracking-tight text-text-primary">
+            Unquote
+          </span>
+          <span className="font-mono text-[11px] text-text-muted">JSON / JSONL</span>
+        </div>
+        <ThemeToggle theme={theme} onChange={setTheme} />
+      </header>
 
-        <Tabs defaultValue="workspace" className="flex flex-col gap-4 lg:hidden">
+      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-4 py-3 lg:px-6">
+        <Tabs defaultValue="workspace" className="flex flex-col gap-3 lg:hidden">
           <TabsList>
-            <TabsTrigger value="workspace">Workspace</TabsTrigger>
-            <TabsTrigger value="output">Output</TabsTrigger>
+            <TabsTrigger value="workspace">输入</TabsTrigger>
+            <TabsTrigger value="output">输出</TabsTrigger>
           </TabsList>
           <TabsContent value="workspace">
             <InputPane
@@ -211,9 +231,9 @@ export const UnquoteApp = ({
         </Tabs>
 
         <div
-          className={`hidden items-start gap-4 lg:grid ${sourceCollapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
+          className={`hidden items-start gap-3 lg:grid ${sourceCollapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
         >
-          <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col gap-4 overflow-hidden">
+          <div className="sticky top-12 flex max-h-[calc(100vh-3.5rem)] flex-col gap-3 overflow-hidden">
             <InputPane
               value={sourceText}
               mode={mode}
@@ -228,7 +248,7 @@ export const UnquoteApp = ({
             {sourceCollapsed ? (
               <button
                 type="button"
-                className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-zinc-900/10 bg-white text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 shadow-sm"
+                className="flex h-12 items-center justify-center gap-2 rounded-md border border-border bg-surface-100 text-xs font-medium text-text-secondary shadow-sm"
                 onClick={() => setSourceCollapsed(false)}
               >
                 <PanelLeftOpen className="size-4" />
@@ -244,7 +264,7 @@ export const UnquoteApp = ({
           </div>
           <div className="min-w-0">{output}</div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
