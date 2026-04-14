@@ -24,3 +24,7 @@ apps/extension/.wxt
 
 # benchmark case
 benchmark/case*.jsonl
+
+
+# wrangler
+.wrangler
