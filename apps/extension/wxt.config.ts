@@ -13,7 +13,7 @@ export default defineConfig({
   manifest: {
     name: "Unquote",
     description: "Expand stringified JSON and browse JSONL locally.",
-    permissions: ["activeTab", "contextMenus", "scripting", "storage"],
+    permissions: ["contextMenus", "storage"],
     commands: {
       open_unquote: {
         suggested_key: {

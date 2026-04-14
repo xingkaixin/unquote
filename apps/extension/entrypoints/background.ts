@@ -45,12 +45,6 @@ export default defineBackground(() => {
 
     await storePendingInput(selection);
     await openOptionsPage();
-
-    if (tab?.id) {
-      await browser.tabs
-        .sendMessage(tab.id, { type: "unquote:clear-selection" })
-        .catch(() => undefined);
-    }
   });
 
   browser.runtime.onMessage.addListener((message: unknown) => {
@@ -59,11 +53,6 @@ export default defineBackground(() => {
     }
 
     const payload = message as { type?: string; payload?: unknown };
-
-    if (payload.type === "unquote:open-with-input" && typeof payload.payload === "string") {
-      return storePendingInput(payload.payload).then(openOptionsPage);
-    }
-
     if (payload.type === "unquote:get-pending-input") {
       return browser.storage.session.get(SESSION_KEY).then(async (result) => {
         const pendingInput = result[SESSION_KEY];
