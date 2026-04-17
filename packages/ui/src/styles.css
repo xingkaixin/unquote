@@ -51,8 +51,9 @@
 
   /* --- Fonts --- */
   --font-sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace,
-    Menlo, Monaco, Consolas, monospace;
+  --font-mono:
+    "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace, Menlo, Monaco,
+    Consolas, monospace;
 }
 
 /* --- Dark Mode --- */
@@ -126,6 +127,9 @@ textarea {
 button,
 a,
 [role="button"] {
-  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease,
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
     box-shadow 150ms ease;
 }

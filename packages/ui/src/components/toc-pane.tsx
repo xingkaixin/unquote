@@ -32,7 +32,9 @@ export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
               >
                 <div className="flex w-full flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-text-muted">#{record.lineNumber}</span>
+                    <span className="font-mono text-[11px] text-text-muted">
+                      #{record.lineNumber}
+                    </span>
                     <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
                   </div>
                   <span className="truncate text-[13px] text-text-secondary">{record.summary}</span>

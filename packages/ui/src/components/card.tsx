@@ -14,7 +14,10 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 Card.displayName = "Card";
 
 export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col gap-1 border-b border-border px-4 py-2.5", className)} {...props} />
+  <div
+    className={cn("flex flex-col gap-1 border-b border-border px-4 py-2.5", className)}
+    {...props}
+  />
 );
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (

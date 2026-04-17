@@ -7,7 +7,9 @@
     "dev": "wxt --config wxt.dev.config.ts",
     "build": "wxt build",
     "zip": "wxt zip",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint .",
+    "format": "oxfmt . --write"
   },
   "dependencies": {
     "@unquote/ui": "workspace:*",

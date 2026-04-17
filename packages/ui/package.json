@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint .",
+    "format": "oxfmt . --write",
     "test": "vitest run -c vitest.config.ts"
   },
   "dependencies": {

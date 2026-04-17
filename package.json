@@ -6,10 +6,9 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
-    "lint": "oxlint . --ignore-pattern node_modules --ignore-pattern dist --ignore-pattern .output --ignore-pattern .wxt",
-    "format": "oxfmt . --write",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "test": "turbo run test",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs",
     "deploy-web": "pnpm --filter @unquote/web build && wrangler pages deploy dist/web --project-name=unquote"

@@ -33,7 +33,7 @@ export default defineBackground(() => {
     }
   });
 
-  browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  browser.contextMenus.onClicked.addListener(async (info, _tab) => {
     if (info.menuItemId !== OPEN_MENU_ID) {
       return;
     }

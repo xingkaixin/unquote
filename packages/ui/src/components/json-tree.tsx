@@ -103,9 +103,7 @@ export const JsonTree = ({
           <span className="shrink-0 font-mono text-[12px] text-text-secondary">
             #{record.lineNumber}
           </span>
-          <span className="min-w-0 truncate text-[12px] text-text-secondary">
-            {record.summary}
-          </span>
+          <span className="min-w-0 truncate text-[12px] text-text-secondary">{record.summary}</span>
           <span className="shrink-0 font-mono text-[11px] text-text-muted">
             {rows.length} nodes
           </span>
@@ -126,10 +124,7 @@ export const JsonTree = ({
           </div>
         ) : null}
         {hydrated && shouldVirtualize ? (
-          <div
-            className="relative w-full"
-            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-          >
+          <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = rows[virtualRow.index];
               if (!row) {
@@ -231,7 +226,9 @@ const RowItem = ({
           nested json
         </Badge>
       ) : null}
-      <span className={`min-w-0 break-all font-mono text-[12px] leading-5 ${getValueClassName(row)}`}>
+      <span
+        className={`min-w-0 break-all font-mono text-[12px] leading-5 ${getValueClassName(row)}`}
+      >
         {row.valueLabel}
       </span>
     </div>
