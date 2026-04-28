@@ -11,8 +11,9 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifest: {
-    name: "Unquote",
-    description: "Expand stringified JSON and browse JSONL locally.",
+    name: "__MSG_appName__",
+    description: "__MSG_appDescription__",
+    default_locale: "en",
     permissions: ["contextMenus", "storage"],
     commands: {
       open_unquote: {
@@ -20,7 +21,7 @@ export default defineConfig({
           default: "Ctrl+Shift+U",
           mac: "Command+Shift+U",
         },
-        description: "Open Unquote",
+        description: "__MSG_openUnquote__",
       },
     },
     action: {},

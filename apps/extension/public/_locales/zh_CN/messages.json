@@ -1,0 +1,14 @@
+{
+  "appName": {
+    "message": "Unquote"
+  },
+  "appDescription": {
+    "message": "在本地展开字符串化的 JSON 并浏览 JSONL。"
+  },
+  "openInUnquote": {
+    "message": "在 Unquote 中打开"
+  },
+  "openUnquote": {
+    "message": "打开 Unquote"
+  }
+}

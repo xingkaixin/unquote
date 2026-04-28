@@ -1,4 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
+import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
@@ -9,10 +10,12 @@ interface TocPaneProps {
   onSelect: (record: JsonlRecord) => void;
 }
 
-export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
+export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => {
+  const { t } = useTranslation();
+  return (
   <Card className="hidden min-h-0 flex-1 overflow-hidden bg-surface-50 lg:flex lg:flex-col">
     <CardHeader>
-      <CardTitle>记录导航</CardTitle>
+      <CardTitle>{t("toc.title")}</CardTitle>
       <CardDescription>
         {result.stats.success} ok · {result.stats.failed} err
       </CardDescription>
@@ -46,4 +49,5 @@ export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => (
       </div>
     </CardContent>
   </Card>
-);
+  );
+};

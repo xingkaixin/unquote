@@ -1,8 +1,10 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
+import { createTranslator, en } from "@unquote/ui";
 
 const OPEN_MENU_ID = "unquote-open-selection";
 const SESSION_KEY = "pendingInput";
+const t = createTranslator(en);
 
 const storePendingInput = async (value: string) => {
   await browser.storage.session.set({ [SESSION_KEY]: value });
@@ -18,7 +20,7 @@ export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({
       id: OPEN_MENU_ID,
-      title: "Open in Unquote",
+      title: t("extension.openInUnquote"),
       contexts: ["selection"],
     });
   });

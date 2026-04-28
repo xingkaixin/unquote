@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
-import { UnquoteApp } from "@unquote/ui";
+import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
 
 const HASH_PREFIX = "#data=";
@@ -44,18 +44,20 @@ const openFile = () => {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <UnquoteApp
-      initialInput={getInitialInput()}
-      onSourceChange={syncHash}
-      onOpenFile={async () => {
-        const file = await openFile();
-        if (!file) {
-          return null;
-        }
+    <I18nProvider>
+      <UnquoteApp
+        initialInput={getInitialInput()}
+        onSourceChange={syncHash}
+        onOpenFile={async () => {
+          const file = await openFile();
+          if (!file) {
+            return null;
+          }
 
-        const text = await file.text();
-        return text;
-      }}
-    />
+          const text = await file.text();
+          return text;
+        }}
+      />
+    </I18nProvider>
   </React.StrictMode>,
 );

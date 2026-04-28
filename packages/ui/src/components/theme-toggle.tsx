@@ -1,4 +1,5 @@
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useTranslation } from "../i18n/context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,26 +24,29 @@ const ThemeIcon = ({ theme }: { theme: "system" | "light" | "dark" }) => {
   }
 };
 
-export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="切换主题">
-        <ThemeIcon theme={theme} />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem onSelect={() => onChange("light")}>
-        <Sun className="mr-2 size-3.5" />
-        light
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onChange("dark")}>
-        <Moon className="mr-2 size-3.5" />
-        dark
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onChange("system")}>
-        <Monitor className="mr-2 size-3.5" />
-        system
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-);
+export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
+  const { t } = useTranslation();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label={t("theme.toggle")}>
+          <ThemeIcon theme={theme} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => onChange("light")}>
+          <Sun className="mr-2 size-3.5" />
+          {t("theme.light")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onChange("dark")}>
+          <Moon className="mr-2 size-3.5" />
+          {t("theme.dark")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onChange("system")}>
+          <Monitor className="mr-2 size-3.5" />
+          {t("theme.system")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};

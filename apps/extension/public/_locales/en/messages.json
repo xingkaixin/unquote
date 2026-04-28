@@ -1,0 +1,14 @@
+{
+  "appName": {
+    "message": "Unquote"
+  },
+  "appDescription": {
+    "message": "Expand stringified JSON and browse JSONL locally."
+  },
+  "openInUnquote": {
+    "message": "Open in Unquote"
+  },
+  "openUnquote": {
+    "message": "Open Unquote"
+  }
+}

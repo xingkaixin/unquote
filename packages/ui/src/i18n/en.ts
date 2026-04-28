@@ -1,0 +1,22 @@
+import type { Messages } from "./i18n";
+
+export const en: Messages = {
+  "app.tab.input": "Input",
+  "app.tab.output": "Output",
+  "app.expand": "Expand",
+  "theme.toggle": "Switch theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "System",
+  "toolbar.copyAll": "Copy All",
+  "toolbar.expandAll": "Expand All",
+  "toolbar.restoreAll": "Restore All",
+  "input.expandSource": "Expand source",
+  "input.placeholder": "Paste JSON / JSONL, or drop a file here.",
+  "toc.title": "Records",
+  "tree.nodes": "{count} nodes",
+  "tree.scrollHint": "Scroll here to load nodes",
+  "tree.toggle": "Toggle {key}",
+  "stats.label": "{total} total · {success} ok · {failed} err",
+  "extension.openInUnquote": "Open in Unquote",
+};

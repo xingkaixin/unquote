@@ -1,0 +1,22 @@
+import type { Messages } from "./i18n";
+
+export const zhCN: Messages = {
+  "app.tab.input": "输入",
+  "app.tab.output": "输出",
+  "app.expand": "展开",
+  "theme.toggle": "切换主题",
+  "theme.light": "浅色",
+  "theme.dark": "深色",
+  "theme.system": "跟随系统",
+  "toolbar.copyAll": "复制全部",
+  "toolbar.expandAll": "展开全部",
+  "toolbar.restoreAll": "还原全部",
+  "input.expandSource": "展开 source",
+  "input.placeholder": "粘贴 JSON / JSONL，或把文件拖到这里。",
+  "toc.title": "记录导航",
+  "tree.nodes": "{count} 个节点",
+  "tree.scrollHint": "滚动到这里时加载节点",
+  "tree.toggle": "切换 {key}",
+  "stats.label": "{total} 条记录 · {success} 成功 · {failed} 失败",
+  "extension.openInUnquote": "在 Unquote 中打开",
+};

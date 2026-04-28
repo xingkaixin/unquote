@@ -1,5 +1,6 @@
 import type { DragEvent } from "react";
 import { ChevronDown, FileJson2, PanelLeftClose, PanelLeftOpen, Upload, X } from "lucide-react";
+import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
 
@@ -26,6 +27,7 @@ export const InputPane = ({
   onToggleCollapse,
   collapsed = false,
 }: InputPaneProps) => {
+  const { t } = useTranslation();
   const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
@@ -42,7 +44,7 @@ export const InputPane = ({
           size="sm"
           className="h-9 w-9 rounded-full px-0"
           onClick={onToggleCollapse}
-          aria-label="展开 source"
+          aria-label={t("input.expandSource")}
         >
           <PanelLeftOpen className="size-4" />
         </Button>
@@ -101,7 +103,7 @@ export const InputPane = ({
           onDrop={handleDrop}
           spellCheck={false}
           className="h-[min(42vh,520px)] min-h-[320px] w-full resize-none rounded-md border border-border bg-surface-50 px-4 py-4 font-mono text-[13px] leading-6 text-text-primary outline-none"
-          placeholder="粘贴 JSON / JSONL，或把文件拖到这里。"
+          placeholder={t("input.placeholder")}
         />
       </CardContent>
     </Card>

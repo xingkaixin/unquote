@@ -3,6 +3,7 @@ import { ChevronRight, Copy, RotateCcw, Sparkles } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "../i18n/context";
 import { buildRecordRows, type TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -33,6 +34,7 @@ export const JsonTree = ({
   onRestoreRecord,
   onHoverPath,
 }: JsonTreeProps) => {
+  const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [hydrated, setHydrated] = useState(eager);
@@ -105,7 +107,7 @@ export const JsonTree = ({
           </span>
           <span className="min-w-0 truncate text-[12px] text-text-secondary">{record.summary}</span>
           <span className="shrink-0 font-mono text-[11px] text-text-muted">
-            {rows.length} nodes
+            {t("tree.nodes", { count: rows.length })}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -120,7 +122,7 @@ export const JsonTree = ({
       <div ref={parentRef} className="max-h-[560px] overflow-auto bg-surface-50">
         {!hydrated ? (
           <div className="flex h-[200px] items-center justify-center px-6 text-[12px] text-text-muted">
-            滚动到这里时加载节点
+            {t("tree.scrollHint")}
           </div>
         ) : null}
         {hydrated && shouldVirtualize ? (
@@ -189,7 +191,9 @@ const RowItem = ({
   virtualized = false,
   style,
   measureRef,
-}: RowItemProps) => (
+}: RowItemProps) => {
+  const { t } = useTranslation();
+  return (
   <div
     ref={measureRef}
     className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full items-center border-b border-border px-3 hover:bg-surface-200/50`}
@@ -206,7 +210,7 @@ const RowItem = ({
           type="button"
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-warning/40 bg-warning/10 text-warning"
           onClick={() => onTogglePath(row.pathText)}
-          aria-label={`切换 ${row.keyLabel}`}
+          aria-label={t("tree.toggle", { key: row.keyLabel })}
         >
           <ChevronRight
             className={`size-3 transition-transform ${row.expanded ? "rotate-90" : ""}`}
@@ -251,7 +255,8 @@ const RowItem = ({
       </Button>
     </div>
   </div>
-);
+  );
+};
 
 const getValueClassName = (row: TreeRow) => {
   switch (row.kind) {

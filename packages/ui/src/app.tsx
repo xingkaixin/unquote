@@ -3,11 +3,13 @@ import { formatResult } from "@unquote/core";
 import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
+import { LocaleToggle } from "./components/locale-toggle";
 import { RecordList } from "./components/record-list";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
+import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
 import { collectStringifiedPaths, hasJsonlRecords, materializeRecord } from "./lib/tree";
 import type { TreeRow } from "./lib/tree";
@@ -25,6 +27,7 @@ export const UnquoteApp = ({
   onOpenFile,
   onReadFile,
 }: UnquoteAppProps) => {
+  const { t } = useTranslation();
   const [sourceText, setSourceText] = useState(initialInput);
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
   const [hoveredPath, setHoveredPath] = useState("$");
@@ -170,7 +173,11 @@ export const UnquoteApp = ({
     return () => observer.disconnect();
   }, [result.records]);
 
-  const statsLabel = `${result.stats.total} total · ${result.stats.success} ok · ${result.stats.failed} err`;
+  const statsLabel = t("stats.label", {
+    total: result.stats.total,
+    success: result.stats.success,
+    failed: result.stats.failed,
+  });
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
@@ -206,14 +213,17 @@ export const UnquoteApp = ({
           </span>
           <span className="font-mono text-[11px] text-text-muted">JSON / JSONL</span>
         </div>
-        <ThemeToggle theme={theme} onChange={setTheme} />
+        <div className="flex items-center gap-1">
+          <LocaleToggle />
+          <ThemeToggle theme={theme} onChange={setTheme} />
+        </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-4 py-3 lg:px-6">
         <Tabs defaultValue="workspace" className="flex flex-col gap-3 lg:hidden">
           <TabsList>
-            <TabsTrigger value="workspace">输入</TabsTrigger>
-            <TabsTrigger value="output">输出</TabsTrigger>
+            <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
+            <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
           </TabsList>
           <TabsContent value="workspace">
             <InputPane
@@ -252,7 +262,7 @@ export const UnquoteApp = ({
                 onClick={() => setSourceCollapsed(false)}
               >
                 <PanelLeftOpen className="size-4" />
-                展开
+                {t("app.expand")}
               </button>
             ) : hasJsonlRecords(result) ? (
               <TocPane

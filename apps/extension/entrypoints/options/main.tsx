@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { UnquoteApp } from "@unquote/ui";
+import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
 import { browser } from "wxt/browser";
 
@@ -14,7 +14,9 @@ const root = ReactDOM.createRoot(document.getElementById("root")!);
 void getPendingInput().then((initialInput) => {
   root.render(
     <React.StrictMode>
-      <UnquoteApp initialInput={initialInput} />
+      <I18nProvider>
+        <UnquoteApp initialInput={initialInput} />
+      </I18nProvider>
     </React.StrictMode>,
   );
 });
