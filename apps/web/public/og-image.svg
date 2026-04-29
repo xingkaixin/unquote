@@ -7,7 +7,7 @@
   <circle cx="156" cy="158" r="10" fill="#ef5b5b"/>
   <circle cx="190" cy="158" r="10" fill="#f5bd4f"/>
   <circle cx="224" cy="158" r="10" fill="#4fc07a"/>
-  <text x="272" y="169" fill="#d7e2f0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="26">unquote.app</text>
+  <text x="272" y="169" fill="#d7e2f0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="26">unquote.xingkaixin.me</text>
   <g transform="translate(122 256)">
     <rect width="174" height="174" rx="38" fill="#f3f7fc" stroke="#d8dee8" stroke-width="2"/>
     <text x="36" y="126" fill="#4f7df0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="116" font-weight="700">{}</text>
