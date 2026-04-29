@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Unquote - JSON and JSONL Viewer</title>
+  <desc id="desc">A social preview image for Unquote, a local JSON and JSONL viewer.</desc>
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="72" y="72" width="1056" height="486" rx="28" fill="#ffffff" stroke="#d8dee8" stroke-width="2"/>
+  <rect x="108" y="112" width="984" height="92" rx="18" fill="#101828"/>
+  <circle cx="156" cy="158" r="10" fill="#ef5b5b"/>
+  <circle cx="190" cy="158" r="10" fill="#f5bd4f"/>
+  <circle cx="224" cy="158" r="10" fill="#4fc07a"/>
+  <text x="272" y="169" fill="#d7e2f0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="26">unquote.app</text>
+  <g transform="translate(122 256)">
+    <rect width="174" height="174" rx="38" fill="#f3f7fc" stroke="#d8dee8" stroke-width="2"/>
+    <text x="36" y="126" fill="#4f7df0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="116" font-weight="700">{}</text>
+  </g>
+  <text x="348" y="318" fill="#101828" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="74" font-weight="760">Unquote</text>
+  <text x="352" y="378" fill="#334155" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="560">Expand stringified JSON. Browse JSONL locally.</text>
+  <g transform="translate(352 430)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="24">
+    <rect width="650" height="56" rx="14" fill="#eef6ff"/>
+    <text x="24" y="37" fill="#1f5fbf">{"payload":"{\"status\":\"ok\",\"items\":[...]}"}</text>
+  </g>
+  <path d="M986 459l42 28-42 28" fill="none" stroke="#4f7df0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

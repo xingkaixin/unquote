@@ -1,6 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
 import { formatResult } from "@unquote/core";
-import { PanelLeftOpen } from "lucide-react";
+import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
@@ -16,6 +16,7 @@ import type { TreeRow } from "./lib/tree";
 
 export interface UnquoteAppProps {
   initialInput?: string;
+  chromeWebStoreUrl?: string;
   onSourceChange?: (value: string) => void;
   onOpenFile?: () => Promise<string | null> | string | null | void;
   onReadFile?: (file: File) => Promise<string>;
@@ -23,6 +24,7 @@ export interface UnquoteAppProps {
 
 export const UnquoteApp = ({
   initialInput = "",
+  chromeWebStoreUrl,
   onSourceChange,
   onOpenFile,
   onReadFile,
@@ -214,6 +216,17 @@ export const UnquoteApp = ({
           <span className="font-mono text-[11px] text-text-muted">JSON / JSONL</span>
         </div>
         <div className="flex items-center gap-1">
+          {chromeWebStoreUrl ? (
+            <a
+              href={chromeWebStoreUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-surface-300 px-3 text-[13px] font-medium tracking-[0.01em] text-text-primary shadow-sm transition-[transform,box-shadow,background-color,color] duration-150 ease-out hover:-translate-y-px hover:text-accent-hover hover:shadow-md"
+            >
+              <Chrome className="size-3.5" />
+              {t("app.chrome")}
+            </a>
+          ) : null}
           <LocaleToggle />
           <ThemeToggle theme={theme} onChange={setTheme} />
         </div>

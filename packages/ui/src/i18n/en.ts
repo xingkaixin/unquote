@@ -4,6 +4,7 @@ export const en: Messages = {
   "app.tab.input": "Input",
   "app.tab.output": "Output",
   "app.expand": "Expand",
+  "app.chrome": "Chrome Extension",
   "theme.toggle": "Switch theme",
   "theme.light": "Light",
   "theme.dark": "Dark",

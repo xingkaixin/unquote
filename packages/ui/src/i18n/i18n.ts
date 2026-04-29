@@ -4,6 +4,7 @@ export interface Messages {
   readonly "app.tab.input": string;
   readonly "app.tab.output": string;
   readonly "app.expand": string;
+  readonly "app.chrome": string;
   readonly "theme.toggle": string;
   readonly "theme.light": string;
   readonly "theme.dark": string;

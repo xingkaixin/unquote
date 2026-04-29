@@ -6,6 +6,8 @@ import "@unquote/ui/styles.css";
 
 const HASH_PREFIX = "#data=";
 const HASH_LIMIT = 4 * 1024;
+const CHROME_WEB_STORE_URL =
+  "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
 
 const getInitialInput = () => {
   const hash = window.location.hash;
@@ -47,6 +49,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <I18nProvider>
       <UnquoteApp
         initialInput={getInitialInput()}
+        chromeWebStoreUrl={CHROME_WEB_STORE_URL}
         onSourceChange={syncHash}
         onOpenFile={async () => {
           const file = await openFile();
