@@ -123,6 +123,11 @@ textarea {
   box-sizing: border-box;
 }
 
+mark {
+  background: transparent;
+  color: inherit;
+}
+
 /* --- Transitions --- */
 button,
 a,

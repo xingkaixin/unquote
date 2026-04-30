@@ -20,4 +20,11 @@ export const en: Messages = {
   "tree.toggle": "Toggle {key}",
   "stats.label": "{total} total · {success} ok · {failed} err",
   "extension.openInUnquote": "Open in Unquote",
+  "search.placeholder": "Search keys and values...",
+  "search.regex": "Regex",
+  "search.caseSensitive": "Case sensitive",
+  "search.prev": "Previous match",
+  "search.next": "Next match",
+  "search.clear": "Clear search",
+  "search.jq": "JSONPath / jq syntax",
 };

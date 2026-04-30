@@ -156,5 +156,119 @@ export const collectStringifiedPaths = (
   return [...output];
 };
 
+export interface TextRange {
+  start: number;
+  end: number;
+}
+
+export interface SearchMatch {
+  recordId: string;
+  pathText: string;
+  keyRanges: TextRange[];
+  valueRanges: TextRange[];
+  pathRanges: TextRange[];
+  stringifiedPathChain: string[];
+}
+
+export interface SearchOptions {
+  regex: boolean;
+  caseSensitive: boolean;
+  jq: boolean;
+}
+
+const findRanges = (text: string, pattern: RegExp): TextRange[] => {
+  const ranges: TextRange[] = [];
+  const clone = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  let match: RegExpExecArray | null;
+  while ((match = clone.exec(text)) !== null) {
+    ranges.push({ start: match.index, end: match.index + match[0].length });
+    if (match[0].length === 0) {
+      clone.lastIndex++;
+    }
+  }
+  return ranges;
+};
+
+const searchNode = (
+  node: JsonNode,
+  recordId: string,
+  pattern: RegExp,
+  stringifiedAncestors: string[],
+  matches: SearchMatch[],
+  options: SearchOptions,
+) => {
+  const pathText = stringifyPath(node.path);
+  const currentChain = node.wasStringified ? [...stringifiedAncestors, pathText] : stringifiedAncestors;
+
+  const keyLabel = node.path.at(-1) ?? "$";
+  const valueLabel = formatValueLabel(node);
+
+  const keyRanges = findRanges(keyLabel, pattern);
+  const valueRanges = findRanges(valueLabel, pattern);
+  const pathRanges = options.jq ? findRanges(pathText, pattern) : [];
+
+  if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
+    matches.push({
+      recordId,
+      pathText,
+      keyRanges,
+      valueRanges,
+      pathRanges,
+      stringifiedPathChain: [...currentChain],
+    });
+  }
+
+  if (!node.children) {
+    return;
+  }
+
+  if (Array.isArray(node.children)) {
+    node.children.forEach((child) => searchNode(child, recordId, pattern, currentChain, matches, options));
+    return;
+  }
+
+  Object.values(node.children).forEach((child) => searchNode(child, recordId, pattern, currentChain, matches, options));
+};
+
+export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
+  if (!query) {
+    return null;
+  }
+
+  const flags = options.caseSensitive ? "g" : "gi";
+
+  if (options.regex) {
+    try {
+      return new RegExp(query, flags);
+    } catch {
+      return null;
+    }
+  }
+
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(escaped, flags);
+};
+
+export const searchRecords = (
+  records: JsonlRecord[],
+  query: string,
+  options: SearchOptions,
+): SearchMatch[] | null => {
+  const pattern = buildSearchPattern(query, options);
+  if (!pattern) {
+    return null;
+  }
+
+  const matches: SearchMatch[] = [];
+  for (const record of records) {
+    if (!record.node) {
+      continue;
+    }
+    searchNode(record.node, record.id, pattern, [], matches, options);
+  }
+
+  return matches;
+};
+
 export const hasJsonlRecords = (result: ParseResult | null) =>
   Boolean(result && result.format === "jsonl" && result.records.length > 1);

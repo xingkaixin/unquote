@@ -1,17 +1,18 @@
 import type { JsonlRecord } from "@unquote/core";
 import { formatResult } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
 import { RecordList } from "./components/record-list";
+import { SearchBar } from "./components/search-bar";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
-import { collectStringifiedPaths, hasJsonlRecords, materializeRecord } from "./lib/tree";
+import { collectStringifiedPaths, hasJsonlRecords, materializeRecord, searchRecords } from "./lib/tree";
 import type { TreeRow } from "./lib/tree";
 
 export interface UnquoteAppProps {
@@ -44,9 +45,67 @@ export const UnquoteApp = ({
       return "system";
     }
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchRegex, setSearchRegex] = useState(false);
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
+  const [searchJq, setSearchJq] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const outputRef = useRef<HTMLDivElement>(null);
   const result = useParser(sourceText, mode === "auto" ? undefined : mode);
   const detectedFormat = mode === "auto" ? result.format : mode;
+
+  const matches = useMemo(() => {
+    if (!searchQuery) return null;
+    return searchRecords(result.records, searchQuery, {
+      regex: searchRegex,
+      caseSensitive: searchCaseSensitive,
+      jq: searchJq,
+    });
+  }, [result.records, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+
+  const matchCount = matches?.length ?? 0;
+
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+
+
+  useEffect(() => {
+    if (!matches || matches.length === 0) return;
+
+    const pathsToExpand = new Set<string>();
+    for (const match of matches) {
+      for (const path of match.stringifiedPathChain) {
+        pathsToExpand.add(path);
+      }
+    }
+
+    setExpandedStringifiedPaths((current) => {
+      const next = new Set(current);
+      for (const path of pathsToExpand) {
+        next.add(path);
+      }
+      return next;
+    });
+  }, [matches]);
+
+  const activeMatch = useMemo(() => {
+    if (!matches || matches.length === 0) return null;
+    return {
+      recordId: matches[currentMatchIndex]!.recordId,
+      pathText: matches[currentMatchIndex]!.pathText,
+    };
+  }, [matches, currentMatchIndex]);
+
+  const handlePrevMatch = () => {
+    if (matchCount === 0) return;
+    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+  };
+
+  const handleNextMatch = () => {
+    if (matchCount === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+  };
 
   useEffect(() => {
     onSourceChange?.(sourceText);
@@ -189,11 +248,29 @@ export const UnquoteApp = ({
         onCopyAll={handleCopyAll}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
+        searchBar={
+          <SearchBar
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            regex={searchRegex}
+            onRegexChange={setSearchRegex}
+            caseSensitive={searchCaseSensitive}
+            onCaseSensitiveChange={setSearchCaseSensitive}
+            jq={searchJq}
+            onJqChange={setSearchJq}
+            matchCount={matchCount}
+            currentIndex={currentMatchIndex}
+            onPrev={handlePrevMatch}
+            onNext={handleNextMatch}
+          />
+        }
       />
       <RecordList
         records={result.records}
         expandedStringifiedPaths={expandedStringifiedPaths}
         restoredRecordIds={restoredRecordIds}
+        searchMatches={matches ?? []}
+        activeMatch={activeMatch}
         onTogglePath={handleTogglePath}
         onCopyRecord={handleCopyRecord}
         onCopyPath={(path) => navigator.clipboard.writeText(path)}

@@ -1,6 +1,6 @@
 {
   "appName": {
-    "message": "Unquote"
+    "message": "Unquote - Escaped JSON Expander & JSONL Viewer"
   },
   "appDescription": {
     "message": "Expand stringified JSON and browse JSONL locally."

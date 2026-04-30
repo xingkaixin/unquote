@@ -20,4 +20,11 @@ export const zhCN: Messages = {
   "tree.toggle": "切换 {key}",
   "stats.label": "{total} 条记录 · {success} 成功 · {failed} 失败",
   "extension.openInUnquote": "在 Unquote 中打开",
+  "search.placeholder": "搜索键和值…",
+  "search.regex": "正则表达式",
+  "search.caseSensitive": "区分大小写",
+  "search.prev": "上一个匹配",
+  "search.next": "下一个匹配",
+  "search.clear": "清除搜索",
+  "search.jq": "JSONPath / jq 语法",
 };

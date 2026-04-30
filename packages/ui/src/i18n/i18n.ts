@@ -20,6 +20,13 @@ export interface Messages {
   readonly "tree.toggle": string;
   readonly "stats.label": string;
   readonly "extension.openInUnquote": string;
+  readonly "search.placeholder": string;
+  readonly "search.regex": string;
+  readonly "search.caseSensitive": string;
+  readonly "search.prev": string;
+  readonly "search.next": string;
+  readonly "search.clear": string;
+  readonly "search.jq": string;
 }
 
 export type MessageKey = keyof Messages;
