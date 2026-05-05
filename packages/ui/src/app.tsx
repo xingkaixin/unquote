@@ -12,8 +12,15 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
-import { collectStringifiedPaths, hasJsonlRecords, materializeRecord, searchRecords } from "./lib/tree";
+import {
+  collectStringifiedPaths,
+  hasJsonlRecords,
+  materializeRecord,
+  searchRecords,
+} from "./lib/tree";
 import type { TreeRow } from "./lib/tree";
+
+const largeSourceCollapseBytes = 1_000_000;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -32,6 +39,7 @@ export const UnquoteApp = ({
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
   const [sourceText, setSourceText] = useState(initialInput);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
   const [hoveredPath, setHoveredPath] = useState("$");
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
@@ -51,7 +59,11 @@ export const UnquoteApp = ({
   const [searchJq, setSearchJq] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const outputRef = useRef<HTMLDivElement>(null);
-  const result = useParser(sourceText, mode === "auto" ? undefined : mode);
+  const { result, progress } = useParser(
+    sourceText,
+    mode === "auto" ? undefined : mode,
+    sourceFile,
+  );
   const detectedFormat = mode === "auto" ? result.format : mode;
 
   const matches = useMemo(() => {
@@ -68,7 +80,6 @@ export const UnquoteApp = ({
   useEffect(() => {
     setCurrentMatchIndex(0);
   }, [searchQuery, searchRegex, searchCaseSensitive, searchJq]);
-
 
   useEffect(() => {
     if (!matches || matches.length === 0) return;
@@ -135,12 +146,29 @@ export const UnquoteApp = ({
   }, [theme]);
 
   const handleSourceChange = (value: string) => {
+    setSourceFile(null);
     setSourceText(value);
     setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(new Set());
+    if (value.length > largeSourceCollapseBytes) {
+      setSourceCollapsed(true);
+    }
   };
 
   const handleFileDrop = async (file: File) => {
+    const streamAsJsonl =
+      file.size > largeSourceCollapseBytes &&
+      (mode === "jsonl" || (mode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
+
+    if (streamAsJsonl) {
+      setSourceFile(file);
+      setSourceText("");
+      setRestoredRecordIds(new Set());
+      setExpandedStringifiedPaths(new Set());
+      setSourceCollapsed(true);
+      return;
+    }
+
     const text = onReadFile ? await onReadFile(file) : await file.text();
     handleSourceChange(text);
   };
@@ -239,12 +267,18 @@ export const UnquoteApp = ({
     success: result.stats.success,
     failed: result.stats.failed,
   });
+  const progressLabel = progress.done
+    ? statsLabel
+    : `${statsLabel} · ${t("stats.progress", {
+        processed: progress.processedLines,
+        elapsed: Math.round(progress.elapsedMs),
+      })}`;
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
         detectedFormat={detectedFormat}
         pathLabel={hoveredPath}
-        statsLabel={statsLabel}
+        statsLabel={progressLabel}
         onCopyAll={handleCopyAll}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}

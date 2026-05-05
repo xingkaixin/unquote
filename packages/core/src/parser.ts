@@ -122,6 +122,26 @@ const createRecord = (value: unknown, lineNumber: number, maxDepth: number): Jso
   };
 };
 
+export const parseJsonlRecordLine = (
+  line: string,
+  lineNumber: number,
+  options: ParseOptions = {},
+): JsonlRecord => {
+  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+
+  try {
+    return createRecord(parseJson(line), lineNumber, maxDepth);
+  } catch (error) {
+    return {
+      id: `record-${lineNumber}`,
+      lineNumber,
+      node: null,
+      error: getErrorMessage(error),
+      summary: line.slice(0, 72),
+    };
+  }
+};
+
 const parseJsonlRecords = (input: string, maxDepth: number, strict = false) => {
   const records: JsonlRecord[] = [];
 
@@ -130,20 +150,15 @@ const parseJsonlRecords = (input: string, maxDepth: number, strict = false) => {
       continue;
     }
 
-    try {
-      records.push(createRecord(parseJson(line), index + 1, maxDepth));
-    } catch (error) {
+    const record = parseJsonlRecordLine(line, index + 1, { maxDepth });
+    if (record.node) {
+      records.push(record);
+    } else {
       if (strict) {
         return null;
       }
 
-      records.push({
-        id: `record-${index + 1}`,
-        lineNumber: index + 1,
-        node: null,
-        error: getErrorMessage(error),
-        summary: line.slice(0, 72),
-      });
+      records.push(record);
     }
   }
 

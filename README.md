@@ -36,3 +36,7 @@ pnpm dev
 ## License
 
 MIT
+
+## Performance
+
+Release performance gates are documented in [docs/performance.md](docs/performance.md).

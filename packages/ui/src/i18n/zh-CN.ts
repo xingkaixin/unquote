@@ -19,6 +19,7 @@ export const zhCN: Messages = {
   "tree.scrollHint": "滚动到这里时加载节点",
   "tree.toggle": "切换 {key}",
   "stats.label": "{total} 条记录 · {success} 成功 · {failed} 失败",
+  "stats.progress": "{processed} 行 · {elapsed} ms",
   "extension.openInUnquote": "在 Unquote 中打开",
   "search.placeholder": "搜索键和值…",
   "search.regex": "正则表达式",

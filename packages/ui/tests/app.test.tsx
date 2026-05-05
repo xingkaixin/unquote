@@ -12,13 +12,24 @@ Object.assign(globalThis, {
       this.onmessage = listener;
     }
     removeEventListener() {}
-    postMessage(payload: { input: string; forcedFormat?: "json" | "jsonl" }) {
+    postMessage(payload: { requestId: number; input: string; forcedFormat?: "json" | "jsonl" }) {
       import("@unquote/core").then(({ parseInput }) => {
         this.onmessage?.({
-          data: parseInput(
-            payload.input,
-            payload.forcedFormat ? { forcedFormat: payload.forcedFormat } : {},
-          ),
+          data: {
+            type: "complete",
+            requestId: payload.requestId,
+            result: parseInput(
+              payload.input,
+              payload.forcedFormat ? { forcedFormat: payload.forcedFormat } : {},
+            ),
+            progress: {
+              processedLines: 1,
+              success: 1,
+              failed: 0,
+              elapsedMs: 0,
+              done: true,
+            },
+          },
         } as MessageEvent);
       });
     }

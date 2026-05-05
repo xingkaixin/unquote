@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { detectFormat, extractSummary, formatResult, parseInput, restoreNode } from "../src";
+import {
+  detectFormat,
+  extractSummary,
+  formatResult,
+  parseInput,
+  parseJsonlRecordLine,
+  restoreNode,
+} from "../src";
 
 describe("parseInput", () => {
   it("parses json and expands stringified nodes", () => {
@@ -22,6 +29,14 @@ describe("parseInput", () => {
     const result = parseInput('{"ok":1}\n{bad}', { forcedFormat: "jsonl" });
     expect(result.stats.failed).toBe(1);
     expect(result.records[1]?.error).toBeTruthy();
+  });
+
+  it("parses a jsonl line with source line metadata", () => {
+    const record = parseJsonlRecordLine('{"event":"two"}', 7);
+    expect(record.id).toBe("record-7");
+    expect(record.lineNumber).toBe(7);
+    expect(record.node?.meta.sourceLine).toBe(7);
+    expect(record.summary).toBe("event:two");
   });
 
   it("restores raw stringified value", () => {

@@ -19,6 +19,7 @@ export interface Messages {
   readonly "tree.scrollHint": string;
   readonly "tree.toggle": string;
   readonly "stats.label": string;
+  readonly "stats.progress": string;
   readonly "extension.openInUnquote": string;
   readonly "search.placeholder": string;
   readonly "search.regex": string;

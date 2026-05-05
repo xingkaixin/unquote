@@ -19,6 +19,7 @@ export const en: Messages = {
   "tree.scrollHint": "Scroll here to load nodes",
   "tree.toggle": "Toggle {key}",
   "stats.label": "{total} total · {success} ok · {failed} err",
+  "stats.progress": "{processed} lines · {elapsed} ms",
   "extension.openInUnquote": "Open in Unquote",
   "search.placeholder": "Search keys and values...",
   "search.regex": "Regex",
