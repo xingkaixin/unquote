@@ -18,11 +18,20 @@ export interface JsonNode {
   meta: JsonNodeMeta;
 }
 
+export interface ParseErrorMeta {
+  line: number;
+  column: number;
+  rawLine: string;
+  context: string;
+}
+
 export interface JsonlRecord {
   id: string;
   lineNumber: number;
   node: JsonNode | null;
   error?: string;
+  errorMeta?: ParseErrorMeta;
+  rawLine?: string;
   summary: string;
 }
 

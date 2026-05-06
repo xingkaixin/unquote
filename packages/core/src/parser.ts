@@ -1,4 +1,4 @@
-import type { JsonNode, JsonlRecord, ParseOptions, ParseResult } from "./types";
+import type { JsonNode, JsonlRecord, ParseErrorMeta, ParseOptions, ParseResult } from "./types";
 import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, isLikelyJsonl, parseJson } from "./utils";
 
 const toNode = (
@@ -132,11 +132,14 @@ export const parseJsonlRecordLine = (
   try {
     return createRecord(parseJson(line), lineNumber, maxDepth);
   } catch (error) {
+    const errorMeta = getParseErrorMeta(line, error, lineNumber - 1);
     return {
       id: `record-${lineNumber}`,
       lineNumber,
       node: null,
       error: getErrorMessage(error),
+      errorMeta,
+      rawLine: line,
       summary: line.slice(0, 72),
     };
   }
@@ -195,9 +198,7 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
         stats: { total: jsonlRecords.length, success: jsonlRecords.length, failed: 0 },
       };
     }
-  }
 
-  if (format === "json" || !options.forcedFormat) {
     try {
       const parsed = parseJson(input);
       return {
@@ -206,6 +207,21 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
         stats: { total: 1, success: 1, failed: 0 },
       };
     } catch (error) {
+      const looseJsonlRecords = parseJsonlRecords(input, maxDepth) ?? [];
+      const jsonlSuccess = looseJsonlRecords.filter((record) => record.node).length;
+      if (looseJsonlRecords.length > 1 && jsonlSuccess > 0) {
+        return {
+          format: "jsonl",
+          records: looseJsonlRecords,
+          stats: {
+            total: looseJsonlRecords.length,
+            success: jsonlSuccess,
+            failed: looseJsonlRecords.length - jsonlSuccess,
+          },
+        };
+      }
+
+      const errorMeta = getParseErrorMeta(input, error);
       return {
         format,
         records: [
@@ -214,6 +230,36 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
             lineNumber: 1,
             node: null,
             error: getErrorMessage(error),
+            errorMeta,
+            rawLine: errorMeta.rawLine,
+            summary: "Parse error",
+          },
+        ],
+        stats: { total: 1, success: 0, failed: 1 },
+      };
+    }
+  }
+
+  if (format === "json") {
+    try {
+      const parsed = parseJson(input);
+      return {
+        format: "json",
+        records: [createRecord(parsed, 1, maxDepth)],
+        stats: { total: 1, success: 1, failed: 0 },
+      };
+    } catch (error) {
+      const errorMeta = getParseErrorMeta(input, error);
+      return {
+        format,
+        records: [
+          {
+            id: "record-1",
+            lineNumber: 1,
+            node: null,
+            error: getErrorMessage(error),
+            errorMeta,
+            rawLine: errorMeta.rawLine,
             summary: "Parse error",
           },
         ],
@@ -313,3 +359,105 @@ const matchesPath = (path: string[], paths: string[][]) =>
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown parse error";
+
+const getMessagePosition = (message: string) => {
+  const match = /position\s+(\d+)/i.exec(message);
+  return match ? Number(match[1]) : null;
+};
+
+const getUnexpectedTokenPosition = (input: string, message: string) => {
+  const match = /Unexpected token '([^']+)'/i.exec(message);
+  const token = match?.[1];
+  if (!token) {
+    return null;
+  }
+
+  const index = input.indexOf(token);
+  return index >= 0 ? index : null;
+};
+
+const getMessageLineColumn = (message: string) => {
+  const match = /line\s+(\d+)\s+column\s+(\d+)/i.exec(message);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    line: Number(match[1]),
+    column: Number(match[2]),
+  };
+};
+
+const getLineColumnAtPosition = (input: string, position: number) => {
+  const safePosition = Math.max(0, Math.min(position, input.length));
+  const before = input.slice(0, safePosition);
+  const lines = before.split(/\r?\n/);
+  return {
+    line: lines.length,
+    column: (lines.at(-1)?.length ?? 0) + 1,
+  };
+};
+
+const contextLineLength = 160;
+const contextLineRadius = 80;
+
+const getContextLine = (line: string, column?: number) => {
+  if (line.length <= contextLineLength) {
+    return { text: line, column };
+  }
+
+  if (typeof column !== "number") {
+    return { text: `${line.slice(0, contextLineLength - 3)}...`, column };
+  }
+
+  const zeroColumn = Math.max(0, column - 1);
+  const start = Math.min(
+    Math.max(0, zeroColumn - contextLineRadius),
+    Math.max(0, line.length - contextLineLength),
+  );
+  const end = Math.min(line.length, start + contextLineLength);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < line.length ? "..." : "";
+
+  return {
+    text: `${prefix}${line.slice(start, end)}${suffix}`,
+    column: column - start + prefix.length,
+  };
+};
+
+const getErrorContext = (input: string, line: number, column: number, lineOffset: number) => {
+  const lines = input.split(/\r?\n/);
+  const start = Math.max(1, line - 1);
+  const end = Math.min(lines.length, line + 1);
+  const numberWidth = String(end + lineOffset).length;
+  const context: string[] = [];
+
+  for (let current = start; current <= end; current += 1) {
+    const displayLine = current + lineOffset;
+    const snippet = getContextLine(lines[current - 1] ?? "", current === line ? column : undefined);
+    context.push(`${String(displayLine).padStart(numberWidth, " ")} | ${snippet.text}`);
+
+    if (current === line) {
+      context.push(
+        `${" ".repeat(numberWidth)} | ${" ".repeat(Math.max(0, (snippet.column ?? column) - 1))}^`,
+      );
+    }
+  }
+
+  return context.join("\n");
+};
+
+const getParseErrorMeta = (input: string, error: unknown, lineOffset = 0): ParseErrorMeta => {
+  const message = getErrorMessage(error);
+  const position = getMessagePosition(message) ?? getUnexpectedTokenPosition(input, message);
+  const lineColumn =
+    getMessageLineColumn(message) ?? getLineColumnAtPosition(input, position ?? input.length);
+  const rawLine = input.split(/\r?\n/)[lineColumn.line - 1] ?? "";
+
+  return {
+    line: lineColumn.line + lineOffset,
+    column: lineColumn.column,
+    rawLine,
+    context: getErrorContext(input, lineColumn.line, lineColumn.column, lineOffset),
+  };
+};

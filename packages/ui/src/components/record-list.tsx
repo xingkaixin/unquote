@@ -12,6 +12,8 @@ interface RecordListProps {
   selectedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
+  onCopyRawLine: (record: JsonlRecord) => void;
+  onCopyError: (record: JsonlRecord) => void;
   onCopyPath: (path: string) => void;
   onCopyNode: (recordId: string, row: import("../lib/tree").TreeRow) => void;
   onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
@@ -29,6 +31,8 @@ export const RecordList = ({
   selectedPath,
   onTogglePath,
   onCopyRecord,
+  onCopyRawLine,
+  onCopyError,
   onCopyPath,
   onCopyNode,
   onSelectNode,
@@ -49,6 +53,8 @@ export const RecordList = ({
         selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
         onTogglePath={onTogglePath}
         onCopyRecord={() => onCopyRecord(record)}
+        onCopyRawLine={() => onCopyRawLine(record)}
+        onCopyError={() => onCopyError(record)}
         onCopyPath={onCopyPath}
         onCopyNode={(row) => onCopyNode(record.id, row)}
         onSelectNode={(row) => onSelectNode(record, row)}

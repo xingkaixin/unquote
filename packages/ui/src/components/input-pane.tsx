@@ -19,6 +19,15 @@ interface InputPaneProps {
   sourceStatus?: string | undefined;
   sourceBusy?: boolean | undefined;
   sourceProgress?: number | null | undefined;
+  sourceError?: SourceParseError | null | undefined;
+}
+
+export interface SourceParseError {
+  message: string;
+  line: number;
+  column: number;
+  context: string;
+  format: string;
 }
 
 const transferTypes = (dataTransfer: DataTransfer) => Array.from(dataTransfer.types);
@@ -103,6 +112,7 @@ export const InputPane = ({
   sourceStatus,
   sourceBusy = false,
   sourceProgress = null,
+  sourceError = null,
 }: InputPaneProps) => {
   const { t } = useTranslation();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -299,6 +309,28 @@ export const InputPane = ({
                 />
               </span>
             ) : null}
+          </div>
+        ) : null}
+        {sourceError ? (
+          <div
+            className="mb-2 flex flex-col gap-2 rounded-md border border-error/30 bg-[rgba(207,45,86,0.06)] px-3 py-2 text-[12px]"
+            aria-live="polite"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-error">{t("input.parseErrorTitle")}</span>
+              <span className="font-mono text-[11px] text-text-secondary">
+                {t("input.parseErrorMode", { format: sourceError.format })}
+              </span>
+              <span className="font-mono text-[11px] text-text-secondary">
+                {t("error.location", { line: sourceError.line, column: sourceError.column })}
+              </span>
+            </div>
+            <div className="min-w-0 break-words font-mono text-[11px] text-text-secondary">
+              {t("error.message", { message: sourceError.message })}
+            </div>
+            <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+              {sourceError.context}
+            </pre>
           </div>
         ) : null}
         <div className="relative">

@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, RotateCcw, Sparkles } from "lucide-react";
+import { ChevronRight, Copy, FileWarning, RotateCcw, Sparkles } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +21,8 @@ interface JsonTreeProps {
   selectedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (path: string) => void;
   onCopyRecord: () => void;
+  onCopyRawLine: () => void;
+  onCopyError: () => void;
   onCopyPath: (path: string) => void;
   onCopyNode: (row: TreeRow) => void;
   onSelectNode: (row: TreeRow) => void;
@@ -39,6 +41,8 @@ export const JsonTree = ({
   selectedPath,
   onTogglePath,
   onCopyRecord,
+  onCopyRawLine,
+  onCopyError,
   onCopyPath,
   onCopyNode,
   onSelectNode,
@@ -125,16 +129,69 @@ export const JsonTree = ({
   }, [activeMatch, scrollTarget, record.id, hydrated, rows, shouldVirtualize, rowVirtualizer]);
 
   if (!record.node) {
+    const errorMeta = record.errorMeta;
+    const rawLine = record.rawLine ?? errorMeta?.rawLine ?? record.summary;
     return (
       <Card id={record.id} className="min-h-[120px] overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="font-mono text-[12px] text-text-secondary">#{record.lineNumber}</span>
-            <span className="text-[12px] text-text-secondary">{record.summary}</span>
+            <span className="min-w-0 truncate text-[12px] text-text-secondary">
+              {record.summary}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={onCopyRawLine}
+            >
+              <Copy className="size-3" />
+              {t("error.copyRawLine")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={onCopyError}
+            >
+              <Copy className="size-3" />
+              {t("error.copyDetails")}
+            </Button>
           </div>
         </div>
-        <CardContent className="py-3">
-          <Badge variant="danger">{record.error ?? "Parse error"}</Badge>
+        <CardContent className="flex flex-col gap-2 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="danger">
+              <FileWarning className="mr-1 size-3" />
+              {t("error.parseFailed")}
+            </Badge>
+            {errorMeta ? (
+              <Badge>
+                {t("error.location", { line: errorMeta.line, column: errorMeta.column })}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="min-w-0 break-words font-mono text-[12px] leading-5 text-text-secondary">
+            {record.error ?? t("error.parseFailed")}
+          </div>
+          {errorMeta ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                {t("error.rawLine")}
+              </div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+                {rawLine}
+              </pre>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                {t("error.context")}
+              </div>
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+                {errorMeta.context}
+              </pre>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     );

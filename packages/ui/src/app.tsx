@@ -2,6 +2,7 @@ import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
+import type { SourceParseError } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
 import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
@@ -129,6 +130,8 @@ const getRecordStats = (records: JsonlRecord[]) => {
   };
 };
 
+const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
+
 const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
   if (record.node) {
     return materializeRecord(record, restoredRecordIds);
@@ -137,6 +140,14 @@ const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
   return {
     lineNumber: record.lineNumber,
     error: record.error ?? "Parse error",
+    ...(record.errorMeta
+      ? {
+          line: record.errorMeta.line,
+          column: record.errorMeta.column,
+          rawLine: record.rawLine ?? record.errorMeta.rawLine,
+          context: record.errorMeta.context,
+        }
+      : {}),
     summary: record.summary,
   };
 };
@@ -212,6 +223,24 @@ export const UnquoteApp = ({
     sourceFile,
   );
   const detectedFormat = mode === "auto" ? result.format : mode;
+  const parseModeLabel =
+    mode === "auto" && result.stats.failed > 0 && result.stats.total > 0
+      ? t("stats.autoFailureMode", { format: formatParseMode(result.format) })
+      : undefined;
+  const sourceParseError = useMemo<SourceParseError | null>(() => {
+    const record = result.records[0];
+    if (result.format !== "json" || result.stats.failed !== 1 || !record?.errorMeta) {
+      return null;
+    }
+
+    return {
+      message: record.error ?? t("error.parseFailed"),
+      line: record.errorMeta.line,
+      column: record.errorMeta.column,
+      context: record.errorMeta.context,
+      format: formatParseMode(result.format),
+    };
+  }, [result, t]);
 
   const matches = useMemo(() => {
     if (!searchQuery) return null;
@@ -516,8 +545,29 @@ export const UnquoteApp = ({
   };
 
   const handleCopyRecord = async (record: JsonlRecord) => {
-    const value = materializeRecord(record, restoredRecordIds);
+    const value = getCopyValue(record, restoredRecordIds);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+  };
+
+  const handleCopyRawLine = async (record: JsonlRecord) => {
+    await navigator.clipboard.writeText(
+      record.rawLine ?? record.errorMeta?.rawLine ?? record.summary,
+    );
+  };
+
+  const handleCopyRecordError = async (record: JsonlRecord) => {
+    const message = record.error ?? t("error.parseFailed");
+    const errorMeta = record.errorMeta;
+    const details = errorMeta
+      ? [
+          t("error.message", { message }),
+          t("error.location", { line: errorMeta.line, column: errorMeta.column }),
+          `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
+          `${t("error.context")}:\n${errorMeta.context}`,
+        ].join("\n")
+      : t("error.message", { message });
+
+    await navigator.clipboard.writeText(details);
   };
 
   const handleCopyNode = async (_recordId: string, row: TreeRow) => {
@@ -652,6 +702,8 @@ export const UnquoteApp = ({
         selectedPath={selectedPath}
         onTogglePath={handleTogglePath}
         onCopyRecord={handleCopyRecord}
+        onCopyRawLine={handleCopyRawLine}
+        onCopyError={handleCopyRecordError}
         onCopyPath={(path) => navigator.clipboard.writeText(path)}
         onCopyNode={handleCopyNode}
         onSelectNode={handleSelectNode}
@@ -716,6 +768,7 @@ export const UnquoteApp = ({
               sourceStatus={sourceFileStatus}
               sourceBusy={sourceFileBusy}
               sourceProgress={readingFile ? readProgress : null}
+              sourceError={sourceParseError}
             />
           </TabsContent>
           <TabsContent value="output">{output}</TabsContent>
@@ -742,6 +795,7 @@ export const UnquoteApp = ({
               sourceStatus={sourceFileStatus}
               sourceBusy={sourceFileBusy}
               sourceProgress={readingFile ? readProgress : null}
+              sourceError={sourceParseError}
             />
             {sourceCollapsed ? (
               <button
@@ -758,6 +812,7 @@ export const UnquoteApp = ({
                 totalCount={result.stats.total}
                 activeRecordId={activeRecordId}
                 onSelect={handleSelectRecord}
+                onCopyRawLine={handleCopyRawLine}
               />
             ) : null}
           </div>
@@ -767,6 +822,7 @@ export const UnquoteApp = ({
       <StatusFooter
         detectedFormat={detectedFormat}
         statsLabel={progressLabel}
+        modeLabel={parseModeLabel}
         pathLabel={hoveredPath}
         inspector={
           selectedPath ? (

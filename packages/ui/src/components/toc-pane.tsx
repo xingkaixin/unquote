@@ -1,4 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
+import { Copy } from "lucide-react";
 import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -9,9 +10,16 @@ interface TocPaneProps {
   totalCount: number;
   activeRecordId: string | null;
   onSelect: (record: JsonlRecord) => void;
+  onCopyRawLine: (record: JsonlRecord) => void;
 }
 
-export const TocPane = ({ records, totalCount, activeRecordId, onSelect }: TocPaneProps) => {
+export const TocPane = ({
+  records,
+  totalCount,
+  activeRecordId,
+  onSelect,
+  onCopyRawLine,
+}: TocPaneProps) => {
   const { t } = useTranslation();
   const success = records.filter((record) => record.node).length;
   const failed = records.length - success;
@@ -33,24 +41,40 @@ export const TocPane = ({ records, totalCount, activeRecordId, onSelect }: TocPa
               const active = activeRecordId === record.id;
               const variant = record.node ? "success" : "danger";
               return (
-                <Button
+                <div
                   key={record.id}
-                  variant="ghost"
-                  className={`h-auto justify-start rounded-md border px-3 py-2.5 text-left ${active ? "border-border bg-surface-100 shadow-sm" : "border-transparent"}`}
-                  onClick={() => onSelect(record)}
+                  className={`flex items-stretch rounded-md border ${active ? "border-border bg-surface-100 shadow-sm" : "border-transparent"}`}
                 >
-                  <div className="flex w-full flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11px] text-text-muted">
-                        #{record.lineNumber}
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 px-3 py-2.5 text-left"
+                    onClick={() => onSelect(record)}
+                  >
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] text-text-muted">
+                          #{record.lineNumber}
+                        </span>
+                        <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
+                      </div>
+                      <span className="truncate text-[13px] text-text-secondary">
+                        {record.summary}
                       </span>
-                      <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
                     </div>
-                    <span className="truncate text-[13px] text-text-secondary">
-                      {record.summary}
-                    </span>
-                  </div>
-                </Button>
+                  </button>
+                  {!record.node ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="m-1 h-auto w-8 shrink-0 px-0"
+                      aria-label={t("error.copyRawLine")}
+                      title={t("error.copyRawLine")}
+                      onClick={() => onCopyRawLine(record)}
+                    >
+                      <Copy className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
               );
             })}
           </div>

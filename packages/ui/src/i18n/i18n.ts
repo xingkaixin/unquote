@@ -22,6 +22,8 @@ export interface Messages {
   readonly "input.readingFile": string;
   readonly "input.parsingFile": string;
   readonly "input.loadedFile": string;
+  readonly "input.parseErrorTitle": string;
+  readonly "input.parseErrorMode": string;
   readonly "toc.title": string;
   readonly "toc.stats": string;
   readonly "toc.filteredStats": string;
@@ -31,6 +33,14 @@ export interface Messages {
   readonly "stats.label": string;
   readonly "stats.filteredLabel": string;
   readonly "stats.progress": string;
+  readonly "stats.autoFailureMode": string;
+  readonly "error.parseFailed": string;
+  readonly "error.location": string;
+  readonly "error.rawLine": string;
+  readonly "error.context": string;
+  readonly "error.copyRawLine": string;
+  readonly "error.copyDetails": string;
+  readonly "error.message": string;
   readonly "extension.openInUnquote": string;
   readonly "search.placeholder": string;
   readonly "search.regex": string;

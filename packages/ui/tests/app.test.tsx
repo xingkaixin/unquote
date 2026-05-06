@@ -67,6 +67,7 @@ Object.assign(globalThis, {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  localStorage.clear();
 });
 
 describe("UnquoteApp", () => {
@@ -131,6 +132,55 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByText("Copy JSONL"));
 
     expect(writeText).toHaveBeenLastCalledWith('{"level":"info","payload":{"nested":true}}');
+  });
+
+  it("shows JSON parse location in the source pane", async () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={"{\n bad\n}"} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("JSON parse failed").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Auto parsed as JSON").length).toBeGreaterThan(0);
+  });
+
+  it("shows parse error UI in Chinese locale", async () => {
+    localStorage.setItem("unquote-locale", "zh-CN");
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={"{\n bad\n}"} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("JSON 解析失败").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("第 2 行，第 2 列").length).toBeGreaterThan(0);
+  });
+
+  it("copies a failed JSONL raw line", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"ok":1}\n{bad}'} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0));
+    await user.click(screen.getAllByRole("button", { name: /Copy raw line/ })[0]!);
+
+    expect(writeText).toHaveBeenLastCalledWith("{bad}");
+
+    await user.click(screen.getAllByRole("button", { name: /Copy error/ })[0]!);
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining("Line 2, column 2"));
   });
 
   it("shows file drag feedback on the source input", () => {

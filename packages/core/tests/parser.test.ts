@@ -31,6 +31,36 @@ describe("parseInput", () => {
     expect(result.records[1]?.error).toBeTruthy();
   });
 
+  it("returns json parse error metadata", () => {
+    const result = parseInput("{\n bad\n}");
+    const record = result.records[0];
+
+    expect(result.format).toBe("json");
+    expect(record?.errorMeta).toMatchObject({
+      line: 2,
+      column: 2,
+      rawLine: " bad",
+    });
+    expect(record?.rawLine).toBe(" bad");
+    expect(record?.errorMeta?.context).toContain("2 |  bad");
+    expect(record?.errorMeta?.context).toContain("^");
+  });
+
+  it("returns jsonl failure metadata and keeps valid records in auto mode", () => {
+    const result = parseInput('{"ok":1}\n{bad}\n{"ok":2}');
+    const failed = result.records[1];
+
+    expect(result.format).toBe("jsonl");
+    expect(result.stats).toEqual({ total: 3, success: 2, failed: 1 });
+    expect(failed?.errorMeta).toMatchObject({
+      line: 2,
+      column: 2,
+      rawLine: "{bad}",
+    });
+    expect(failed?.rawLine).toBe("{bad}");
+    expect(failed?.errorMeta?.context).toContain("2 | {bad}");
+  });
+
   it("parses a jsonl line with source line metadata", () => {
     const record = parseJsonlRecordLine('{"event":"two"}', 7);
     expect(record.id).toBe("record-7");
