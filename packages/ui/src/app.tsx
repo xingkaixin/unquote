@@ -1,5 +1,4 @@
 import type { JsonlRecord } from "@unquote/core";
-import { formatResult } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
@@ -7,6 +6,7 @@ import { LocaleToggle } from "./components/locale-toggle";
 import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
 import { PathJumpBar } from "./components/path-jump-bar";
+import { RecordFilterBar } from "./components/record-filter-bar";
 import { RecordList } from "./components/record-list";
 import { SearchBar } from "./components/search-bar";
 import { StatusFooter } from "./components/status-footer";
@@ -18,12 +18,13 @@ import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
 import {
   collectStringifiedPaths,
+  filterRecords,
   hasJsonlRecords,
   materializeRecord,
   resolveTreePathMatches,
   searchRecords,
 } from "./lib/tree";
-import type { ResolvedTreePath, TreeRow } from "./lib/tree";
+import type { RecordFilterMode, ResolvedTreePath, TreeRow } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -119,6 +120,43 @@ const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): PathInspecto
   sourceState: row.sourceState,
 });
 
+const getRecordStats = (records: JsonlRecord[]) => {
+  const success = records.filter((record) => record.node).length;
+  return {
+    total: records.length,
+    success,
+    failed: records.length - success,
+  };
+};
+
+const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
+  if (record.node) {
+    return materializeRecord(record, restoredRecordIds);
+  }
+
+  return {
+    lineNumber: record.lineNumber,
+    error: record.error ?? "Parse error",
+    summary: record.summary,
+  };
+};
+
+const formatRecordsAsJsonl = (records: JsonlRecord[], restoredRecordIds: Set<string>) =>
+  records.map((record) => JSON.stringify(getCopyValue(record, restoredRecordIds))).join("\n");
+
+const formatRecordsAsJson = (
+  records: JsonlRecord[],
+  restoredRecordIds: Set<string>,
+  format: "json" | "jsonl",
+) => {
+  const values = records.map((record) => getCopyValue(record, restoredRecordIds));
+  if (format === "json") {
+    return JSON.stringify(values[0] ?? null, null, 2);
+  }
+
+  return JSON.stringify(values, null, 2);
+};
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -157,6 +195,7 @@ export const UnquoteApp = ({
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [searchJq, setSearchJq] = useState(false);
+  const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [pathQuery, setPathQuery] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
@@ -183,18 +222,39 @@ export const UnquoteApp = ({
     });
   }, [result.records, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
-  const matchCount = matches?.length ?? 0;
+  const visibleRecords = useMemo(
+    () => filterRecords(result.records, recordFilter, matches),
+    [matches, recordFilter, result.records],
+  );
+  const visibleStats = useMemo(() => getRecordStats(visibleRecords), [visibleRecords]);
+  const visibleMatches = useMemo(() => {
+    if (!matches) return null;
+
+    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
+    return matches.filter((match) => visibleRecordIds.has(match.recordId));
+  }, [matches, visibleRecords]);
+  const matchCount = visibleMatches?.length ?? 0;
 
   useEffect(() => {
     setCurrentMatchIndex(0);
     setScrollTarget(null);
-  }, [searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+  }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
-    if (!matches || matches.length === 0) return;
+    setPathError(null);
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
+  }, [recordFilter]);
+
+  useEffect(() => {
+    setCurrentMatchIndex((current) => (matchCount === 0 ? 0 : Math.min(current, matchCount - 1)));
+  }, [matchCount]);
+
+  useEffect(() => {
+    if (!visibleMatches || visibleMatches.length === 0) return;
 
     const pathsToExpand = new Set<string>();
-    for (const match of matches) {
+    for (const match of visibleMatches) {
       for (const path of match.stringifiedPathChain) {
         pathsToExpand.add(path);
       }
@@ -207,15 +267,16 @@ export const UnquoteApp = ({
       }
       return next;
     });
-  }, [matches]);
+  }, [visibleMatches]);
 
   const activeMatch = useMemo(() => {
-    if (!matches || matches.length === 0) return null;
+    if (!visibleMatches || visibleMatches.length === 0) return null;
+    const match = visibleMatches[currentMatchIndex] ?? visibleMatches[0]!;
     return {
-      recordId: matches[currentMatchIndex]!.recordId,
-      pathText: matches[currentMatchIndex]!.pathText,
+      recordId: match.recordId,
+      pathText: match.pathText,
     };
-  }, [matches, currentMatchIndex]);
+  }, [visibleMatches, currentMatchIndex]);
 
   const handlePrevMatch = () => {
     if (matchCount === 0) return;
@@ -262,7 +323,7 @@ export const UnquoteApp = ({
   };
 
   const handlePathJump = () => {
-    const resolved = resolveTreePathMatches(result.records, pathQuery);
+    const resolved = resolveTreePathMatches(visibleRecords, pathQuery);
     if (!resolved.ok) {
       setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
       setPathMatches([]);
@@ -291,9 +352,22 @@ export const UnquoteApp = ({
   }, [onSourceChange, sourceText]);
 
   useEffect(() => {
-    const firstRecord = result.records[0];
-    setActiveRecordId((current) => current ?? firstRecord?.id ?? null);
-  }, [result.records]);
+    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
+    const firstRecord = visibleRecords[0];
+    setActiveRecordId((current) =>
+      current && visibleRecordIds.has(current) ? current : (firstRecord?.id ?? null),
+    );
+  }, [visibleRecords]);
+
+  useEffect(() => {
+    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
+    if (selectedPath && !visibleRecordIds.has(selectedPath.recordId)) {
+      setSelectedPath(null);
+    }
+    if (scrollTarget && !visibleRecordIds.has(scrollTarget.recordId)) {
+      setScrollTarget(null);
+    }
+  }, [scrollTarget, selectedPath, visibleRecords]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -395,13 +469,19 @@ export const UnquoteApp = ({
     }
   };
 
-  const handleCopyAll = async () => {
-    await navigator.clipboard.writeText(formatResult(result));
+  const handleCopyJsonl = async () => {
+    await navigator.clipboard.writeText(formatRecordsAsJsonl(visibleRecords, restoredRecordIds));
+  };
+
+  const handleCopyFormattedJson = async () => {
+    await navigator.clipboard.writeText(
+      formatRecordsAsJson(visibleRecords, restoredRecordIds, result.format),
+    );
   };
 
   const handleExpandAll = () => {
     const all = new Set<string>();
-    result.records.forEach((record) => {
+    visibleRecords.forEach((record) => {
       collectStringifiedPaths(record, expandedStringifiedPaths, restoredRecordIds).forEach(
         (path) => {
           all.add(path);
@@ -457,7 +537,7 @@ export const UnquoteApp = ({
   };
 
   useEffect(() => {
-    if (!outputRef.current || result.records.length === 0) {
+    if (!outputRef.current || visibleRecords.length === 0) {
       return;
     }
 
@@ -477,7 +557,7 @@ export const UnquoteApp = ({
       },
     );
 
-    result.records.forEach((record) => {
+    visibleRecords.forEach((record) => {
       const element = document.getElementById(record.id);
       if (element) {
         observer.observe(element);
@@ -485,13 +565,21 @@ export const UnquoteApp = ({
     });
 
     return () => observer.disconnect();
-  }, [result.records]);
+  }, [visibleRecords]);
 
-  const statsLabel = t("stats.label", {
-    total: result.stats.total,
-    success: result.stats.success,
-    failed: result.stats.failed,
-  });
+  const statsLabel =
+    recordFilter === "all"
+      ? t("stats.label", {
+          total: result.stats.total,
+          success: result.stats.success,
+          failed: result.stats.failed,
+        })
+      : t("stats.filteredLabel", {
+          shown: visibleStats.total,
+          total: result.stats.total,
+          success: visibleStats.success,
+          failed: visibleStats.failed,
+        });
   const progressLabel = progress.done
     ? statsLabel
     : `${statsLabel} · ${t("stats.progress", {
@@ -515,11 +603,12 @@ export const UnquoteApp = ({
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
-        onCopyAll={handleCopyAll}
+        onCopyJsonl={handleCopyJsonl}
+        onCopyFormattedJson={handleCopyFormattedJson}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
         searchBar={
-          <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(220px,0.9fr)_minmax(260px,1fr)]">
+          <div className="grid min-w-0 gap-2 xl:grid-cols-[minmax(220px,0.8fr)_minmax(260px,1fr)_minmax(350px,auto)]">
             <PathJumpBar
               value={pathQuery}
               error={pathError}
@@ -544,14 +633,20 @@ export const UnquoteApp = ({
               onPrev={handlePrevMatch}
               onNext={handleNextMatch}
             />
+            <RecordFilterBar
+              mode={recordFilter}
+              visibleCount={visibleStats.total}
+              totalCount={result.stats.total}
+              onModeChange={setRecordFilter}
+            />
           </div>
         }
       />
       <RecordList
-        records={result.records}
+        records={visibleRecords}
         expandedStringifiedPaths={expandedStringifiedPaths}
         restoredRecordIds={restoredRecordIds}
-        searchMatches={matches ?? []}
+        searchMatches={visibleMatches ?? []}
         activeMatch={activeMatch}
         scrollTarget={scrollTarget}
         selectedPath={selectedPath}
@@ -659,7 +754,8 @@ export const UnquoteApp = ({
               </button>
             ) : hasJsonlRecords(result) ? (
               <TocPane
-                result={result}
+                records={visibleRecords}
+                totalCount={result.stats.total}
                 activeRecordId={activeRecordId}
                 onSelect={handleSelectRecord}
               />

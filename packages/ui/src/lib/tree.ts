@@ -394,6 +394,23 @@ export const collectStringifiedPaths = (
   return [...output];
 };
 
+const containsStringifiedNode = (node: JsonNode): boolean => {
+  if (node.wasStringified) {
+    return true;
+  }
+
+  if (!node.children) {
+    return false;
+  }
+
+  return Array.isArray(node.children)
+    ? node.children.some(containsStringifiedNode)
+    : Object.values(node.children).some(containsStringifiedNode);
+};
+
+export const recordContainsStringifiedJson = (record: JsonlRecord) =>
+  Boolean(record.node && containsStringifiedNode(record.node));
+
 export interface TextRange {
   start: number;
   end: number;
@@ -522,6 +539,29 @@ export const searchRecords = (
   }
 
   return matches;
+};
+
+export type RecordFilterMode = "all" | "matches" | "errors" | "nested";
+
+export const filterRecords = (
+  records: JsonlRecord[],
+  mode: RecordFilterMode,
+  matches: SearchMatch[] | null,
+) => {
+  if (mode === "all") {
+    return records;
+  }
+
+  if (mode === "matches") {
+    const matchedRecordIds = new Set(matches?.map((match) => match.recordId) ?? []);
+    return records.filter((record) => matchedRecordIds.has(record.id));
+  }
+
+  if (mode === "errors") {
+    return records.filter((record) => !record.node);
+  }
+
+  return records.filter(recordContainsStringifiedJson);
 };
 
 export interface ResolvedTreePath {

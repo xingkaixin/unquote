@@ -1,25 +1,53 @@
-import { ClipboardCopy, RotateCcw, Sparkles } from "lucide-react";
+import { Braces, ChevronDown, ClipboardCopy, List, RotateCcw, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
 
 interface ToolbarProps {
-  onCopyAll: () => void;
+  onCopyJsonl: () => void;
+  onCopyFormattedJson: () => void;
   onExpandAll: () => void;
   onRestoreAll: () => void;
   searchBar?: ReactNode;
 }
 
-export const Toolbar = ({ onCopyAll, onExpandAll, onRestoreAll, searchBar }: ToolbarProps) => {
+export const Toolbar = ({
+  onCopyJsonl,
+  onCopyFormattedJson,
+  onExpandAll,
+  onRestoreAll,
+  searchBar,
+}: ToolbarProps) => {
   const { t } = useTranslation();
   return (
     <div className="sticky top-11 z-20 flex flex-wrap items-center justify-between gap-2 rounded-b-md border-x border-b border-border bg-[var(--background)]/80 px-4 py-2 shadow-sm backdrop-blur-md">
       {searchBar ? <div className="min-w-0 flex-1 basis-[280px]">{searchBar}</div> : null}
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" onClick={onCopyAll}>
-          <ClipboardCopy className="size-3.5" />
-          {t("toolbar.copyAll")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <ClipboardCopy className="size-3.5" />
+              {t("toolbar.copy")}
+              <ChevronDown className="size-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={onCopyJsonl}>
+              <List className="mr-2 size-3.5" />
+              {t("toolbar.copyJsonl")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onCopyFormattedJson}>
+              <Braces className="mr-2 size-3.5" />
+              {t("toolbar.copyFormattedJson")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button variant="secondary" size="sm" onClick={onExpandAll}>
           <Sparkles className="size-3.5" />
           {t("toolbar.expandAll")}

@@ -1,29 +1,35 @@
-import type { JsonlRecord, ParseResult } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
 
 interface TocPaneProps {
-  result: ParseResult;
+  records: JsonlRecord[];
+  totalCount: number;
   activeRecordId: string | null;
   onSelect: (record: JsonlRecord) => void;
 }
 
-export const TocPane = ({ result, activeRecordId, onSelect }: TocPaneProps) => {
+export const TocPane = ({ records, totalCount, activeRecordId, onSelect }: TocPaneProps) => {
   const { t } = useTranslation();
+  const success = records.filter((record) => record.node).length;
+  const failed = records.length - success;
+  const description =
+    records.length === totalCount
+      ? t("toc.stats", { success, failed })
+      : t("toc.filteredStats", { shown: records.length, total: totalCount, success, failed });
+
   return (
     <Card className="hidden min-h-0 flex-1 overflow-hidden bg-surface-50 lg:flex lg:flex-col">
       <CardHeader>
         <CardTitle>{t("toc.title")}</CardTitle>
-        <CardDescription>
-          {result.stats.success} ok · {result.stats.failed} err
-        </CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col px-2 pb-2">
         <div className="min-h-0 flex-1 overflow-y-auto px-1">
           <div className="flex flex-col gap-1">
-            {result.records.map((record) => {
+            {records.map((record) => {
               const active = activeRecordId === record.id;
               const variant = record.node ? "success" : "danger";
               return (

@@ -15,10 +15,16 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-Object.assign(navigator, {
-  clipboard: {
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: {
     writeText: vi.fn(),
   },
+});
+
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+  configurable: true,
+  value: vi.fn(),
 });
 
 Object.assign(globalThis, {

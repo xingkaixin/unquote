@@ -9,7 +9,9 @@ export interface Messages {
   readonly "theme.light": string;
   readonly "theme.dark": string;
   readonly "theme.system": string;
-  readonly "toolbar.copyAll": string;
+  readonly "toolbar.copy": string;
+  readonly "toolbar.copyJsonl": string;
+  readonly "toolbar.copyFormattedJson": string;
   readonly "toolbar.expandAll": string;
   readonly "toolbar.restoreAll": string;
   readonly "input.expandSource": string;
@@ -21,10 +23,13 @@ export interface Messages {
   readonly "input.parsingFile": string;
   readonly "input.loadedFile": string;
   readonly "toc.title": string;
+  readonly "toc.stats": string;
+  readonly "toc.filteredStats": string;
   readonly "tree.nodes": string;
   readonly "tree.scrollHint": string;
   readonly "tree.toggle": string;
   readonly "stats.label": string;
+  readonly "stats.filteredLabel": string;
   readonly "stats.progress": string;
   readonly "extension.openInUnquote": string;
   readonly "search.placeholder": string;
@@ -34,6 +39,10 @@ export interface Messages {
   readonly "search.next": string;
   readonly "search.clear": string;
   readonly "search.jq": string;
+  readonly "filter.all": string;
+  readonly "filter.matches": string;
+  readonly "filter.errors": string;
+  readonly "filter.nested": string;
   readonly "path.placeholder": string;
   readonly "path.jump": string;
   readonly "path.invalid": string;

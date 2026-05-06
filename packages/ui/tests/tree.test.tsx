@@ -2,11 +2,14 @@ import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import {
   buildRecordRows,
+  filterRecords,
   formatJqSelector,
   formatJsonPath,
   parseTreePath,
+  recordContainsStringifiedJson,
   resolveTreePath,
   resolveTreePathMatches,
+  searchRecords,
 } from "../src/lib/tree";
 
 describe("tree paths", () => {
@@ -80,5 +83,28 @@ describe("tree paths", () => {
   it("rejects invalid path syntax", () => {
     expect(parseTreePath("$.payload[abc]")).toBeNull();
     expect(resolveTreePath([], "$.payload[abc]")).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("filters records by search matches, parse errors, and nested JSON", () => {
+    const result = parseInput(
+      '{"level":"info","payload":"{\\"nested\\":true}"}\n{"level":"error","message":"boom"}\nnot-json',
+      { forcedFormat: "jsonl" },
+    );
+    const matches = searchRecords(result.records, "boom", {
+      regex: false,
+      caseSensitive: false,
+      jq: false,
+    });
+
+    expect(
+      filterRecords(result.records, "matches", matches).map((record) => record.lineNumber),
+    ).toEqual([2]);
+    expect(
+      filterRecords(result.records, "errors", matches).map((record) => record.lineNumber),
+    ).toEqual([3]);
+    expect(
+      filterRecords(result.records, "nested", matches).map((record) => record.lineNumber),
+    ).toEqual([1]);
+    expect(recordContainsStringifiedJson(result.records[0]!)).toBe(true);
   });
 });
