@@ -6,12 +6,15 @@
       "outputs": ["dist/**", ".output/**"]
     },
     "@unquote/ui#build": {
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "@unquote/web#build": {
+      "dependsOn": ["^build"],
       "outputs": ["../../dist/web/**"]
     },
     "@unquote/extension#build": {
+      "dependsOn": ["^build"],
       "outputs": ["../../dist/extension/**"]
     },
     "dev": {
