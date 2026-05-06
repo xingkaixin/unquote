@@ -6,6 +6,10 @@ export interface TreeRow {
   recordId: string;
   path: string[];
   pathText: string;
+  jsonPath: string;
+  jqPath: string;
+  stringifiedPathChain: string[];
+  sourceState: NodeSourceState;
   depth: number;
   keyLabel: string;
   kind: JsonNode["kind"];
@@ -16,16 +20,210 @@ export interface TreeRow {
   node: JsonNode;
 }
 
-const stringifyPath = (path: string[]) => {
-  const [, ...rest] = path;
-  if (rest.length === 0) {
-    return "$";
+export type TreePathSegmentKind = "key" | "index";
+
+export interface TreePathSegment {
+  kind: TreePathSegmentKind;
+  value: string;
+}
+
+export type NodeSourceState = "source" | "stringified" | "inside-stringified";
+
+const safeIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const arrayIndexPattern = /^(0|[1-9]\d*)$/;
+
+const quotePathKey = (key: string) => JSON.stringify(key);
+
+export const formatJsonPath = (segments: TreePathSegment[]) =>
+  segments.reduce((path, segment) => {
+    if (segment.kind === "index") {
+      return `${path}[${segment.value}]`;
+    }
+
+    if (safeIdentifierPattern.test(segment.value)) {
+      return `${path}.${segment.value}`;
+    }
+
+    return `${path}[${quotePathKey(segment.value)}]`;
+  }, "$");
+
+export const formatJqSelector = (segments: TreePathSegment[]) => {
+  if (segments.length === 0) {
+    return ".";
   }
 
-  return rest.reduce((accumulator, segment) => {
-    const numeric = /^\d+$/.test(segment);
-    return numeric ? `${accumulator}[${segment}]` : `${accumulator}.${segment}`;
-  }, "$");
+  return segments.reduce((path, segment) => {
+    if (segment.kind === "index") {
+      return `${path}[${segment.value}]`;
+    }
+
+    if (safeIdentifierPattern.test(segment.value)) {
+      return path === "." ? `${path}${segment.value}` : `${path}.${segment.value}`;
+    }
+
+    return `${path}[${quotePathKey(segment.value)}]`;
+  }, ".");
+};
+
+const parseDoubleQuotedSegment = (selector: string, start: number) => {
+  let cursor = start + 1;
+  while (cursor < selector.length) {
+    const char = selector[cursor];
+    if (char === "\\") {
+      cursor += 2;
+      continue;
+    }
+    if (char === '"') {
+      try {
+        const value = JSON.parse(selector.slice(start, cursor + 1));
+        return typeof value === "string" ? { value, next: cursor + 1 } : null;
+      } catch {
+        return null;
+      }
+    }
+    cursor += 1;
+  }
+
+  return null;
+};
+
+const parseSingleQuotedSegment = (selector: string, start: number) => {
+  let cursor = start + 1;
+  let value = "";
+
+  while (cursor < selector.length) {
+    const char = selector[cursor];
+    if (char === "\\") {
+      const escaped = selector[cursor + 1];
+      if (!escaped) {
+        return null;
+      }
+
+      const escapeMap: Record<string, string> = {
+        "'": "'",
+        '"': '"',
+        "\\": "\\",
+        b: "\b",
+        f: "\f",
+        n: "\n",
+        r: "\r",
+        t: "\t",
+      };
+      value += escapeMap[escaped] ?? escaped;
+      cursor += 2;
+      continue;
+    }
+
+    if (char === "'") {
+      return { value, next: cursor + 1 };
+    }
+
+    value += char;
+    cursor += 1;
+  }
+
+  return null;
+};
+
+const parseBracketSegment = (selector: string, start: number) => {
+  const first = selector[start + 1];
+  if (first === '"') {
+    const parsed = parseDoubleQuotedSegment(selector, start + 1);
+    if (!parsed || selector[parsed.next] !== "]") {
+      return null;
+    }
+
+    return {
+      segment: { kind: "key", value: parsed.value } satisfies TreePathSegment,
+      next: parsed.next + 1,
+    };
+  }
+
+  if (first === "'") {
+    const parsed = parseSingleQuotedSegment(selector, start + 1);
+    if (!parsed || selector[parsed.next] !== "]") {
+      return null;
+    }
+
+    return {
+      segment: { kind: "key", value: parsed.value } satisfies TreePathSegment,
+      next: parsed.next + 1,
+    };
+  }
+
+  const end = selector.indexOf("]", start + 1);
+  if (end === -1) {
+    return null;
+  }
+
+  const value = selector.slice(start + 1, end).trim();
+  if (!arrayIndexPattern.test(value)) {
+    return null;
+  }
+
+  return {
+    segment: { kind: "index", value } satisfies TreePathSegment,
+    next: end + 1,
+  };
+};
+
+export const parseTreePath = (selector: string): TreePathSegment[] | null => {
+  const input = selector.trim();
+  if (!input) {
+    return null;
+  }
+
+  let index = 0;
+  if (input[0] === "$") {
+    index = 1;
+  } else if (input[0] !== ".") {
+    return null;
+  } else if (input.length === 1) {
+    return [];
+  }
+
+  const segments: TreePathSegment[] = [];
+  while (index < input.length) {
+    const char = input[index];
+    if (char === ".") {
+      index += 1;
+      if (index >= input.length) {
+        return null;
+      }
+
+      if (input[index] === "[") {
+        continue;
+      }
+
+      const start = index;
+      while (index < input.length && input[index] !== "." && input[index] !== "[") {
+        index += 1;
+      }
+
+      const value = input.slice(start, index);
+      if (!value) {
+        return null;
+      }
+
+      segments.push({ kind: "key", value });
+      continue;
+    }
+
+    if (char === "[") {
+      const parsed = parseBracketSegment(input, index);
+      if (!parsed) {
+        return null;
+      }
+
+      segments.push(parsed.segment);
+      index = parsed.next;
+      continue;
+    }
+
+    return null;
+  }
+
+  return segments;
 };
 
 const formatValueLabel = (node: JsonNode) => {
@@ -56,16 +254,31 @@ const pushRows = (
   rows: TreeRow[],
   expandedStringifiedPaths: Set<string>,
   recordId: string,
+  pathSegments: TreePathSegment[] = [],
+  stringifiedAncestors: string[] = [],
   parentKeyLabel = "$",
 ) => {
-  const pathText = stringifyPath(node.path);
-  const expanded = !node.wasStringified || expandedStringifiedPaths.has(pathText);
+  const jsonPath = formatJsonPath(pathSegments);
+  const jqPath = formatJqSelector(pathSegments);
+  const currentChain = node.wasStringified
+    ? [...stringifiedAncestors, jsonPath]
+    : stringifiedAncestors;
+  const sourceState: NodeSourceState = node.wasStringified
+    ? "stringified"
+    : stringifiedAncestors.length > 0
+      ? "inside-stringified"
+      : "source";
+  const expanded = !node.wasStringified || expandedStringifiedPaths.has(jsonPath);
   const keyLabel = node.path.at(-1) ?? parentKeyLabel;
   rows.push({
-    id: `${recordId}:${pathText}`,
+    id: `${recordId}:${jsonPath}`,
     recordId,
     path: node.path,
-    pathText,
+    pathText: jsonPath,
+    jsonPath,
+    jqPath,
+    stringifiedPathChain: [...currentChain],
+    sourceState,
     depth: Math.max(0, node.path.length - 1),
     keyLabel,
     kind: node.kind,
@@ -82,13 +295,29 @@ const pushRows = (
 
   if (Array.isArray(node.children)) {
     node.children.forEach((child, index) =>
-      pushRows(child, rows, expandedStringifiedPaths, recordId, String(index)),
+      pushRows(
+        child,
+        rows,
+        expandedStringifiedPaths,
+        recordId,
+        [...pathSegments, { kind: "index", value: String(index) }],
+        currentChain,
+        String(index),
+      ),
     );
     return;
   }
 
   Object.entries(node.children).forEach(([key, child]) =>
-    pushRows(child, rows, expandedStringifiedPaths, recordId, key),
+    pushRows(
+      child,
+      rows,
+      expandedStringifiedPaths,
+      recordId,
+      [...pathSegments, { kind: "key", value: key }],
+      currentChain,
+      key,
+    ),
   );
 };
 
@@ -120,8 +349,9 @@ const collectPaths = (
   node: JsonNode,
   expandedStringifiedPaths: Set<string>,
   output: Set<string>,
+  pathSegments: TreePathSegment[] = [],
 ) => {
-  const pathText = stringifyPath(node.path);
+  const pathText = formatJsonPath(pathSegments);
   if (node.wasStringified) {
     output.add(pathText);
   }
@@ -132,12 +362,20 @@ const collectPaths = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child) => collectPaths(child, expandedStringifiedPaths, output));
+    node.children.forEach((child, index) =>
+      collectPaths(child, expandedStringifiedPaths, output, [
+        ...pathSegments,
+        { kind: "index", value: String(index) },
+      ]),
+    );
     return;
   }
 
-  Object.values(node.children).forEach((child) =>
-    collectPaths(child, expandedStringifiedPaths, output),
+  Object.entries(node.children).forEach(([key, child]) =>
+    collectPaths(child, expandedStringifiedPaths, output, [
+      ...pathSegments,
+      { kind: "key", value: key },
+    ]),
   );
 };
 
@@ -199,8 +437,9 @@ const searchNode = (
   stringifiedAncestors: string[],
   matches: SearchMatch[],
   options: SearchOptions,
+  pathSegments: TreePathSegment[] = [],
 ) => {
-  const pathText = stringifyPath(node.path);
+  const pathText = formatJsonPath(pathSegments);
   const currentChain = node.wasStringified
     ? [...stringifiedAncestors, pathText]
     : stringifiedAncestors;
@@ -228,14 +467,20 @@ const searchNode = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child) =>
-      searchNode(child, recordId, pattern, currentChain, matches, options),
+    node.children.forEach((child, index) =>
+      searchNode(child, recordId, pattern, currentChain, matches, options, [
+        ...pathSegments,
+        { kind: "index", value: String(index) },
+      ]),
     );
     return;
   }
 
-  Object.values(node.children).forEach((child) =>
-    searchNode(child, recordId, pattern, currentChain, matches, options),
+  Object.entries(node.children).forEach(([key, child]) =>
+    searchNode(child, recordId, pattern, currentChain, matches, options, [
+      ...pathSegments,
+      { kind: "key", value: key },
+    ]),
   );
 };
 
@@ -277,6 +522,165 @@ export const searchRecords = (
   }
 
   return matches;
+};
+
+export interface ResolvedTreePath {
+  recordId: string;
+  recordLine: number;
+  node: JsonNode;
+  path: string[];
+  pathText: string;
+  jsonPath: string;
+  jqPath: string;
+  rawKey: string;
+  kind: JsonNode["kind"];
+  sourceState: NodeSourceState;
+  stringifiedPathChain: string[];
+  sourceLine?: number;
+}
+
+export type ResolveTreePathResult =
+  | { ok: true; target: ResolvedTreePath }
+  | { ok: false; reason: "invalid" | "not-found" };
+
+export type ResolveTreePathMatchesResult =
+  | { ok: true; targets: ResolvedTreePath[] }
+  | { ok: false; reason: "invalid" | "not-found" };
+
+const getRecordSearchOrder = (records: JsonlRecord[], preferredRecordId?: string) => {
+  if (!preferredRecordId) {
+    return records;
+  }
+
+  const preferred = records.filter((record) => record.id === preferredRecordId);
+  return preferred.concat(records.filter((record) => record.id !== preferredRecordId));
+};
+
+const createResolvedTreePath = (
+  record: JsonlRecord,
+  node: JsonNode,
+  pathSegments: TreePathSegment[],
+  stringifiedPathChain: string[],
+): ResolvedTreePath => {
+  const jsonPath = formatJsonPath(pathSegments);
+  const jqPath = formatJqSelector(pathSegments);
+  const sourceState: NodeSourceState = node.wasStringified
+    ? "stringified"
+    : stringifiedPathChain.length > 0
+      ? "inside-stringified"
+      : "source";
+  const sourceLine = node.meta.sourceLine;
+
+  return {
+    recordId: record.id,
+    recordLine: record.lineNumber,
+    node,
+    path: node.path,
+    pathText: jsonPath,
+    jsonPath,
+    jqPath,
+    rawKey: pathSegments.at(-1)?.value ?? "$",
+    kind: node.kind,
+    sourceState,
+    stringifiedPathChain: [...stringifiedPathChain],
+    ...(typeof sourceLine === "number" ? { sourceLine } : {}),
+  };
+};
+
+const resolvePathInRecord = (
+  record: JsonlRecord,
+  requestedSegments: TreePathSegment[],
+): ResolvedTreePath | null => {
+  if (!record.node) {
+    return null;
+  }
+
+  let node = record.node;
+  const actualSegments: TreePathSegment[] = [];
+  let stringifiedPathChain = node.wasStringified ? [formatJsonPath(actualSegments)] : [];
+
+  for (const requested of requestedSegments) {
+    if (!node.children) {
+      return null;
+    }
+
+    if (Array.isArray(node.children)) {
+      if (requested.kind !== "index") {
+        return null;
+      }
+
+      const index = Number(requested.value);
+      if (!Number.isSafeInteger(index)) {
+        return null;
+      }
+
+      const child = node.children[index];
+      if (!child) {
+        return null;
+      }
+
+      node = child;
+      actualSegments.push({ kind: "index", value: String(index) });
+    } else {
+      if (requested.kind !== "key") {
+        return null;
+      }
+
+      const child = node.children[requested.value];
+      if (!child) {
+        return null;
+      }
+
+      node = child;
+      actualSegments.push({ kind: "key", value: requested.value });
+    }
+
+    if (node.wasStringified) {
+      stringifiedPathChain = [...stringifiedPathChain, formatJsonPath(actualSegments)];
+    }
+  }
+
+  return createResolvedTreePath(record, node, actualSegments, stringifiedPathChain);
+};
+
+export const resolveTreePath = (
+  records: JsonlRecord[],
+  selector: string,
+  preferredRecordId?: string,
+): ResolveTreePathResult => {
+  const requestedSegments = parseTreePath(selector);
+  if (!requestedSegments) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  for (const record of getRecordSearchOrder(records, preferredRecordId)) {
+    const target = resolvePathInRecord(record, requestedSegments);
+    if (target) {
+      return { ok: true, target };
+    }
+  }
+
+  return { ok: false, reason: "not-found" };
+};
+
+export const resolveTreePathMatches = (
+  records: JsonlRecord[],
+  selector: string,
+): ResolveTreePathMatchesResult => {
+  const requestedSegments = parseTreePath(selector);
+  if (!requestedSegments) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const targets: ResolvedTreePath[] = [];
+  for (const record of records) {
+    const target = resolvePathInRecord(record, requestedSegments);
+    if (target) {
+      targets.push(target);
+    }
+  }
+
+  return targets.length > 0 ? { ok: true, targets } : { ok: false, reason: "not-found" };
 };
 
 export const hasJsonlRecords = (result: ParseResult | null) =>

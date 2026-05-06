@@ -17,10 +17,13 @@ interface JsonTreeProps {
   eager?: boolean;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
+  scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
+  selectedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (path: string) => void;
   onCopyRecord: () => void;
   onCopyPath: (path: string) => void;
   onCopyNode: (row: TreeRow) => void;
+  onSelectNode: (row: TreeRow) => void;
   onRestoreRecord: () => void;
   onHoverPath: (path: string | null) => void;
 }
@@ -32,10 +35,13 @@ export const JsonTree = ({
   eager = false,
   searchMatches,
   activeMatch,
+  scrollTarget,
+  selectedPath,
   onTogglePath,
   onCopyRecord,
   onCopyPath,
   onCopyNode,
+  onSelectNode,
   onRestoreRecord,
   onHoverPath,
 }: JsonTreeProps) => {
@@ -92,7 +98,8 @@ export const JsonTree = ({
   }, [hydrated]);
 
   useEffect(() => {
-    if (!activeMatch || activeMatch.recordId !== record.id) {
+    const target = scrollTarget ?? activeMatch;
+    if (!target || target.recordId !== record.id) {
       return;
     }
     if (!hydrated) {
@@ -100,7 +107,7 @@ export const JsonTree = ({
       return;
     }
 
-    const index = rows.findIndex((row) => row.pathText === activeMatch.pathText);
+    const index = rows.findIndex((row) => row.pathText === target.pathText);
     if (index === -1) {
       return;
     }
@@ -115,7 +122,7 @@ export const JsonTree = ({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [activeMatch, record.id, hydrated, rows, shouldVirtualize, rowVirtualizer]);
+  }, [activeMatch, scrollTarget, record.id, hydrated, rows, shouldVirtualize, rowVirtualizer]);
 
   if (!record.node) {
     return (
@@ -174,6 +181,7 @@ export const JsonTree = ({
 
               const searchMatch = searchMatchMap.get(row.pathText);
               const isActive = activeMatch?.pathText === row.pathText;
+              const isSelected = selectedPath?.pathText === row.pathText;
 
               return (
                 <RowItem
@@ -188,9 +196,11 @@ export const JsonTree = ({
                   }}
                   searchMatch={searchMatch}
                   isActiveMatch={isActive}
+                  isSelected={isSelected}
                   onTogglePath={onTogglePath}
                   onCopyPath={onCopyPath}
                   onCopyNode={onCopyNode}
+                  onSelectNode={onSelectNode}
                   onHoverPath={onHoverPath}
                 />
               );
@@ -201,15 +211,18 @@ export const JsonTree = ({
             {rows.map((row) => {
               const searchMatch = searchMatchMap.get(row.pathText);
               const isActive = activeMatch?.pathText === row.pathText;
+              const isSelected = selectedPath?.pathText === row.pathText;
               return (
                 <RowItem
                   key={row.id}
                   row={row}
                   searchMatch={searchMatch}
                   isActiveMatch={isActive}
+                  isSelected={isSelected}
                   onTogglePath={onTogglePath}
                   onCopyPath={onCopyPath}
                   onCopyNode={onCopyNode}
+                  onSelectNode={onSelectNode}
                   onHoverPath={onHoverPath}
                 />
               );
@@ -263,9 +276,11 @@ interface RowItemProps {
   row: TreeRow;
   searchMatch?: SearchMatch | undefined;
   isActiveMatch: boolean;
+  isSelected: boolean;
   onTogglePath: (path: string) => void;
   onCopyPath: (path: string) => void;
   onCopyNode: (row: TreeRow) => void;
+  onSelectNode: (row: TreeRow) => void;
   onHoverPath: (path: string | null) => void;
   virtualized?: boolean;
   style?: CSSProperties;
@@ -276,9 +291,11 @@ const RowItem = ({
   row,
   searchMatch,
   isActiveMatch,
+  isSelected,
   onTogglePath,
   onCopyPath,
   onCopyNode,
+  onSelectNode,
   onHoverPath,
   virtualized = false,
   style,
@@ -289,10 +306,21 @@ const RowItem = ({
     <div
       ref={measureRef}
       id={row.id}
-      className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full items-center border-b border-border px-3 hover:bg-surface-200/50`}
+      className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full cursor-pointer items-center border-b border-border px-3 ${
+        isSelected ? "bg-accent/10" : "hover:bg-surface-200/50"
+      }`}
       style={style}
+      onClick={() => onSelectNode(row)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelectNode(row);
+        }
+      }}
       onMouseEnter={() => onHoverPath(row.pathText)}
       onMouseLeave={() => onHoverPath(null)}
+      role="button"
+      tabIndex={0}
     >
       <div
         className="flex min-w-0 shrink-0 items-center gap-1.5 py-2"
@@ -302,7 +330,10 @@ const RowItem = ({
           <button
             type="button"
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-warning/40 bg-warning/10 text-warning"
-            onClick={() => onTogglePath(row.pathText)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onTogglePath(row.pathText);
+            }}
             aria-label={t("tree.toggle", { key: row.keyLabel })}
           >
             <ChevronRight
@@ -356,7 +387,10 @@ const RowItem = ({
           variant="ghost"
           size="sm"
           className="h-6 px-1.5 text-[11px] text-text-muted"
-          onClick={() => onCopyPath(row.pathText)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onCopyPath(row.jsonPath);
+          }}
         >
           path
         </Button>
@@ -364,7 +398,21 @@ const RowItem = ({
           variant="ghost"
           size="sm"
           className="h-6 px-1.5 text-[11px] text-text-muted"
-          onClick={() => onCopyNode(row)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onCopyPath(row.jqPath);
+          }}
+        >
+          jq
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1.5 text-[11px] text-text-muted"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCopyNode(row);
+          }}
         >
           copy
         </Button>

@@ -4,8 +4,12 @@ import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
+import { PathInspector } from "./components/path-inspector";
+import type { PathInspectorSelection } from "./components/path-inspector";
+import { PathJumpBar } from "./components/path-jump-bar";
 import { RecordList } from "./components/record-list";
 import { SearchBar } from "./components/search-bar";
+import { StatusFooter } from "./components/status-footer";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
@@ -16,11 +20,18 @@ import {
   collectStringifiedPaths,
   hasJsonlRecords,
   materializeRecord,
+  resolveTreePathMatches,
   searchRecords,
 } from "./lib/tree";
-import type { TreeRow } from "./lib/tree";
+import type { ResolvedTreePath, TreeRow } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
+
+interface PathScrollTarget {
+  recordId: string;
+  pathText: string;
+  requestId: number;
+}
 
 const formatFileSize = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB"] as const;
@@ -86,6 +97,28 @@ const readFileText = async (file: File, onProgress: (progress: number) => void) 
   return text;
 };
 
+const createSelectionFromTarget = (target: ResolvedTreePath): PathInspectorSelection => ({
+  recordId: target.recordId,
+  recordLine: target.recordLine,
+  pathText: target.pathText,
+  jsonPath: target.jsonPath,
+  jqPath: target.jqPath,
+  rawKey: target.rawKey,
+  kind: target.kind,
+  sourceState: target.sourceState,
+});
+
+const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): PathInspectorSelection => ({
+  recordId: record.id,
+  recordLine: record.lineNumber,
+  pathText: row.pathText,
+  jsonPath: row.jsonPath,
+  jqPath: row.jqPath,
+  rawKey: row.keyLabel,
+  kind: row.kind,
+  sourceState: row.sourceState,
+});
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -125,8 +158,15 @@ export const UnquoteApp = ({
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [searchJq, setSearchJq] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [pathQuery, setPathQuery] = useState("");
+  const [pathError, setPathError] = useState<string | null>(null);
+  const [pathMatches, setPathMatches] = useState<ResolvedTreePath[]>([]);
+  const [currentPathMatchIndex, setCurrentPathMatchIndex] = useState(0);
+  const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
+  const [scrollTarget, setScrollTarget] = useState<PathScrollTarget | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const fileImportIdRef = useRef(0);
+  const scrollRequestIdRef = useRef(0);
   const { result, progress } = useParser(
     sourceText,
     mode === "auto" ? undefined : mode,
@@ -147,6 +187,7 @@ export const UnquoteApp = ({
 
   useEffect(() => {
     setCurrentMatchIndex(0);
+    setScrollTarget(null);
   }, [searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
@@ -178,12 +219,71 @@ export const UnquoteApp = ({
 
   const handlePrevMatch = () => {
     if (matchCount === 0) return;
+    setScrollTarget(null);
     setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
   };
 
   const handleNextMatch = () => {
     if (matchCount === 0) return;
+    setScrollTarget(null);
     setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+  };
+
+  const scrollToPath = (recordId: string, pathText: string) => {
+    scrollRequestIdRef.current += 1;
+    setScrollTarget({ recordId, pathText, requestId: scrollRequestIdRef.current });
+  };
+
+  const handlePathQueryChange = (value: string) => {
+    setPathQuery(value);
+    setPathError(null);
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
+  };
+
+  const applyPathTarget = (target: ResolvedTreePath, index: number) => {
+    setPathError(null);
+    setCurrentPathMatchIndex(index);
+    setSelectedPath(createSelectionFromTarget(target));
+    setActiveRecordId(target.recordId);
+    setRestoredRecordIds((current) => {
+      const next = new Set(current);
+      next.delete(target.recordId);
+      return next;
+    });
+    setExpandedStringifiedPaths((current) => {
+      const next = new Set(current);
+      for (const path of target.stringifiedPathChain) {
+        next.add(path);
+      }
+      return next;
+    });
+    scrollToPath(target.recordId, target.pathText);
+  };
+
+  const handlePathJump = () => {
+    const resolved = resolveTreePathMatches(result.records, pathQuery);
+    if (!resolved.ok) {
+      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
+      return;
+    }
+
+    setPathMatches(resolved.targets);
+    applyPathTarget(resolved.targets[0]!, 0);
+  };
+
+  const handlePrevPathMatch = () => {
+    if (pathMatches.length === 0) return;
+    const nextIndex = (currentPathMatchIndex - 1 + pathMatches.length) % pathMatches.length;
+    applyPathTarget(pathMatches[nextIndex]!, nextIndex);
+  };
+
+  const handleNextPathMatch = () => {
+    if (pathMatches.length === 0) return;
+    const nextIndex = (currentPathMatchIndex + 1) % pathMatches.length;
+    applyPathTarget(pathMatches[nextIndex]!, nextIndex);
   };
 
   useEffect(() => {
@@ -222,6 +322,11 @@ export const UnquoteApp = ({
     setSourceText(value);
     setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(new Set());
+    setSelectedPath(null);
+    setScrollTarget(null);
+    setPathError(null);
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
     if (value.length > largeSourceCollapseBytes) {
       setSourceCollapsed(true);
     }
@@ -247,6 +352,11 @@ export const UnquoteApp = ({
       setSourceText("");
       setRestoredRecordIds(new Set());
       setExpandedStringifiedPaths(new Set());
+      setSelectedPath(null);
+      setScrollTarget(null);
+      setPathError(null);
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
       setSourceCollapsed(true);
       return;
     }
@@ -307,6 +417,10 @@ export const UnquoteApp = ({
     setRestoredRecordIds(
       new Set(result.records.filter((record) => record.node).map((record) => record.id)),
     );
+    setSelectedPath(null);
+    setScrollTarget(null);
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
   };
 
   const handleTogglePath = (path: string) => {
@@ -328,6 +442,12 @@ export const UnquoteApp = ({
 
   const handleCopyNode = async (_recordId: string, row: TreeRow) => {
     await navigator.clipboard.writeText(JSON.stringify(row.node.value, null, 2));
+  };
+
+  const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
+    setSelectedPath(createSelectionFromRow(record, row));
+    setActiveRecordId(record.id);
+    scrollToPath(record.id, row.pathText);
   };
 
   const handleSelectRecord = (record: JsonlRecord) => {
@@ -395,27 +515,36 @@ export const UnquoteApp = ({
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
-        detectedFormat={detectedFormat}
-        pathLabel={hoveredPath}
-        statsLabel={progressLabel}
         onCopyAll={handleCopyAll}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
         searchBar={
-          <SearchBar
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            regex={searchRegex}
-            onRegexChange={setSearchRegex}
-            caseSensitive={searchCaseSensitive}
-            onCaseSensitiveChange={setSearchCaseSensitive}
-            jq={searchJq}
-            onJqChange={setSearchJq}
-            matchCount={matchCount}
-            currentIndex={currentMatchIndex}
-            onPrev={handlePrevMatch}
-            onNext={handleNextMatch}
-          />
+          <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(220px,0.9fr)_minmax(260px,1fr)]">
+            <PathJumpBar
+              value={pathQuery}
+              error={pathError}
+              matchCount={pathMatches.length}
+              currentIndex={currentPathMatchIndex}
+              onChange={handlePathQueryChange}
+              onSubmit={handlePathJump}
+              onPrev={handlePrevPathMatch}
+              onNext={handleNextPathMatch}
+            />
+            <SearchBar
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              regex={searchRegex}
+              onRegexChange={setSearchRegex}
+              caseSensitive={searchCaseSensitive}
+              onCaseSensitiveChange={setSearchCaseSensitive}
+              jq={searchJq}
+              onJqChange={setSearchJq}
+              matchCount={matchCount}
+              currentIndex={currentMatchIndex}
+              onPrev={handlePrevMatch}
+              onNext={handleNextMatch}
+            />
+          </div>
         }
       />
       <RecordList
@@ -424,13 +553,20 @@ export const UnquoteApp = ({
         restoredRecordIds={restoredRecordIds}
         searchMatches={matches ?? []}
         activeMatch={activeMatch}
+        scrollTarget={scrollTarget}
+        selectedPath={selectedPath}
         onTogglePath={handleTogglePath}
         onCopyRecord={handleCopyRecord}
         onCopyPath={(path) => navigator.clipboard.writeText(path)}
         onCopyNode={handleCopyNode}
-        onRestoreRecord={(recordId) =>
-          setRestoredRecordIds((current) => new Set(current).add(recordId))
-        }
+        onSelectNode={handleSelectNode}
+        onRestoreRecord={(recordId) => {
+          setRestoredRecordIds((current) => new Set(current).add(recordId));
+          if (selectedPath?.recordId === recordId) {
+            setSelectedPath(null);
+            setScrollTarget(null);
+          }
+        }}
         onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />
     </div>
@@ -438,7 +574,7 @@ export const UnquoteApp = ({
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-[var(--background)]/80 px-4 py-2 backdrop-blur-md">
+      <header className="sticky top-0 z-30 flex h-11 items-center justify-between border-b border-border bg-[var(--background)]/80 px-4 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <span className="text-[15px] font-semibold tracking-tight text-text-primary">
             Unquote
@@ -462,7 +598,11 @@ export const UnquoteApp = ({
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-4 py-3 lg:px-6">
+      <main
+        className={`mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-4 pt-0 lg:px-6 ${
+          selectedPath ? "pb-36" : "pb-14"
+        }`}
+      >
         <Tabs defaultValue="workspace" className="flex flex-col gap-3 lg:hidden">
           <TabsList>
             <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
@@ -489,7 +629,11 @@ export const UnquoteApp = ({
         <div
           className={`hidden items-start gap-3 lg:grid ${sourceCollapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
         >
-          <div className="sticky top-12 flex max-h-[calc(100vh-3.5rem)] flex-col gap-3 overflow-hidden">
+          <div
+            className={`sticky top-11 flex flex-col gap-3 overflow-hidden ${
+              selectedPath ? "max-h-[calc(100vh-9rem)]" : "max-h-[calc(100vh-5.75rem)]"
+            }`}
+          >
             <InputPane
               value={sourceText}
               mode={mode}
@@ -524,6 +668,20 @@ export const UnquoteApp = ({
           <div className="min-w-0">{output}</div>
         </div>
       </main>
+      <StatusFooter
+        detectedFormat={detectedFormat}
+        statsLabel={progressLabel}
+        pathLabel={hoveredPath}
+        inspector={
+          selectedPath ? (
+            <PathInspector
+              selection={selectedPath}
+              onCopy={(value) => navigator.clipboard.writeText(value)}
+              onClear={() => setSelectedPath(null)}
+            />
+          ) : null
+        }
+      />
     </div>
   );
 };

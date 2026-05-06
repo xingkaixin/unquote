@@ -34,6 +34,21 @@ export interface Messages {
   readonly "search.next": string;
   readonly "search.clear": string;
   readonly "search.jq": string;
+  readonly "path.placeholder": string;
+  readonly "path.jump": string;
+  readonly "path.invalid": string;
+  readonly "path.notFound": string;
+  readonly "path.inspector": string;
+  readonly "path.copyJsonPath": string;
+  readonly "path.copyJq": string;
+  readonly "path.rawKey": string;
+  readonly "path.type": string;
+  readonly "path.source": string;
+  readonly "path.record": string;
+  readonly "path.clearSelection": string;
+  readonly "path.source.source": string;
+  readonly "path.source.stringified": string;
+  readonly "path.source.insideStringified": string;
 }
 
 export type MessageKey = keyof Messages;
