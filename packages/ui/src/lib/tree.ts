@@ -178,7 +178,10 @@ export interface SearchOptions {
 
 const findRanges = (text: string, pattern: RegExp): TextRange[] => {
   const ranges: TextRange[] = [];
-  const clone = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  const clone = new RegExp(
+    pattern.source,
+    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
+  );
   let match: RegExpExecArray | null;
   while ((match = clone.exec(text)) !== null) {
     ranges.push({ start: match.index, end: match.index + match[0].length });
@@ -198,7 +201,9 @@ const searchNode = (
   options: SearchOptions,
 ) => {
   const pathText = stringifyPath(node.path);
-  const currentChain = node.wasStringified ? [...stringifiedAncestors, pathText] : stringifiedAncestors;
+  const currentChain = node.wasStringified
+    ? [...stringifiedAncestors, pathText]
+    : stringifiedAncestors;
 
   const keyLabel = node.path.at(-1) ?? "$";
   const valueLabel = formatValueLabel(node);
@@ -223,11 +228,15 @@ const searchNode = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child) => searchNode(child, recordId, pattern, currentChain, matches, options));
+    node.children.forEach((child) =>
+      searchNode(child, recordId, pattern, currentChain, matches, options),
+    );
     return;
   }
 
-  Object.values(node.children).forEach((child) => searchNode(child, recordId, pattern, currentChain, matches, options));
+  Object.values(node.children).forEach((child) =>
+    searchNode(child, recordId, pattern, currentChain, matches, options),
+  );
 };
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {

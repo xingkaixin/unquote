@@ -14,7 +14,7 @@ export default defineConfig({
     name: "__MSG_appName__",
     description: "__MSG_appDescription__",
     default_locale: "en",
-    permissions: ["contextMenus", "storage"],
+    permissions: ["contextMenus", "storage", "clipboardRead"],
     commands: {
       open_unquote: {
         suggested_key: {

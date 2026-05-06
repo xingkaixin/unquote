@@ -240,7 +240,11 @@ const HighlightText = ({ text, ranges, isActive }: HighlightTextProps) => {
     segments.push(
       <mark
         key={`mark-${range.start}`}
-        className={isActive ? "rounded bg-accent/45 font-medium ring-1 ring-accent/70" : "rounded bg-accent/25 font-medium"}
+        className={
+          isActive
+            ? "rounded bg-accent/45 font-medium ring-1 ring-accent/70"
+            : "rounded bg-accent/25 font-medium"
+        }
       >
         {text.slice(range.start, range.end)}
       </mark>,
@@ -310,9 +314,17 @@ const RowItem = ({
         )}
         <span className="min-w-0 break-all font-mono text-[12px] leading-5 text-code-key">
           {searchMatch?.keyRanges.length ? (
-            <HighlightText text={row.keyLabel} ranges={searchMatch.keyRanges} isActive={isActiveMatch} />
+            <HighlightText
+              text={row.keyLabel}
+              ranges={searchMatch.keyRanges}
+              isActive={isActiveMatch}
+            />
           ) : searchMatch?.pathRanges.length ? (
-            <HighlightText text={row.keyLabel} ranges={[{ start: 0, end: row.keyLabel.length }]} isActive={isActiveMatch} />
+            <HighlightText
+              text={row.keyLabel}
+              ranges={[{ start: 0, end: row.keyLabel.length }]}
+              isActive={isActiveMatch}
+            />
           ) : (
             row.keyLabel
           )}
@@ -329,7 +341,11 @@ const RowItem = ({
           className={`min-w-0 break-all font-mono text-[12px] leading-5 ${getValueClassName(row)}`}
         >
           {searchMatch?.valueRanges.length ? (
-            <HighlightText text={row.valueLabel} ranges={searchMatch.valueRanges} isActive={isActiveMatch} />
+            <HighlightText
+              text={row.valueLabel}
+              ranges={searchMatch.valueRanges}
+              isActive={isActiveMatch}
+            />
           ) : (
             row.valueLabel
           )}

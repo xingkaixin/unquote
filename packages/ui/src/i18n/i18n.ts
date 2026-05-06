@@ -14,6 +14,12 @@ export interface Messages {
   readonly "toolbar.restoreAll": string;
   readonly "input.expandSource": string;
   readonly "input.placeholder": string;
+  readonly "input.dropActive": string;
+  readonly "input.dropHint": string;
+  readonly "input.filePreviewHint": string;
+  readonly "input.readingFile": string;
+  readonly "input.parsingFile": string;
+  readonly "input.loadedFile": string;
   readonly "toc.title": string;
   readonly "tree.nodes": string;
   readonly "tree.scrollHint": string;

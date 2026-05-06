@@ -124,7 +124,12 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
   }
 };
 
-const processJsonlChunk = (requestId: number, session: JsonlSession, chunk: string, done: boolean) => {
+const processJsonlChunk = (
+  requestId: number,
+  session: JsonlSession,
+  chunk: string,
+  done: boolean,
+) => {
   session.buffer += chunk;
 
   let newlineIndex = session.buffer.indexOf("\n");
@@ -144,7 +149,11 @@ const processJsonlChunk = (requestId: number, session: JsonlSession, chunk: stri
   postBatch(requestId, session, done);
 };
 
-const parseJson = ({ requestId, input, forcedFormat }: Extract<ParserRequest, { type: "parse" }>) => {
+const parseJson = ({
+  requestId,
+  input,
+  forcedFormat,
+}: Extract<ParserRequest, { type: "parse" }>) => {
   const startedAt = performance.now();
   const result = parseInput(input, forcedFormat ? { forcedFormat } : {});
   self.postMessage({
@@ -161,11 +170,7 @@ const parseJson = ({ requestId, input, forcedFormat }: Extract<ParserRequest, { 
   } satisfies ParserWorkerResponse);
 };
 
-const parseJsonlFile = async (
-  requestId: number,
-  file: File,
-  session: JsonlSession,
-) => {
+const parseJsonlFile = async (requestId: number, file: File, session: JsonlSession) => {
   const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
 
   while (true) {

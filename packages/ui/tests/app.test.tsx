@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { UnquoteApp } from "../src/app";
 import { I18nProvider } from "../src/i18n/context";
 
@@ -36,6 +36,10 @@ Object.assign(globalThis, {
   },
 });
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("UnquoteApp", () => {
   it("renders and parses input", async () => {
     const user = userEvent.setup();
@@ -48,5 +52,52 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Copy All")[0]).toBeInTheDocument();
+  });
+
+  it("shows file drag feedback on the source input", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    fireEvent.dragEnter(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      {
+        dataTransfer: {
+          files: [],
+          items: [],
+          types: ["Files"],
+        },
+      },
+    );
+
+    expect(screen.getByText("Release to open file")).toBeInTheDocument();
+  });
+
+  it("reads files pasted into the source input", async () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const file = new File(['{"pasted":true}'], "payload.json", {
+      type: "application/json",
+    });
+
+    fireEvent.paste(sourceInput, {
+      clipboardData: {
+        files: [file],
+        items: [],
+        types: ["Files"],
+      },
+    });
+
+    await waitFor(() => expect(sourceInput).toHaveValue('{"pasted":true}'));
+    await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 });

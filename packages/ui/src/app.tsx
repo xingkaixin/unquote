@@ -22,6 +22,70 @@ import type { TreeRow } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
 
+const formatFileSize = (bytes: number) => {
+  const units = ["B", "KB", "MB", "GB"] as const;
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const formatted = unitIndex === 0 || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
+  return `${formatted} ${units[unitIndex]}`;
+};
+
+const readFileWithFileReader = (file: File, onProgress: (progress: number) => void) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.total === 0 ? 1 : event.loaded / event.total);
+      }
+    };
+    reader.onload = () => {
+      onProgress(1);
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsText(file);
+  });
+
+const readFileText = async (file: File, onProgress: (progress: number) => void) => {
+  if (typeof file.stream !== "function") {
+    if (typeof file.text === "function") {
+      const text = await file.text();
+      onProgress(1);
+      return text;
+    }
+
+    return readFileWithFileReader(file, onProgress);
+  }
+
+  const reader = file.stream().getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    if (value) {
+      bytesRead += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+      onProgress(file.size === 0 ? 1 : bytesRead / file.size);
+    }
+  }
+
+  text += decoder.decode();
+  onProgress(1);
+  return text;
+};
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -40,6 +104,9 @@ export const UnquoteApp = ({
   const { t } = useTranslation();
   const [sourceText, setSourceText] = useState(initialInput);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [readingFile, setReadingFile] = useState<File | null>(null);
+  const [importedFile, setImportedFile] = useState<File | null>(null);
+  const [readProgress, setReadProgress] = useState<number | null>(null);
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
   const [hoveredPath, setHoveredPath] = useState("$");
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
@@ -59,6 +126,7 @@ export const UnquoteApp = ({
   const [searchJq, setSearchJq] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const outputRef = useRef<HTMLDivElement>(null);
+  const fileImportIdRef = useRef(0);
   const { result, progress } = useParser(
     sourceText,
     mode === "auto" ? undefined : mode,
@@ -146,6 +214,10 @@ export const UnquoteApp = ({
   }, [theme]);
 
   const handleSourceChange = (value: string) => {
+    fileImportIdRef.current += 1;
+    setReadingFile(null);
+    setImportedFile(null);
+    setReadProgress(null);
     setSourceFile(null);
     setSourceText(value);
     setRestoredRecordIds(new Set());
@@ -156,11 +228,21 @@ export const UnquoteApp = ({
   };
 
   const handleFileDrop = async (file: File) => {
+    const requestId = fileImportIdRef.current + 1;
+    fileImportIdRef.current = requestId;
+    setReadingFile(file);
+    setImportedFile(null);
+    setReadProgress(onReadFile ? null : 0);
+    setSourceFile(null);
+
     const streamAsJsonl =
       file.size > largeSourceCollapseBytes &&
       (mode === "jsonl" || (mode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
 
     if (streamAsJsonl) {
+      setReadingFile(null);
+      setImportedFile(null);
+      setReadProgress(null);
       setSourceFile(file);
       setSourceText("");
       setRestoredRecordIds(new Set());
@@ -169,8 +251,31 @@ export const UnquoteApp = ({
       return;
     }
 
-    const text = onReadFile ? await onReadFile(file) : await file.text();
+    let text: string;
+    try {
+      text = onReadFile
+        ? await onReadFile(file)
+        : await readFileText(file, (nextProgress) => {
+            if (fileImportIdRef.current === requestId) {
+              setReadProgress(nextProgress);
+            }
+          });
+    } catch (error) {
+      if (fileImportIdRef.current === requestId) {
+        setReadingFile(null);
+        setReadProgress(null);
+      }
+      throw error;
+    }
+
+    if (fileImportIdRef.current !== requestId) {
+      return;
+    }
+
+    setReadingFile(null);
+    setReadProgress(null);
     handleSourceChange(text);
+    setImportedFile(file);
   };
 
   const handleOpenFile = async () => {
@@ -273,6 +378,20 @@ export const UnquoteApp = ({
         processed: progress.processedLines,
         elapsed: Math.round(progress.elapsedMs),
       })}`;
+  const statusFile = sourceFile ?? importedFile;
+  const sourceFileStatus = readingFile
+    ? t("input.readingFile", {
+        name: readingFile.name,
+        size: formatFileSize(readingFile.size),
+      })
+    : statusFile
+      ? t(progress.done ? "input.loadedFile" : "input.parsingFile", {
+          name: statusFile.name,
+          size: formatFileSize(statusFile.size),
+          processed: progress.processedLines,
+        })
+      : undefined;
+  const sourceFileBusy = Boolean(readingFile || (statusFile && !progress.done));
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
@@ -359,6 +478,9 @@ export const UnquoteApp = ({
               onFileDrop={handleFileDrop}
               onClear={() => handleSourceChange("")}
               onToggleCollapse={() => setSourceCollapsed((current) => !current)}
+              sourceStatus={sourceFileStatus}
+              sourceBusy={sourceFileBusy}
+              sourceProgress={readingFile ? readProgress : null}
             />
           </TabsContent>
           <TabsContent value="output">{output}</TabsContent>
@@ -378,6 +500,9 @@ export const UnquoteApp = ({
               onClear={() => handleSourceChange("")}
               onToggleCollapse={() => setSourceCollapsed((current) => !current)}
               collapsed={sourceCollapsed}
+              sourceStatus={sourceFileStatus}
+              sourceBusy={sourceFileBusy}
+              sourceProgress={readingFile ? readProgress : null}
             />
             {sourceCollapsed ? (
               <button
