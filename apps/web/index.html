@@ -1,38 +1,53 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Unquote - Escaped JSON Expander & JSONL Viewer. Expand stringified JSON and browse JSONL locally in your browser."
+      content="Unquote expands escaped JSON strings and JSONL files into a searchable tree, runs locally in your browser, and exports restored JSON for debugging."
     />
     <meta name="robots" content="index, follow" />
+    <meta
+      name="googlebot"
+      content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+    />
     <meta name="application-name" content="Unquote" />
+    <meta name="apple-mobile-web-app-title" content="Unquote" />
     <meta name="theme-color" content="#f8fafc" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="canonical" href="https://unquote.xingkaixin.me/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://unquote.xingkaixin.me/" />
     <meta property="og:site_name" content="Unquote" />
-    <meta property="og:title" content="Unquote - Escaped JSON Expander & JSONL Viewer" />
+    <meta property="og:title" content="Unquote JSONL Viewer - Expand Escaped JSON Locally" />
     <meta
       property="og:description"
-      content="Expand stringified JSON and browse JSONL locally in your browser."
+      content="Expand escaped JSON strings and JSONL files into a searchable tree directly in your browser."
     />
-    <meta property="og:image" content="/og-image.svg" />
+    <meta property="og:image" content="https://unquote.xingkaixin.me/og-image.svg" />
+    <meta
+      property="og:image:alt"
+      content="Unquote escaped JSON expander and JSONL viewer preview"
+    />
     <meta property="og:image:type" content="image/svg+xml" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Unquote - Escaped JSON Expander & JSONL Viewer" />
+    <meta name="twitter:title" content="Unquote JSONL Viewer - Expand Escaped JSON Locally" />
     <meta
       name="twitter:description"
-      content="Expand stringified JSON and browse JSONL locally in your browser."
+      content="Expand escaped JSON strings and JSONL files into a searchable tree directly in your browser."
     />
-    <meta name="twitter:image" content="/og-image.svg" />
+    <meta name="twitter:image" content="https://unquote.xingkaixin.me/og-image.svg" />
+    <meta
+      name="twitter:image:alt"
+      content="Unquote escaped JSON expander and JSONL viewer preview"
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Unquote - Escaped JSON Expander & JSONL Viewer</title>
+    <title>Unquote JSONL Viewer - Expand Escaped JSON Locally</title>
     <!-- Cloudflare Web Analytics -->
     <script
       defer
@@ -45,14 +60,31 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "Unquote",
+        "alternateName": "Unquote JSONL Viewer",
+        "url": "https://unquote.xingkaixin.me/",
+        "image": "https://unquote.xingkaixin.me/og-image.svg",
         "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "JSON viewer",
         "operatingSystem": "Web, Chrome",
-        "description": "Escaped JSON Expander & JSONL Viewer. Expand stringified JSON and browse JSONL locally in your browser.",
+        "browserRequirements": "Requires JavaScript and a modern browser.",
+        "inLanguage": ["en", "zh-CN"],
+        "isAccessibleForFree": true,
+        "description": "Unquote expands escaped JSON strings and JSONL files into a searchable tree, runs locally in your browser, and exports restored JSON for debugging.",
+        "featureList": [
+          "Recursive expansion of stringified JSON",
+          "JSON and JSONL parsing",
+          "Search across keys, values, and JSONPath-style paths",
+          "Local browser-based processing",
+          "Restored JSON and JSONL export"
+        ],
         "offers": {
           "@type": "Offer",
           "price": "0",
           "priceCurrency": "USD"
-        }
+        },
+        "sameAs": [
+          "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg"
+        ]
       }
     </script>
   </head>

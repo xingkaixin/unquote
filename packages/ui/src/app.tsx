@@ -723,9 +723,9 @@ export const UnquoteApp = ({
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="sticky top-0 z-30 flex h-11 items-center justify-between border-b border-border bg-[var(--background)]/80 px-4 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <span className="text-[15px] font-semibold tracking-tight text-text-primary">
+          <h1 className="m-0 text-[15px] font-semibold tracking-tight text-text-primary">
             Unquote
-          </span>
+          </h1>
           <span className="font-mono text-[11px] text-text-muted">JSON / JSONL</span>
         </div>
         <div className="flex items-center gap-1">
