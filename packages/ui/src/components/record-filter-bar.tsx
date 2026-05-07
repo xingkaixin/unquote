@@ -27,10 +27,10 @@ export const RecordFilterBar = ({
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-surface-100 px-2 py-1">
-      <span className="shrink-0 font-mono text-[11px] text-text-muted">
+      <span className="shrink-0 font-mono text-[10px] text-text-muted">
         {visibleCount}/{totalCount}
       </span>
-      <div className="flex min-w-0 flex-1 items-center gap-0.5">
+      <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
         {filterOptions.map((option) => {
           const Icon = option.icon;
           const active = mode === option.mode;
@@ -39,7 +39,7 @@ export const RecordFilterBar = ({
               key={option.mode}
               variant={active ? "secondary" : "ghost"}
               size="sm"
-              className="h-6 min-w-0 px-2"
+              className="h-6 min-w-0 flex-1 gap-1 px-1.5 text-[11px]"
               onClick={() => onModeChange(option.mode)}
               aria-pressed={active}
             >

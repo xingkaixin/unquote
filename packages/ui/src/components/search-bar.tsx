@@ -48,7 +48,7 @@ export const SearchBar = ({
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
         placeholder={t("search.placeholder")}
-        className="min-w-0 flex-1 bg-transparent text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+        className="min-w-0 flex-1 bg-transparent text-[12px] text-text-primary outline-none placeholder:text-text-muted"
       />
       {hasQuery ? (
         <button
@@ -65,7 +65,7 @@ export const SearchBar = ({
       ) : null}
       {showNav ? (
         <>
-          <span className="shrink-0 font-mono text-[11px] text-text-muted">
+          <span className="shrink-0 font-mono text-[10px] text-text-muted">
             {currentIndex + 1}/{matchCount}
           </span>
           <div className="flex shrink-0 items-center gap-0.5">

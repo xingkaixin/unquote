@@ -658,37 +658,43 @@ export const UnquoteApp = ({
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
         searchBar={
-          <div className="grid min-w-0 gap-2 xl:grid-cols-[minmax(220px,0.8fr)_minmax(260px,1fr)_minmax(350px,auto)]">
-            <PathJumpBar
-              value={pathQuery}
-              error={pathError}
-              matchCount={pathMatches.length}
-              currentIndex={currentPathMatchIndex}
-              onChange={handlePathQueryChange}
-              onSubmit={handlePathJump}
-              onPrev={handlePrevPathMatch}
-              onNext={handleNextPathMatch}
-            />
-            <SearchBar
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              regex={searchRegex}
-              onRegexChange={setSearchRegex}
-              caseSensitive={searchCaseSensitive}
-              onCaseSensitiveChange={setSearchCaseSensitive}
-              jq={searchJq}
-              onJqChange={setSearchJq}
-              matchCount={matchCount}
-              currentIndex={currentMatchIndex}
-              onPrev={handlePrevMatch}
-              onNext={handleNextMatch}
-            />
-            <RecordFilterBar
-              mode={recordFilter}
-              visibleCount={visibleStats.total}
-              totalCount={result.stats.total}
-              onModeChange={setRecordFilter}
-            />
+          <div className="flex min-w-0 flex-wrap gap-2">
+            <div className="min-w-[200px] flex-[1_1_240px]">
+              <PathJumpBar
+                value={pathQuery}
+                error={pathError}
+                matchCount={pathMatches.length}
+                currentIndex={currentPathMatchIndex}
+                onChange={handlePathQueryChange}
+                onSubmit={handlePathJump}
+                onPrev={handlePrevPathMatch}
+                onNext={handleNextPathMatch}
+              />
+            </div>
+            <div className="min-w-[240px] flex-[1_1_300px]">
+              <SearchBar
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                regex={searchRegex}
+                onRegexChange={setSearchRegex}
+                caseSensitive={searchCaseSensitive}
+                onCaseSensitiveChange={setSearchCaseSensitive}
+                jq={searchJq}
+                onJqChange={setSearchJq}
+                matchCount={matchCount}
+                currentIndex={currentMatchIndex}
+                onPrev={handlePrevMatch}
+                onNext={handleNextMatch}
+              />
+            </div>
+            <div className="min-w-[280px] flex-[1_1_340px]">
+              <RecordFilterBar
+                mode={recordFilter}
+                visibleCount={visibleStats.total}
+                totalCount={result.stats.total}
+                onModeChange={setRecordFilter}
+              />
+            </div>
           </div>
         }
       />

@@ -46,11 +46,11 @@ export const PathJumpBar = ({
           onChange={(event) => onChange(event.target.value)}
           placeholder={t("path.placeholder")}
           aria-invalid={Boolean(error)}
-          className="min-w-0 flex-1 bg-transparent font-mono text-[13px] text-text-primary outline-none placeholder:font-sans placeholder:text-text-muted"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-text-primary outline-none placeholder:font-sans placeholder:text-text-muted"
         />
         {showNav ? (
           <>
-            <span className="shrink-0 font-mono text-[11px] text-text-muted">
+            <span className="shrink-0 font-mono text-[10px] text-text-muted">
               {currentIndex + 1}/{matchCount}
             </span>
             <div className="flex shrink-0 items-center gap-0.5">
@@ -87,7 +87,7 @@ export const PathJumpBar = ({
           <ScanSearch className="size-3" />
         </Button>
       </div>
-      {error ? <div className="mt-1 text-[11px] text-error">{error}</div> : null}
+      {error ? <div className="mt-1 text-[10px] text-error">{error}</div> : null}
     </form>
   );
 };
