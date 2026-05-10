@@ -1,28 +1,48 @@
 # Changelog
 
-## [0.2.0] - 2026-05-02
+## [0.2.0] - 2026-05-10
 
 ### Added
 
-- **搜索与过滤** — 类似浏览器 Ctrl+F 的实时搜索体验
-  - 实时搜索，支持 key、value、path 三维度匹配
-  - JSONPath / jq 语法路径搜索（如 `$.timestamp`）
-  - 正则表达式搜索开关
-  - 大小写敏感开关
-  - 匹配文本高亮（普通 match + active match 双重样式）
-  - 上/下按钮循环跳转，自动滚动到对应节点
-  - 虚拟列表兼容（`scrollToIndex`）与非虚拟化 `scrollIntoView` 双模式
-  - match 位于折叠 stringified 节点内部时自动展开路径
-  - 匹配计数显示（`3/15` 格式）
-- 新增国际化文案：`search.placeholder`、`search.regex`、`search.caseSensitive`、`search.prev`、`search.next`、`search.clear`、`search.jq`
+- **搜索与过滤** — 跨 JSON 记录和嵌套 stringified JSON 的浏览器式导航
+  - 搜索 key、value、JSONPath / jq 风格路径
+  - 正则表达式和大小写敏感模式
+  - 匹配高亮、上/下跳转、匹配计数
+  - 支持虚拟列表和标准树渲染的自动滚动
+  - 自动展开包含匹配项的 stringified JSON 路径
+  - 记录过滤：全部、搜索命中、解析错误、嵌套 JSON
+- **路径工具** — JSONPath / jq 直达跳转和节点检查
+  - 跨 JSON / JSONL 记录跳转到精确路径
+  - 查看选中节点的路径、原始 key、类型、来源和记录编号
+  - 复制 JSONPath 和 jq selector
+  - 底部状态栏显示当前格式、统计信息、悬停或选中的路径
+- **大型 JSONL 导入** — 对粘贴和拖入的 JSONL 文件进行流式解析
+  - Source 面板支持文件拖放和剪贴板文件导入
+  - 显示解析状态、进度、已导入文件预览
+  - Worker 分块解析并批量更新记录
+- **解析诊断** — 为无效 JSON / JSONL 提供行列元数据
+  - Source 和 Output 视图显示错误上下文片段
+  - 保留失败原始行，支持复制
+  - 自动模式在混合 JSONL 输入中保留有效记录
+- **性能基准工具** — 面向大型 JSONL fixture 的发布门禁
+  - `pnpm benchmark` 和 `pnpm benchmark:fixtures`
+  - Headless Chrome 渲染指标和 core parser p95 基线
+  - `docs/performance.md` 记录 0.2.0 性能预算
 
 ### Changed
 
-- SEO 元信息统一更新为 **"Unquote - Escaped JSON Expander & JSONL Viewer"**
-  - 网页 title / description / og / twitter / schema
-  - og-image.svg 标题与副标题
-  - Chrome 插件 `appName`（en / zh_CN）
-- 依赖升级
+- Web 和扩展应用版本升级到 `0.2.0`。
+- SEO 元信息围绕 escaped JSON / JSONL 搜索意图调整
+  - 页面 title、description、Open Graph、Twitter card、schema.org、sitemap、`og-image.svg`
+  - Chrome 扩展展示名称更新为 **"Unquote - Escaped JSON Expander & JSONL Viewer"**
+  - Web 应用接入 Cloudflare Web Analytics
+- Toolbar 和记录导航布局针对响应式屏幕收紧。
+- 复制操作拆分为格式化 JSON 和 JSONL 输出。
+- 依赖升级：Tailwind CSS、Vite、WXT、oxlint、TypeScript、lockfile。
+
+### Fixed
+
+- Turbo build 任务现在依赖上游包构建。
 
 ## [0.1.0] - 2026-04-29
 
