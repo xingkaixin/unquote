@@ -12,6 +12,9 @@ export interface Messages {
   readonly "toolbar.copy": string;
   readonly "toolbar.copyJsonl": string;
   readonly "toolbar.copyFormattedJson": string;
+  readonly "toolbar.export": string;
+  readonly "toolbar.exportJsonl": string;
+  readonly "toolbar.exportJson": string;
   readonly "toolbar.expandAll": string;
   readonly "toolbar.restoreAll": string;
   readonly "overview.title": string;
@@ -53,6 +56,8 @@ export interface Messages {
   readonly "tree.nodes": string;
   readonly "tree.scrollHint": string;
   readonly "tree.toggle": string;
+  readonly "tree.focused": string;
+  readonly "tree.exitFocus": string;
   readonly "stats.label": string;
   readonly "stats.filteredLabel": string;
   readonly "stats.progress": string;
@@ -83,6 +88,12 @@ export interface Messages {
   readonly "path.inspector": string;
   readonly "path.copyJsonPath": string;
   readonly "path.copyJq": string;
+  readonly "path.focusSubtree": string;
+  readonly "path.exitFocus": string;
+  readonly "path.copySubtree": string;
+  readonly "path.copyEscapedString": string;
+  readonly "path.copyValue": string;
+  readonly "path.copyDebugBundle": string;
   readonly "path.rawKey": string;
   readonly "path.type": string;
   readonly "path.source": string;

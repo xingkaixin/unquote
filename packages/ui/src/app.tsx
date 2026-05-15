@@ -1,4 +1,4 @@
-import { parseJsonlRecordLine } from "@unquote/core";
+import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -183,6 +183,28 @@ const formatRecordsAsJson = (
   return JSON.stringify(values, null, 2);
 };
 
+const isPathInsideFocus = (pathText: string, focusedPath: string) =>
+  pathText === focusedPath ||
+  pathText.startsWith(`${focusedPath}.`) ||
+  pathText.startsWith(`${focusedPath}[`);
+
+const downloadText = (contents: string, filename: string, type: string) => {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
+const createExportFilename = (extension: "json" | "jsonl") => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `unquote-visible-${timestamp}.${extension}`;
+};
+
 const readJsonlFileLines = async (
   file: File,
   onLine: (line: string, lineNumber: number) => boolean | void,
@@ -340,6 +362,9 @@ export const UnquoteApp = ({
   const [pathMatches, setPathMatches] = useState<ResolvedTreePath[]>([]);
   const [currentPathMatchIndex, setCurrentPathMatchIndex] = useState(0);
   const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
+  const [focusedPath, setFocusedPath] = useState<{ recordId: string; pathText: string } | null>(
+    null,
+  );
   const [scrollTarget, setScrollTarget] = useState<PathScrollTarget | null>(null);
   const [recordScrollTarget, setRecordScrollTarget] = useState<{
     recordId: string;
@@ -496,6 +521,19 @@ export const UnquoteApp = ({
     };
   }, [visibleMatches, currentMatchIndex]);
 
+  useEffect(() => {
+    if (
+      !focusedPath ||
+      !activeMatch ||
+      (focusedPath.recordId === activeMatch.recordId &&
+        isPathInsideFocus(activeMatch.pathText, focusedPath.pathText))
+    ) {
+      return;
+    }
+
+    setFocusedPath(null);
+  }, [activeMatch, focusedPath]);
+
   const handlePrevMatch = () => {
     if (matchCount === 0) return;
     setScrollTarget(null);
@@ -509,6 +547,11 @@ export const UnquoteApp = ({
   };
 
   const scrollToPath = (recordId: string, pathText: string) => {
+    setFocusedPath((current) =>
+      current && (current.recordId !== recordId || !isPathInsideFocus(pathText, current.pathText))
+        ? null
+        : current,
+    );
     scrollRequestIdRef.current += 1;
     setScrollTarget({ recordId, pathText, requestId: scrollRequestIdRef.current });
   };
@@ -607,13 +650,16 @@ export const UnquoteApp = ({
     if (selectedPath && !visibleRecordIds.has(selectedPath.recordId)) {
       setSelectedPath(null);
     }
+    if (focusedPath && !visibleRecordIds.has(focusedPath.recordId)) {
+      setFocusedPath(null);
+    }
     if (scrollTarget && !visibleRecordIds.has(scrollTarget.recordId)) {
       setScrollTarget(null);
     }
     if (recordScrollTarget && !visibleRecordIds.has(recordScrollTarget.recordId)) {
       setRecordScrollTarget(null);
     }
-  }, [recordScrollTarget, scrollTarget, selectedPath, visibleRecords]);
+  }, [focusedPath, recordScrollTarget, scrollTarget, selectedPath, visibleRecords]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -643,6 +689,7 @@ export const UnquoteApp = ({
     setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
+    setFocusedPath(null);
     setScrollTarget(null);
     setRecordScrollTarget(null);
     setPathError(null);
@@ -680,6 +727,7 @@ export const UnquoteApp = ({
       setRestoredRecordIds(new Set());
       setExpandedStringifiedPaths(new Set());
       setSelectedPath(null);
+      setFocusedPath(null);
       setScrollTarget(null);
       setRecordScrollTarget(null);
       setPathError(null);
@@ -752,6 +800,24 @@ export const UnquoteApp = ({
     );
   };
 
+  const handleExportJsonl = async () => {
+    const records = await getRecordsForCopy(visibleRecords);
+    downloadText(
+      formatRecordsAsJsonl(records, restoredRecordIds),
+      createExportFilename("jsonl"),
+      "application/jsonl;charset=utf-8",
+    );
+  };
+
+  const handleExportFormattedJson = async () => {
+    const records = await getRecordsForCopy(visibleRecords);
+    downloadText(
+      formatRecordsAsJson(records, restoredRecordIds, result.format),
+      createExportFilename("json"),
+      "application/json;charset=utf-8",
+    );
+  };
+
   const handleExpandAll = () => {
     const all = new Set<string>();
     visibleRecords.forEach((record) => {
@@ -771,6 +837,7 @@ export const UnquoteApp = ({
       new Set(result.records.filter((record) => record.node).map((record) => record.id)),
     );
     setSelectedPath(null);
+    setFocusedPath(null);
     setScrollTarget(null);
     setPathMatches([]);
     setCurrentPathMatchIndex(0);
@@ -833,8 +900,104 @@ export const UnquoteApp = ({
     const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
     const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
     const resolved = renderedRecord?.node ? resolveTreePath([renderedRecord], row.pathText) : null;
-    const value = resolved?.ok ? resolved.target.node.value : row.node.value;
+    const value = materializeNode(resolved?.ok ? resolved.target.node : row.node);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+  };
+
+  const getSelectedNodeContext = async () => {
+    if (!selectedPath) {
+      return null;
+    }
+
+    const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
+    const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
+    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
+    const resolved = renderedRecord?.node
+      ? resolveTreePath([renderedRecord], selectedPath.pathText)
+      : null;
+
+    return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
+  };
+
+  const handleFocusSelectedNode = () => {
+    if (!selectedPath) {
+      return;
+    }
+
+    setFocusedPath({ recordId: selectedPath.recordId, pathText: selectedPath.pathText });
+    setActiveRecordId(selectedPath.recordId);
+    setRestoredRecordIds((current) => {
+      const next = new Set(current);
+      next.delete(selectedPath.recordId);
+      return next;
+    });
+    if (selectedPath.sourceState === "stringified") {
+      setExpandedStringifiedPaths((current) => new Set(current).add(selectedPath.pathText));
+    }
+    scrollToPath(selectedPath.recordId, selectedPath.pathText);
+  };
+
+  const handleCopySelectedSubtree = async () => {
+    const context = await getSelectedNodeContext();
+    if (!context) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(
+      JSON.stringify(materializeNode(context.target.node), null, 2),
+    );
+  };
+
+  const handleCopySelectedEscapedString = async () => {
+    const context = await getSelectedNodeContext();
+    const rawString = context?.target.node.rawString;
+    if (typeof rawString !== "string") {
+      return;
+    }
+
+    await navigator.clipboard.writeText(JSON.stringify(rawString));
+  };
+
+  const handleCopySelectedValue = async () => {
+    const context = await getSelectedNodeContext();
+    if (!context) {
+      return;
+    }
+
+    const node = context.target.node;
+    const value =
+      node.wasStringified && typeof node.rawString === "string"
+        ? node.rawString
+        : materializeNode(node);
+    await navigator.clipboard.writeText(
+      typeof value === "string" ? value : JSON.stringify(value, null, 2),
+    );
+  };
+
+  const handleCopySelectedDebugBundle = async () => {
+    const context = await getSelectedNodeContext();
+    if (!context || !selectedPath) {
+      return;
+    }
+
+    const sourceLine = context.target.sourceLine;
+    await navigator.clipboard.writeText(
+      JSON.stringify(
+        {
+          recordId: context.record.id,
+          recordLine: context.record.lineNumber,
+          path: selectedPath.jsonPath,
+          jqPath: selectedPath.jqPath,
+          parseStatus: context.record.node ? "success" : "failed",
+          type: context.target.kind,
+          source: context.target.sourceState,
+          ...(typeof sourceLine === "number" ? { sourceLine } : {}),
+          value: materializeNode(context.target.node),
+        },
+        null,
+        2,
+      ),
+    );
   };
 
   const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
@@ -845,6 +1008,7 @@ export const UnquoteApp = ({
 
   const handleSelectRecord = (record: JsonlRecord) => {
     setActiveRecordId(record.id);
+    setFocusedPath((current) => (current?.recordId === record.id ? current : null));
     scrollRequestIdRef.current += 1;
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
   };
@@ -932,6 +1096,8 @@ export const UnquoteApp = ({
       <Toolbar
         onCopyJsonl={handleCopyJsonl}
         onCopyFormattedJson={handleCopyFormattedJson}
+        onExportJsonl={handleExportJsonl}
+        onExportFormattedJson={handleExportFormattedJson}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
         searchBar={
@@ -994,6 +1160,7 @@ export const UnquoteApp = ({
         scrollTarget={scrollTarget}
         recordScrollTarget={recordScrollTarget}
         selectedPath={selectedPath}
+        focusedPath={focusedPath}
         onTogglePath={handleTogglePath}
         onCopyRecord={handleCopyRecord}
         onCopyRawLine={handleCopyRawLine}
@@ -1008,7 +1175,11 @@ export const UnquoteApp = ({
             setSelectedPath(null);
             setScrollTarget(null);
           }
+          if (focusedPath?.recordId === recordId) {
+            setFocusedPath(null);
+          }
         }}
+        onClearFocus={() => setFocusedPath(null)}
         onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />
     </div>
@@ -1127,8 +1298,19 @@ export const UnquoteApp = ({
           selectedPath ? (
             <PathInspector
               selection={selectedPath}
+              focused={
+                focusedPath?.recordId === selectedPath.recordId &&
+                focusedPath.pathText === selectedPath.pathText
+              }
               onCopy={(value) => navigator.clipboard.writeText(value)}
+              onCopySubtree={handleCopySelectedSubtree}
+              onCopyEscapedString={handleCopySelectedEscapedString}
+              onCopyValue={handleCopySelectedValue}
+              onCopyDebugBundle={handleCopySelectedDebugBundle}
+              onFocus={handleFocusSelectedNode}
+              onClearFocus={() => setFocusedPath(null)}
               onClear={() => setSelectedPath(null)}
+              canCopyEscapedString={selectedPath.sourceState === "stringified"}
             />
           ) : null
         }

@@ -20,6 +20,11 @@ export interface TreeRow {
   node: JsonNode;
 }
 
+export interface FocusedTreeRows {
+  rows: TreeRow[];
+  focus: ResolvedTreePath;
+}
+
 export type TreePathSegmentKind = "key" | "index";
 
 export interface TreePathSegment {
@@ -282,6 +287,7 @@ const pushRows = (
   pathSegments: TreePathSegment[] = [],
   stringifiedAncestors: string[] = [],
   parentKeyLabel = "$",
+  depthOffset = 0,
 ) => {
   const jsonPath = formatJsonPath(pathSegments);
   const jqPath = formatJqSelector(pathSegments);
@@ -304,7 +310,7 @@ const pushRows = (
     jqPath,
     stringifiedPathChain: [...currentChain],
     sourceState,
-    depth: Math.max(0, node.path.length - 1),
+    depth: Math.max(0, node.path.length - 1 - depthOffset),
     keyLabel,
     kind: node.kind,
     valueLabel: formatValueLabel(node, maxStringValueLabelLength),
@@ -328,6 +334,7 @@ const pushRows = (
         [...pathSegments, { kind: "index", value: String(index) }],
         currentChain,
         String(index),
+        depthOffset,
       ),
     );
     return;
@@ -342,6 +349,7 @@ const pushRows = (
       [...pathSegments, { kind: "key", value: key }],
       currentChain,
       key,
+      depthOffset,
     ),
   );
 };
@@ -350,15 +358,56 @@ export const buildRecordRows = (
   record: JsonlRecord,
   expandedStringifiedPaths: Set<string>,
   restoredRecordIds: Set<string>,
+  focusedPath?: string | null,
 ) => {
-  const node = getRenderedNode(record, restoredRecordIds);
-  if (!node) {
+  const renderedRecord = getRenderedRecord(record, restoredRecordIds);
+  if (!renderedRecord.node) {
     return [];
   }
 
+  if (focusedPath) {
+    const focused = buildFocusedRecordRows(renderedRecord, expandedStringifiedPaths, focusedPath);
+    if (focused) {
+      return focused.rows;
+    }
+  }
+
   const rows: TreeRow[] = [];
-  pushRows(node, rows, expandedStringifiedPaths, record.id);
+  pushRows(renderedRecord.node, rows, expandedStringifiedPaths, record.id);
   return rows;
+};
+
+export const buildFocusedRecordRows = (
+  record: JsonlRecord,
+  expandedStringifiedPaths: Set<string>,
+  focusedPath: string,
+): FocusedTreeRows | null => {
+  const resolved = resolveTreePath([record], focusedPath);
+  if (!resolved.ok) {
+    return null;
+  }
+
+  const pathSegments = parseTreePath(resolved.target.pathText);
+  if (!pathSegments) {
+    return null;
+  }
+
+  const rows: TreeRow[] = [];
+  const stringifiedAncestors = resolved.target.node.wasStringified
+    ? resolved.target.stringifiedPathChain.slice(0, -1)
+    : resolved.target.stringifiedPathChain;
+  pushRows(
+    resolved.target.node,
+    rows,
+    expandedStringifiedPaths,
+    record.id,
+    pathSegments,
+    stringifiedAncestors,
+    resolved.target.rawKey,
+    Math.max(0, resolved.target.node.path.length - 1),
+  );
+
+  return { rows, focus: resolved.target };
 };
 
 export const materializeRecord = (record: JsonlRecord, restoredRecordIds: Set<string>) => {

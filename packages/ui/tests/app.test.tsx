@@ -63,6 +63,14 @@ const readMockFileText = (file: File) => {
   });
 };
 
+const readBlobText = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read blob"));
+    reader.readAsText(blob);
+  });
+
 Object.assign(globalThis, {
   Worker: class {
     chunks = "";
@@ -72,12 +80,7 @@ Object.assign(globalThis, {
       this.onmessage = listener;
     }
     removeEventListener() {}
-    complete(
-      requestId: number,
-      input: string,
-      forcedFormat?: "json" | "jsonl",
-      compact = false,
-    ) {
+    complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
       import("@unquote/core").then(({ parseInput }) => {
         const parsed = parseInput(input, forcedFormat ? { forcedFormat } : {});
         const result = compact ? compactResultForTransfer(parsed) : parsed;
@@ -259,6 +262,19 @@ describe("UnquoteApp", () => {
   it("filters JSONL records across list, toc, search, and copy output", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
+    const exportedBlobs: Blob[] = [];
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn((blob: Blob) => {
+        exportedBlobs.push(blob);
+        return `blob:export-${exportedBlobs.length}`;
+      }),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText },
@@ -304,6 +320,80 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByText("Copy JSONL"));
 
     expect(writeText).toHaveBeenLastCalledWith('{"level":"info","payload":{"nested":true}}');
+
+    await user.click(screen.getAllByRole("button", { name: /Export/ })[0]!);
+    await user.click(screen.getByText("Export JSONL"));
+    await waitFor(() => expect(exportedBlobs).toHaveLength(1));
+    await expect(readBlobText(exportedBlobs[0]!)).resolves.toBe(
+      '{"level":"info","payload":{"nested":true}}',
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /Export/ })[0]!);
+    await user.click(screen.getByText("Export JSON"));
+    await waitFor(() => expect(exportedBlobs).toHaveLength(2));
+    await expect(readBlobText(exportedBlobs[1]!)).resolves.toBe(
+      JSON.stringify([{ level: "info", payload: { nested: true } }], null, 2),
+    );
+  });
+
+  it("focuses selected nodes and copies extraction payloads", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const input = JSON.stringify({
+      payload: JSON.stringify({ ok: true, nested: { count: 2 } }),
+      other: 1,
+    });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+    await user.click(screen.getAllByText("payload")[0]!);
+    await waitFor(() => expect(screen.getAllByText("Path Inspector").length).toBeGreaterThan(0));
+
+    await user.click(screen.getAllByRole("button", { name: /Focus subtree/ })[0]!);
+    await waitFor(() =>
+      expect(screen.getAllByText("Focused: $.payload").length).toBeGreaterThan(0),
+    );
+    expect(screen.queryAllByText("other")).toHaveLength(0);
+    expect(screen.getAllByText("nested").length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("button", { name: /Copy subtree/ })[0]!);
+    expect(writeText).toHaveBeenLastCalledWith(
+      JSON.stringify({ ok: true, nested: { count: 2 } }, null, 2),
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /Copy escaped string/ })[0]!);
+    expect(writeText).toHaveBeenLastCalledWith(JSON.stringify('{"ok":true,"nested":{"count":2}}'));
+
+    await user.click(screen.getAllByRole("button", { name: /Copy value/ })[0]!);
+    expect(writeText).toHaveBeenLastCalledWith('{"ok":true,"nested":{"count":2}}');
+
+    await user.click(screen.getAllByRole("button", { name: /Copy debug bundle/ })[0]!);
+    const bundle = JSON.parse(writeText.mock.calls.at(-1)?.[0] as string) as {
+      recordLine: number;
+      path: string;
+      parseStatus: string;
+      value: unknown;
+    };
+    expect(bundle).toMatchObject({
+      recordLine: 1,
+      path: "$.payload",
+      parseStatus: "success",
+      value: { ok: true, nested: { count: 2 } },
+    });
+
+    await user.click(screen.getAllByRole("button", { name: /Exit focus/ })[0]!);
+    await waitFor(() => expect(screen.queryAllByText("Focused: $.payload")).toHaveLength(0));
+    expect(screen.getAllByText("other").length).toBeGreaterThan(0);
   });
 
   it("shows JSON parse location in the source pane", async () => {
@@ -413,9 +503,7 @@ describe("UnquoteApp", () => {
     const sourceInput = screen.getAllByPlaceholderText(
       "Paste JSON / JSONL, or drop a file here.",
     )[0]!;
-    const longValue = `${"a".repeat(maxTransferStringLength + 32)}needle${"b".repeat(
-      1_000_000,
-    )}`;
+    const longValue = `${"a".repeat(maxTransferStringLength + 32)}needle${"b".repeat(1_000_000)}`;
     const file = new File([`${JSON.stringify({ message: longValue })}\n`], "payload.jsonl", {
       type: "application/jsonl",
     });
@@ -435,5 +523,4 @@ describe("UnquoteApp", () => {
 
     await waitFor(() => expect(screen.getAllByText("1/1").length).toBeGreaterThan(0));
   });
-
 });
