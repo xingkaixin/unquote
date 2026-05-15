@@ -4,14 +4,17 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
+import type { RecordInsight } from "../lib/record-insight";
 import { buildRecordRows } from "../lib/tree";
 import type { SearchMatch, TextRange, TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
+import { RecordInsightSummary } from "./record-insight";
 
 interface JsonTreeProps {
   record: JsonlRecord;
+  insight: RecordInsight | undefined;
   expandedStringifiedPaths: Set<string>;
   restoredRecordIds: Set<string>;
   eager?: boolean;
@@ -34,6 +37,7 @@ interface JsonTreeProps {
 
 export const JsonTree = ({
   record,
+  insight,
   expandedStringifiedPaths,
   restoredRecordIds,
   eager = false,
@@ -211,21 +215,26 @@ export const JsonTree = ({
       id={record.id}
       className="scroll-mt-24 overflow-hidden [contain-intrinsic-size:480px] [content-visibility:auto]"
     >
-      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 font-mono text-[12px] text-text-secondary">
-            #{record.lineNumber}
-          </span>
-          <span className="min-w-0 truncate text-[12px] text-text-secondary">{record.summary}</span>
-          <span className="shrink-0 font-mono text-[11px] text-text-muted">
-            {t("tree.nodes", { count: rows.length })}
-          </span>
-          {focusedPathText ? (
-            <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] text-accent">
-              <Focus className="size-3 shrink-0" />
-              <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-2.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="shrink-0 font-mono text-[12px] text-text-secondary">
+              #{record.lineNumber}
             </span>
-          ) : null}
+            <span className="min-w-0 truncate text-[12px] text-text-secondary">
+              {insight?.title ?? record.summary}
+            </span>
+            <span className="shrink-0 font-mono text-[11px] text-text-muted">
+              {t("tree.nodes", { count: rows.length })}
+            </span>
+            {focusedPathText ? (
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+                <Focus className="size-3 shrink-0" />
+                <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
+              </span>
+            ) : null}
+          </div>
+          {insight ? <RecordInsightSummary insight={insight} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {focusedPathText ? (

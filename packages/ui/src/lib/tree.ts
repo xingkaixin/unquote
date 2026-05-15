@@ -1,5 +1,6 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { materializeNode, restoreNode } from "@unquote/core";
+import type { RecordInsight } from "./record-insight";
 
 export interface TreeRow {
   id: string;
@@ -626,12 +627,22 @@ export const searchRecord = (
   return matches;
 };
 
-export type RecordFilterMode = "all" | "matches" | "errors" | "nested";
+export type RecordFilterMode =
+  | "all"
+  | "matches"
+  | "errors"
+  | "nested"
+  | "tool"
+  | "message"
+  | "events"
+  | "insight";
 
 export const filterRecords = (
   records: JsonlRecord[],
   mode: RecordFilterMode,
   matches: SearchMatch[] | null,
+  insights: ReadonlyMap<string, RecordInsight> = new Map(),
+  insightQuery = "",
 ) => {
   if (mode === "all") {
     return records;
@@ -643,10 +654,31 @@ export const filterRecords = (
   }
 
   if (mode === "errors") {
-    return records.filter((record) => !record.node);
+    return records.filter((record) => !record.node || insights.get(record.id)?.kind === "error");
   }
 
-  return records.filter(recordContainsStringifiedJson);
+  if (mode === "nested") {
+    return records.filter(recordContainsStringifiedJson);
+  }
+
+  if (mode === "tool") {
+    return records.filter((record) => insights.get(record.id)?.kind === "tool");
+  }
+
+  if (mode === "message") {
+    return records.filter((record) => insights.get(record.id)?.kind === "message");
+  }
+
+  if (mode === "events") {
+    return records.filter((record) => insights.get(record.id)?.kind === "event");
+  }
+
+  const normalizedQuery = insightQuery.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return records;
+  }
+
+  return records.filter((record) => insights.get(record.id)?.filterText.includes(normalizedQuery));
 };
 
 export interface ResolvedTreePath {

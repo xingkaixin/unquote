@@ -21,6 +21,8 @@ import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
 import { createFileOverview } from "./lib/file-overview";
 import type { FileOverviewCache } from "./lib/file-overview";
+import { createRecordInsightMap } from "./lib/record-insight";
+import type { RecordInsightCache } from "./lib/record-insight";
 import {
   buildSearchPattern,
   collectStringifiedPaths,
@@ -356,6 +358,7 @@ export const UnquoteApp = ({
   const [searchJq, setSearchJq] = useState(false);
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
+  const [insightQuery, setInsightQuery] = useState("");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [pathQuery, setPathQuery] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
@@ -372,6 +375,7 @@ export const UnquoteApp = ({
   } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const overviewCacheRef = useRef<FileOverviewCache>(new Map());
+  const recordInsightCacheRef = useRef<RecordInsightCache>(new Map());
   const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
   const { result, progress } = useParser(
@@ -461,9 +465,13 @@ export const UnquoteApp = ({
 
   const matches = sourceFile && searchQuery ? fileSearchMatches : inMemoryMatches;
 
+  const recordInsights = useMemo(
+    () => createRecordInsightMap(result.records, recordInsightCacheRef.current),
+    [result.records],
+  );
   const visibleRecords = useMemo(
-    () => filterRecords(result.records, recordFilter, matches),
-    [matches, recordFilter, result.records],
+    () => filterRecords(result.records, recordFilter, matches, recordInsights, insightQuery),
+    [insightQuery, matches, recordFilter, recordInsights, result.records],
   );
   const visibleStats = useMemo(() => getRecordStats(visibleRecords), [visibleRecords]);
   const fileOverview = useMemo(
@@ -481,13 +489,13 @@ export const UnquoteApp = ({
   useEffect(() => {
     setCurrentMatchIndex(0);
     setScrollTarget(null);
-  }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+  }, [recordFilter, insightQuery, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
     setPathError(null);
     setPathMatches([]);
     setCurrentPathMatchIndex(0);
-  }, [recordFilter]);
+  }, [recordFilter, insightQuery]);
 
   useEffect(() => {
     setCurrentMatchIndex((current) => (matchCount === 0 ? 0 : Math.min(current, matchCount - 1)));
@@ -631,6 +639,17 @@ export const UnquoteApp = ({
     setRecordFilter("matches");
     setCurrentMatchIndex(0);
     setScrollTarget(null);
+  };
+
+  const handleInsightQueryChange = (value: string) => {
+    setInsightQuery(value);
+    setRecordFilter((current) => {
+      if (value.trim()) {
+        return "insight";
+      }
+
+      return current === "insight" ? "all" : current;
+    });
   };
 
   useEffect(() => {
@@ -1135,7 +1154,9 @@ export const UnquoteApp = ({
                 mode={recordFilter}
                 visibleCount={visibleStats.total}
                 totalCount={result.stats.total}
+                insightQuery={insightQuery}
                 onModeChange={setRecordFilter}
+                onInsightQueryChange={handleInsightQueryChange}
               />
             </div>
           </div>
@@ -1153,6 +1174,7 @@ export const UnquoteApp = ({
       ) : null}
       <RecordList
         records={visibleRecords}
+        recordInsights={recordInsights}
         expandedStringifiedPaths={expandedStringifiedPaths}
         restoredRecordIds={restoredRecordIds}
         searchMatches={visibleMatches ?? []}
@@ -1279,6 +1301,7 @@ export const UnquoteApp = ({
             ) : hasJsonlRecords(result) ? (
               <TocPane
                 records={visibleRecords}
+                recordInsights={recordInsights}
                 totalCount={result.stats.total}
                 activeRecordId={activeRecordId}
                 onSelect={handleSelectRecord}
