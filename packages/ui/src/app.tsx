@@ -30,6 +30,7 @@ import {
   searchRecord,
   searchRecords,
 } from "./lib/tree";
+import { sourceSamples } from "./lib/source-samples";
 import type {
   RecordFilterMode,
   ResolvedTreePath,
@@ -368,6 +369,29 @@ export const UnquoteApp = ({
       format: formatParseMode(result.format),
     };
   }, [result, t]);
+  const sampleOptions = useMemo(
+    () => [
+      {
+        id: "escaped-api-response",
+        label: t("samples.escapedApiResponse"),
+        value: sourceSamples.escapedApiResponse.source,
+        expandedPaths: sourceSamples.escapedApiResponse.expandedPaths,
+      },
+      {
+        id: "agent-tool-call-jsonl",
+        label: t("samples.agentToolCallJsonl"),
+        value: sourceSamples.agentToolCallJsonl.source,
+        expandedPaths: sourceSamples.agentToolCallJsonl.expandedPaths,
+      },
+      {
+        id: "mixed-valid-invalid-jsonl",
+        label: t("samples.mixedValidInvalidJsonl"),
+        value: sourceSamples.mixedValidInvalidJsonl.source,
+        expandedPaths: sourceSamples.mixedValidInvalidJsonl.expandedPaths,
+      },
+    ],
+    [t],
+  );
 
   const searchOptions = useMemo<SearchOptions>(
     () => ({
@@ -594,6 +618,12 @@ export const UnquoteApp = ({
     if (value.length > largeSourceCollapseBytes) {
       setSourceCollapsed(true);
     }
+  };
+
+  const handleSampleSelect = (sample: { value: string; expandedPaths: readonly string[] }) => {
+    setMode("auto");
+    handleSourceChange(sample.value);
+    setExpandedStringifiedPaths(new Set(sample.expandedPaths));
   };
 
   const handleFileDrop = async (file: File) => {
@@ -973,6 +1003,8 @@ export const UnquoteApp = ({
               mode={mode}
               onChange={handleSourceChange}
               onModeChange={setMode}
+              sampleOptions={sampleOptions}
+              onSampleSelect={handleSampleSelect}
               onOpenFile={handleOpenFile}
               onFileDrop={handleFileDrop}
               onClear={() => handleSourceChange("")}
@@ -999,6 +1031,8 @@ export const UnquoteApp = ({
               mode={mode}
               onChange={handleSourceChange}
               onModeChange={setMode}
+              sampleOptions={sampleOptions}
+              onSampleSelect={handleSampleSelect}
               onOpenFile={handleOpenFile}
               onFileDrop={handleFileDrop}
               onClear={() => handleSourceChange("")}

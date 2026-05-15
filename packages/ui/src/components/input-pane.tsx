@@ -11,6 +11,8 @@ interface InputPaneProps {
   mode: "auto" | "json" | "jsonl";
   onChange: (value: string) => void;
   onModeChange: (mode: "auto" | "json" | "jsonl") => void;
+  sampleOptions?: readonly SourceSampleOption[];
+  onSampleSelect?: (sample: SourceSampleOption) => void;
   onOpenFile?: () => void;
   onFileDrop?: (file: File) => void;
   onClear: () => void;
@@ -20,6 +22,13 @@ interface InputPaneProps {
   sourceBusy?: boolean | undefined;
   sourceProgress?: number | null | undefined;
   sourceError?: SourceParseError | null | undefined;
+}
+
+interface SourceSampleOption {
+  id: string;
+  label: string;
+  value: string;
+  expandedPaths: readonly string[];
 }
 
 export interface SourceParseError {
@@ -104,6 +113,8 @@ export const InputPane = ({
   mode,
   onChange,
   onModeChange,
+  sampleOptions = [],
+  onSampleSelect,
   onOpenFile,
   onFileDrop,
   onClear,
@@ -225,6 +236,12 @@ export const InputPane = ({
     onDrop: handleDrop,
   };
   const showSourcePreview = Boolean(!value && sourceStatus && !isDraggingFile);
+  const showSamples =
+    !value.trim() &&
+    !sourceStatus &&
+    !sourceError &&
+    sampleOptions.length > 0 &&
+    Boolean(onSampleSelect);
 
   if (collapsed) {
     return (
@@ -357,6 +374,30 @@ export const InputPane = ({
             <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
               {sourceError.context}
             </pre>
+          </div>
+        ) : null}
+        {showSamples ? (
+          <div
+            className="mb-2 flex flex-wrap items-center gap-1.5"
+            role="group"
+            aria-label={t("samples.ariaLabel")}
+          >
+            <span className="mr-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              {t("samples.label")}
+            </span>
+            {sampleOptions.map((sample) => (
+              <Button
+                key={sample.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 rounded-full bg-surface-50 px-2.5 text-[11px] shadow-sm"
+                onClick={() => onSampleSelect?.(sample)}
+              >
+                <FileJson2 className="size-3" />
+                <span>{sample.label}</span>
+              </Button>
+            ))}
           </div>
         ) : null}
         <div className="relative">
