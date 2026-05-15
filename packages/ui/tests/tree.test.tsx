@@ -1,5 +1,6 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
+import { createFileOverview } from "../src/lib/file-overview";
 import {
   buildRecordRows,
   filterRecords,
@@ -134,5 +135,35 @@ describe("tree paths", () => {
       filterRecords(result.records, "nested", matches).map((record) => record.lineNumber),
     ).toEqual([1]);
     expect(recordContainsStringifiedJson(result.records[0]!)).toBe(true);
+  });
+
+  it("builds file overview diagnostics from parsed records", () => {
+    const result = parseInput(
+      [
+        '{"event":"tool_call","tool":"billing.search","args":"{\\"status\\":\\"open\\"}"}',
+        '{"event":"tool_result","tool":"billing.search","result":{"ok":true}}',
+        "not-json",
+      ].join("\n"),
+      { forcedFormat: "jsonl" },
+    );
+    const overview = createFileOverview(result.records);
+
+    expect(overview).toMatchObject({
+      total: 3,
+      success: 2,
+      failed: 1,
+      nestedRecords: 1,
+      maxDepth: 2,
+    });
+    expect(overview.topNestedPaths).toEqual([{ pathText: "$.args", count: 1 }]);
+    expect(overview.topFieldValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "event", pathText: "$.event", value: "tool_call" }),
+        expect.objectContaining({ field: "tool", pathText: "$.tool", value: "billing.search" }),
+      ]),
+    );
+    expect(overview.errors).toEqual([
+      expect.objectContaining({ recordId: "record-3", lineNumber: 3 }),
+    ]);
   });
 });
