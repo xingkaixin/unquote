@@ -2,6 +2,7 @@ import { parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
@@ -18,6 +19,8 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
+import { createFileOverview } from "./lib/file-overview";
+import type { FileOverviewCache } from "./lib/file-overview";
 import {
   buildSearchPattern,
   collectStringifiedPaths,
@@ -343,6 +346,7 @@ export const UnquoteApp = ({
     requestId: number;
   } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  const overviewCacheRef = useRef<FileOverviewCache>(new Map());
   const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
   const { result, progress } = useParser(
@@ -437,6 +441,10 @@ export const UnquoteApp = ({
     [matches, recordFilter, result.records],
   );
   const visibleStats = useMemo(() => getRecordStats(visibleRecords), [visibleRecords]);
+  const fileOverview = useMemo(
+    () => createFileOverview(result.records, overviewCacheRef.current),
+    [result.records],
+  );
   const visibleMatches = useMemo(() => {
     if (!matches) return null;
 
@@ -555,6 +563,31 @@ export const UnquoteApp = ({
     if (pathMatches.length === 0) return;
     const nextIndex = (currentPathMatchIndex + 1) % pathMatches.length;
     applyPathTarget(pathMatches[nextIndex]!, nextIndex);
+  };
+
+  const handleOverviewPathSelect = (pathText: string) => {
+    setPathQuery(pathText);
+    setRecordFilter("all");
+    const resolved = resolveTreePathMatches(result.records, pathText);
+    if (!resolved.ok) {
+      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
+      return;
+    }
+
+    setPathMatches(resolved.targets);
+    applyPathTarget(resolved.targets[0]!, 0);
+  };
+
+  const handleOverviewFieldValueSearch = (value: string) => {
+    setSearchQuery(value);
+    setSearchRegex(false);
+    setSearchCaseSensitive(false);
+    setSearchJq(false);
+    setRecordFilter("matches");
+    setCurrentMatchIndex(0);
+    setScrollTarget(null);
   };
 
   useEffect(() => {
@@ -816,6 +849,16 @@ export const UnquoteApp = ({
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
   };
 
+  const handleOverviewErrorSelect = (recordId: string) => {
+    const record = result.records.find((candidate) => candidate.id === recordId);
+    if (!record) {
+      return;
+    }
+
+    setRecordFilter("errors");
+    handleSelectRecord(record);
+  };
+
   const handleActiveRecordChange = useCallback((recordId: string) => {
     setActiveRecordId((current) => (current === recordId ? current : recordId));
   }, []);
@@ -932,6 +975,16 @@ export const UnquoteApp = ({
           </div>
         }
       />
+      {fileOverview.total > 0 ? (
+        <FileOverview
+          overview={fileOverview}
+          format={result.format}
+          visibleCount={visibleStats.total}
+          onSelectNestedPath={handleOverviewPathSelect}
+          onSearchFieldValue={handleOverviewFieldValueSearch}
+          onSelectError={handleOverviewErrorSelect}
+        />
+      ) : null}
       <RecordList
         records={visibleRecords}
         expandedStringifiedPaths={expandedStringifiedPaths}

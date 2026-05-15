@@ -245,8 +245,15 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("File Overview").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Nested records").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("webhook.received").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("button", { name: "Jump to line 2" })[0]!);
+    await waitFor(() => expect(screen.queryAllByText("#1")).toHaveLength(0));
+    expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
   });
 
   it("filters JSONL records across list, toc, search, and copy output", async () => {
