@@ -80,6 +80,18 @@ describe("tree paths", () => {
     });
   });
 
+  it("limits long string labels without changing the node value", () => {
+    const longValue = "a".repeat(600);
+    const result = parseInput(JSON.stringify({ payload: longValue }));
+    const record = result.records[0]!;
+    const rows = buildRecordRows(record, new Set(), new Set());
+    const payload = rows.find((row) => row.pathText === "$.payload");
+
+    expect(payload?.valueLabel).toContain("600 chars");
+    expect(payload?.valueLabel.length).toBeLessThan(longValue.length);
+    expect(payload?.node.value).toBe(longValue);
+  });
+
   it("rejects invalid path syntax", () => {
     expect(parseTreePath("$.payload[abc]")).toBeNull();
     expect(resolveTreePath([], "$.payload[abc]")).toEqual({ ok: false, reason: "invalid" });

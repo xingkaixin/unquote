@@ -49,6 +49,7 @@ export type ParserWorkerResponse =
     };
 
 const batchSize = 64;
+const maxTransferStringLength = 4096;
 let latestRequestId = 0;
 
 const elapsed = (startedAt: number) => Number((performance.now() - startedAt).toFixed(2));
@@ -61,11 +62,12 @@ interface JsonlSession {
   processedLines: number;
   success: number;
   failed: number;
+  compactForTransfer: boolean;
 }
 
 let jsonlSession: JsonlSession | null = null;
 
-const createJsonlSession = (): JsonlSession => ({
+const createJsonlSession = (compactForTransfer = false): JsonlSession => ({
   startedAt: performance.now(),
   buffer: "",
   lineNumber: 1,
@@ -73,6 +75,7 @@ const createJsonlSession = (): JsonlSession => ({
   processedLines: 0,
   success: 0,
   failed: 0,
+  compactForTransfer,
 });
 
 const statsFromSession = (session: JsonlSession) => ({
@@ -89,15 +92,58 @@ const progressFromSession = (session: JsonlSession, done: boolean): ParserProgre
   done,
 });
 
+const compactNodeForTransfer = (
+  node: NonNullable<JsonlRecord["node"]>,
+): NonNullable<JsonlRecord["node"]> => {
+  const value =
+    node.kind === "string" &&
+    typeof node.value === "string" &&
+    node.value.length > maxTransferStringLength
+      ? node.value.slice(0, maxTransferStringLength)
+      : node.value;
+  const meta =
+    value !== node.value && typeof node.value === "string"
+      ? { ...node.meta, truncated: true, valueLength: node.value.length }
+      : node.meta;
+
+  if (node.kind === "array" && Array.isArray(node.children)) {
+    return {
+      ...node,
+      value,
+      children: node.children.map((child) => compactNodeForTransfer(child)),
+      meta,
+    };
+  }
+
+  if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
+    return {
+      ...node,
+      value,
+      children: Object.fromEntries(
+        Object.entries(node.children).map(([key, child]) => [key, compactNodeForTransfer(child)]),
+      ),
+      meta,
+    };
+  }
+
+  return { ...node, value, meta };
+};
+
+const compactRecordForTransfer = (record: JsonlRecord): JsonlRecord =>
+  record.node ? { ...record, node: compactNodeForTransfer(record.node) } : record;
+
 const postBatch = (requestId: number, session: JsonlSession, done: boolean) => {
   if (session.batch.length === 0) {
     return;
   }
 
+  const records = session.compactForTransfer
+    ? session.batch.splice(0, session.batch.length).map(compactRecordForTransfer)
+    : session.batch.splice(0, session.batch.length);
   self.postMessage({
     type: "batch",
     requestId,
-    records: session.batch.splice(0, session.batch.length),
+    records,
     stats: statsFromSession(session),
     progress: progressFromSession(session, done),
   } satisfies ParserWorkerResponse);
@@ -215,7 +261,7 @@ self.onmessage = (event: MessageEvent<ParserRequest>) => {
 
   if (message.type === "file-jsonl") {
     latestRequestId = message.requestId;
-    jsonlSession = createJsonlSession();
+    jsonlSession = createJsonlSession(true);
     void parseJsonlFile(message.requestId, message.file, jsonlSession);
     return;
   }

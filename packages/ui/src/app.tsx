@@ -1,6 +1,7 @@
+import { parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
@@ -22,6 +23,7 @@ import {
   filterRecords,
   hasJsonlRecords,
   materializeRecord,
+  resolveTreePath,
   resolveTreePathMatches,
   searchRecords,
 } from "./lib/tree";
@@ -168,11 +170,51 @@ const formatRecordsAsJson = (
   return JSON.stringify(values, null, 2);
 };
 
+const readJsonlRecordsByLine = async (file: File, lineNumbers: Set<number>) => {
+  const records = new Map<number, JsonlRecord>();
+  if (lineNumbers.size === 0) {
+    return records;
+  }
+
+  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  let lineNumber = 1;
+
+  const processLine = (line: string) => {
+    if (lineNumbers.has(lineNumber)) {
+      records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
+    }
+    lineNumber += 1;
+  };
+
+  while (records.size < lineNumbers.size) {
+    const { value, done } = await reader.read();
+    if (done) {
+      if (buffer) {
+        processLine(buffer);
+      }
+      break;
+    }
+
+    buffer += value;
+    let newlineIndex = buffer.indexOf("\n");
+    while (newlineIndex >= 0 && records.size < lineNumbers.size) {
+      const rawLine = buffer.slice(0, newlineIndex);
+      processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
+      buffer = buffer.slice(newlineIndex + 1);
+      newlineIndex = buffer.indexOf("\n");
+    }
+  }
+
+  await reader.cancel().catch(() => undefined);
+  return records;
+};
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
   onSourceChange?: (value: string) => void;
-  onOpenFile?: () => Promise<string | null> | string | null | void;
+  onOpenFile?: () => Promise<File | string | null> | File | string | null | void;
   onReadFile?: (file: File) => Promise<string>;
 }
 
@@ -214,6 +256,10 @@ export const UnquoteApp = ({
   const [currentPathMatchIndex, setCurrentPathMatchIndex] = useState(0);
   const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
   const [scrollTarget, setScrollTarget] = useState<PathScrollTarget | null>(null);
+  const [recordScrollTarget, setRecordScrollTarget] = useState<{
+    recordId: string;
+    requestId: number;
+  } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
@@ -396,7 +442,10 @@ export const UnquoteApp = ({
     if (scrollTarget && !visibleRecordIds.has(scrollTarget.recordId)) {
       setScrollTarget(null);
     }
-  }, [scrollTarget, selectedPath, visibleRecords]);
+    if (recordScrollTarget && !visibleRecordIds.has(recordScrollTarget.recordId)) {
+      setRecordScrollTarget(null);
+    }
+  }, [recordScrollTarget, scrollTarget, selectedPath, visibleRecords]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -427,6 +476,7 @@ export const UnquoteApp = ({
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
     setScrollTarget(null);
+    setRecordScrollTarget(null);
     setPathError(null);
     setPathMatches([]);
     setCurrentPathMatchIndex(0);
@@ -457,6 +507,7 @@ export const UnquoteApp = ({
       setExpandedStringifiedPaths(new Set());
       setSelectedPath(null);
       setScrollTarget(null);
+      setRecordScrollTarget(null);
       setPathError(null);
       setPathMatches([]);
       setCurrentPathMatchIndex(0);
@@ -492,19 +543,38 @@ export const UnquoteApp = ({
   };
 
   const handleOpenFile = async () => {
-    const text = await onOpenFile?.();
-    if (typeof text === "string") {
-      handleSourceChange(text);
+    const source = await onOpenFile?.();
+    if (source instanceof File) {
+      await handleFileDrop(source);
+      return;
+    }
+
+    if (typeof source === "string") {
+      handleSourceChange(source);
     }
   };
 
+  const getRecordsForCopy = async (records: JsonlRecord[]) => {
+    if (!sourceFile) {
+      return records;
+    }
+
+    const fullRecords = await readJsonlRecordsByLine(
+      sourceFile,
+      new Set(records.map((record) => record.lineNumber)),
+    );
+    return records.map((record) => fullRecords.get(record.lineNumber) ?? record);
+  };
+
   const handleCopyJsonl = async () => {
-    await navigator.clipboard.writeText(formatRecordsAsJsonl(visibleRecords, restoredRecordIds));
+    const records = await getRecordsForCopy(visibleRecords);
+    await navigator.clipboard.writeText(formatRecordsAsJsonl(records, restoredRecordIds));
   };
 
   const handleCopyFormattedJson = async () => {
+    const records = await getRecordsForCopy(visibleRecords);
     await navigator.clipboard.writeText(
-      formatRecordsAsJson(visibleRecords, restoredRecordIds, result.format),
+      formatRecordsAsJson(records, restoredRecordIds, result.format),
     );
   };
 
@@ -545,11 +615,25 @@ export const UnquoteApp = ({
   };
 
   const handleCopyRecord = async (record: JsonlRecord) => {
-    const value = getCopyValue(record, restoredRecordIds);
+    const [copyRecord = record] = await getRecordsForCopy([record]);
+    const value = getCopyValue(copyRecord, restoredRecordIds);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   };
 
   const handleCopyRawLine = async (record: JsonlRecord) => {
+    if (sourceFile) {
+      const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
+      const fullRecord = fullRecords.get(record.lineNumber);
+      if (fullRecord?.node) {
+        await navigator.clipboard.writeText(JSON.stringify(getCopyValue(fullRecord, new Set())));
+        return;
+      }
+      if (fullRecord?.rawLine) {
+        await navigator.clipboard.writeText(fullRecord.rawLine);
+        return;
+      }
+    }
+
     await navigator.clipboard.writeText(
       record.rawLine ?? record.errorMeta?.rawLine ?? record.summary,
     );
@@ -570,8 +654,12 @@ export const UnquoteApp = ({
     await navigator.clipboard.writeText(details);
   };
 
-  const handleCopyNode = async (_recordId: string, row: TreeRow) => {
-    await navigator.clipboard.writeText(JSON.stringify(row.node.value, null, 2));
+  const handleCopyNode = async (recordId: string, row: TreeRow) => {
+    const record = result.records.find((candidate) => candidate.id === recordId);
+    const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
+    const resolved = copyRecord?.node ? resolveTreePath([copyRecord], row.pathText) : null;
+    const value = resolved?.ok ? resolved.target.node.value : row.node.value;
+    await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   };
 
   const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
@@ -582,9 +670,13 @@ export const UnquoteApp = ({
 
   const handleSelectRecord = (record: JsonlRecord) => {
     setActiveRecordId(record.id);
-    const element = document.getElementById(record.id);
-    element?.scrollIntoView({ block: "start", behavior: "smooth" });
+    scrollRequestIdRef.current += 1;
+    setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
   };
+
+  const handleActiveRecordChange = useCallback((recordId: string) => {
+    setActiveRecordId((current) => (current === recordId ? current : recordId));
+  }, []);
 
   useEffect(() => {
     if (!outputRef.current || visibleRecords.length === 0) {
@@ -705,6 +797,7 @@ export const UnquoteApp = ({
         searchMatches={visibleMatches ?? []}
         activeMatch={activeMatch}
         scrollTarget={scrollTarget}
+        recordScrollTarget={recordScrollTarget}
         selectedPath={selectedPath}
         onTogglePath={handleTogglePath}
         onCopyRecord={handleCopyRecord}
@@ -713,6 +806,7 @@ export const UnquoteApp = ({
         onCopyPath={(path) => navigator.clipboard.writeText(path)}
         onCopyNode={handleCopyNode}
         onSelectNode={handleSelectNode}
+        onActiveRecordChange={handleActiveRecordChange}
         onRestoreRecord={(recordId) => {
           setRestoredRecordIds((current) => new Set(current).add(recordId));
           if (selectedPath?.recordId === recordId) {

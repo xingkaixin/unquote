@@ -53,12 +53,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         onSourceChange={syncHash}
         onOpenFile={async () => {
           const file = await openFile();
-          if (!file) {
-            return null;
-          }
-
-          const text = await file.text();
-          return text;
+          return file;
         }}
       />
     </I18nProvider>

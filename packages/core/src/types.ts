@@ -6,6 +6,8 @@ export interface JsonNodeMeta {
   restorable: boolean;
   recordId?: string;
   sourceLine?: number;
+  truncated?: boolean;
+  valueLength?: number;
 }
 
 export interface JsonNode {

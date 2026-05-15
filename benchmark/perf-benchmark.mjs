@@ -13,14 +13,19 @@ const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 9222);
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
-const outputPath = path.join(repoRoot, "benchmark", "results", "latest.json");
+const outputPath = path.resolve(
+  repoRoot,
+  process.env.UNQUOTE_BENCH_OUTPUT ?? "benchmark/results/latest.json",
+);
 
-const fixtures = [
+const defaultFixtures = [
   "benchmark/case1.jsonl",
   "benchmark/case2-1MB.jsonl",
   "benchmark/case2-5MB.jsonl",
   "benchmark/case2-10MB.jsonl",
 ];
+const fixtureArgs = process.argv.slice(2);
+const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;
 
 const budgets = {
   firstRecordReadyMsP95: 1000,
@@ -217,11 +222,45 @@ const benchmarkCore = async (fixturesInfo) => {
 
 const runRenderFixture = async (client, fixture) => {
   await client.invoke("Page.navigate", { url: "http://127.0.0.1:4173/" });
+  await client.invoke("Runtime.evaluate", {
+    expression: `new Promise((resolve, reject) => {
+      const startedAt = performance.now()
+      const step = () => {
+        if (document.querySelector('input[type="file"]')) {
+          resolve(true)
+          return
+        }
+        if (performance.now() - startedAt > 30000) {
+          reject(new Error('timeout'))
+          return
+        }
+        requestAnimationFrame(step)
+      }
+      step()
+    })`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const documentNode = await client.invoke("DOM.getDocument");
+  const fileInput = await client.invoke("DOM.querySelector", {
+    nodeId: documentNode.root.nodeId,
+    selector: 'input[type="file"]',
+  });
+  if (!fileInput.nodeId) {
+    throw new Error("File input not found");
+  }
+  await client.invoke("Runtime.evaluate", {
+    expression: "window.__unquoteBenchmarkStart = performance.now()",
+  });
+  await client.invoke("DOM.setFileInputFiles", {
+    nodeId: fileInput.nodeId,
+    files: [path.join(repoRoot, fixture.path)],
+  });
 
   const expression = `(
     async () => {
-      const fixturePath = ${JSON.stringify(fixture.path)}
       const expected = ${fixture.records}
+      const start = window.__unquoteBenchmarkStart ?? performance.now()
       const waitFor = (predicate, timeout = 30000) =>
         new Promise((resolve, reject) => {
           const startedAt = performance.now()
@@ -242,13 +281,6 @@ const runRenderFixture = async (client, fixture) => {
 
           step()
         })
-
-      const textarea = await waitFor(() => document.querySelector('textarea'))
-      const source = await fetch('/__benchmark__?file=' + encodeURIComponent(fixturePath)).then((response) => response.text())
-      const dataTransfer = new DataTransfer()
-      dataTransfer.items.add(new File([source], fixturePath.split('/').at(-1) ?? 'fixture.jsonl', { type: 'application/jsonl' }))
-      const start = performance.now()
-      textarea.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
 
       await waitFor(() => document.getElementById('record-1'))
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -279,6 +311,7 @@ const runRenderFixture = async (client, fixture) => {
     throw new Error(result.exceptionDetails.text ?? "Runtime.evaluate failed");
   }
 
+  await client.invoke("HeapProfiler.collectGarbage").catch(() => null);
   const metrics = await client.invoke("Performance.getMetrics");
   const metricMap = Object.fromEntries(
     metrics.metrics.map((metric) => [metric.name, metric.value]),
@@ -317,6 +350,7 @@ const benchmarkRender = async (fixturesInfo) => {
   try {
     const client = await connectTarget();
     await client.invoke("Page.enable");
+    await client.invoke("DOM.enable");
     await client.invoke("Runtime.enable");
     await client.invoke("Performance.enable");
     await client.invoke("Page.addScriptToEvaluateOnNewDocument", {
