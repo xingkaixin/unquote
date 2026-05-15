@@ -17,6 +17,7 @@ interface RecordListProps {
   scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
   recordScrollTarget: { recordId: string; requestId: number } | null;
   selectedPath: { recordId: string; pathText: string } | null;
+  focusedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
@@ -25,6 +26,7 @@ interface RecordListProps {
   onCopyNode: (recordId: string, row: import("../lib/tree").TreeRow) => void;
   onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
   onRestoreRecord: (recordId: string) => void;
+  onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
   onActiveRecordChange: (recordId: string) => void;
 }
@@ -38,6 +40,7 @@ export const RecordList = ({
   scrollTarget,
   recordScrollTarget,
   selectedPath,
+  focusedPath,
   onTogglePath,
   onCopyRecord,
   onCopyRawLine,
@@ -46,6 +49,7 @@ export const RecordList = ({
   onCopyNode,
   onSelectNode,
   onRestoreRecord,
+  onClearFocus,
   onHoverPath,
   onActiveRecordChange,
 }: RecordListProps) => {
@@ -152,6 +156,7 @@ export const RecordList = ({
       activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
       scrollTarget={scrollTarget?.recordId === record.id ? scrollTarget : null}
       selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
+      focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
       onTogglePath={onTogglePath}
       onCopyRecord={() => onCopyRecord(record)}
       onCopyRawLine={() => onCopyRawLine(record)}
@@ -160,6 +165,7 @@ export const RecordList = ({
       onCopyNode={(row) => onCopyNode(record.id, row)}
       onSelectNode={(row) => onSelectNode(record, row)}
       onRestoreRecord={() => onRestoreRecord(record.id)}
+      onClearFocus={onClearFocus}
       onHoverPath={onHoverPath}
     />
   );

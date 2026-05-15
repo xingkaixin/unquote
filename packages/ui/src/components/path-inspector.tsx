@@ -1,5 +1,15 @@
 import type { JsonNode } from "@unquote/core";
-import { Braces, Copy, ScanSearch, X } from "lucide-react";
+import {
+  Braces,
+  Bug,
+  ClipboardCopy,
+  Copy,
+  Focus,
+  ScanSearch,
+  TextCursorInput,
+  Undo2,
+  X,
+} from "lucide-react";
 import type { MessageKey } from "../i18n/i18n";
 import type { NodeSourceState } from "../lib/tree";
 import { useTranslation } from "../i18n/context";
@@ -19,8 +29,16 @@ export interface PathInspectorSelection {
 
 interface PathInspectorProps {
   selection: PathInspectorSelection;
+  focused: boolean;
   onCopy: (value: string) => void;
+  onCopySubtree: () => void;
+  onCopyEscapedString: () => void;
+  onCopyValue: () => void;
+  onCopyDebugBundle: () => void;
+  onFocus: () => void;
+  onClearFocus: () => void;
   onClear: () => void;
+  canCopyEscapedString: boolean;
 }
 
 const getSourceLabelKey = (sourceState: NodeSourceState): MessageKey => {
@@ -34,7 +52,19 @@ const getSourceLabelKey = (sourceState: NodeSourceState): MessageKey => {
   }
 };
 
-export const PathInspector = ({ selection, onCopy, onClear }: PathInspectorProps) => {
+export const PathInspector = ({
+  selection,
+  focused,
+  onCopy,
+  onCopySubtree,
+  onCopyEscapedString,
+  onCopyValue,
+  onCopyDebugBundle,
+  onFocus,
+  onClearFocus,
+  onClear,
+  canCopyEscapedString,
+}: PathInspectorProps) => {
   const { t } = useTranslation();
   const sourceKey = getSourceLabelKey(selection.sourceState);
 
@@ -64,6 +94,28 @@ export const PathInspector = ({ selection, onCopy, onClear }: PathInspectorProps
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <Button variant="secondary" size="sm" onClick={focused ? onClearFocus : onFocus}>
+          {focused ? <Undo2 className="size-3.5" /> : <Focus className="size-3.5" />}
+          {t(focused ? "path.exitFocus" : "path.focusSubtree")}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCopySubtree}>
+          <ClipboardCopy className="size-3.5" />
+          {t("path.copySubtree")}
+        </Button>
+        {canCopyEscapedString ? (
+          <Button variant="ghost" size="sm" onClick={onCopyEscapedString}>
+            <Copy className="size-3.5" />
+            {t("path.copyEscapedString")}
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" onClick={onCopyValue}>
+          <TextCursorInput className="size-3.5" />
+          {t("path.copyValue")}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCopyDebugBundle}>
+          <Bug className="size-3.5" />
+          {t("path.copyDebugBundle")}
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => onCopy(selection.jsonPath)}>
           <Copy className="size-3.5" />
           {t("path.copyJsonPath")}

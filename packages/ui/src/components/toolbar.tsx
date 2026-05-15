@@ -1,4 +1,12 @@
-import { Braces, ChevronDown, ClipboardCopy, List, RotateCcw, Sparkles } from "lucide-react";
+import {
+  Braces,
+  ChevronDown,
+  ClipboardCopy,
+  Download,
+  List,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
@@ -12,6 +20,8 @@ import {
 interface ToolbarProps {
   onCopyJsonl: () => void;
   onCopyFormattedJson: () => void;
+  onExportJsonl: () => void;
+  onExportFormattedJson: () => void;
   onExpandAll: () => void;
   onRestoreAll: () => void;
   searchBar?: ReactNode;
@@ -20,6 +30,8 @@ interface ToolbarProps {
 export const Toolbar = ({
   onCopyJsonl,
   onCopyFormattedJson,
+  onExportJsonl,
+  onExportFormattedJson,
   onExpandAll,
   onRestoreAll,
   searchBar,
@@ -47,6 +59,25 @@ export const Toolbar = ({
             <DropdownMenuItem className="text-[12px]" onSelect={onCopyFormattedJson}>
               <Braces className="mr-2 size-3.5" />
               {t("toolbar.copyFormattedJson")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-[11px]">
+              <Download className="size-3.5" />
+              {t("toolbar.export")}
+              <ChevronDown className="size-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="text-[12px]" onSelect={onExportJsonl}>
+              <List className="mr-2 size-3.5" />
+              {t("toolbar.exportJsonl")}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[12px]" onSelect={onExportFormattedJson}>
+              <Braces className="mr-2 size-3.5" />
+              {t("toolbar.exportJson")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

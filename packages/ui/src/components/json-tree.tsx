@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, FileWarning, RotateCcw, Sparkles } from "lucide-react";
+import { ChevronRight, Copy, FileWarning, Focus, RotateCcw, Sparkles, Undo2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +19,7 @@ interface JsonTreeProps {
   activeMatch: { recordId: string; pathText: string } | null;
   scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
   selectedPath: { recordId: string; pathText: string } | null;
+  focusedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (path: string) => void;
   onCopyRecord: () => void;
   onCopyRawLine: () => void;
@@ -27,6 +28,7 @@ interface JsonTreeProps {
   onCopyNode: (row: TreeRow) => void;
   onSelectNode: (row: TreeRow) => void;
   onRestoreRecord: () => void;
+  onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
 }
 
@@ -39,6 +41,7 @@ export const JsonTree = ({
   activeMatch,
   scrollTarget,
   selectedPath,
+  focusedPath,
   onTogglePath,
   onCopyRecord,
   onCopyRawLine,
@@ -47,15 +50,20 @@ export const JsonTree = ({
   onCopyNode,
   onSelectNode,
   onRestoreRecord,
+  onClearFocus,
   onHoverPath,
 }: JsonTreeProps) => {
   const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [hydrated, setHydrated] = useState(eager);
+  const focusedPathText = focusedPath?.recordId === record.id ? focusedPath.pathText : null;
   const rows = useMemo(
-    () => (hydrated ? buildRecordRows(record, expandedStringifiedPaths, restoredRecordIds) : []),
-    [expandedStringifiedPaths, hydrated, record, restoredRecordIds],
+    () =>
+      hydrated
+        ? buildRecordRows(record, expandedStringifiedPaths, restoredRecordIds, focusedPathText)
+        : [],
+    [expandedStringifiedPaths, focusedPathText, hydrated, record, restoredRecordIds],
   );
   const searchMatchMap = useMemo(() => {
     const map = new Map<string, SearchMatch>();
@@ -212,8 +220,25 @@ export const JsonTree = ({
           <span className="shrink-0 font-mono text-[11px] text-text-muted">
             {t("tree.nodes", { count: rows.length })}
           </span>
+          {focusedPathText ? (
+            <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+              <Focus className="size-3 shrink-0" />
+              <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
+            </span>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {focusedPathText ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={onClearFocus}
+            >
+              <Undo2 className="size-3.5" />
+              {t("tree.exitFocus")}
+            </Button>
+          ) : null}
           <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onCopyRecord}>
             <Copy className="size-3.5" />
           </Button>
