@@ -24,6 +24,11 @@ export interface Messages {
   readonly "input.loadedFile": string;
   readonly "input.parseErrorTitle": string;
   readonly "input.parseErrorMode": string;
+  readonly "samples.label": string;
+  readonly "samples.ariaLabel": string;
+  readonly "samples.escapedApiResponse": string;
+  readonly "samples.agentToolCallJsonl": string;
+  readonly "samples.mixedValidInvalidJsonl": string;
   readonly "toc.title": string;
   readonly "toc.stats": string;
   readonly "toc.filteredStats": string;

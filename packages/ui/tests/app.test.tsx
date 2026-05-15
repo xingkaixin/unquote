@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -151,6 +151,102 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Copy")[0]).toBeInTheDocument();
+  });
+
+  it("shows localized sample chips for empty input", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
+    expect(
+      within(sampleGroup).getByRole("button", { name: "Escaped API response" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sampleGroup).getByRole("button", { name: "Agent tool-call JSONL" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sampleGroup).getByRole("button", { name: "Mixed valid/invalid JSONL" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows sample chip labels in Chinese locale", () => {
+    localStorage.setItem("unquote-locale", "zh-CN");
+
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sampleGroup = screen.getAllByRole("group", { name: "样例输入" })[0]!;
+    expect(within(sampleGroup).getByRole("button", { name: "转义 API 响应" })).toBeInTheDocument();
+    expect(
+      within(sampleGroup).getByRole("button", { name: "Agent 工具调用 JSONL" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sampleGroup).getByRole("button", { name: "有效/无效混合 JSONL" }),
+    ).toBeInTheDocument();
+  });
+
+  it("loads the escaped API response sample", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
+    await user.click(within(sampleGroup).getByRole("button", { name: "Escaped API response" }));
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]! as HTMLTextAreaElement;
+    await waitFor(() => expect(sourceInput.value).toContain('"body"'));
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("nested json").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("items").length).toBeGreaterThan(0);
+  });
+
+  it("loads the agent tool-call JSONL sample", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
+    await user.click(within(sampleGroup).getByRole("button", { name: "Agent tool-call JSONL" }));
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/tool_call/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("action").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("nested json").length).toBeGreaterThan(0);
+  });
+
+  it("loads the mixed JSONL sample with failed records", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
+    await user.click(
+      within(sampleGroup).getByRole("button", { name: "Mixed valid/invalid JSONL" }),
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
   });
 
   it("filters JSONL records across list, toc, search, and copy output", async () => {
