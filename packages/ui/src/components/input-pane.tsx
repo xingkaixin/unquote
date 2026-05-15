@@ -1,4 +1,4 @@
-import type { ClipboardEvent, DragEvent } from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import { useRef, useState } from "react";
 import { ChevronDown, FileJson2, PanelLeftClose, PanelLeftOpen, Upload, X } from "lucide-react";
 import { useTranslation } from "../i18n/context";
@@ -117,6 +117,7 @@ export const InputPane = ({
   const { t } = useTranslation();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragDepth = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetDragState = () => {
     dragDepth.current = 0;
@@ -194,6 +195,23 @@ export const InputPane = ({
       .catch(() => undefined);
   };
 
+  const handleOpenFile = () => {
+    if (onFileDrop) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    onOpenFile?.();
+  };
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (file) {
+      onFileDrop?.(file);
+    }
+  };
+
   const progressPercent =
     typeof sourceProgress === "number"
       ? Math.max(0, Math.min(100, Math.round(sourceProgress * 100)))
@@ -261,9 +279,17 @@ export const InputPane = ({
           <span className="text-[13px] font-medium text-text-primary">Source</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onOpenFile}>
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={handleOpenFile}>
             <Upload className="size-3.5" />
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.jsonl,application/json,text/plain"
+            className="sr-only"
+            tabIndex={-1}
+            onChange={handleFileInputChange}
+          />
           <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onClear}>
             <X className="size-3.5" />
           </Button>

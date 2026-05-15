@@ -31,6 +31,7 @@ export type NodeSourceState = "source" | "stringified" | "inside-stringified";
 
 const safeIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const arrayIndexPattern = /^(0|[1-9]\d*)$/;
+const maxStringValueLabelLength = 512;
 
 const quotePathKey = (key: string) => JSON.stringify(key);
 
@@ -226,14 +227,30 @@ export const parseTreePath = (selector: string): TreePathSegment[] | null => {
   return segments;
 };
 
-const formatValueLabel = (node: JsonNode) => {
+const formatStringLabel = (
+  value: string,
+  maxLength = Number.POSITIVE_INFINITY,
+  originalLength = value.length,
+) => {
+  if (value.length <= maxLength && value.length === originalLength) {
+    return JSON.stringify(value);
+  }
+
+  return `${JSON.stringify(`${value.slice(0, maxLength)}...`)} (${originalLength} chars)`;
+};
+
+const formatValueLabel = (node: JsonNode, maxStringLength?: number) => {
   switch (node.kind) {
     case "object":
       return `{${Object.keys((node.children as Record<string, JsonNode>) ?? {}).length}}`;
     case "array":
       return `[${(node.children as JsonNode[] | undefined)?.length ?? 0}]`;
     case "string":
-      return JSON.stringify(node.value);
+      return formatStringLabel(
+        node.value as string,
+        maxStringLength,
+        node.meta.valueLength ?? (node.value as string).length,
+      );
     case "null":
       return "null";
     default:
@@ -282,7 +299,7 @@ const pushRows = (
     depth: Math.max(0, node.path.length - 1),
     keyLabel,
     kind: node.kind,
-    valueLabel: formatValueLabel(node),
+    valueLabel: formatValueLabel(node, maxStringValueLabelLength),
     wasStringified: node.wasStringified,
     expandable: Boolean(node.children),
     expanded,

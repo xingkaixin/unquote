@@ -329,6 +329,11 @@ const HighlightText = ({ text, ranges, isActive }: HighlightTextProps) => {
   return <>{segments}</>;
 };
 
+const clampRanges = (ranges: TextRange[], textLength: number) =>
+  ranges.flatMap((range) =>
+    range.start < textLength ? [{ start: range.start, end: Math.min(range.end, textLength) }] : [],
+  );
+
 interface RowItemProps {
   row: TreeRow;
   searchMatch?: SearchMatch | undefined;
@@ -359,6 +364,9 @@ const RowItem = ({
   measureRef,
 }: RowItemProps) => {
   const { t } = useTranslation();
+  const valueRanges = searchMatch?.valueRanges.length
+    ? clampRanges(searchMatch.valueRanges, row.valueLabel.length)
+    : [];
   return (
     <div
       ref={measureRef}
@@ -428,12 +436,8 @@ const RowItem = ({
         <span
           className={`min-w-0 break-all font-mono text-[12px] leading-5 ${getValueClassName(row)}`}
         >
-          {searchMatch?.valueRanges.length ? (
-            <HighlightText
-              text={row.valueLabel}
-              ranges={searchMatch.valueRanges}
-              isActive={isActiveMatch}
-            />
+          {valueRanges.length ? (
+            <HighlightText text={row.valueLabel} ranges={valueRanges} isActive={isActiveMatch} />
           ) : (
             row.valueLabel
           )}
