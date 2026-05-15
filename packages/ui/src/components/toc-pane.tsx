@@ -1,12 +1,15 @@
 import type { JsonlRecord } from "@unquote/core";
 import { Copy } from "lucide-react";
 import { useTranslation } from "../i18n/context";
+import type { RecordInsight } from "../lib/record-insight";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
+import { RecordInsightSummary } from "./record-insight";
 
 interface TocPaneProps {
   records: JsonlRecord[];
+  recordInsights: ReadonlyMap<string, RecordInsight>;
   totalCount: number;
   activeRecordId: string | null;
   onSelect: (record: JsonlRecord) => void;
@@ -15,6 +18,7 @@ interface TocPaneProps {
 
 export const TocPane = ({
   records,
+  recordInsights,
   totalCount,
   activeRecordId,
   onSelect,
@@ -40,6 +44,7 @@ export const TocPane = ({
             {records.map((record) => {
               const active = activeRecordId === record.id;
               const variant = record.node ? "success" : "danger";
+              const insight = recordInsights.get(record.id);
               return (
                 <div
                   key={record.id}
@@ -58,8 +63,9 @@ export const TocPane = ({
                         <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
                       </div>
                       <span className="truncate text-[13px] text-text-secondary">
-                        {record.summary}
+                        {insight?.title ?? record.summary}
                       </span>
+                      {insight ? <RecordInsightSummary insight={insight} compact /> : null}
                     </div>
                   </button>
                   {!record.node ? (

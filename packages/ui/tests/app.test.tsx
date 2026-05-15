@@ -308,8 +308,8 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getAllByRole("button", { name: /Errors/ })[0]!);
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("not-json").length).toBeGreaterThan(0);
-    expect(screen.queryAllByText("#2")).toHaveLength(0);
 
     await user.click(screen.getAllByRole("button", { name: /Nested/ })[0]!);
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));

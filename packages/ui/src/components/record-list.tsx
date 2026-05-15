@@ -1,6 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/tree";
 import { JsonTree } from "./json-tree";
 
@@ -10,6 +11,7 @@ const recordGap = 12;
 
 interface RecordListProps {
   records: JsonlRecord[];
+  recordInsights: ReadonlyMap<string, RecordInsight>;
   expandedStringifiedPaths: Set<string>;
   restoredRecordIds: Set<string>;
   searchMatches: SearchMatch[];
@@ -33,6 +35,7 @@ interface RecordListProps {
 
 export const RecordList = ({
   records,
+  recordInsights,
   expandedStringifiedPaths,
   restoredRecordIds,
   searchMatches,
@@ -149,6 +152,7 @@ export const RecordList = ({
     <JsonTree
       key={record.id}
       record={record}
+      insight={recordInsights.get(record.id)}
       expandedStringifiedPaths={expandedStringifiedPaths}
       restoredRecordIds={restoredRecordIds}
       eager={index < 6}
