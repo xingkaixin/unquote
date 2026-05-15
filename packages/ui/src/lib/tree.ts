@@ -266,6 +266,14 @@ export const getRenderedNode = (record: JsonlRecord, restoredRecordIds: Set<stri
   return restoredRecordIds.has(record.id) ? restoreNode(record.node) : record.node;
 };
 
+export const getRenderedRecord = (
+  record: JsonlRecord,
+  restoredRecordIds: Set<string>,
+): JsonlRecord => {
+  const node = getRenderedNode(record, restoredRecordIds);
+  return node ? { ...record, node } : record;
+};
+
 const pushRows = (
   node: JsonNode,
   rows: TreeRow[],
@@ -549,12 +557,23 @@ export const searchRecords = (
 
   const matches: SearchMatch[] = [];
   for (const record of records) {
-    if (!record.node) {
-      continue;
-    }
-    searchNode(record.node, record.id, pattern, [], matches, options);
+    matches.push(...searchRecord(record, pattern, options));
   }
 
+  return matches;
+};
+
+export const searchRecord = (
+  record: JsonlRecord,
+  pattern: RegExp,
+  options: SearchOptions,
+): SearchMatch[] => {
+  if (!record.node) {
+    return [];
+  }
+
+  const matches: SearchMatch[] = [];
+  searchNode(record.node, record.id, pattern, [], matches, options);
   return matches;
 };
 

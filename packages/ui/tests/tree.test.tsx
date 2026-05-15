@@ -5,6 +5,7 @@ import {
   filterRecords,
   formatJqSelector,
   formatJsonPath,
+  getRenderedRecord,
   parseTreePath,
   recordContainsStringifiedJson,
   resolveTreePath,
@@ -47,6 +48,21 @@ describe("tree paths", () => {
     expect(resolved.target.sourceState).toBe("inside-stringified");
     expect(resolved.target.stringifiedPathChain).toEqual(["$.payload"]);
     expect(resolved.target.node.value).toBe(1);
+  });
+
+  it("resolves paths against restored record views", () => {
+    const result = parseInput('{"payload":"{\\"nested\\":true}"}');
+    const record = result.records[0]!;
+    const restoredRecord = getRenderedRecord(record, new Set([record.id]));
+    const resolved = resolveTreePath([restoredRecord], "$.payload");
+
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) {
+      return;
+    }
+
+    expect(resolved.target.kind).toBe("string");
+    expect(resolved.target.node.value).toBe('{"nested":true}');
   });
 
   it("resolves exact paths across all JSONL records", () => {

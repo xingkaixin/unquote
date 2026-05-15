@@ -19,15 +19,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
 import {
+  buildSearchPattern,
   collectStringifiedPaths,
   filterRecords,
+  getRenderedRecord,
   hasJsonlRecords,
   materializeRecord,
   resolveTreePath,
   resolveTreePathMatches,
+  searchRecord,
   searchRecords,
 } from "./lib/tree";
-import type { RecordFilterMode, ResolvedTreePath, TreeRow } from "./lib/tree";
+import type {
+  RecordFilterMode,
+  ResolvedTreePath,
+  SearchMatch,
+  SearchOptions,
+  TreeRow,
+} from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -170,44 +179,115 @@ const formatRecordsAsJson = (
   return JSON.stringify(values, null, 2);
 };
 
+const readJsonlFileLines = async (
+  file: File,
+  onLine: (line: string, lineNumber: number) => boolean | void,
+  signal?: AbortSignal,
+) => {
+  let lineNumber = 1;
+  let stopped = false;
+  const processLine = (rawLine: string) => {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    stopped = onLine(line, lineNumber) === false;
+    lineNumber += 1;
+  };
+
+  if (typeof file.stream !== "function") {
+    const text = await readFileText(file, () => undefined);
+    for (const rawLine of text.split("\n")) {
+      if (stopped || signal?.aborted) {
+        break;
+      }
+      processLine(rawLine);
+    }
+    return;
+  }
+
+  const reader = file.stream().getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let readerCanceled = false;
+
+  const cancelReader = () => {
+    readerCanceled = true;
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener("abort", cancelReader, { once: true });
+
+  try {
+    while (!stopped && !signal?.aborted) {
+      const { value, done } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        if (buffer && !signal?.aborted) {
+          processLine(buffer);
+        }
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex >= 0 && !stopped && !signal?.aborted) {
+        processLine(buffer.slice(0, newlineIndex));
+        buffer = buffer.slice(newlineIndex + 1);
+        newlineIndex = buffer.indexOf("\n");
+      }
+    }
+  } catch (error) {
+    if (!signal?.aborted) {
+      throw error;
+    }
+  } finally {
+    signal?.removeEventListener("abort", cancelReader);
+    if ((stopped || signal?.aborted) && !readerCanceled) {
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+};
+
 const readJsonlRecordsByLine = async (file: File, lineNumbers: Set<number>) => {
   const records = new Map<number, JsonlRecord>();
   if (lineNumbers.size === 0) {
     return records;
   }
 
-  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
-  let lineNumber = 1;
-
-  const processLine = (line: string) => {
+  await readJsonlFileLines(file, (line, lineNumber) => {
     if (lineNumbers.has(lineNumber)) {
       records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
     }
-    lineNumber += 1;
-  };
+    return records.size < lineNumbers.size;
+  });
 
-  while (records.size < lineNumbers.size) {
-    const { value, done } = await reader.read();
-    if (done) {
-      if (buffer) {
-        processLine(buffer);
-      }
-      break;
-    }
+  return records;
+};
 
-    buffer += value;
-    let newlineIndex = buffer.indexOf("\n");
-    while (newlineIndex >= 0 && records.size < lineNumbers.size) {
-      const rawLine = buffer.slice(0, newlineIndex);
-      processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
-      buffer = buffer.slice(newlineIndex + 1);
-      newlineIndex = buffer.indexOf("\n");
-    }
+const searchJsonlFile = async (
+  file: File,
+  query: string,
+  options: SearchOptions,
+  signal: AbortSignal,
+): Promise<SearchMatch[] | null> => {
+  const pattern = buildSearchPattern(query, options);
+  if (!pattern) {
+    return null;
   }
 
-  await reader.cancel().catch(() => undefined);
-  return records;
+  const matches: SearchMatch[] = [];
+  await readJsonlFileLines(
+    file,
+    (line, lineNumber) => {
+      if (signal.aborted) {
+        return false;
+      }
+
+      if (line.trim()) {
+        matches.push(...searchRecord(parseJsonlRecordLine(line, lineNumber), pattern, options));
+      }
+    },
+    signal,
+  );
+
+  return signal.aborted ? null : matches;
 };
 
 export interface UnquoteAppProps {
@@ -248,6 +328,7 @@ export const UnquoteApp = ({
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [searchJq, setSearchJq] = useState(false);
+  const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [pathQuery, setPathQuery] = useState("");
@@ -288,14 +369,44 @@ export const UnquoteApp = ({
     };
   }, [result, t]);
 
-  const matches = useMemo(() => {
-    if (!searchQuery) return null;
-    return searchRecords(result.records, searchQuery, {
+  const searchOptions = useMemo<SearchOptions>(
+    () => ({
       regex: searchRegex,
       caseSensitive: searchCaseSensitive,
       jq: searchJq,
-    });
-  }, [result.records, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+    }),
+    [searchCaseSensitive, searchJq, searchRegex],
+  );
+
+  const inMemoryMatches = useMemo(() => {
+    if (!searchQuery || sourceFile) return null;
+    return searchRecords(result.records, searchQuery, searchOptions);
+  }, [result.records, searchOptions, searchQuery, sourceFile]);
+
+  useEffect(() => {
+    if (!sourceFile || !searchQuery) {
+      setFileSearchMatches(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setFileSearchMatches(null);
+    void searchJsonlFile(sourceFile, searchQuery, searchOptions, controller.signal)
+      .then((nextMatches) => {
+        if (!controller.signal.aborted) {
+          setFileSearchMatches(nextMatches);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFileSearchMatches(null);
+        }
+      });
+
+    return () => controller.abort();
+  }, [searchOptions, searchQuery, sourceFile]);
+
+  const matches = sourceFile && searchQuery ? fileSearchMatches : inMemoryMatches;
 
   const visibleRecords = useMemo(
     () => filterRecords(result.records, recordFilter, matches),
@@ -657,7 +768,8 @@ export const UnquoteApp = ({
   const handleCopyNode = async (recordId: string, row: TreeRow) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
     const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
-    const resolved = copyRecord?.node ? resolveTreePath([copyRecord], row.pathText) : null;
+    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
+    const resolved = renderedRecord?.node ? resolveTreePath([renderedRecord], row.pathText) : null;
     const value = resolved?.ok ? resolved.target.node.value : row.node.value;
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   };
