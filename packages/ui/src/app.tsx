@@ -21,6 +21,7 @@ import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
 import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
 import type { FileOverviewState } from "./lib/file-overview";
+import { drainJsonlLines } from "./lib/jsonl-lines";
 import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
 import type { RecordInsightMapState } from "./lib/record-insight";
 import {
@@ -215,11 +216,17 @@ const readJsonlFileLines = async (
 ) => {
   let lineNumber = 1;
   let stopped = false;
-  const processLine = (rawLine: string) => {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+  const processLine = (line: string) => {
+    if (signal?.aborted) {
+      return false;
+    }
+
     stopped = onLine(line, lineNumber) === false;
     lineNumber += 1;
+    return !stopped;
   };
+  const processRawLine = (rawLine: string) =>
+    processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
 
   if (typeof file.stream !== "function") {
     const text = await readFileText(file, () => undefined);
@@ -227,7 +234,7 @@ const readJsonlFileLines = async (
       if (stopped || signal?.aborted) {
         break;
       }
-      processLine(rawLine);
+      processRawLine(rawLine);
     }
     return;
   }
@@ -247,20 +254,20 @@ const readJsonlFileLines = async (
     while (!stopped && !signal?.aborted) {
       const { value, done } = await reader.read();
       if (done) {
-        buffer += decoder.decode();
-        if (buffer && !signal?.aborted) {
-          processLine(buffer);
-        }
+        const drained = drainJsonlLines(buffer, decoder.decode(), true, processLine);
+        buffer = drained.buffer;
+        stopped = stopped || drained.stopped;
         break;
       }
 
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIndex = buffer.indexOf("\n");
-      while (newlineIndex >= 0 && !stopped && !signal?.aborted) {
-        processLine(buffer.slice(0, newlineIndex));
-        buffer = buffer.slice(newlineIndex + 1);
-        newlineIndex = buffer.indexOf("\n");
-      }
+      const drained = drainJsonlLines(
+        buffer,
+        decoder.decode(value, { stream: true }),
+        false,
+        processLine,
+      );
+      buffer = drained.buffer;
+      stopped = stopped || drained.stopped;
     }
   } catch (error) {
     if (!signal?.aborted) {

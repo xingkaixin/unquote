@@ -7,6 +7,7 @@ import {
 } from "../src/lib/file-overview";
 import {
   buildRecordRows,
+  collectStringifiedPaths,
   filterRecords,
   formatJqSelector,
   formatJsonPath,
@@ -99,6 +100,53 @@ describe("tree paths", () => {
       ok: false,
       reason: "not-found",
     });
+  });
+
+  it("builds and searches deep quoted paths without changing path output", () => {
+    const depth = 36;
+    let value: unknown = "needle";
+    let expectedJsonPath = "$";
+    let expectedJqPath = ".";
+
+    for (let index = depth - 1; index >= 0; index--) {
+      value = index % 2 === 0 ? { [`key.${index}`]: value } : [value];
+    }
+
+    for (let index = 0; index < depth; index++) {
+      if (index % 2 === 0) {
+        expectedJsonPath += `["key.${index}"]`;
+        expectedJqPath += `["key.${index}"]`;
+      } else {
+        expectedJsonPath += "[0]";
+        expectedJqPath += "[0]";
+      }
+    }
+
+    const result = parseInput(JSON.stringify(value));
+    const record = result.records[0]!;
+    const rows = buildRecordRows(record, new Set(), new Set());
+    const leaf = rows.find((row) => row.valueLabel === '"needle"');
+    const matches = searchRecords(result.records, expectedJsonPath, {
+      regex: false,
+      caseSensitive: true,
+      jq: true,
+    });
+
+    expect(leaf?.jsonPath).toBe(expectedJsonPath);
+    expect(leaf?.jqPath).toBe(expectedJqPath);
+    expect(matches).toEqual([
+      expect.objectContaining({
+        pathText: expectedJsonPath,
+        pathRanges: [{ start: 0, end: expectedJsonPath.length }],
+      }),
+    ]);
+  });
+
+  it("collects stringified paths with quoted keys and array indexes", () => {
+    const result = parseInput('{"payload":{"items":["{\\"a.b\\":1}"]}}');
+    const record = result.records[0]!;
+
+    expect(collectStringifiedPaths(record, new Set(), new Set())).toEqual(["$.payload.items[0]"]);
   });
 
   it("limits long string labels without changing the node value", () => {
