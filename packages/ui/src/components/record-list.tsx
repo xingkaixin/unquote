@@ -5,7 +5,7 @@ import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/tree";
 import { JsonTree } from "./json-tree";
 
-const recordVirtualizationThreshold = 160;
+export const recordVirtualizationThreshold = 160;
 const recordEstimateSize = 260;
 const recordGap = 12;
 

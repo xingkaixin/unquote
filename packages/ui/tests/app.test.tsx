@@ -336,6 +336,46 @@ describe("UnquoteApp", () => {
     );
   });
 
+  it("skips the active-record observer for virtualized record lists", async () => {
+    const user = userEvent.setup();
+    const originalIntersectionObserver = globalThis.IntersectionObserver;
+    const observerOptions: IntersectionObserverInit[] = [];
+    Object.assign(globalThis, {
+      IntersectionObserver: class {
+        constructor(_callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          observerOptions.push(options ?? {});
+        }
+        disconnect() {}
+        observe() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+      },
+    });
+
+    try {
+      const input = Array.from({ length: 161 }, (_, index) =>
+        JSON.stringify({ event: "message", index }),
+      ).join("\n");
+
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput={input} />
+        </I18nProvider>,
+      );
+
+      await user.click(screen.getByRole("tab", { name: "Output" }));
+      await waitFor(() =>
+        expect(screen.getAllByText("161 total · 161 ok · 0 err").length).toBeGreaterThan(0),
+      );
+
+      expect(observerOptions.some((options) => Array.isArray(options.threshold))).toBe(false);
+    } finally {
+      Object.assign(globalThis, { IntersectionObserver: originalIntersectionObserver });
+    }
+  });
+
   it("focuses selected nodes and copies extraction payloads", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
@@ -504,8 +544,14 @@ describe("UnquoteApp", () => {
       "Paste JSON / JSONL, or drop a file here.",
     )[0]!;
     const longValue = `${"a".repeat(maxTransferStringLength + 32)}needle${"b".repeat(1_000_000)}`;
-    const file = new File([`${JSON.stringify({ message: longValue })}\n`], "payload.jsonl", {
+    const fileContents = `${JSON.stringify({ message: longValue })}\n`;
+    const file = new File([fileContents], "payload.jsonl", {
       type: "application/jsonl",
+    });
+    const streamSpy = vi.fn(() => new Blob([fileContents]).stream());
+    Object.defineProperty(file, "stream", {
+      configurable: true,
+      value: streamSpy,
     });
 
     fireEvent.paste(sourceInput, {
@@ -520,7 +566,9 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     await user.type(screen.getAllByPlaceholderText("Search keys and values...")[0]!, "needle");
+    expect(streamSpy).not.toHaveBeenCalled();
 
+    await waitFor(() => expect(streamSpy).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getAllByText("1/1").length).toBeGreaterThan(0));
   });
 });

@@ -1,6 +1,11 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
-import { createRecordInsight, createRecordInsightMap } from "../src/lib/record-insight";
+import {
+  createRecordInsight,
+  createRecordInsightMap,
+  createRecordInsightMapState,
+  updateRecordInsightMap,
+} from "../src/lib/record-insight";
 import { filterRecords } from "../src/lib/tree";
 
 describe("record insight", () => {
@@ -90,5 +95,27 @@ describe("record insight", () => {
         (record) => record.lineNumber,
       ),
     ).toEqual([2]);
+  });
+
+  it("updates the insight map incrementally for appended records", () => {
+    const result = parseInput(
+      [
+        '{"event":"message","role":"assistant","content":"ready"}',
+        '{"event":"tool_call","tool_name":"billing.search"}',
+      ].join("\n"),
+      { forcedFormat: "jsonl" },
+    );
+    const records = result.records.slice(0, 1);
+    const state = createRecordInsightMapState();
+
+    const first = updateRecordInsightMap(records, state);
+    expect(first.get("record-1")?.kind).toBe("message");
+
+    records.push(result.records[1]!);
+    const second = updateRecordInsightMap(records, state);
+
+    expect(second).toBe(first);
+    expect([...second.keys()]).toEqual(["record-1", "record-2"]);
+    expect(second.get("record-2")?.kind).toBe("tool");
   });
 });

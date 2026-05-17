@@ -1,6 +1,10 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
-import { createFileOverview } from "../src/lib/file-overview";
+import {
+  createFileOverview,
+  createFileOverviewState,
+  updateFileOverview,
+} from "../src/lib/file-overview";
 import {
   buildRecordRows,
   filterRecords,
@@ -165,5 +169,25 @@ describe("tree paths", () => {
     expect(overview.errors).toEqual([
       expect.objectContaining({ recordId: "record-3", lineNumber: 3 }),
     ]);
+  });
+
+  it("updates file overview incrementally for appended records", () => {
+    const result = parseInput(
+      [
+        '{"event":"tool_call","tool":"billing.search","args":"{\\"status\\":\\"open\\"}"}',
+        '{"event":"tool_result","tool":"billing.search","result":{"ok":true}}',
+        "not-json",
+      ].join("\n"),
+      { forcedFormat: "jsonl" },
+    );
+    const records = result.records.slice(0, 1);
+    const state = createFileOverviewState();
+
+    const first = updateFileOverview(records, state);
+    expect(first.total).toBe(1);
+    expect(first.nestedRecords).toBe(1);
+
+    records.push(...result.records.slice(1));
+    expect(updateFileOverview(records, state)).toEqual(createFileOverview(records));
   });
 });

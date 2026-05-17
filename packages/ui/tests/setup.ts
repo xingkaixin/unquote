@@ -53,6 +53,11 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   value: vi.fn(),
 });
 
+Object.defineProperty(window, "scrollTo", {
+  configurable: true,
+  value: vi.fn(),
+});
+
 Object.assign(globalThis, {
   IntersectionObserver: class {
     constructor(..._args: unknown[]) {}
