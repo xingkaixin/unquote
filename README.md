@@ -8,17 +8,21 @@
 
 ## 功能
 
-- 自动检测并递归展开字符串化的 JSON 值
-- 交互式展开/折叠 UI，直观显示嵌套层级
-- JSONL（JSON Lines）格式支持，含目录导航
-- JSON 路径显示、一键复制、语法高亮
-- 深色/浅色主题
+- 自动检测 JSON / JSONL，并递归展开字符串化的 JSON 值
+- 交互式树视图，支持展开/折叠、语法高亮、路径显示和一键复制
+- JSONL 记录导航、搜索、过滤、JSONPath / jq 风格路径跳转
+- 文件概览：成功/失败统计、嵌套路径、常见 event/type/tool 值和错误预览
+- 记录洞察：识别日志、消息、事件、工具调用和错误记录
+- Path Inspector：聚焦子树，复制子树、原始值、转义字符串和调试包
+- 可见记录复制/导出为 JSONL 或格式化 JSON
+- 解析在浏览器或扩展本地完成
+- 深色/浅色/跟随系统主题，支持英文和简体中文
 
 ## 分发
 
 - **npm 包** — 纯 TypeScript 核心，零依赖
-- **Web 应用** — 在线使用
-- **Chrome 扩展** — Manifest V3，支持背景脚本和独立页面
+- **Web 应用** — [unquote.xingkaixin.me](https://unquote.xingkaixin.me/)
+- **Chrome 扩展** — [Chrome Web Store](https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg)，Manifest V3，支持右键菜单和独立页面
 
 ## 技术栈
 

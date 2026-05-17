@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- **File Overview** — High-level diagnostics for JSON / JSONL imports
+  - Total, successful, failed, nested-record, and max-depth counters
+  - Top nested JSON paths and common `event` / `type` / `tool` values
+  - Error previews with jump-to-record actions
+  - Shortcuts from overview items into path navigation and search
+- **Record Insight Lens** — Per-record summaries for log, agent, and tool-call JSONL
+  - Classifies records as errors, tools, messages, or events
+  - Extracts common fields such as timestamp, level, status, role, event, tool, error, and message
+  - Shows insight chips in record cards and the record navigation sidebar
+  - Adds filters for tools, messages, events, and arbitrary insight field values
+- **Focus and extraction tools** — Path Inspector actions for isolating and copying data
+  - Focus a selected subtree and exit focus without losing the selected path
+  - Copy subtree, escaped string, raw value, and a debug bundle for the selected node
+  - Export currently visible records as JSONL or formatted JSON
+- **Sample inputs** — One-click examples for escaped API responses, agent tool-call JSONL, and mixed valid / invalid JSONL.
+
+### Changed
+
+- Large JSONL files now keep full source records available for copy / export while transferring compact preview nodes to the UI.
+- Record lists are window-virtualized at large record counts, with lazy record hydration preserved for tree rows.
+- File import and render benchmarks can target selected fixtures and use real file input paths.
+- Web and extension app versions bumped to `0.3.0`.
+- Web social preview metadata now points to a PNG Open Graph image.
+
+### Fixed
+
+- Search, copy, export, path jumps, and focus state now continue to work after large JSONL imports where preview string values are compacted.
+- Focused subtrees are cleared when the current search or record filter moves outside the focused path.
+
 ## [0.2.0] - 2026-05-10
 
 ### Added
