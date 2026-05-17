@@ -50,6 +50,18 @@ export type FileOverviewCache = Map<
   }
 >;
 
+export interface FileOverviewState {
+  records: JsonlRecord[] | null;
+  processedLength: number;
+  cache: FileOverviewCache;
+  nestedPathCounts: Map<string, number>;
+  fieldValues: Map<string, OverviewFieldValue>;
+  errors: OverviewError[];
+  success: number;
+  nestedRecords: number;
+  maxDepth: number;
+}
+
 const topNestedPathLimit = 6;
 const topFieldValueLimit = 8;
 
@@ -175,40 +187,88 @@ const sortCountItems = <T extends { count: number }>(items: T[], getLabel: (item
     (left, right) => right.count - left.count || getLabel(left).localeCompare(getLabel(right)),
   );
 
+const createEmptyFileOverviewState = (): Omit<
+  FileOverviewState,
+  "records" | "processedLength" | "cache"
+> => ({
+  nestedPathCounts: new Map(),
+  fieldValues: new Map(),
+  errors: [],
+  success: 0,
+  nestedRecords: 0,
+  maxDepth: 0,
+});
+
+const addSummaryToState = (state: FileOverviewState, summary: RecordOverviewSummary) => {
+  if (summary.hasNestedJson) {
+    state.nestedRecords += 1;
+  }
+  state.maxDepth = Math.max(state.maxDepth, summary.maxDepth);
+  for (const [pathText, count] of summary.nestedPaths) {
+    addCount(state.nestedPathCounts, pathText, count);
+  }
+  for (const item of summary.fieldValues.values()) {
+    addFieldValue(state.fieldValues, item, item.count);
+  }
+  if (summary.error) {
+    state.errors.push(summary.error);
+  }
+};
+
+const addRecordToState = (state: FileOverviewState, record: JsonlRecord) => {
+  if (record.node) {
+    state.success += 1;
+  }
+  const cached = state.cache.get(record.id);
+  const summary = cached?.record === record ? cached.summary : summarizeRecord(record);
+  state.cache.set(record.id, { record, summary });
+  addSummaryToState(state, summary);
+};
+
+const toFileOverview = (state: FileOverviewState, total: number): FileOverview => {
+  const topNestedPaths = sortCountItems(
+    [...state.nestedPathCounts.entries()].map(([pathText, count]) => ({ pathText, count })),
+    (item) => item.pathText,
+  ).slice(0, topNestedPathLimit);
+  const topFieldValues = sortCountItems(
+    [...state.fieldValues.values()],
+    (item) => `${item.field}:${item.pathText}:${item.value}`,
+  ).slice(0, topFieldValueLimit);
+
+  return {
+    total,
+    success: state.success,
+    failed: total - state.success,
+    nestedRecords: state.nestedRecords,
+    maxDepth: state.maxDepth,
+    topNestedPaths,
+    topFieldValues,
+    errors: state.errors,
+  };
+};
+
+export const createFileOverviewState = (): FileOverviewState => ({
+  records: null,
+  processedLength: 0,
+  cache: new Map(),
+  ...createEmptyFileOverviewState(),
+});
+
 export const createFileOverview = (
   records: JsonlRecord[],
   cache?: FileOverviewCache,
 ): FileOverview => {
-  const nestedPathCounts = new Map<string, number>();
-  const fieldValues = new Map<string, OverviewFieldValue>();
-  const errors: OverviewError[] = [];
+  const state: FileOverviewState = {
+    records,
+    processedLength: 0,
+    cache: cache ?? new Map(),
+    ...createEmptyFileOverviewState(),
+  };
   const liveRecordIds = new Set<string>();
-  let success = 0;
-  let nestedRecords = 0;
-  let maxDepth = 0;
 
   for (const record of records) {
     liveRecordIds.add(record.id);
-    if (record.node) {
-      success += 1;
-    }
-    const cached = cache?.get(record.id);
-    const summary = cached?.record === record ? cached.summary : summarizeRecord(record);
-    cache?.set(record.id, { record, summary });
-
-    if (summary.hasNestedJson) {
-      nestedRecords += 1;
-    }
-    maxDepth = Math.max(maxDepth, summary.maxDepth);
-    for (const [pathText, count] of summary.nestedPaths) {
-      addCount(nestedPathCounts, pathText, count);
-    }
-    for (const item of summary.fieldValues.values()) {
-      addFieldValue(fieldValues, item, item.count);
-    }
-    if (summary.error) {
-      errors.push(summary.error);
-    }
+    addRecordToState(state, record);
   }
 
   if (cache) {
@@ -219,23 +279,24 @@ export const createFileOverview = (
     }
   }
 
-  const topNestedPaths = sortCountItems(
-    [...nestedPathCounts.entries()].map(([pathText, count]) => ({ pathText, count })),
-    (item) => item.pathText,
-  ).slice(0, topNestedPathLimit);
-  const topFieldValues = sortCountItems(
-    [...fieldValues.values()],
-    (item) => `${item.field}:${item.pathText}:${item.value}`,
-  ).slice(0, topFieldValueLimit);
+  return toFileOverview(state, records.length);
+};
 
-  return {
-    total: records.length,
-    success,
-    failed: records.length - success,
-    nestedRecords,
-    maxDepth,
-    topNestedPaths,
-    topFieldValues,
-    errors,
-  };
+export const updateFileOverview = (
+  records: JsonlRecord[],
+  state: FileOverviewState,
+): FileOverview => {
+  if (state.records !== records || state.processedLength > records.length) {
+    state.records = records;
+    state.processedLength = 0;
+    state.cache.clear();
+    Object.assign(state, createEmptyFileOverviewState());
+  }
+
+  for (let index = state.processedLength; index < records.length; index += 1) {
+    addRecordToState(state, records[index]!);
+  }
+  state.processedLength = records.length;
+
+  return toFileOverview(state, records.length);
 };

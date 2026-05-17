@@ -10,7 +10,7 @@ import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
 import { PathJumpBar } from "./components/path-jump-bar";
 import { RecordFilterBar } from "./components/record-filter-bar";
-import { RecordList } from "./components/record-list";
+import { RecordList, recordVirtualizationThreshold } from "./components/record-list";
 import { SearchBar } from "./components/search-bar";
 import { StatusFooter } from "./components/status-footer";
 import { ThemeToggle } from "./components/theme-toggle";
@@ -19,10 +19,10 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useParser } from "./hooks/use-parser";
-import { createFileOverview } from "./lib/file-overview";
-import type { FileOverviewCache } from "./lib/file-overview";
-import { createRecordInsightMap } from "./lib/record-insight";
-import type { RecordInsightCache } from "./lib/record-insight";
+import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
+import type { FileOverviewState } from "./lib/file-overview";
+import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
+import type { RecordInsightMapState } from "./lib/record-insight";
 import {
   buildSearchPattern,
   collectStringifiedPaths,
@@ -45,6 +45,7 @@ import type {
 } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
+const fileSearchDebounceMs = 250;
 
 interface PathScrollTarget {
   recordId: string;
@@ -356,6 +357,7 @@ export const UnquoteApp = ({
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [searchJq, setSearchJq] = useState(false);
+  const [debouncedFileSearchQuery, setDebouncedFileSearchQuery] = useState("");
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
   const [insightQuery, setInsightQuery] = useState("");
@@ -374,11 +376,12 @@ export const UnquoteApp = ({
     requestId: number;
   } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const overviewCacheRef = useRef<FileOverviewCache>(new Map());
-  const recordInsightCacheRef = useRef<RecordInsightCache>(new Map());
+  const overviewStateRef = useRef<FileOverviewState>(createFileOverviewState());
+  const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
+  const fileSearchAbortRef = useRef<AbortController | null>(null);
   const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
-  const { result, progress } = useParser(
+  const { result, progress, recordsVersion } = useParser(
     sourceText,
     mode === "auto" ? undefined : mode,
     sourceFile,
@@ -438,17 +441,34 @@ export const UnquoteApp = ({
   const inMemoryMatches = useMemo(() => {
     if (!searchQuery || sourceFile) return null;
     return searchRecords(result.records, searchQuery, searchOptions);
-  }, [result.records, searchOptions, searchQuery, sourceFile]);
+  }, [recordsVersion, result.records, searchOptions, searchQuery, sourceFile]);
 
   useEffect(() => {
+    fileSearchAbortRef.current?.abort();
     if (!sourceFile || !searchQuery) {
+      setDebouncedFileSearchQuery("");
+      setFileSearchMatches(null);
+      return;
+    }
+
+    setFileSearchMatches(null);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedFileSearchQuery(searchQuery);
+    }, fileSearchDebounceMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery, sourceFile]);
+
+  useEffect(() => {
+    if (!sourceFile || !debouncedFileSearchQuery) {
       setFileSearchMatches(null);
       return;
     }
 
     const controller = new AbortController();
+    fileSearchAbortRef.current = controller;
     setFileSearchMatches(null);
-    void searchJsonlFile(sourceFile, searchQuery, searchOptions, controller.signal)
+    void searchJsonlFile(sourceFile, debouncedFileSearchQuery, searchOptions, controller.signal)
       .then((nextMatches) => {
         if (!controller.signal.aborted) {
           setFileSearchMatches(nextMatches);
@@ -460,30 +480,38 @@ export const UnquoteApp = ({
         }
       });
 
-    return () => controller.abort();
-  }, [searchOptions, searchQuery, sourceFile]);
+    return () => {
+      controller.abort();
+      if (fileSearchAbortRef.current === controller) {
+        fileSearchAbortRef.current = null;
+      }
+    };
+  }, [debouncedFileSearchQuery, searchOptions, sourceFile]);
 
   const matches = sourceFile && searchQuery ? fileSearchMatches : inMemoryMatches;
 
   const recordInsights = useMemo(
-    () => createRecordInsightMap(result.records, recordInsightCacheRef.current),
-    [result.records],
+    () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
+    [recordsVersion, result.records],
   );
   const visibleRecords = useMemo(
     () => filterRecords(result.records, recordFilter, matches, recordInsights, insightQuery),
-    [insightQuery, matches, recordFilter, recordInsights, result.records],
+    [insightQuery, matches, recordFilter, recordInsights, recordsVersion, result.records],
   );
-  const visibleStats = useMemo(() => getRecordStats(visibleRecords), [visibleRecords]);
+  const visibleStats = useMemo(
+    () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
+    [recordFilter, recordsVersion, result.stats, visibleRecords],
+  );
   const fileOverview = useMemo(
-    () => createFileOverview(result.records, overviewCacheRef.current),
-    [result.records],
+    () => updateFileOverview(result.records, overviewStateRef.current),
+    [recordsVersion, result.records],
   );
   const visibleMatches = useMemo(() => {
     if (!matches) return null;
 
     const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
     return matches.filter((match) => visibleRecordIds.has(match.recordId));
-  }, [matches, visibleRecords]);
+  }, [matches, recordsVersion, visibleRecords]);
   const matchCount = visibleMatches?.length ?? 0;
 
   useEffect(() => {
@@ -662,7 +690,7 @@ export const UnquoteApp = ({
     setActiveRecordId((current) =>
       current && visibleRecordIds.has(current) ? current : (firstRecord?.id ?? null),
     );
-  }, [visibleRecords]);
+  }, [recordsVersion, visibleRecords]);
 
   useEffect(() => {
     const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
@@ -678,7 +706,14 @@ export const UnquoteApp = ({
     if (recordScrollTarget && !visibleRecordIds.has(recordScrollTarget.recordId)) {
       setRecordScrollTarget(null);
     }
-  }, [focusedPath, recordScrollTarget, scrollTarget, selectedPath, visibleRecords]);
+  }, [
+    focusedPath,
+    recordScrollTarget,
+    recordsVersion,
+    scrollTarget,
+    selectedPath,
+    visibleRecords,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1047,7 +1082,11 @@ export const UnquoteApp = ({
   }, []);
 
   useEffect(() => {
-    if (!outputRef.current || visibleRecords.length === 0) {
+    if (
+      !outputRef.current ||
+      visibleRecords.length === 0 ||
+      visibleRecords.length > recordVirtualizationThreshold
+    ) {
       return;
     }
 
@@ -1075,7 +1114,7 @@ export const UnquoteApp = ({
     });
 
     return () => observer.disconnect();
-  }, [visibleRecords]);
+  }, [recordsVersion, visibleRecords]);
 
   const statsLabel =
     recordFilter === "all"

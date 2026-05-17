@@ -1,4 +1,4 @@
-import type { ParseResult } from "@unquote/core";
+import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
 import { parseInput, parseJson } from "@unquote/core";
 import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
@@ -70,9 +70,10 @@ export const useParser = (
   forcedFormat?: "json" | "jsonl",
   sourceFile?: File | null,
 ) => {
-  const [result, setResult] = useState<ParseResult>(() =>
-    parseInput(input, withForcedFormat(forcedFormat)),
-  );
+  const [parserState, setParserState] = useState(() => ({
+    result: parseInput(input, withForcedFormat(forcedFormat)),
+    recordsVersion: 0,
+  }));
   const [progress, setProgress] = useState<ParserProgress>(idleProgress);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -88,7 +89,10 @@ export const useParser = (
             return;
           }
           const parsed = parseInput(text, { forcedFormat: "jsonl" });
-          setResult(parsed);
+          setParserState((current) => ({
+            result: parsed,
+            recordsVersion: current.recordsVersion + 1,
+          }));
           setProgress({
             processedLines: parsed.stats.total,
             success: parsed.stats.success,
@@ -101,7 +105,10 @@ export const useParser = (
       }
 
       const parsed = parseInput(input, withForcedFormat(forcedFormat));
-      setResult(parsed);
+      setParserState((current) => ({
+        result: parsed,
+        recordsVersion: current.recordsVersion + 1,
+      }));
       setProgress({
         processedLines: parsed.stats.total,
         success: parsed.stats.success,
@@ -117,9 +124,58 @@ export const useParser = (
     });
 
     const currentWorker = workerRef.current;
-    setResult(sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat));
+    setParserState((current) => ({
+      result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
+      recordsVersion: current.recordsVersion + 1,
+    }));
     setProgress({ ...idleProgress, done: false });
     let chunkTimeoutId: number | null = null;
+    const streamedRecords: JsonlRecord[] = [];
+    let pendingStreamSnapshot: {
+      stats: ParseResult["stats"];
+      progress: ParserProgress;
+    } | null = null;
+    let streamFlushFrameId: number | null = null;
+    let hasPublishedStream = false;
+
+    const cancelStreamFlush = () => {
+      if (streamFlushFrameId === null) {
+        return;
+      }
+
+      window.cancelAnimationFrame(streamFlushFrameId);
+      streamFlushFrameId = null;
+    };
+
+    const publishStream = () => {
+      streamFlushFrameId = null;
+      if (!pendingStreamSnapshot) {
+        return;
+      }
+
+      const snapshot = pendingStreamSnapshot;
+      pendingStreamSnapshot = null;
+      hasPublishedStream = true;
+      setProgress(snapshot.progress);
+      setParserState((current) => ({
+        result: {
+          format: "jsonl",
+          records: streamedRecords,
+          stats: snapshot.stats,
+        },
+        recordsVersion: current.recordsVersion + 1,
+      }));
+    };
+
+    const scheduleStreamPublish = () => {
+      if (!hasPublishedStream || pendingStreamSnapshot?.progress.done) {
+        cancelStreamFlush();
+        publishStream();
+        return;
+      }
+
+      streamFlushFrameId ??= window.requestAnimationFrame(publishStream);
+    };
 
     const postJsonlChunks = () => {
       currentWorker.postMessage({ type: "start-jsonl", requestId } satisfies ParserRequest);
@@ -175,22 +231,30 @@ export const useParser = (
       }
 
       if (message.type === "batch") {
-        setProgress(message.progress);
-        setResult((current) => ({
-          format: "jsonl",
-          records: [...current.records, ...message.records],
+        streamedRecords.push(...message.records);
+        pendingStreamSnapshot = {
           stats: message.stats,
-        }));
+          progress: message.progress,
+        };
+        scheduleStreamPublish();
         return;
       }
 
+      cancelStreamFlush();
+      publishStream();
       setProgress(message.progress);
       if (message.result) {
-        setResult(message.result);
+        setParserState((current) => ({
+          result: message.result!,
+          recordsVersion: current.recordsVersion + 1,
+        }));
         return;
       }
       if (message.stats) {
-        setResult((current) => ({ ...current, format: "jsonl", stats: message.stats! }));
+        setParserState((current) => ({
+          result: { ...current.result, format: "jsonl", stats: message.stats! },
+          recordsVersion: current.recordsVersion + 1,
+        }));
       }
     };
 
@@ -200,9 +264,10 @@ export const useParser = (
       if (chunkTimeoutId !== null) {
         window.clearTimeout(chunkTimeoutId);
       }
+      cancelStreamFlush();
       currentWorker.removeEventListener("message", onMessage);
     };
   }, [forcedFormat, input, sourceFile]);
 
-  return { result, progress };
+  return { result: parserState.result, progress, recordsVersion: parserState.recordsVersion };
 };

@@ -48,6 +48,13 @@ export type RecordInsightCache = Map<
   }
 >;
 
+export interface RecordInsightMapState {
+  records: JsonlRecord[] | null;
+  processedLength: number;
+  cache: RecordInsightCache;
+  insights: Map<string, RecordInsight>;
+}
+
 const maxInsightValueLength = 160;
 const maxInsightTitleLength = 96;
 const maxKeyPathCount = 8;
@@ -416,4 +423,34 @@ export const createRecordInsightMap = (records: JsonlRecord[], cache?: RecordIns
   }
 
   return insights;
+};
+
+export const createRecordInsightMapState = (): RecordInsightMapState => ({
+  records: null,
+  processedLength: 0,
+  cache: new Map(),
+  insights: new Map(),
+});
+
+export const updateRecordInsightMap = (
+  records: JsonlRecord[],
+  state: RecordInsightMapState,
+) => {
+  if (state.records === records && state.processedLength <= records.length) {
+    for (let index = state.processedLength; index < records.length; index += 1) {
+      const record = records[index]!;
+      const insight = createRecordInsight(record);
+      state.cache.set(record.id, { record, insight });
+      if (insight) {
+        state.insights.set(record.id, insight);
+      }
+    }
+    state.processedLength = records.length;
+    return state.insights;
+  }
+
+  state.records = records;
+  state.processedLength = records.length;
+  state.insights = createRecordInsightMap(records, state.cache);
+  return state.insights;
 };
