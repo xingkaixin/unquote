@@ -1,5 +1,6 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { parseInput, parseJsonlRecordLine } from "@unquote/core";
+import { drainJsonlLines } from "../lib/jsonl-lines";
 
 export type ParserRequest =
   | {
@@ -176,21 +177,10 @@ const processJsonlChunk = (
   chunk: string,
   done: boolean,
 ) => {
-  session.buffer += chunk;
-
-  let newlineIndex = session.buffer.indexOf("\n");
-  while (newlineIndex >= 0) {
-    const rawLine = session.buffer.slice(0, newlineIndex);
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+  const drained = drainJsonlLines(session.buffer, chunk, done, (line) => {
     parseJsonlLine(requestId, session, line);
-    session.buffer = session.buffer.slice(newlineIndex + 1);
-    newlineIndex = session.buffer.indexOf("\n");
-  }
-
-  if (done && session.buffer) {
-    parseJsonlLine(requestId, session, session.buffer);
-    session.buffer = "";
-  }
+  });
+  session.buffer = drained.buffer;
 
   postBatch(requestId, session, done);
 };

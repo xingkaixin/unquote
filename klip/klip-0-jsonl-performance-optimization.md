@@ -1,25 +1,25 @@
 ---
 Author: "Codex"
 Updated: 2026-05-17
-Status: Draft — P1 implemented
+Status: Complete
 ---
 
 # klip-0-jsonl-performance-optimization
 
 ## 现状结论（代码校准）
 
-- `@unquote/core` 的 forced JSONL 解析在现有 1-10MB 基准下表现稳定。证据：`docs/performance.md` 记录 43-437 records 的 `Core p95` 为 9.75-33.67 ms，`benchmark/perf-benchmark.mjs` 的 `benchmarkCore()` 使用 `parseInput(input, { forcedFormat: "jsonl" })`。
-- 当前 release gate 没有覆盖高记录数 JSONL。证据：`docs/performance.md` 的基准表只覆盖 43、388、431、437 records，`benchmark/perf-benchmark.mjs` 默认 fixture 为 `case1` 和 `case2-*`。
-- 流式 JSONL 解析采用 worker batch 推送到 React state。证据：`packages/ui/src/worker/parser-worker.ts` 中 `batchSize = 64`，`packages/ui/src/hooks/use-parser.ts` 在收到 `message.type === "batch"` 后把新 records 合并进 `result.records`。
+- `@unquote/core` 的 forced JSONL 解析在现有基准下表现稳定。证据：`docs/performance.md` 记录 43-5260 records 的 `Core p95` 为 9.25-411.74 ms，`benchmark/perf-benchmark.mjs` 的 `benchmarkCore()` 使用 `parseInput(input, { forcedFormat: "jsonl" })`。
+- 当前 release gate 已覆盖高记录数 JSONL。证据：`docs/performance.md` 记录 `benchmark/case4-5K-rows.jsonl` 的 5260 records baseline，`benchmark/perf-benchmark.mjs` 默认 fixture 已包含 `case4-5K-rows.jsonl`。
+- 流式 JSONL 解析采用 worker batch 推送，主线程用 append-only records backing array 接收。证据：`packages/ui/src/worker/parser-worker.ts` 中 `batchSize = 64`，`packages/ui/src/hooks/use-parser.ts` 用 `streamedRecords.push(...message.records)` 和 `recordsVersion` 发布更新。
 - 大 JSONL 文件会走 `sourceFile` 流式路径，主输入区不再持有完整文本。证据：`packages/ui/src/app.tsx` 中 `largeSourceCollapseBytes = 1_000_000`，`handleFileDrop()` 对大 `.jsonl` 设置 `sourceFile` 并清空 `sourceText`。
 - 文件搜索为了覆盖 worker transfer 截断后的长字符串，会重新读取原始 `sourceFile`。证据：`packages/ui/src/app.tsx` 的 `searchJsonlFile()` 逐行 `parseJsonlRecordLine()`；`packages/ui/tests/app.test.tsx` 中 `searches full string content in streamed JSONL files` 覆盖了超过 `maxTransferStringLength` 后的全文搜索。
 
 ## 背景
 
 - Unquote 的核心使用场景是本地调试 AI/Agent 日志中的 JSONL 和 stringified JSON。
-- 现有性能门禁主要证明 1-10MB、低到中等记录数文件可快速打开，不能证明 10k/100k 行 JSONL 下仍然可用。
+- 性能门禁现在覆盖 1-10MB、低到中等记录数文件，以及 5K+ records 的高记录数 JSONL。
 - 本次复杂度审计发现，主要风险不是单次解析算法本身，而是流式 batch 到达后主线程反复复制、反复派生、反复扫描 DOM。
-- 这些问题在当前 benchmark 中不明显，因为 fixture 的 record count 较低。
+- 100k records 作为本地压力测试 fixture 生成参数保留，不进入默认 release gate，避免默认 benchmark 过重。
 
 ## 目标
 
@@ -85,7 +85,7 @@ Status: Draft — P1 implemented
 - 实施状态：`sourceFile` 搜索增加 250ms debounce；query/sourceFile 变化会立即 abort 正在进行的文件扫描；内存搜索保持即时。
 - 验证：长字符串全文搜索测试扩展为断言连续输入期间不会打开文件流，稳定 query 后只扫描一次；`pnpm check` 通过。
 
-### P2（性能）5. 树行构建和搜索重复构造 path 字符串
+### P2（性能）5. 树行构建和搜索重复构造 path 字符串 ✅ 已完成
 
 - 位置：`packages/ui/src/lib/tree.ts`（`pushRows()`、`searchNode()`、`collectPaths()`）
 - 现象/风险：每个节点都从 `pathSegments` 重新 `formatJsonPath()` / `formatJqSelector()`，递归时还复制 `pathSegments`。深树或大树搜索时，成本会随 path depth 放大。
@@ -94,8 +94,10 @@ Status: Draft — P1 implemented
 - 目标复杂度：接近 O(nodes + outputPathChars)。
 - 风险：低到中。需要覆盖 quoted key、数字 object key、array index、stringified path chain。
 - 验收标准：`packages/ui/tests/tree.test.tsx` 中 path 相关测试保持通过，并补充深层路径基准。
+- 实施状态：`tree.ts` 抽出单 segment path append 逻辑，`pushRows()` / `collectPaths()` / `searchNode()` 改为递归携带已格式化 path；`buildFocusedRecordRows()` 直接复用已解析的 resolved path。
+- 验证：新增深层 quoted key + array index 搜索用例和 stringified path 收集用例；`pnpm check` 通过。
 
-### P2（性能）6. JSONL chunk 行处理存在 per-chunk 字符串切片放大
+### P2（性能）6. JSONL chunk 行处理存在 per-chunk 字符串切片放大 ✅ 已完成
 
 - 位置：`packages/ui/src/worker/parser-worker.ts`（`processJsonlChunk()`）、`packages/ui/src/app.tsx`（`readJsonlFileLines()`）
 - 现象/风险：每处理一行都 `buffer = buffer.slice(newlineIndex + 1)`，同一 chunk 内行数很高时会重复复制剩余字符串。
@@ -104,8 +106,10 @@ Status: Draft — P1 implemented
 - 目标复杂度：O(chunk)。
 - 风险：低。需要覆盖 CRLF、最后一行无换行、空行、abort。
 - 验收标准：现有 parser/streaming tests 通过，新增 chunk 边界测试通过。
+- 实施状态：新增 `drainJsonlLines()` 统一 worker streaming 和 app 文件搜索的 chunk 行扫描；扫描时只移动 cursor，循环结束后一次性保留 tail，不再每行切掉剩余 buffer。
+- 验证：新增 `packages/ui/tests/jsonl-lines.test.tsx` 覆盖 CRLF、跨 chunk tail、空行、无尾换行和提前停止；现有 streamed JSONL 文件搜索测试保持通过；`pnpm check` 通过。
 
-### P2（性能）7. Web hash sync 对大输入做无效压缩
+### P2（性能）7. Web hash sync 对大输入做无效压缩 ✅ 已完成
 
 - 位置：`apps/web/src/main.tsx`（`syncHash()`）、`packages/ui/src/app.tsx`（`onSourceChange` effect）
 - 现象/风险：每次 source 变化都先压缩完整文本，再判断压缩后是否超过 4KB。大输入最终不会写入 hash，但压缩成本已经发生。
@@ -114,6 +118,8 @@ Status: Draft — P1 implemented
 - 目标复杂度：大输入 O(1) 跳过，小输入 O(inputBytes)。
 - 风险：低。需要确认小样本 hash 分享仍可用。
 - 验收标准：小输入 URL hash 同步不回退，大输入不触发明显主线程压缩开销。
+- 实施状态：新增 `apps/web/src/hash.ts`，把 hash 读写逻辑拆为可测 helper；`createSourceHash()` 在调用 lz-string 压缩前先跳过空输入和超过 `HASH_LIMIT * 16` 的原始输入。
+- 验证：新增 `apps/web/tests/hash.test.ts` 覆盖小输入 hash、空输入、大原始输入压缩前跳过、压缩后超预算和 hash 恢复；`pnpm check` 通过。
 
 ## 建议落地顺序
 
@@ -127,17 +133,17 @@ Status: Draft — P1 implemented
 ## 任务跟踪 Checklist
 
 - [x] 增加高记录数 JSONL fixture 和 benchmark 输出（当前使用 `benchmark/case4-5K-rows.jsonl`）。
-- [ ] 增加 100k records JSONL fixture 或可生成 fixture 的脚本参数。
-- [ ] 在 `docs/performance.md` 记录高记录数 baseline 和预算。
+- [x] 增加 100k records JSONL fixture 或可生成 fixture 的脚本参数。
+- [x] 在 `docs/performance.md` 记录高记录数 baseline 和预算。
 - [x] 用 benchmark 或 profiler 确认 batch spread、derived data、observer 的占比。
 - [x] 优化 `useParser` batch 合并，避免每个 batch 复制全部旧 records。
 - [x] 将 `recordInsights`、`fileOverview`、`visibleRecords`、`visibleStats` 的 streaming 更新策略收敛为增量或低频重算。
 - [x] 虚拟列表场景移除 `IntersectionObserver` 对全量 records 的 DOM 查询。
 - [x] 为 `sourceFile` 搜索增加 debounce 或 worker request coalescing。
 - [x] 保留并扩展长字符串全文搜索测试。
-- [ ] 优化 `tree.ts` path 构造，避免每个节点从 segments 重新格式化完整路径。
-- [ ] 优化 worker/app chunk 行处理，使用 cursor 而不是循环切片剩余 buffer。
-- [ ] 优化 `apps/web/src/main.tsx` 的大输入 hash sync 跳过逻辑。
+- [x] 优化 `tree.ts` path 构造，避免每个节点从 segments 重新格式化完整路径。
+- [x] 优化 worker/app chunk 行处理，使用 cursor 而不是循环切片剩余 buffer。
+- [x] 优化 `apps/web/src/main.tsx` 的大输入 hash sync 跳过逻辑。
 - [x] 跑 `pnpm check`。
 - [x] 跑 benchmark 并更新 `benchmark/results/latest.json`。
 
@@ -173,9 +179,7 @@ Status: Draft — P1 implemented
 
 ## 待讨论事项
 
-- 高记录数 release budget 应按 10k 还是 100k records 设定。
-- 是否继续增加 10k/100k fixture 或生成脚本，替换当前 5K case4 作为正式 release gate。
-- P2 是否继续处理 tree path 构造、chunk cursor 扫描和 hash sync。
+- 100k records fixture 通过 `pnpm benchmark:case4-fixture -- --rows=100000` 本地生成，用作压力测试；正式 release gate 先使用 5K case4 fixture，避免默认 benchmark 过重。
 
 ## 关键参考位置
 

@@ -41,35 +41,39 @@ const maxStringValueLabelLength = 512;
 
 const quotePathKey = (key: string) => JSON.stringify(key);
 
+const appendJsonPathSegment = (path: string, segment: TreePathSegment) => {
+  if (segment.kind === "index") {
+    return `${path}[${segment.value}]`;
+  }
+
+  if (safeIdentifierPattern.test(segment.value)) {
+    return `${path}.${segment.value}`;
+  }
+
+  return `${path}[${quotePathKey(segment.value)}]`;
+};
+
+const appendJqSelectorSegment = (path: string, segment: TreePathSegment) => {
+  if (segment.kind === "index") {
+    return `${path}[${segment.value}]`;
+  }
+
+  if (safeIdentifierPattern.test(segment.value)) {
+    return path === "." ? `${path}${segment.value}` : `${path}.${segment.value}`;
+  }
+
+  return `${path}[${quotePathKey(segment.value)}]`;
+};
+
 export const formatJsonPath = (segments: TreePathSegment[]) =>
-  segments.reduce((path, segment) => {
-    if (segment.kind === "index") {
-      return `${path}[${segment.value}]`;
-    }
-
-    if (safeIdentifierPattern.test(segment.value)) {
-      return `${path}.${segment.value}`;
-    }
-
-    return `${path}[${quotePathKey(segment.value)}]`;
-  }, "$");
+  segments.reduce((path, segment) => appendJsonPathSegment(path, segment), "$");
 
 export const formatJqSelector = (segments: TreePathSegment[]) => {
   if (segments.length === 0) {
     return ".";
   }
 
-  return segments.reduce((path, segment) => {
-    if (segment.kind === "index") {
-      return `${path}[${segment.value}]`;
-    }
-
-    if (safeIdentifierPattern.test(segment.value)) {
-      return path === "." ? `${path}${segment.value}` : `${path}.${segment.value}`;
-    }
-
-    return `${path}[${quotePathKey(segment.value)}]`;
-  }, ".");
+  return segments.reduce((path, segment) => appendJqSelectorSegment(path, segment), ".");
 };
 
 const parseDoubleQuotedSegment = (selector: string, start: number) => {
@@ -285,13 +289,12 @@ const pushRows = (
   rows: TreeRow[],
   expandedStringifiedPaths: Set<string>,
   recordId: string,
-  pathSegments: TreePathSegment[] = [],
+  jsonPath = "$",
+  jqPath = ".",
   stringifiedAncestors: string[] = [],
   parentKeyLabel = "$",
   depthOffset = 0,
 ) => {
-  const jsonPath = formatJsonPath(pathSegments);
-  const jqPath = formatJqSelector(pathSegments);
   const currentChain = node.wasStringified
     ? [...stringifiedAncestors, jsonPath]
     : stringifiedAncestors;
@@ -326,33 +329,37 @@ const pushRows = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) =>
+    node.children.forEach((child, index) => {
+      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
       pushRows(
         child,
         rows,
         expandedStringifiedPaths,
         recordId,
-        [...pathSegments, { kind: "index", value: String(index) }],
+        appendJsonPathSegment(jsonPath, childSegment),
+        appendJqSelectorSegment(jqPath, childSegment),
         currentChain,
         String(index),
         depthOffset,
-      ),
-    );
+      );
+    });
     return;
   }
 
-  Object.entries(node.children).forEach(([key, child]) =>
+  Object.entries(node.children).forEach(([key, child]) => {
+    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
     pushRows(
       child,
       rows,
       expandedStringifiedPaths,
       recordId,
-      [...pathSegments, { kind: "key", value: key }],
+      appendJsonPathSegment(jsonPath, childSegment),
+      appendJqSelectorSegment(jqPath, childSegment),
       currentChain,
       key,
       depthOffset,
-    ),
-  );
+    );
+  });
 };
 
 export const buildRecordRows = (
@@ -388,11 +395,6 @@ export const buildFocusedRecordRows = (
     return null;
   }
 
-  const pathSegments = parseTreePath(resolved.target.pathText);
-  if (!pathSegments) {
-    return null;
-  }
-
   const rows: TreeRow[] = [];
   const stringifiedAncestors = resolved.target.node.wasStringified
     ? resolved.target.stringifiedPathChain.slice(0, -1)
@@ -402,7 +404,8 @@ export const buildFocusedRecordRows = (
     rows,
     expandedStringifiedPaths,
     record.id,
-    pathSegments,
+    resolved.target.jsonPath,
+    resolved.target.jqPath,
     stringifiedAncestors,
     resolved.target.rawKey,
     Math.max(0, resolved.target.node.path.length - 1),
@@ -424,9 +427,8 @@ const collectPaths = (
   node: JsonNode,
   expandedStringifiedPaths: Set<string>,
   output: Set<string>,
-  pathSegments: TreePathSegment[] = [],
+  pathText = "$",
 ) => {
-  const pathText = formatJsonPath(pathSegments);
   if (node.wasStringified) {
     output.add(pathText);
   }
@@ -437,21 +439,27 @@ const collectPaths = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) =>
-      collectPaths(child, expandedStringifiedPaths, output, [
-        ...pathSegments,
-        { kind: "index", value: String(index) },
-      ]),
-    );
+    node.children.forEach((child, index) => {
+      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
+      collectPaths(
+        child,
+        expandedStringifiedPaths,
+        output,
+        appendJsonPathSegment(pathText, childSegment),
+      );
+    });
     return;
   }
 
-  Object.entries(node.children).forEach(([key, child]) =>
-    collectPaths(child, expandedStringifiedPaths, output, [
-      ...pathSegments,
-      { kind: "key", value: key },
-    ]),
-  );
+  Object.entries(node.children).forEach(([key, child]) => {
+    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
+    collectPaths(
+      child,
+      expandedStringifiedPaths,
+      output,
+      appendJsonPathSegment(pathText, childSegment),
+    );
+  });
 };
 
 export const collectStringifiedPaths = (
@@ -529,9 +537,8 @@ const searchNode = (
   stringifiedAncestors: string[],
   matches: SearchMatch[],
   options: SearchOptions,
-  pathSegments: TreePathSegment[] = [],
+  pathText = "$",
 ) => {
-  const pathText = formatJsonPath(pathSegments);
   const currentChain = node.wasStringified
     ? [...stringifiedAncestors, pathText]
     : stringifiedAncestors;
@@ -559,21 +566,33 @@ const searchNode = (
   }
 
   if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) =>
-      searchNode(child, recordId, pattern, currentChain, matches, options, [
-        ...pathSegments,
-        { kind: "index", value: String(index) },
-      ]),
-    );
+    node.children.forEach((child, index) => {
+      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
+      searchNode(
+        child,
+        recordId,
+        pattern,
+        currentChain,
+        matches,
+        options,
+        appendJsonPathSegment(pathText, childSegment),
+      );
+    });
     return;
   }
 
-  Object.entries(node.children).forEach(([key, child]) =>
-    searchNode(child, recordId, pattern, currentChain, matches, options, [
-      ...pathSegments,
-      { kind: "key", value: key },
-    ]),
-  );
+  Object.entries(node.children).forEach(([key, child]) => {
+    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
+    searchNode(
+      child,
+      recordId,
+      pattern,
+      currentChain,
+      matches,
+      options,
+      appendJsonPathSegment(pathText, childSegment),
+    );
+  });
 };
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {

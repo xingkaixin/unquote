@@ -23,6 +23,7 @@ const defaultFixtures = [
   "benchmark/case2-1MB.jsonl",
   "benchmark/case2-5MB.jsonl",
   "benchmark/case2-10MB.jsonl",
+  "benchmark/case4-5K-rows.jsonl",
 ];
 const fixtureArgs = process.argv.slice(2);
 const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;

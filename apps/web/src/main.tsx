@@ -1,37 +1,21 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
+import { createSourceHash, getInitialInputFromHash } from "./hash";
 
-const HASH_PREFIX = "#data=";
-const HASH_LIMIT = 4 * 1024;
 const CHROME_WEB_STORE_URL =
   "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
 
-const getInitialInput = () => {
-  const hash = window.location.hash;
-  if (!hash.startsWith(HASH_PREFIX)) {
-    return "";
-  }
-
-  const encoded = hash.slice(HASH_PREFIX.length);
-  return decompressFromEncodedURIComponent(encoded) ?? "";
-};
+const getInitialInput = () => getInitialInputFromHash(window.location.hash);
 
 const syncHash = (value: string) => {
-  if (!value.trim()) {
-    history.replaceState(null, "", window.location.pathname);
-    return;
-  }
-
-  const compressed = compressToEncodedURIComponent(value);
-  if (!compressed || compressed.length > HASH_LIMIT) {
-    history.replaceState(null, "", window.location.pathname);
-    return;
-  }
-
-  history.replaceState(null, "", `${window.location.pathname}${HASH_PREFIX}${compressed}`);
+  const hash = createSourceHash(value);
+  history.replaceState(
+    null,
+    "",
+    hash ? `${window.location.pathname}${hash}` : window.location.pathname,
+  );
 };
 
 const openFile = () => {
