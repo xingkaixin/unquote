@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0] - 2026-05-24
+
+### Added
+
+- **GitHub Open Graph image** — Added a PNG social preview image for GitHub link cards.
+
+### Changed
+
+- Large JSONL imports now use a faster streamed rendering path, with more incremental parser updates and less main-thread work before records become visible.
+- JSONL hot paths were optimized for line indexing, path matching, tree traversal, and worker transfer payloads.
+- File overview and record insight calculation now reuse cached results more effectively while records stream in.
+- URL hash compression is isolated behind dedicated helpers and covered by web app tests.
+- Benchmark tooling now includes a high-record-count case 4 fixture generator for release stress testing.
+- Web and extension app versions bumped to `0.4.0`.
+
+### Fixed
+
+- AGENTS.md instruction blocks no longer get classified as error records just because the instruction text contains words such as `error`.
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
