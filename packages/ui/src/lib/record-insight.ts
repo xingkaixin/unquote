@@ -60,6 +60,7 @@ const maxInsightTitleLength = 96;
 const maxKeyPathCount = 8;
 const errorLikePattern =
   /(^|[-_\s.])(error|exception|failed|failure|fatal|panic|timeout)([-_\s.]|$)/i;
+const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
 
 const normalizeKey = (key: string) => key.replace(/[-_\s.]/g, "").toLowerCase();
 
@@ -174,6 +175,7 @@ const classifyInsightField = (
 };
 
 const isErrorLikeValue = (value: string) => errorLikePattern.test(value);
+const isInstructionsText = (value: string) => agentsInstructionsPattern.test(value);
 
 const addHit = (
   hits: RecordInsightHit[],
@@ -227,7 +229,8 @@ const walkNode = (
       addHit(hits, field, key, primitiveValue, pathText);
       if (
         (field === "level" || field === "status" || field === "message") &&
-        isErrorLikeValue(primitiveValue)
+        isErrorLikeValue(primitiveValue) &&
+        !isInstructionsText(primitiveValue)
       ) {
         addHit(hits, "error", key, primitiveValue, pathText);
       }

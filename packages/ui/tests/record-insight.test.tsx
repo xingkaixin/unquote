@@ -97,6 +97,34 @@ describe("record insight", () => {
     ).toEqual([2]);
   });
 
+  it("does not classify AGENTS instructions as errors from wording", () => {
+    const result = parseInput(
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "# AGENTS.md instructions for /repo\n\nDon't add error handling unless needed.",
+            },
+          ],
+        },
+      }),
+      { forcedFormat: "jsonl" },
+    );
+
+    const insight = createRecordInsight(result.records[0]!);
+
+    expect(insight).toMatchObject({
+      kind: "message",
+      event: "response_item",
+      role: "user",
+    });
+    expect(insight?.error).toBeUndefined();
+  });
+
   it("updates the insight map incrementally for appended records", () => {
     const result = parseInput(
       [
