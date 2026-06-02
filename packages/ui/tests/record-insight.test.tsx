@@ -69,7 +69,7 @@ describe("record insight", () => {
     );
   });
 
-  it("filters records by insight type and field value", () => {
+  it("filters records by insight type", () => {
     const result = parseInput(
       [
         '{"event":"message","role":"assistant","content":"ready"}',
@@ -90,11 +90,6 @@ describe("record insight", () => {
     expect(
       filterRecords(result.records, "errors", null, insights).map((record) => record.lineNumber),
     ).toEqual([3, 4]);
-    expect(
-      filterRecords(result.records, "insight", null, insights, "billing.search").map(
-        (record) => record.lineNumber,
-      ),
-    ).toEqual([2]);
   });
 
   it("does not classify AGENTS instructions as errors from wording", () => {

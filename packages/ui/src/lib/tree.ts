@@ -653,15 +653,13 @@ export type RecordFilterMode =
   | "nested"
   | "tool"
   | "message"
-  | "events"
-  | "insight";
+  | "events";
 
 export const filterRecords = (
   records: JsonlRecord[],
   mode: RecordFilterMode,
   matches: SearchMatch[] | null,
   insights: ReadonlyMap<string, RecordInsight> = new Map(),
-  insightQuery = "",
 ) => {
   if (mode === "all") {
     return records;
@@ -692,12 +690,7 @@ export const filterRecords = (
     return records.filter((record) => insights.get(record.id)?.kind === "event");
   }
 
-  const normalizedQuery = insightQuery.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return records;
-  }
-
-  return records.filter((record) => insights.get(record.id)?.filterText.includes(normalizedQuery));
+  return records;
 };
 
 export interface ResolvedTreePath {

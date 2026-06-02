@@ -24,7 +24,7 @@ export const DropdownMenuItem = ({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item>) => (
   <DropdownMenuPrimitive.Item
     className={cn(
-      "flex cursor-pointer select-none items-center rounded-sm px-3 py-2 text-[13px] text-text-primary outline-none hover:bg-surface-300",
+      "flex cursor-pointer select-none items-center rounded-sm px-3 py-2 text-ui-11 text-text-primary outline-none hover:bg-surface-300",
       className,
     )}
     {...props}

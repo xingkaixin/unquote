@@ -2,16 +2,14 @@ import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CommandPalette } from "./components/command-palette";
 import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
 import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
-import { PathJumpBar } from "./components/path-jump-bar";
-import { RecordFilterBar } from "./components/record-filter-bar";
 import { RecordList, recordVirtualizationThreshold } from "./components/record-list";
-import { SearchBar } from "./components/search-bar";
 import { StatusFooter } from "./components/status-footer";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
@@ -150,6 +148,9 @@ const getRecordStats = (records: JsonlRecord[]) => {
 };
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
+
+const isPathLikeQuery = (value: string) =>
+  /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
 
 const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
   if (record.node) {
@@ -364,10 +365,12 @@ export const UnquoteApp = ({
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [searchJq, setSearchJq] = useState(false);
+  const [toolbarQuery, setToolbarQuery] = useState("");
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandInput, setCommandInput] = useState("");
   const [debouncedFileSearchQuery, setDebouncedFileSearchQuery] = useState("");
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
-  const [insightQuery, setInsightQuery] = useState("");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [pathQuery, setPathQuery] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
@@ -502,8 +505,8 @@ export const UnquoteApp = ({
     [recordsVersion, result.records],
   );
   const visibleRecords = useMemo(
-    () => filterRecords(result.records, recordFilter, matches, recordInsights, insightQuery),
-    [insightQuery, matches, recordFilter, recordInsights, recordsVersion, result.records],
+    () => filterRecords(result.records, recordFilter, matches, recordInsights),
+    [matches, recordFilter, recordInsights, recordsVersion, result.records],
   );
   const visibleStats = useMemo(
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
@@ -524,13 +527,13 @@ export const UnquoteApp = ({
   useEffect(() => {
     setCurrentMatchIndex(0);
     setScrollTarget(null);
-  }, [recordFilter, insightQuery, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+  }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
     setPathError(null);
     setPathMatches([]);
     setCurrentPathMatchIndex(0);
-  }, [recordFilter, insightQuery]);
+  }, [recordFilter]);
 
   useEffect(() => {
     setCurrentMatchIndex((current) => (matchCount === 0 ? 0 : Math.min(current, matchCount - 1)));
@@ -577,18 +580,6 @@ export const UnquoteApp = ({
     setFocusedPath(null);
   }, [activeMatch, focusedPath]);
 
-  const handlePrevMatch = () => {
-    if (matchCount === 0) return;
-    setScrollTarget(null);
-    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
-  };
-
-  const handleNextMatch = () => {
-    if (matchCount === 0) return;
-    setScrollTarget(null);
-    setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
-  };
-
   const scrollToPath = (recordId: string, pathText: string) => {
     setFocusedPath((current) =>
       current && (current.recordId !== recordId || !isPathInsideFocus(pathText, current.pathText))
@@ -599,16 +590,30 @@ export const UnquoteApp = ({
     setScrollTarget({ recordId, pathText, requestId: scrollRequestIdRef.current });
   };
 
-  const handlePathQueryChange = (value: string) => {
-    setPathQuery(value);
-    setPathError(null);
-    setPathMatches([]);
-    setCurrentPathMatchIndex(0);
+  const scrollToSearchMatch = (index: number) => {
+    const match = visibleMatches?.[index];
+    if (!match) {
+      return;
+    }
+
+    setFocusedPath((current) =>
+      current && (current.recordId !== match.recordId || !isPathInsideFocus(match.pathText, current.pathText))
+        ? null
+        : current,
+    );
+    scrollRequestIdRef.current += 1;
+    setScrollTarget({
+      recordId: match.recordId,
+      pathText: match.pathText,
+      requestId: scrollRequestIdRef.current,
+    });
   };
 
-  const applyPathTarget = (target: ResolvedTreePath, index: number) => {
+  const applyPathTarget = (target: ResolvedTreePath, index?: number) => {
     setPathError(null);
-    setCurrentPathMatchIndex(index);
+    if (typeof index === "number") {
+      setCurrentPathMatchIndex(index);
+    }
     setSelectedPath(createSelectionFromTarget(target));
     setActiveRecordId(target.recordId);
     setRestoredRecordIds((current) => {
@@ -626,17 +631,18 @@ export const UnquoteApp = ({
     scrollToPath(target.recordId, target.pathText);
   };
 
-  const handlePathJump = () => {
-    const resolved = resolveTreePathMatches(visibleRecords, pathQuery);
-    if (!resolved.ok) {
-      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
-      setPathMatches([]);
-      setCurrentPathMatchIndex(0);
-      return;
-    }
+  const handlePrevMatch = () => {
+    if (matchCount === 0) return;
+    const nextIndex = (currentMatchIndex - 1 + matchCount) % matchCount;
+    setCurrentMatchIndex(nextIndex);
+    scrollToSearchMatch(nextIndex);
+  };
 
-    setPathMatches(resolved.targets);
-    applyPathTarget(resolved.targets[0]!, 0);
+  const handleNextMatch = () => {
+    if (matchCount === 0) return;
+    const nextIndex = (currentMatchIndex + 1) % matchCount;
+    setCurrentMatchIndex(nextIndex);
+    scrollToSearchMatch(nextIndex);
   };
 
   const handlePrevPathMatch = () => {
@@ -651,9 +657,93 @@ export const UnquoteApp = ({
     applyPathTarget(pathMatches[nextIndex]!, nextIndex);
   };
 
+  const handleToolbarQueryChange = (value: string) => {
+    setToolbarQuery(value);
+    setPathError(null);
+
+    if (!value.trim()) {
+      setSearchQuery("");
+      setPathQuery("");
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
+      setCurrentMatchIndex(0);
+      return;
+    }
+
+    if (isPathLikeQuery(value)) {
+      setPathQuery(value);
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
+      setSearchQuery("");
+      setCurrentMatchIndex(0);
+      return;
+    }
+
+    setPathQuery("");
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
+    setSearchQuery(value);
+  };
+
+  const handleSubmitToolbarQuery = (value: string) => {
+    const query = value.trim();
+    setToolbarQuery(value);
+    if (!query) {
+      return;
+    }
+
+    if (isPathLikeQuery(query)) {
+      handlePathJumpForQuery(query);
+      return;
+    }
+
+    if (matchCount > 0) {
+      scrollToSearchMatch(currentMatchIndex);
+    }
+  };
+
+  const handleClearToolbarQuery = () => {
+    setToolbarQuery("");
+    setSearchQuery("");
+    setPathQuery("");
+    setPathError(null);
+    setPathMatches([]);
+    setCurrentPathMatchIndex(0);
+    setCurrentMatchIndex(0);
+    setScrollTarget(null);
+  };
+
+  const handlePathJumpForQuery = (query: string) => {
+    setToolbarQuery(query);
+    setPathQuery(query);
+    setSearchQuery("");
+    setCurrentMatchIndex(0);
+    setCurrentPathMatchIndex(0);
+    const resolved = resolveTreePathMatches(visibleRecords, query);
+    if (!resolved.ok) {
+      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
+      setPathMatches([]);
+      setCurrentPathMatchIndex(0);
+      return;
+    }
+
+    setPathMatches(resolved.targets);
+    applyPathTarget(resolved.targets[0]!, 0);
+  };
+
+  const handleCommandSearch = (query: string) => {
+    setToolbarQuery(query);
+    setSearchQuery(query);
+    setRecordFilter("matches");
+    setCurrentMatchIndex(0);
+    setScrollTarget(null);
+  };
+
   const handleOverviewPathSelect = (pathText: string) => {
+    setToolbarQuery(pathText);
     setPathQuery(pathText);
     setRecordFilter("all");
+    setCurrentPathMatchIndex(0);
     const resolved = resolveTreePathMatches(result.records, pathText);
     if (!resolved.ok) {
       setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
@@ -667,6 +757,7 @@ export const UnquoteApp = ({
   };
 
   const handleOverviewFieldValueSearch = (value: string) => {
+    setToolbarQuery(value);
     setSearchQuery(value);
     setSearchRegex(false);
     setSearchCaseSensitive(false);
@@ -676,16 +767,25 @@ export const UnquoteApp = ({
     setScrollTarget(null);
   };
 
-  const handleInsightQueryChange = (value: string) => {
-    setInsightQuery(value);
-    setRecordFilter((current) => {
-      if (value.trim()) {
-        return "insight";
-      }
+  const handleOpenCommandPalette = useCallback(() => {
+    setCommandInput(toolbarQuery || searchQuery || pathQuery);
+    setCommandPaletteOpen(true);
+  }, [pathQuery, searchQuery, toolbarQuery]);
 
-      return current === "insight" ? "all" : current;
-    });
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        handleOpenCommandPalette();
+      }
+      if (event.key === "Escape") {
+        setCommandPaletteOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleOpenCommandPalette]);
 
   useEffect(() => {
     onSourceChange?.(sourceText);
@@ -755,7 +855,6 @@ export const UnquoteApp = ({
     setRecordScrollTarget(null);
     setPathError(null);
     setPathMatches([]);
-    setCurrentPathMatchIndex(0);
     if (value.length > largeSourceCollapseBytes) {
       setSourceCollapsed(true);
     }
@@ -793,7 +892,6 @@ export const UnquoteApp = ({
       setRecordScrollTarget(null);
       setPathError(null);
       setPathMatches([]);
-      setCurrentPathMatchIndex(0);
       setSourceCollapsed(true);
       return;
     }
@@ -901,7 +999,6 @@ export const UnquoteApp = ({
     setFocusedPath(null);
     setScrollTarget(null);
     setPathMatches([]);
-    setCurrentPathMatchIndex(0);
   };
 
   const handleTogglePath = (path: string) => {
@@ -1156,57 +1253,55 @@ export const UnquoteApp = ({
         })
       : undefined;
   const sourceFileBusy = Boolean(readingFile || (statusFile && !progress.done));
+  const filterLabel = (() => {
+    switch (recordFilter) {
+      case "matches":
+        return t("filter.matches");
+      case "errors":
+        return t("filter.errors");
+      case "nested":
+        return t("filter.nested");
+      case "tool":
+        return t("filter.tools");
+      case "message":
+        return t("filter.messages");
+      case "events":
+        return t("filter.events");
+      case "all":
+        return t("filter.all");
+    }
+  })();
+  const toolbarSummary = pathError
+    ? pathError
+    : searchQuery || recordFilter !== "all"
+      ? `${filterLabel} · ${visibleStats.total}/${result.stats.total} · ${
+          searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
+        }`
+      : progressLabel;
+  const toolbarInPathMode = isPathLikeQuery(toolbarQuery);
+  const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
+  const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
+  const handlePrevToolbarMatch = toolbarInPathMode ? handlePrevPathMatch : handlePrevMatch;
+  const handleNextToolbarMatch = toolbarInPathMode ? handleNextPathMatch : handleNextMatch;
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
+        summary={toolbarSummary}
+        query={toolbarQuery}
+        matchCount={toolbarMatchCount}
+        currentMatchIndex={toolbarMatchIndex}
+        onQueryChange={handleToolbarQueryChange}
+        onSubmitQuery={handleSubmitToolbarQuery}
+        onPrevMatch={handlePrevToolbarMatch}
+        onNextMatch={handleNextToolbarMatch}
+        onClearQuery={handleClearToolbarQuery}
+        onOpenCommandPalette={handleOpenCommandPalette}
         onCopyJsonl={handleCopyJsonl}
         onCopyFormattedJson={handleCopyFormattedJson}
         onExportJsonl={handleExportJsonl}
         onExportFormattedJson={handleExportFormattedJson}
         onExpandAll={handleExpandAll}
         onRestoreAll={handleRestoreAll}
-        searchBar={
-          <div className="flex min-w-0 flex-wrap gap-2">
-            <div className="min-w-[200px] flex-[1_1_240px]">
-              <PathJumpBar
-                value={pathQuery}
-                error={pathError}
-                matchCount={pathMatches.length}
-                currentIndex={currentPathMatchIndex}
-                onChange={handlePathQueryChange}
-                onSubmit={handlePathJump}
-                onPrev={handlePrevPathMatch}
-                onNext={handleNextPathMatch}
-              />
-            </div>
-            <div className="min-w-[240px] flex-[1_1_300px]">
-              <SearchBar
-                query={searchQuery}
-                onQueryChange={setSearchQuery}
-                regex={searchRegex}
-                onRegexChange={setSearchRegex}
-                caseSensitive={searchCaseSensitive}
-                onCaseSensitiveChange={setSearchCaseSensitive}
-                jq={searchJq}
-                onJqChange={setSearchJq}
-                matchCount={matchCount}
-                currentIndex={currentMatchIndex}
-                onPrev={handlePrevMatch}
-                onNext={handleNextMatch}
-              />
-            </div>
-            <div className="min-w-[280px] flex-[1_1_340px]">
-              <RecordFilterBar
-                mode={recordFilter}
-                visibleCount={visibleStats.total}
-                totalCount={result.stats.total}
-                insightQuery={insightQuery}
-                onModeChange={setRecordFilter}
-                onInsightQueryChange={handleInsightQueryChange}
-              />
-            </div>
-          </div>
-        }
       />
       {fileOverview.total > 0 ? (
         <FileOverview
@@ -1311,53 +1406,76 @@ export const UnquoteApp = ({
         </Tabs>
 
         <div
-          className={`hidden items-start gap-3 lg:grid ${sourceCollapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
+          className={`hidden items-start lg:grid ${sourceCollapsed ? "gap-1 lg:grid-cols-[44px_minmax(0,1fr)]" : "gap-3 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
         >
           <div
             className={`sticky top-11 flex flex-col gap-3 overflow-hidden ${
               selectedPath ? "max-h-[calc(100vh-9rem)]" : "max-h-[calc(100vh-5.75rem)]"
             }`}
           >
-            <InputPane
-              value={sourceText}
-              mode={mode}
-              onChange={handleSourceChange}
-              onModeChange={setMode}
-              sampleOptions={sampleOptions}
-              onSampleSelect={handleSampleSelect}
-              onOpenFile={handleOpenFile}
-              onFileDrop={handleFileDrop}
-              onClear={() => handleSourceChange("")}
-              onToggleCollapse={() => setSourceCollapsed((current) => !current)}
-              collapsed={sourceCollapsed}
-              sourceStatus={sourceFileStatus}
-              sourceBusy={sourceFileBusy}
-              sourceProgress={readingFile ? readProgress : null}
-              sourceError={sourceParseError}
-            />
             {sourceCollapsed ? (
               <button
                 type="button"
-                className="flex h-12 items-center justify-center gap-2 rounded-md border border-border bg-surface-100 text-xs font-medium text-text-secondary shadow-sm"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-100 text-text-secondary shadow-sm"
                 onClick={() => setSourceCollapsed(false)}
+                aria-label={t("input.expandSource")}
               >
                 <PanelLeftOpen className="size-4" />
-                {t("app.expand")}
               </button>
-            ) : hasJsonlRecords(result) ? (
-              <TocPane
-                records={visibleRecords}
-                recordInsights={recordInsights}
-                totalCount={result.stats.total}
-                activeRecordId={activeRecordId}
-                onSelect={handleSelectRecord}
-                onCopyRawLine={handleCopyRawLine}
-              />
-            ) : null}
+            ) : (
+              <>
+                <InputPane
+                  value={sourceText}
+                  mode={mode}
+                  onChange={handleSourceChange}
+                  onModeChange={setMode}
+                  sampleOptions={sampleOptions}
+                  onSampleSelect={handleSampleSelect}
+                  onOpenFile={handleOpenFile}
+                  onFileDrop={handleFileDrop}
+                  onClear={() => handleSourceChange("")}
+                  onToggleCollapse={() => setSourceCollapsed((current) => !current)}
+                  sourceStatus={sourceFileStatus}
+                  sourceBusy={sourceFileBusy}
+                  sourceProgress={readingFile ? readProgress : null}
+                  sourceError={sourceParseError}
+                />
+                {hasJsonlRecords(result) ? (
+                  <TocPane
+                    records={visibleRecords}
+                    recordInsights={recordInsights}
+                    totalCount={result.stats.total}
+                    activeRecordId={activeRecordId}
+                    onSelect={handleSelectRecord}
+                    onCopyRawLine={handleCopyRawLine}
+                  />
+                ) : null}
+              </>
+            )}
           </div>
           <div className="min-w-0">{output}</div>
         </div>
       </main>
+      <CommandPalette
+        open={commandPaletteOpen}
+        inputValue={commandInput}
+        regex={searchRegex}
+        caseSensitive={searchCaseSensitive}
+        jq={searchJq}
+        matchCount={matchCount}
+        pathMatchCount={pathMatches.length}
+        visibleCount={visibleStats.total}
+        totalCount={result.stats.total}
+        filterMode={recordFilter}
+        onClose={() => setCommandPaletteOpen(false)}
+        onInputChange={setCommandInput}
+        onSearch={handleCommandSearch}
+        onJumpPath={handlePathJumpForQuery}
+        onRegexChange={setSearchRegex}
+        onCaseSensitiveChange={setSearchCaseSensitive}
+        onJqChange={setSearchJq}
+        onFilterChange={setRecordFilter}
+      />
       <StatusFooter
         detectedFormat={detectedFormat}
         statsLabel={progressLabel}

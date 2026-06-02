@@ -62,7 +62,7 @@ export const TocPane = ({
                         </span>
                         <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
                       </div>
-                      <span className="truncate text-[13px] text-text-secondary">
+                      <span className="truncate text-[12px] text-text-secondary">
                         {insight?.title ?? record.summary}
                       </span>
                       {insight ? <RecordInsightSummary insight={insight} compact /> : null}
