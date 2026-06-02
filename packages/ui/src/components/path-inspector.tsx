@@ -5,6 +5,7 @@ import {
   ClipboardCopy,
   Copy,
   Focus,
+  MoreHorizontal,
   ScanSearch,
   TextCursorInput,
   Undo2,
@@ -15,6 +16,12 @@ import type { NodeSourceState } from "../lib/tree";
 import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
 
 export interface PathInspectorSelection {
   recordId: string;
@@ -75,10 +82,10 @@ export const PathInspector = ({
           <ScanSearch className="size-3" />
           {t("path.inspector")}
         </Badge>
-        <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-primary">
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-primary">
           {selection.jsonPath}
         </span>
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted">
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-text-muted">
           <span>
             {t("path.rawKey")}: <span className="font-mono">{selection.rawKey}</span>
           </span>
@@ -94,36 +101,50 @@ export const PathInspector = ({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button variant="secondary" size="sm" onClick={focused ? onClearFocus : onFocus}>
+        <Button variant="default" size="sm" onClick={focused ? onClearFocus : onFocus}>
           {focused ? <Undo2 className="size-3.5" /> : <Focus className="size-3.5" />}
           {t(focused ? "path.exitFocus" : "path.focusSubtree")}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onCopySubtree}>
-          <ClipboardCopy className="size-3.5" />
-          {t("path.copySubtree")}
-        </Button>
-        {canCopyEscapedString ? (
-          <Button variant="ghost" size="sm" onClick={onCopyEscapedString}>
-            <Copy className="size-3.5" />
-            {t("path.copyEscapedString")}
-          </Button>
-        ) : null}
-        <Button variant="ghost" size="sm" onClick={onCopyValue}>
-          <TextCursorInput className="size-3.5" />
-          {t("path.copyValue")}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onCopyDebugBundle}>
-          <Bug className="size-3.5" />
-          {t("path.copyDebugBundle")}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onCopy(selection.jsonPath)}>
-          <Copy className="size-3.5" />
-          {t("path.copyJsonPath")}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onCopy(selection.jqPath)}>
-          <Braces className="size-3.5" />
-          {t("path.copyJq")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 px-0"
+              aria-label={t("toolbar.more")}
+            >
+              <MoreHorizontal className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="text-[11px]" onSelect={onCopySubtree}>
+              <ClipboardCopy className="mr-2 size-3.5" />
+              {t("path.copySubtree")}
+            </DropdownMenuItem>
+            {canCopyEscapedString ? (
+              <DropdownMenuItem className="text-[11px]" onSelect={onCopyEscapedString}>
+                <Copy className="mr-2 size-3.5" />
+                {t("path.copyEscapedString")}
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem className="text-[11px]" onSelect={onCopyValue}>
+              <TextCursorInput className="mr-2 size-3.5" />
+              {t("path.copyValue")}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[11px]" onSelect={onCopyDebugBundle}>
+              <Bug className="mr-2 size-3.5" />
+              {t("path.copyDebugBundle")}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[11px]" onSelect={() => onCopy(selection.jsonPath)}>
+              <Copy className="mr-2 size-3.5" />
+              {t("path.copyJsonPath")}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[11px]" onSelect={() => onCopy(selection.jqPath)}>
+              <Braces className="mr-2 size-3.5" />
+              {t("path.copyJq")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="sm"

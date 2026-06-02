@@ -1,10 +1,19 @@
 import type { FileOverview as FileOverviewModel } from "../lib/file-overview";
-import { CheckCircle2, CircleAlert, FileText, Layers, Search, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  FileText,
+  Layers,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import type { ComponentType } from "react";
+import { useState } from "react";
 import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
+import { Card, CardContent, CardDescription, CardTitle } from "./card";
 
 interface FileOverviewProps {
   overview: FileOverviewModel;
@@ -36,7 +45,7 @@ const fieldLabel = (field: string) => {
 };
 
 const EmptyList = ({ label }: { label: string }) => (
-  <div className="rounded-md border border-dashed border-border px-3 py-3 text-[12px] text-text-muted">
+  <div className="rounded-md border border-dashed border-border px-3 py-3 text-[11px] text-text-muted">
     {label}
   </div>
 );
@@ -50,6 +59,7 @@ export const FileOverview = ({
   onSelectError,
 }: FileOverviewProps) => {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const filtered = visibleCount !== overview.total;
   const metrics: MetricItem[] = [
     {
@@ -88,10 +98,15 @@ export const FileOverview = ({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="gap-2">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <CardTitle>{t("overview.title")}</CardTitle>
-          <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <CardTitle>{t("overview.title")}</CardTitle>
             <Badge>{format.toUpperCase()}</Badge>
             {filtered ? (
               <Badge>
@@ -102,10 +117,13 @@ export const FileOverview = ({
               </Badge>
             ) : null}
           </div>
+          <CardDescription className="mt-1">{t("overview.fullScope")}</CardDescription>
         </div>
-        <CardDescription>{t("overview.fullScope")}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+        <ChevronDown
+          className={`size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
         <div className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-5">
           {metrics.map((metric, index) => {
             const Icon = metric.icon;
@@ -116,11 +134,11 @@ export const FileOverview = ({
                   index === 0 ? "" : "border-t border-border sm:border-l sm:border-t-0"
                 }`}
               >
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
+                <div className="flex items-center gap-1.5 text-[10px] font-medium text-text-muted">
                   <Icon className={`size-3.5 shrink-0 ${metric.tone}`} />
                   <span className="truncate">{metric.label}</span>
                 </div>
-                <div className="mt-1 font-mono text-[18px] leading-6 text-text-primary">
+                <div className="mt-1 font-mono text-[16px] leading-6 text-text-primary">
                   {metric.value}
                 </div>
               </div>
@@ -128,109 +146,111 @@ export const FileOverview = ({
           })}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          <section className="min-w-0">
-            <h4 className="mb-2 text-[12px] font-medium text-text-primary">
-              {t("overview.topNestedPaths")}
-            </h4>
-            {overview.topNestedPaths.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {overview.topNestedPaths.map((item) => (
-                  <Button
-                    key={item.pathText}
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
-                    onClick={() => onSelectNestedPath(item.pathText)}
-                    aria-label={t("overview.jumpToPath", { path: item.pathText })}
-                  >
-                    <Sparkles className="size-3.5 shrink-0 text-warning" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
-                      {item.pathText}
-                    </span>
-                    <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-                      {t("overview.count", { count: item.count })}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            ) : (
-              <EmptyList label={t("overview.none")} />
-            )}
-          </section>
+        {open ? (
+          <div className="grid gap-4 xl:grid-cols-3">
+            <section className="min-w-0">
+              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+                {t("overview.topNestedPaths")}
+              </h4>
+              {overview.topNestedPaths.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {overview.topNestedPaths.map((item) => (
+                    <Button
+                      key={item.pathText}
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
+                      onClick={() => onSelectNestedPath(item.pathText)}
+                      aria-label={t("overview.jumpToPath", { path: item.pathText })}
+                    >
+                      <Sparkles className="size-3.5 shrink-0 text-warning" />
+                      <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+                        {item.pathText}
+                      </span>
+                      <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                        {t("overview.count", { count: item.count })}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <EmptyList label={t("overview.none")} />
+              )}
+            </section>
 
-          <section className="min-w-0">
-            <h4 className="mb-2 text-[12px] font-medium text-text-primary">
-              {t("overview.topFieldValues")}
-            </h4>
-            {overview.topFieldValues.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {overview.topFieldValues.map((item) => (
-                  <Button
-                    key={`${item.field}:${item.pathText}:${item.value}`}
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
-                    onClick={() => onSearchFieldValue(item.value)}
-                    aria-label={t("overview.searchValue", { value: item.value })}
-                  >
-                    <Search className="size-3.5 shrink-0 text-text-muted" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-mono text-[11px] text-text-primary">
-                        {item.value}
+            <section className="min-w-0">
+              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+                {t("overview.topFieldValues")}
+              </h4>
+              {overview.topFieldValues.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {overview.topFieldValues.map((item) => (
+                    <Button
+                      key={`${item.field}:${item.pathText}:${item.value}`}
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
+                      onClick={() => onSearchFieldValue(item.value)}
+                      aria-label={t("overview.searchValue", { value: item.value })}
+                    >
+                      <Search className="size-3.5 shrink-0 text-text-muted" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-mono text-[11px] text-text-primary">
+                          {item.value}
+                        </span>
+                        <span className="block truncate font-mono text-[10px] text-text-muted">
+                          {fieldLabel(item.field)} · {item.pathText}
+                        </span>
                       </span>
-                      <span className="block truncate font-mono text-[10px] text-text-muted">
-                        {fieldLabel(item.field)} · {item.pathText}
+                      <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                        {t("overview.count", { count: item.count })}
                       </span>
-                    </span>
-                    <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-                      {t("overview.count", { count: item.count })}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            ) : (
-              <EmptyList label={t("overview.none")} />
-            )}
-          </section>
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <EmptyList label={t("overview.none")} />
+              )}
+            </section>
 
-          <section className="min-w-0">
-            <h4 className="mb-2 text-[12px] font-medium text-text-primary">
-              {t("overview.errors")}
-            </h4>
-            {previewErrors.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {previewErrors.map((error) => (
-                  <Button
-                    key={error.recordId}
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
-                    onClick={() => onSelectError(error.recordId)}
-                    aria-label={t("overview.jumpToError", { line: error.lineNumber })}
-                  >
-                    <CircleAlert className="size-3.5 shrink-0 text-error" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-mono text-[11px] text-text-primary">
-                        {t("overview.errorLine", { line: error.lineNumber })}
+            <section className="min-w-0">
+              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+                {t("overview.errors")}
+              </h4>
+              {previewErrors.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {previewErrors.map((error) => (
+                    <Button
+                      key={error.recordId}
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
+                      onClick={() => onSelectError(error.recordId)}
+                      aria-label={t("overview.jumpToError", { line: error.lineNumber })}
+                    >
+                      <CircleAlert className="size-3.5 shrink-0 text-error" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-[11px] text-text-primary">
+                          {t("overview.errorLine", { line: error.lineNumber })}
+                        </span>
+                        <span className="block truncate text-[11px] text-text-muted">
+                          {error.message || error.summary}
+                        </span>
                       </span>
-                      <span className="block truncate text-[11px] text-text-muted">
-                        {error.message || error.summary}
-                      </span>
-                    </span>
-                  </Button>
-                ))}
-                {hiddenErrorCount > 0 ? (
-                  <div className="px-2 pt-1 text-[11px] text-text-muted">
-                    {t("overview.errorMore", { count: hiddenErrorCount })}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyList label={t("overview.none")} />
-            )}
-          </section>
-        </div>
+                    </Button>
+                  ))}
+                  {hiddenErrorCount > 0 ? (
+                    <div className="px-2 pt-1 text-[11px] text-text-muted">
+                      {t("overview.errorMore", { count: hiddenErrorCount })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <EmptyList label={t("overview.none")} />
+              )}
+            </section>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

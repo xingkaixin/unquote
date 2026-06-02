@@ -101,6 +101,7 @@ body {
   margin: 0;
   color: var(--foreground);
   background: var(--background);
+  font-size: 13px;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -126,6 +127,11 @@ textarea {
 mark {
   background: transparent;
   color: inherit;
+}
+
+.text-ui-11 {
+  font-size: 11px;
+  line-height: 16px;
 }
 
 /* --- Transitions --- */

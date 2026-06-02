@@ -22,7 +22,7 @@ export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDiv
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
-    className={cn("text-[13px] font-medium tracking-wide text-text-primary", className)}
+    className={cn("text-[12px] font-medium tracking-wide text-text-primary", className)}
     {...props}
   />
 );
@@ -31,7 +31,7 @@ export const CardDescription = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={cn("text-[12px] text-text-secondary", className)} {...props} />
+  <p className={cn("text-[11px] text-text-secondary", className)} {...props} />
 );
 
 export const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

@@ -147,8 +147,8 @@ export const JsonTree = ({
       <Card id={record.id} className="min-h-[120px] overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="font-mono text-[12px] text-text-secondary">#{record.lineNumber}</span>
-            <span className="min-w-0 truncate text-[12px] text-text-secondary">
+            <span className="font-mono text-[11px] text-text-secondary">#{record.lineNumber}</span>
+            <span className="min-w-0 truncate text-[11px] text-text-secondary">
               {record.summary}
             </span>
           </div>
@@ -185,21 +185,21 @@ export const JsonTree = ({
               </Badge>
             ) : null}
           </div>
-          <div className="min-w-0 break-words font-mono text-[12px] leading-5 text-text-secondary">
+          <div className="min-w-0 break-words font-mono text-[11px] leading-5 text-text-secondary">
             {record.error ?? t("error.parseFailed")}
           </div>
           {errorMeta ? (
             <div className="flex flex-col gap-1.5">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
                 {t("error.rawLine")}
               </div>
-              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">
                 {rawLine}
               </pre>
-              <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
                 {t("error.context")}
               </div>
-              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">
                 {errorMeta.context}
               </pre>
             </div>
@@ -218,17 +218,17 @@ export const JsonTree = ({
       <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-2.5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="shrink-0 font-mono text-[12px] text-text-secondary">
+            <span className="shrink-0 font-mono text-[11px] text-text-secondary">
               #{record.lineNumber}
             </span>
-            <span className="min-w-0 truncate text-[12px] text-text-secondary">
+            <span className="min-w-0 truncate text-[11px] text-text-secondary">
               {insight?.title ?? record.summary}
             </span>
-            <span className="shrink-0 font-mono text-[11px] text-text-muted">
+            <span className="shrink-0 font-mono text-[10px] text-text-muted">
               {t("tree.nodes", { count: rows.length })}
             </span>
             {focusedPathText ? (
-              <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] text-accent">
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] text-accent">
                 <Focus className="size-3 shrink-0" />
                 <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
               </span>
@@ -258,7 +258,7 @@ export const JsonTree = ({
       </div>
       <div ref={parentRef} className="max-h-[560px] overflow-auto bg-surface-50">
         {!hydrated ? (
-          <div className="flex h-[200px] items-center justify-center px-6 text-[12px] text-text-muted">
+          <div className="flex h-[200px] items-center justify-center px-6 text-[11px] text-text-muted">
             {t("tree.scrollHint")}
           </div>
         ) : null}
@@ -442,7 +442,7 @@ const RowItem = ({
         ) : (
           <span className="h-5 w-5 shrink-0" />
         )}
-        <span className="min-w-0 break-all font-mono text-[12px] leading-5 text-code-key">
+        <span className="min-w-0 break-all font-mono text-[11px] leading-5 text-code-key">
           {searchMatch?.keyRanges.length ? (
             <HighlightText
               text={row.keyLabel}
@@ -468,7 +468,7 @@ const RowItem = ({
           </Badge>
         ) : null}
         <span
-          className={`min-w-0 break-all font-mono text-[12px] leading-5 ${getValueClassName(row)}`}
+          className={`min-w-0 break-all font-mono text-[11px] leading-5 ${getValueClassName(row)}`}
         >
           {valueRanges.length ? (
             <HighlightText text={row.valueLabel} ranges={valueRanges} isActive={isActiveMatch} />

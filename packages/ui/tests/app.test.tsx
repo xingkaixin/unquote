@@ -153,7 +153,7 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
-    expect(screen.getAllByText("Copy")[0]).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText("Search text, or enter $.path to jump...")[0]).toBeInTheDocument();
   });
 
   it("shows localized sample chips for empty input", () => {
@@ -250,6 +250,7 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText("File Overview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Nested records").length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: /File Overview/ })[0]!);
     expect(screen.getAllByText("webhook.received").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
@@ -297,8 +298,9 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
 
-    await user.type(screen.getAllByPlaceholderText("Search keys and values...")[0]!, "boom");
-    await user.click(screen.getAllByRole("button", { name: /Matches/ })[0]!);
+    await user.type(screen.getByPlaceholderText("Search text, or enter $.path to jump..."), "boom");
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("button", { name: /Matches/ }));
 
     await waitFor(() => expect(screen.queryAllByText("#1")).toHaveLength(0));
     expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
@@ -306,29 +308,31 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("boom").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1/3 records · 1 ok · 0 err").length).toBeGreaterThan(0);
 
-    await user.click(screen.getAllByRole("button", { name: /Errors/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("button", { name: /Errors/ }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("not-json").length).toBeGreaterThan(0);
 
-    await user.click(screen.getAllByRole("button", { name: /Nested/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("button", { name: /Nested/ }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("#2")).toHaveLength(0);
     expect(screen.getAllByText("nested json").length).toBeGreaterThan(0);
 
-    await user.click(screen.getAllByRole("button", { name: /Copy/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
     await user.click(screen.getByText("Copy JSONL"));
 
     expect(writeText).toHaveBeenLastCalledWith('{"level":"info","payload":{"nested":true}}');
 
-    await user.click(screen.getAllByRole("button", { name: /Export/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
     await user.click(screen.getByText("Export JSONL"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(1));
     await expect(readBlobText(exportedBlobs[0]!)).resolves.toBe(
       '{"level":"info","payload":{"nested":true}}',
     );
 
-    await user.click(screen.getAllByRole("button", { name: /Export/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
     await user.click(screen.getByText("Export JSON"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(2));
     await expect(readBlobText(exportedBlobs[1]!)).resolves.toBe(
@@ -406,18 +410,22 @@ describe("UnquoteApp", () => {
     expect(screen.queryAllByText("other")).toHaveLength(0);
     expect(screen.getAllByText("nested").length).toBeGreaterThan(0);
 
-    await user.click(screen.getAllByRole("button", { name: /Copy subtree/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
+    await user.click(screen.getByText("Copy subtree"));
     expect(writeText).toHaveBeenLastCalledWith(
       JSON.stringify({ ok: true, nested: { count: 2 } }, null, 2),
     );
 
-    await user.click(screen.getAllByRole("button", { name: /Copy escaped string/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
+    await user.click(screen.getByText("Copy escaped string"));
     expect(writeText).toHaveBeenLastCalledWith(JSON.stringify('{"ok":true,"nested":{"count":2}}'));
 
-    await user.click(screen.getAllByRole("button", { name: /Copy value/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
+    await user.click(screen.getByText("Copy value"));
     expect(writeText).toHaveBeenLastCalledWith('{"ok":true,"nested":{"count":2}}');
 
-    await user.click(screen.getAllByRole("button", { name: /Copy debug bundle/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
+    await user.click(screen.getByText("Copy debug bundle"));
     const bundle = JSON.parse(writeText.mock.calls.at(-1)?.[0] as string) as {
       recordLine: number;
       path: string;
@@ -565,7 +573,10 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
-    await user.type(screen.getAllByPlaceholderText("Search keys and values...")[0]!, "needle");
+    await user.type(
+      screen.getByPlaceholderText("Search text, or enter $.path to jump..."),
+      "needle",
+    );
     expect(streamSpy).not.toHaveBeenCalled();
 
     await waitFor(() => expect(streamSpy).toHaveBeenCalledTimes(1));

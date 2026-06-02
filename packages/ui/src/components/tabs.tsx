@@ -22,7 +22,7 @@ export const TabsTrigger = ({
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) => (
   <TabsPrimitive.Trigger
     className={cn(
-      "inline-flex items-center rounded-sm px-3 py-1.5 text-[13px] text-text-secondary outline-none transition-[color,background-color] duration-150 data-[state=active]:bg-surface-100 data-[state=active]:text-text-primary data-[state=active]:shadow-sm",
+      "inline-flex items-center rounded-sm px-3 py-1.5 text-[12px] text-text-secondary outline-none transition-[color,background-color] duration-150 data-[state=active]:bg-surface-100 data-[state=active]:text-text-primary data-[state=active]:shadow-sm",
       className,
     )}
     {...props}
