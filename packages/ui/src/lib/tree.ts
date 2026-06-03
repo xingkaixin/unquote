@@ -671,7 +671,9 @@ export const filterRecords = (
   }
 
   if (mode === "errors") {
-    return records.filter((record) => !record.node || insights.get(record.id)?.kind === "error");
+    return records.filter(
+      (record) => (!record.node && !record.deferred) || insights.get(record.id)?.kind === "error",
+    );
   }
 
   if (mode === "nested") {

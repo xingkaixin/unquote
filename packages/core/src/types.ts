@@ -31,6 +31,7 @@ export interface JsonlRecord {
   id: string;
   lineNumber: number;
   node: JsonNode | null;
+  deferred?: boolean;
   error?: string;
   errorMeta?: ParseErrorMeta;
   rawLine?: string;

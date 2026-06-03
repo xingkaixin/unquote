@@ -6,48 +6,75 @@ import { UnquoteApp } from "../src/app";
 import { I18nProvider } from "../src/i18n/context";
 
 const maxTransferStringLength = 4096;
+const maxDeferredStringLength = 160;
+const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 
-const compactNodeForTransfer = (node: JsonNode): JsonNode => {
-  const value =
-    node.kind === "string" &&
-    typeof node.value === "string" &&
-    node.value.length > maxTransferStringLength
-      ? node.value.slice(0, maxTransferStringLength)
-      : node.value;
-  const meta =
-    value !== node.value && typeof node.value === "string"
-      ? { ...node.meta, truncated: true, valueLength: node.value.length }
-      : node.meta;
-
-  if (node.kind === "array" && Array.isArray(node.children)) {
-    return {
-      ...node,
-      value,
-      children: node.children.map((child) => compactNodeForTransfer(child)),
-      meta,
-    };
-  }
-
-  if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
-    return {
-      ...node,
-      value,
-      children: Object.fromEntries(
-        Object.entries(node.children).map(([key, child]) => [key, compactNodeForTransfer(child)]),
-      ),
-      meta,
-    };
-  }
-
-  return { ...node, value, meta };
+const getToolbarInput = () => {
+  const inputs = screen.getAllByPlaceholderText(commandInputPlaceholder);
+  return inputs[1] ?? inputs[0]!;
 };
 
-const compactRecordForTransfer = (record: JsonlRecord): JsonlRecord =>
-  record.node ? { ...record, node: compactNodeForTransfer(record.node) } : record;
+const deferNodeForTransfer = (node: JsonNode): JsonNode => {
+  const value =
+    node.kind === "string"
+      ? typeof node.rawString === "string"
+        ? node.rawString
+        : node.value
+      : node.kind === "object" || node.kind === "array"
+        ? null
+        : node.value;
+  const stringValue = typeof value === "string" ? value : null;
+
+  const deferredNode: JsonNode = {
+    ...node,
+    kind: node.wasStringified ? "string" : node.kind,
+    value:
+      stringValue && stringValue.length > maxDeferredStringLength
+        ? stringValue.slice(0, maxDeferredStringLength)
+        : value,
+    meta:
+      stringValue && stringValue.length > maxDeferredStringLength
+        ? { ...node.meta, truncated: true, valueLength: stringValue.length }
+        : node.meta,
+  };
+
+  Reflect.deleteProperty(deferredNode, "children");
+  Reflect.deleteProperty(deferredNode, "rawString");
+  return deferredNode;
+};
+
+const deferRecordForTransfer = (record: JsonlRecord): JsonlRecord => {
+  if (!record.node) {
+    return record;
+  }
+
+  if (
+    record.node.kind !== "object" ||
+    !record.node.children ||
+    Array.isArray(record.node.children)
+  ) {
+    return { ...record, deferred: true, node: deferNodeForTransfer(record.node) };
+  }
+
+  return {
+    ...record,
+    deferred: true,
+    node: {
+      ...record.node,
+      value: null,
+      children: Object.fromEntries(
+        Object.entries(record.node.children).map(([key, child]) => [
+          key,
+          deferNodeForTransfer(child),
+        ]),
+      ),
+    },
+  };
+};
 
 const compactResultForTransfer = (result: ParseResult): ParseResult => ({
   ...result,
-  records: result.records.map(compactRecordForTransfer),
+  records: result.records.map(deferRecordForTransfer),
 });
 
 const readMockFileText = (file: File) => {
@@ -153,7 +180,7 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
-    expect(screen.getAllByPlaceholderText("Search text, or enter $.path to jump...")[0]).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText(commandInputPlaceholder)[0]).toBeInTheDocument();
   });
 
   it("shows localized sample chips for empty input", () => {
@@ -298,7 +325,7 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
 
-    await user.type(screen.getByPlaceholderText("Search text, or enter $.path to jump..."), "boom");
+    await user.type(getToolbarInput(), "boom");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("button", { name: /Matches/ }));
 
@@ -556,7 +583,15 @@ describe("UnquoteApp", () => {
     const file = new File([fileContents], "payload.jsonl", {
       type: "application/jsonl",
     });
-    const streamSpy = vi.fn(() => new Blob([fileContents]).stream());
+    const streamSpy = vi.fn(
+      () =>
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(fileContents));
+            controller.close();
+          },
+        }),
+    );
     Object.defineProperty(file, "stream", {
       configurable: true,
       value: streamSpy,
@@ -573,13 +608,16 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
-    await user.type(
-      screen.getByPlaceholderText("Search text, or enter $.path to jump..."),
-      "needle",
-    );
-    expect(streamSpy).not.toHaveBeenCalled();
+    await user.type(getToolbarInput(), "needle");
+    const streamReadsBeforeSearch = streamSpy.mock.calls.length;
 
-    await waitFor(() => expect(streamSpy).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getAllByText("1/1").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(streamSpy.mock.calls.length).toBeGreaterThan(streamReadsBeforeSearch),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getAllByText((text) => text.includes("1/1") || /1\s+matches/i.test(text)).length,
+      ).toBeGreaterThan(0),
+    );
   });
 });

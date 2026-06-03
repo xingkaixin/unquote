@@ -293,9 +293,31 @@ const runRenderFixture = async (client, fixture) => {
       )
       const completeReady = performance.now()
 
+      const searchInput = document.querySelector('form input[type="text"]')
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      const searchStart = performance.now()
+      valueSetter.call(searchInput, 'nested')
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+      await waitFor(() =>
+        [...document.querySelectorAll('div, span')]
+          .find((node) => /\\d+\\s+matches/i.test(node.textContent ?? ''))
+      )
+      const searchReady = performance.now()
+
+      const toggle = document.querySelector('[aria-label^="Toggle"]')
+      let expandPathReadyMs = null
+      if (toggle) {
+        const expandPathStart = performance.now()
+        toggle.click()
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        expandPathReadyMs = performance.now() - expandPathStart
+      }
+
       return {
         firstRecordReadyMs: firstRecordReady - start,
         completeReadyMs: completeReady - start,
+        searchReadyMs: searchReady - searchStart,
+        expandPathReadyMs,
         domNodes: document.getElementsByTagName('*').length,
         recordCards: document.querySelectorAll('[id^="record-"]:not([id*=":"])').length,
       }
@@ -375,6 +397,8 @@ const benchmarkRender = async (fixturesInfo) => {
         {
           firstRecordReadyMs: summarize(runs.map((run) => run.firstRecordReadyMs)),
           completeReadyMs: summarize(runs.map((run) => run.completeReadyMs)),
+          searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
+          expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
           domNodes: summarize(runs.map((run) => run.domNodes)),
           recordCards: summarize(runs.map((run) => run.recordCards)),
           layoutCount: summarize(runs.map((run) => run.layoutCount)),

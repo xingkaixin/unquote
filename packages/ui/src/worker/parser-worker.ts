@@ -1,5 +1,11 @@
-import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { parseInput, parseJsonlRecordLine } from "@unquote/core";
+import type { JsonlRecord, JsonNode, ParseResult } from "@unquote/core";
+import {
+  extractSummary,
+  getJsonKind,
+  parseInput,
+  parseJson as parseJsonValue,
+  parseJsonlRecordLine,
+} from "@unquote/core";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 
 export type ParserRequest =
@@ -50,7 +56,7 @@ export type ParserWorkerResponse =
     };
 
 const batchSize = 64;
-const maxTransferStringLength = 4096;
+const maxDeferredStringLength = 160;
 let latestRequestId = 0;
 
 const elapsed = (startedAt: number) => Number((performance.now() - startedAt).toFixed(2));
@@ -93,54 +99,82 @@ const progressFromSession = (session: JsonlSession, done: boolean): ParserProgre
   done,
 });
 
-const compactNodeForTransfer = (
-  node: NonNullable<JsonlRecord["node"]>,
-): NonNullable<JsonlRecord["node"]> => {
-  const value =
-    node.kind === "string" &&
-    typeof node.value === "string" &&
-    node.value.length > maxTransferStringLength
-      ? node.value.slice(0, maxTransferStringLength)
-      : node.value;
-  const meta =
-    value !== node.value && typeof node.value === "string"
-      ? { ...node.meta, truncated: true, valueLength: node.value.length }
-      : node.meta;
-
-  if (node.kind === "array" && Array.isArray(node.children)) {
-    return {
-      ...node,
-      value,
-      children: node.children.map((child) => compactNodeForTransfer(child)),
-      meta,
-    };
-  }
-
-  if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
-    return {
-      ...node,
-      value,
-      children: Object.fromEntries(
-        Object.entries(node.children).map(([key, child]) => [key, compactNodeForTransfer(child)]),
-      ),
-      meta,
-    };
-  }
-
-  return { ...node, value, meta };
+const isLikelyStringifiedJson = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed.startsWith("{") || trimmed.startsWith("[");
 };
 
-const compactRecordForTransfer = (record: JsonlRecord): JsonlRecord =>
-  record.node ? { ...record, node: compactNodeForTransfer(record.node) } : record;
+const truncateTransferString = (value: string) =>
+  value.length > maxDeferredStringLength ? value.slice(0, maxDeferredStringLength) : value;
+
+const createDeferredNode = (
+  value: unknown,
+  path: string[],
+  depth: number,
+  recordId: string,
+  sourceLine: number,
+): JsonNode => {
+  const kind = getJsonKind(value);
+  const stringValue = typeof value === "string" ? value : null;
+  const wasStringified = typeof stringValue === "string" && isLikelyStringifiedJson(stringValue);
+  const nodeValue =
+    stringValue === null
+      ? kind === "object" || kind === "array"
+        ? null
+        : value
+      : truncateTransferString(stringValue);
+  const valueLength = stringValue?.length;
+
+  return {
+    kind: wasStringified ? "string" : kind,
+    value: nodeValue,
+    path,
+    wasStringified,
+    meta: {
+      depth,
+      expandable: kind === "object" || kind === "array" || wasStringified,
+      restorable: wasStringified,
+      recordId,
+      sourceLine,
+      ...(typeof valueLength === "number" && valueLength > maxDeferredStringLength
+        ? { truncated: true, valueLength }
+        : {}),
+    },
+  };
+};
+
+const parseDeferredJsonlRecordLine = (line: string, lineNumber: number): JsonlRecord => {
+  try {
+    const value = parseJsonValue(line);
+    const id = `record-${lineNumber}`;
+    const root = createDeferredNode(value, ["$"], 0, id, lineNumber);
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      root.children = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+          key,
+          createDeferredNode(child, ["$", key], 1, id, lineNumber),
+        ]),
+      );
+    }
+
+    return {
+      id,
+      lineNumber,
+      node: root,
+      deferred: true,
+      summary: extractSummary(value),
+    };
+  } catch {
+    return parseJsonlRecordLine(line, lineNumber);
+  }
+};
 
 const postBatch = (requestId: number, session: JsonlSession, done: boolean) => {
   if (session.batch.length === 0) {
     return;
   }
 
-  const records = session.compactForTransfer
-    ? session.batch.splice(0, session.batch.length).map(compactRecordForTransfer)
-    : session.batch.splice(0, session.batch.length);
+  const records = session.batch.splice(0, session.batch.length);
   self.postMessage({
     type: "batch",
     requestId,
@@ -156,7 +190,9 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
     return;
   }
 
-  const record = parseJsonlRecordLine(line, session.lineNumber);
+  const record = session.compactForTransfer
+    ? parseDeferredJsonlRecordLine(line, session.lineNumber)
+    : parseJsonlRecordLine(line, session.lineNumber);
   session.processedLines += 1;
   session.lineNumber += 1;
   if (record.node) {

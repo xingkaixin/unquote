@@ -25,7 +25,7 @@ export const TocPane = ({
   onCopyRawLine,
 }: TocPaneProps) => {
   const { t } = useTranslation();
-  const success = records.filter((record) => record.node).length;
+  const success = records.filter((record) => record.node || record.deferred).length;
   const failed = records.length - success;
   const description =
     records.length === totalCount
@@ -43,7 +43,8 @@ export const TocPane = ({
           <div className="flex flex-col gap-1">
             {records.map((record) => {
               const active = activeRecordId === record.id;
-              const variant = record.node ? "success" : "danger";
+              const parsed = Boolean(record.node || record.deferred);
+              const variant = parsed ? "success" : "danger";
               const insight = recordInsights.get(record.id);
               return (
                 <div
@@ -60,7 +61,7 @@ export const TocPane = ({
                         <span className="font-mono text-[11px] text-text-muted">
                           #{record.lineNumber}
                         </span>
-                        <Badge variant={variant}>{record.node ? "ok" : "err"}</Badge>
+                        <Badge variant={variant}>{parsed ? "ok" : "err"}</Badge>
                       </div>
                       <span className="truncate text-[12px] text-text-secondary">
                         {insight?.title ?? record.summary}
@@ -68,7 +69,7 @@ export const TocPane = ({
                       {insight ? <RecordInsightSummary insight={insight} compact /> : null}
                     </div>
                   </button>
-                  {!record.node ? (
+                  {!parsed ? (
                     <Button
                       variant="ghost"
                       size="sm"

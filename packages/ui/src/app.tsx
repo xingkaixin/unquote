@@ -20,6 +20,7 @@ import { useParser } from "./hooks/use-parser";
 import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
 import type { FileOverviewState } from "./lib/file-overview";
 import { drainJsonlLines } from "./lib/jsonl-lines";
+import { markPerf, measurePerfFn } from "./lib/perf";
 import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
 import type { RecordInsightMapState } from "./lib/record-insight";
 import {
@@ -45,6 +46,7 @@ import type {
 
 const largeSourceCollapseBytes = 1_000_000;
 const fileSearchDebounceMs = 250;
+const hydratedFileRecordLimit = 500;
 
 interface PathScrollTarget {
   recordId: string;
@@ -139,7 +141,7 @@ const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): PathInspecto
 });
 
 const getRecordStats = (records: JsonlRecord[]) => {
-  const success = records.filter((record) => record.node).length;
+  const success = records.filter((record) => record.node || record.deferred).length;
   return {
     total: records.length,
     success,
@@ -345,6 +347,9 @@ export const UnquoteApp = ({
   const { t } = useTranslation();
   const [sourceText, setSourceText] = useState(initialInput);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [hydratedFileRecords, setHydratedFileRecords] = useState<Map<number, JsonlRecord>>(
+    new Map(),
+  );
   const [readingFile, setReadingFile] = useState<File | null>(null);
   const [importedFile, setImportedFile] = useState<File | null>(null);
   const [readProgress, setReadProgress] = useState<number | null>(null);
@@ -390,6 +395,7 @@ export const UnquoteApp = ({
   const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
   const fileSearchAbortRef = useRef<AbortController | null>(null);
   const fileImportIdRef = useRef(0);
+  const hydratingFileLinesRef = useRef<Set<number>>(new Set());
   const scrollRequestIdRef = useRef(0);
   const { result, progress, recordsVersion } = useParser(
     sourceText,
@@ -450,7 +456,9 @@ export const UnquoteApp = ({
 
   const inMemoryMatches = useMemo(() => {
     if (!searchQuery || sourceFile) return null;
-    return searchRecords(result.records, searchQuery, searchOptions);
+    return measurePerfFn("search:memory", () =>
+      searchRecords(result.records, searchQuery, searchOptions),
+    );
   }, [recordsVersion, result.records, searchOptions, searchQuery, sourceFile]);
 
   useEffect(() => {
@@ -499,6 +507,54 @@ export const UnquoteApp = ({
   }, [debouncedFileSearchQuery, searchOptions, sourceFile]);
 
   const matches = sourceFile && searchQuery ? fileSearchMatches : inMemoryMatches;
+
+  useEffect(() => {
+    setHydratedFileRecords(new Map());
+    hydratingFileLinesRef.current.clear();
+  }, [sourceFile]);
+
+  const hydrateFileRecord = useCallback(
+    (record: JsonlRecord) => {
+      if (!sourceFile || !record.deferred) {
+        return;
+      }
+
+      const lineNumber = record.lineNumber;
+      if (hydratedFileRecords.has(lineNumber) || hydratingFileLinesRef.current.has(lineNumber)) {
+        return;
+      }
+
+      hydratingFileLinesRef.current.add(lineNumber);
+      void readJsonlRecordsByLine(sourceFile, new Set([lineNumber]))
+        .then((records) => {
+          const hydrated = records.get(lineNumber);
+          if (!hydrated) {
+            return;
+          }
+
+          setHydratedFileRecords((current) => {
+            if (current.has(lineNumber)) {
+              return current;
+            }
+
+            const next = new Map(current);
+            next.set(lineNumber, hydrated);
+            while (next.size > hydratedFileRecordLimit) {
+              const oldest = next.keys().next().value;
+              if (typeof oldest !== "number") {
+                break;
+              }
+              next.delete(oldest);
+            }
+            return next;
+          });
+        })
+        .finally(() => {
+          hydratingFileLinesRef.current.delete(lineNumber);
+        });
+    },
+    [hydratedFileRecords, sourceFile],
+  );
 
   const recordInsights = useMemo(
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
@@ -978,22 +1034,30 @@ export const UnquoteApp = ({
   };
 
   const handleExpandAll = () => {
-    const all = new Set<string>();
-    visibleRecords.forEach((record) => {
-      collectStringifiedPaths(record, expandedStringifiedPaths, restoredRecordIds).forEach(
-        (path) => {
-          all.add(path);
-        },
-      );
+    const all = measurePerfFn("expand:all:collect", () => {
+      const paths = new Set<string>();
+      visibleRecords.forEach((record) => {
+        collectStringifiedPaths(record, expandedStringifiedPaths, restoredRecordIds).forEach(
+          (path) => {
+            paths.add(path);
+          },
+        );
+      });
+      return paths;
     });
     setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(all);
+    markPerf("expand:all:set-state");
   };
 
   const handleRestoreAll = () => {
     setExpandedStringifiedPaths(new Set());
     setRestoredRecordIds(
-      new Set(result.records.filter((record) => record.node).map((record) => record.id)),
+      new Set(
+        result.records
+          .filter((record) => record.node || record.deferred)
+          .map((record) => record.id),
+      ),
     );
     setSelectedPath(null);
     setFocusedPath(null);
@@ -1002,6 +1066,7 @@ export const UnquoteApp = ({
   };
 
   const handleTogglePath = (path: string) => {
+    markPerf("expand:path");
     setExpandedStringifiedPaths((current) => {
       const next = new Set(current);
       if (next.has(path)) {
@@ -1316,6 +1381,7 @@ export const UnquoteApp = ({
       <RecordList
         records={visibleRecords}
         recordInsights={recordInsights}
+        hydratedRecords={hydratedFileRecords}
         expandedStringifiedPaths={expandedStringifiedPaths}
         restoredRecordIds={restoredRecordIds}
         searchMatches={visibleMatches ?? []}
@@ -1342,6 +1408,7 @@ export const UnquoteApp = ({
             setFocusedPath(null);
           }
         }}
+        onHydrateRecord={hydrateFileRecord}
         onClearFocus={() => setFocusedPath(null)}
         onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />

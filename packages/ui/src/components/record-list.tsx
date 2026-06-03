@@ -12,6 +12,7 @@ const recordGap = 12;
 interface RecordListProps {
   records: JsonlRecord[];
   recordInsights: ReadonlyMap<string, RecordInsight>;
+  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
   expandedStringifiedPaths: Set<string>;
   restoredRecordIds: Set<string>;
   searchMatches: SearchMatch[];
@@ -28,6 +29,7 @@ interface RecordListProps {
   onCopyNode: (recordId: string, row: import("../lib/tree").TreeRow) => void;
   onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
   onRestoreRecord: (recordId: string) => void;
+  onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
   onActiveRecordChange: (recordId: string) => void;
@@ -36,6 +38,7 @@ interface RecordListProps {
 export const RecordList = ({
   records,
   recordInsights,
+  hydratedRecords,
   expandedStringifiedPaths,
   restoredRecordIds,
   searchMatches,
@@ -52,6 +55,7 @@ export const RecordList = ({
   onCopyNode,
   onSelectNode,
   onRestoreRecord,
+  onHydrateRecord,
   onClearFocus,
   onHoverPath,
   onActiveRecordChange,
@@ -148,31 +152,36 @@ export const RecordList = ({
     }
   }, [onActiveRecordChange, records, shouldVirtualize, virtualRecords]);
 
-  const renderRecord = (record: JsonlRecord, index: number) => (
-    <JsonTree
-      key={record.id}
-      record={record}
-      insight={recordInsights.get(record.id)}
-      expandedStringifiedPaths={expandedStringifiedPaths}
-      restoredRecordIds={restoredRecordIds}
-      eager={index < 6}
-      searchMatches={searchMatchesByRecord.get(record.id) ?? []}
-      activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
-      scrollTarget={scrollTarget?.recordId === record.id ? scrollTarget : null}
-      selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
-      focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
-      onTogglePath={onTogglePath}
-      onCopyRecord={() => onCopyRecord(record)}
-      onCopyRawLine={() => onCopyRawLine(record)}
-      onCopyError={() => onCopyError(record)}
-      onCopyPath={onCopyPath}
-      onCopyNode={(row) => onCopyNode(record.id, row)}
-      onSelectNode={(row) => onSelectNode(record, row)}
-      onRestoreRecord={() => onRestoreRecord(record.id)}
-      onClearFocus={onClearFocus}
-      onHoverPath={onHoverPath}
-    />
-  );
+  const renderRecord = (record: JsonlRecord, index: number) => {
+    const renderedRecord = hydratedRecords.get(record.lineNumber) ?? record;
+
+    return (
+      <JsonTree
+        key={renderedRecord.id}
+        record={renderedRecord}
+        insight={recordInsights.get(record.id)}
+        expandedStringifiedPaths={expandedStringifiedPaths}
+        restoredRecordIds={restoredRecordIds}
+        eager={index < 6}
+        searchMatches={searchMatchesByRecord.get(record.id) ?? []}
+        activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
+        scrollTarget={scrollTarget?.recordId === record.id ? scrollTarget : null}
+        selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
+        focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
+        onTogglePath={onTogglePath}
+        onCopyRecord={() => onCopyRecord(renderedRecord)}
+        onCopyRawLine={() => onCopyRawLine(renderedRecord)}
+        onCopyError={() => onCopyError(renderedRecord)}
+        onCopyPath={onCopyPath}
+        onCopyNode={(row) => onCopyNode(renderedRecord.id, row)}
+        onSelectNode={(row) => onSelectNode(renderedRecord, row)}
+        onRestoreRecord={() => onRestoreRecord(renderedRecord.id)}
+        onHydrateRecord={onHydrateRecord}
+        onClearFocus={onClearFocus}
+        onHoverPath={onHoverPath}
+      />
+    );
+  };
 
   if (!shouldVirtualize) {
     return (

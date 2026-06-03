@@ -166,7 +166,7 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
     fieldValues: new Map(),
   };
 
-  if (!record.node) {
+  if (!record.node && !record.deferred) {
     return {
       ...summary,
       error: {
@@ -176,6 +176,10 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
         summary: record.summary,
       },
     };
+  }
+
+  if (!record.node) {
+    return summary;
   }
 
   walkNode(record.node, summary);
@@ -216,7 +220,7 @@ const addSummaryToState = (state: FileOverviewState, summary: RecordOverviewSumm
 };
 
 const addRecordToState = (state: FileOverviewState, record: JsonlRecord) => {
-  if (record.node) {
+  if (record.node || record.deferred) {
     state.success += 1;
   }
   const cached = state.cache.get(record.id);
