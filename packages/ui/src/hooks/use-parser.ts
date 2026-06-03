@@ -1,6 +1,7 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
 import { parseInput, parseJson } from "@unquote/core";
+import { markPerf, measurePerf } from "../lib/perf";
 import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const withForcedFormat = (forcedFormat?: "json" | "jsonl") =>
@@ -129,6 +130,7 @@ export const useParser = (
       recordsVersion: current.recordsVersion + 1,
     }));
     setProgress({ ...idleProgress, done: false });
+    markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
     const streamedRecords: JsonlRecord[] = [];
     let pendingStreamSnapshot: {
@@ -231,6 +233,10 @@ export const useParser = (
       }
 
       if (message.type === "batch") {
+        if (!hasPublishedStream) {
+          markPerf("parse:first-batch");
+          measurePerf("parse:first-batch", "parse:start", "parse:first-batch");
+        }
         streamedRecords.push(...message.records);
         pendingStreamSnapshot = {
           stats: message.stats,
@@ -242,6 +248,8 @@ export const useParser = (
 
       cancelStreamFlush();
       publishStream();
+      markPerf("parse:complete");
+      measurePerf("parse:complete", "parse:start", "parse:complete");
       setProgress(message.progress);
       if (message.result) {
         setParserState((current) => ({

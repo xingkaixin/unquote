@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
+import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
 import { buildRecordRows } from "../lib/tree";
 import type { SearchMatch, TextRange, TreeRow } from "../lib/tree";
@@ -31,6 +32,7 @@ interface JsonTreeProps {
   onCopyNode: (row: TreeRow) => void;
   onSelectNode: (row: TreeRow) => void;
   onRestoreRecord: () => void;
+  onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
 }
@@ -54,6 +56,7 @@ export const JsonTree = ({
   onCopyNode,
   onSelectNode,
   onRestoreRecord,
+  onHydrateRecord,
   onClearFocus,
   onHoverPath,
 }: JsonTreeProps) => {
@@ -65,10 +68,18 @@ export const JsonTree = ({
   const rows = useMemo(
     () =>
       hydrated
-        ? buildRecordRows(record, expandedStringifiedPaths, restoredRecordIds, focusedPathText)
+        ? measurePerfFn("recordRows:build", () =>
+            buildRecordRows(record, expandedStringifiedPaths, restoredRecordIds, focusedPathText),
+          )
         : [],
     [expandedStringifiedPaths, focusedPathText, hydrated, record, restoredRecordIds],
   );
+
+  useEffect(() => {
+    if (record.deferred && hydrated) {
+      onHydrateRecord(record);
+    }
+  }, [hydrated, onHydrateRecord, record]);
   const searchMatchMap = useMemo(() => {
     const map = new Map<string, SearchMatch>();
     for (const match of searchMatches) {
@@ -251,7 +262,17 @@ export const JsonTree = ({
           <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onCopyRecord}>
             <Copy className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onRestoreRecord}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 px-0"
+            onClick={() => {
+              if (record.deferred) {
+                onHydrateRecord(record);
+              }
+              onRestoreRecord();
+            }}
+          >
             <RotateCcw className="size-3.5" />
           </Button>
         </div>
@@ -288,7 +309,12 @@ export const JsonTree = ({
                   searchMatch={searchMatch}
                   isActiveMatch={isActive}
                   isSelected={isSelected}
-                  onTogglePath={onTogglePath}
+                  onTogglePath={(path) => {
+                    if (record.deferred) {
+                      onHydrateRecord(record);
+                    }
+                    onTogglePath(path);
+                  }}
                   onCopyPath={onCopyPath}
                   onCopyNode={onCopyNode}
                   onSelectNode={onSelectNode}
@@ -310,7 +336,12 @@ export const JsonTree = ({
                   searchMatch={searchMatch}
                   isActiveMatch={isActive}
                   isSelected={isSelected}
-                  onTogglePath={onTogglePath}
+                  onTogglePath={(path) => {
+                    if (record.deferred) {
+                      onHydrateRecord(record);
+                    }
+                    onTogglePath(path);
+                  }}
                   onCopyPath={onCopyPath}
                   onCopyNode={onCopyNode}
                   onSelectNode={onSelectNode}
