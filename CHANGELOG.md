@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] - 2026-06-05
+
+### Added
+
+- **Command palette** — Added a `Cmd/Ctrl+K` panel for search, path jumps, filter changes, and command discovery.
+- Browser performance marks now cover parse, search, row building, and expansion hot paths to make release profiling easier.
+
+### Changed
+
+- Search and JSONPath / jq-style path jump now share a compact toolbar input, with match navigation and status inline.
+- Copy, export, and restore actions were consolidated into a single overflow menu while keeping Expand All as the primary action.
+- Large local JSONL files now transfer deferred preview records first and hydrate full records only when needed, reducing memory pressure for high-record-count files.
+- Record filtering was simplified to explicit modes for all records, matches, errors, nested records, tools, messages, and events.
+- Web and extension app versions bumped to `0.5.0`.
+
+### Fixed
+
+- Large JSONL imports no longer keep every full parsed record in UI memory before the user opens or copies a record.
+
 ## [0.4.0] - 2026-05-24
 
 ### Added
