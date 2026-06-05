@@ -36,14 +36,17 @@ interface JsonNode {
   path: string[];           // e.g. ["", "payload", "items", "0"]
   wasStringified: boolean;  // true if this node came from a JSON string value
   children?: Record<string, JsonNode> | JsonNode[];
-  meta: { depth, expandable, restorable, recordId?, sourceLine? };
+  meta: { depth, expandable, restorable, recordId?, sourceLine?, truncated?, valueLength? };
 }
 
 interface JsonlRecord {
   id: string;
   lineNumber: number;
   node: JsonNode | null;
+  deferred?: boolean;       // true for local-file preview records hydrated on demand
   error?: string;
+  errorMeta?: ParseErrorMeta;
+  rawLine?: string;
   summary: string;
 }
 
@@ -89,9 +92,9 @@ CSS variables defined in `src/styles.css`:
 |---|---|
 | `app.tsx` | Root `UnquoteApp` component. Holds all top-level state (source text, theme, search, expanded paths, restored records). |
 | `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >160 rows. |
-| `components/record-list.tsx` | Maps `records` → `JsonTree[]`. Filters `searchMatches` per record. |
-| `components/search-bar.tsx` | Search input + toggle buttons (regex, case-sensitive, jq/JSONPath). |
-| `components/toolbar.tsx` | Format badge, stats, hovered path label, action buttons. |
+| `components/record-list.tsx` | Maps `records` → `JsonTree[]`, applies record virtualization, and swaps in hydrated local-file records. |
+| `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
+| `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand All, and overflow actions. |
 | `components/input-pane.tsx` | Textarea input + mode selector (auto/json/jsonl) + file drop zone. |
 | `components/toc-pane.tsx` | JSONL record navigation sidebar. |
 | `components/theme-toggle.tsx` / `locale-toggle.tsx` | User preference controls. |
