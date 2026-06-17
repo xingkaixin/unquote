@@ -28,3 +28,7 @@ benchmark/case*.jsonl
 
 # wrangler
 .wrangler
+
+
+# chore
+.issues
