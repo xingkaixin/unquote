@@ -1,4 +1,4 @@
-import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
+import { materializeNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,15 +16,18 @@ import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
+import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
 import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
 import type { FileOverviewState } from "./lib/file-overview";
-import { drainJsonlLines } from "./lib/jsonl-lines";
+import {
+  readFileText,
+  readJsonlRecordsByLine,
+} from "./lib/local-file-source";
 import { markPerf, measurePerfFn } from "./lib/perf";
 import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
 import type { RecordInsightMapState } from "./lib/record-insight";
 import {
-  buildSearchPattern,
   collectStringifiedPaths,
   filterRecords,
   getRenderedRecord,
@@ -32,21 +35,17 @@ import {
   materializeRecord,
   resolveTreePath,
   resolveTreePathMatches,
-  searchRecord,
   searchRecords,
 } from "./lib/tree";
 import { sourceSamples } from "./lib/source-samples";
 import type {
   RecordFilterMode,
   ResolvedTreePath,
-  SearchMatch,
   SearchOptions,
   TreeRow,
 } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
-const fileSearchDebounceMs = 250;
-const hydratedFileRecordLimit = 500;
 
 interface PathScrollTarget {
   recordId: string;
@@ -66,56 +65,6 @@ const formatFileSize = (bytes: number) => {
 
   const formatted = unitIndex === 0 || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
   return `${formatted} ${units[unitIndex]}`;
-};
-
-const readFileWithFileReader = (file: File, onProgress: (progress: number) => void) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(event.total === 0 ? 1 : event.loaded / event.total);
-      }
-    };
-    reader.onload = () => {
-      onProgress(1);
-      resolve(typeof reader.result === "string" ? reader.result : "");
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsText(file);
-  });
-
-const readFileText = async (file: File, onProgress: (progress: number) => void) => {
-  if (typeof file.stream !== "function") {
-    if (typeof file.text === "function") {
-      const text = await file.text();
-      onProgress(1);
-      return text;
-    }
-
-    return readFileWithFileReader(file, onProgress);
-  }
-
-  const reader = file.stream().getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-  let bytesRead = 0;
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    if (value) {
-      bytesRead += value.byteLength;
-      text += decoder.decode(value, { stream: true });
-      onProgress(file.size === 0 ? 1 : bytesRead / file.size);
-    }
-  }
-
-  text += decoder.decode();
-  onProgress(1);
-  return text;
 };
 
 const createSelectionFromTarget = (target: ResolvedTreePath): PathInspectorSelection => ({
@@ -212,123 +161,6 @@ const createExportFilename = (extension: "json" | "jsonl") => {
   return `unquote-visible-${timestamp}.${extension}`;
 };
 
-const readJsonlFileLines = async (
-  file: File,
-  onLine: (line: string, lineNumber: number) => boolean | void,
-  signal?: AbortSignal,
-) => {
-  let lineNumber = 1;
-  let stopped = false;
-  const processLine = (line: string) => {
-    if (signal?.aborted) {
-      return false;
-    }
-
-    stopped = onLine(line, lineNumber) === false;
-    lineNumber += 1;
-    return !stopped;
-  };
-  const processRawLine = (rawLine: string) =>
-    processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
-
-  if (typeof file.stream !== "function") {
-    const text = await readFileText(file, () => undefined);
-    for (const rawLine of text.split("\n")) {
-      if (stopped || signal?.aborted) {
-        break;
-      }
-      processRawLine(rawLine);
-    }
-    return;
-  }
-
-  const reader = file.stream().getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let readerCanceled = false;
-
-  const cancelReader = () => {
-    readerCanceled = true;
-    void reader.cancel().catch(() => undefined);
-  };
-  signal?.addEventListener("abort", cancelReader, { once: true });
-
-  try {
-    while (!stopped && !signal?.aborted) {
-      const { value, done } = await reader.read();
-      if (done) {
-        const drained = drainJsonlLines(buffer, decoder.decode(), true, processLine);
-        buffer = drained.buffer;
-        stopped = stopped || drained.stopped;
-        break;
-      }
-
-      const drained = drainJsonlLines(
-        buffer,
-        decoder.decode(value, { stream: true }),
-        false,
-        processLine,
-      );
-      buffer = drained.buffer;
-      stopped = stopped || drained.stopped;
-    }
-  } catch (error) {
-    if (!signal?.aborted) {
-      throw error;
-    }
-  } finally {
-    signal?.removeEventListener("abort", cancelReader);
-    if ((stopped || signal?.aborted) && !readerCanceled) {
-      await reader.cancel().catch(() => undefined);
-    }
-  }
-};
-
-const readJsonlRecordsByLine = async (file: File, lineNumbers: Set<number>) => {
-  const records = new Map<number, JsonlRecord>();
-  if (lineNumbers.size === 0) {
-    return records;
-  }
-
-  await readJsonlFileLines(file, (line, lineNumber) => {
-    if (lineNumbers.has(lineNumber)) {
-      records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
-    }
-    return records.size < lineNumbers.size;
-  });
-
-  return records;
-};
-
-const searchJsonlFile = async (
-  file: File,
-  query: string,
-  options: SearchOptions,
-  signal: AbortSignal,
-): Promise<SearchMatch[] | null> => {
-  const pattern = buildSearchPattern(query, options);
-  if (!pattern) {
-    return null;
-  }
-
-  const matches: SearchMatch[] = [];
-  await readJsonlFileLines(
-    file,
-    (line, lineNumber) => {
-      if (signal.aborted) {
-        return false;
-      }
-
-      if (line.trim()) {
-        matches.push(...searchRecord(parseJsonlRecordLine(line, lineNumber), pattern, options));
-      }
-    },
-    signal,
-  );
-
-  return signal.aborted ? null : matches;
-};
-
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -347,9 +179,6 @@ export const UnquoteApp = ({
   const { t } = useTranslation();
   const [sourceText, setSourceText] = useState(initialInput);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
-  const [hydratedFileRecords, setHydratedFileRecords] = useState<Map<number, JsonlRecord>>(
-    new Map(),
-  );
   const [readingFile, setReadingFile] = useState<File | null>(null);
   const [importedFile, setImportedFile] = useState<File | null>(null);
   const [readProgress, setReadProgress] = useState<number | null>(null);
@@ -373,8 +202,6 @@ export const UnquoteApp = ({
   const [toolbarQuery, setToolbarQuery] = useState("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandInput, setCommandInput] = useState("");
-  const [debouncedFileSearchQuery, setDebouncedFileSearchQuery] = useState("");
-  const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [pathQuery, setPathQuery] = useState("");
@@ -393,9 +220,7 @@ export const UnquoteApp = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const overviewStateRef = useRef<FileOverviewState>(createFileOverviewState());
   const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
-  const fileSearchAbortRef = useRef<AbortController | null>(null);
   const fileImportIdRef = useRef(0);
-  const hydratingFileLinesRef = useRef<Set<number>>(new Set());
   const scrollRequestIdRef = useRef(0);
   const { result, progress, recordsVersion } = useParser(
     sourceText,
@@ -454,6 +279,8 @@ export const UnquoteApp = ({
     [searchCaseSensitive, searchJq, searchRegex],
   );
 
+  const localFileSource = useLocalFileSource(sourceFile, searchQuery, searchOptions);
+
   const inMemoryMatches = useMemo(() => {
     if (!searchQuery || sourceFile) return null;
     return measurePerfFn("search:memory", () =>
@@ -461,100 +288,7 @@ export const UnquoteApp = ({
     );
   }, [recordsVersion, result.records, searchOptions, searchQuery, sourceFile]);
 
-  useEffect(() => {
-    fileSearchAbortRef.current?.abort();
-    if (!sourceFile || !searchQuery) {
-      setDebouncedFileSearchQuery("");
-      setFileSearchMatches(null);
-      return;
-    }
-
-    setFileSearchMatches(null);
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedFileSearchQuery(searchQuery);
-    }, fileSearchDebounceMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [searchQuery, sourceFile]);
-
-  useEffect(() => {
-    if (!sourceFile || !debouncedFileSearchQuery) {
-      setFileSearchMatches(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    fileSearchAbortRef.current = controller;
-    setFileSearchMatches(null);
-    void searchJsonlFile(sourceFile, debouncedFileSearchQuery, searchOptions, controller.signal)
-      .then((nextMatches) => {
-        if (!controller.signal.aborted) {
-          setFileSearchMatches(nextMatches);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setFileSearchMatches(null);
-        }
-      });
-
-    return () => {
-      controller.abort();
-      if (fileSearchAbortRef.current === controller) {
-        fileSearchAbortRef.current = null;
-      }
-    };
-  }, [debouncedFileSearchQuery, searchOptions, sourceFile]);
-
-  const matches = sourceFile && searchQuery ? fileSearchMatches : inMemoryMatches;
-
-  useEffect(() => {
-    setHydratedFileRecords(new Map());
-    hydratingFileLinesRef.current.clear();
-  }, [sourceFile]);
-
-  const hydrateFileRecord = useCallback(
-    (record: JsonlRecord) => {
-      if (!sourceFile || !record.deferred) {
-        return;
-      }
-
-      const lineNumber = record.lineNumber;
-      if (hydratedFileRecords.has(lineNumber) || hydratingFileLinesRef.current.has(lineNumber)) {
-        return;
-      }
-
-      hydratingFileLinesRef.current.add(lineNumber);
-      void readJsonlRecordsByLine(sourceFile, new Set([lineNumber]))
-        .then((records) => {
-          const hydrated = records.get(lineNumber);
-          if (!hydrated) {
-            return;
-          }
-
-          setHydratedFileRecords((current) => {
-            if (current.has(lineNumber)) {
-              return current;
-            }
-
-            const next = new Map(current);
-            next.set(lineNumber, hydrated);
-            while (next.size > hydratedFileRecordLimit) {
-              const oldest = next.keys().next().value;
-              if (typeof oldest !== "number") {
-                break;
-              }
-              next.delete(oldest);
-            }
-            return next;
-          });
-        })
-        .finally(() => {
-          hydratingFileLinesRef.current.delete(lineNumber);
-        });
-    },
-    [hydratedFileRecords, sourceFile],
-  );
+  const matches = sourceFile && searchQuery ? localFileSource.fileMatches : inMemoryMatches;
 
   const recordInsights = useMemo(
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
@@ -991,32 +725,20 @@ export const UnquoteApp = ({
     }
   };
 
-  const getRecordsForCopy = async (records: JsonlRecord[]) => {
-    if (!sourceFile) {
-      return records;
-    }
-
-    const fullRecords = await readJsonlRecordsByLine(
-      sourceFile,
-      new Set(records.map((record) => record.lineNumber)),
-    );
-    return records.map((record) => fullRecords.get(record.lineNumber) ?? record);
-  };
-
   const handleCopyJsonl = async () => {
-    const records = await getRecordsForCopy(visibleRecords);
+    const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(formatRecordsAsJsonl(records, restoredRecordIds));
   };
 
   const handleCopyFormattedJson = async () => {
-    const records = await getRecordsForCopy(visibleRecords);
+    const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(
       formatRecordsAsJson(records, restoredRecordIds, result.format),
     );
   };
 
   const handleExportJsonl = async () => {
-    const records = await getRecordsForCopy(visibleRecords);
+    const records = await localFileSource.getFullRecords(visibleRecords);
     downloadText(
       formatRecordsAsJsonl(records, restoredRecordIds),
       createExportFilename("jsonl"),
@@ -1025,7 +747,7 @@ export const UnquoteApp = ({
   };
 
   const handleExportFormattedJson = async () => {
-    const records = await getRecordsForCopy(visibleRecords);
+    const records = await localFileSource.getFullRecords(visibleRecords);
     downloadText(
       formatRecordsAsJson(records, restoredRecordIds, result.format),
       createExportFilename("json"),
@@ -1079,7 +801,7 @@ export const UnquoteApp = ({
   };
 
   const handleCopyRecord = async (record: JsonlRecord) => {
-    const [copyRecord = record] = await getRecordsForCopy([record]);
+    const [copyRecord = record] = await localFileSource.getFullRecords([record]);
     const value = getCopyValue(copyRecord, restoredRecordIds);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   };
@@ -1120,7 +842,7 @@ export const UnquoteApp = ({
 
   const handleCopyNode = async (recordId: string, row: TreeRow) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
-    const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
+    const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
     const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
     const resolved = renderedRecord?.node ? resolveTreePath([renderedRecord], row.pathText) : null;
     const value = materializeNode(resolved?.ok ? resolved.target.node : row.node);
@@ -1133,7 +855,7 @@ export const UnquoteApp = ({
     }
 
     const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
-    const [copyRecord] = record ? await getRecordsForCopy([record]) : [];
+    const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
     const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
     const resolved = renderedRecord?.node
       ? resolveTreePath([renderedRecord], selectedPath.pathText)
@@ -1381,7 +1103,7 @@ export const UnquoteApp = ({
       <RecordList
         records={visibleRecords}
         recordInsights={recordInsights}
-        hydratedRecords={hydratedFileRecords}
+        hydratedRecords={localFileSource.hydratedRecords}
         expandedStringifiedPaths={expandedStringifiedPaths}
         restoredRecordIds={restoredRecordIds}
         searchMatches={visibleMatches ?? []}
@@ -1408,7 +1130,7 @@ export const UnquoteApp = ({
             setFocusedPath(null);
           }
         }}
-        onHydrateRecord={hydrateFileRecord}
+        onHydrateRecord={localFileSource.hydrateRecord}
         onClearFocus={() => setFocusedPath(null)}
         onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />
