@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
+import { useQueryInteraction } from "./hooks/use-query-interaction";
 import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
 import type { FileOverviewState } from "./lib/file-overview";
 import {
@@ -34,12 +35,10 @@ import {
   hasJsonlRecords,
   materializeRecord,
   resolveTreePath,
-  resolveTreePathMatches,
   searchRecords,
 } from "./lib/tree";
 import { sourceSamples } from "./lib/source-samples";
 import type {
-  RecordFilterMode,
   ResolvedTreePath,
   SearchOptions,
   TreeRow,
@@ -99,9 +98,6 @@ const getRecordStats = (records: JsonlRecord[]) => {
 };
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
-
-const isPathLikeQuery = (value: string) =>
-  /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
 
 const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
   if (record.node) {
@@ -195,19 +191,7 @@ export const UnquoteApp = ({
       return "system";
     }
   });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchRegex, setSearchRegex] = useState(false);
-  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
-  const [searchJq, setSearchJq] = useState(false);
-  const [toolbarQuery, setToolbarQuery] = useState("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [commandInput, setCommandInput] = useState("");
-  const [recordFilter, setRecordFilter] = useState<RecordFilterMode>("all");
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
-  const [pathQuery, setPathQuery] = useState("");
-  const [pathError, setPathError] = useState<string | null>(null);
-  const [pathMatches, setPathMatches] = useState<ResolvedTreePath[]>([]);
-  const [currentPathMatchIndex, setCurrentPathMatchIndex] = useState(0);
   const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
   const [focusedPath, setFocusedPath] = useState<{ recordId: string; pathText: string } | null>(
     null,
@@ -227,6 +211,37 @@ export const UnquoteApp = ({
     mode === "auto" ? undefined : mode,
     sourceFile,
   );
+
+  // Match-pipeline data is written into these refs during render so the
+  // interaction hook (called above the pipeline) can read the latest values.
+  const visibleRecordsRef = useRef<JsonlRecord[]>([]);
+  const matchCountRef = useRef(0);
+  const visibleMatchesRef = useRef<
+    { recordId: string; pathText: string; stringifiedPathChain: string[] }[] | null
+  >(null);
+
+  const qi = useQueryInteraction({
+    allRecords: result.records,
+    translateError: (reason) =>
+      t(reason === "invalid" ? "path.invalid" : "path.notFound"),
+    visibleRecordsRef,
+    matchCountRef,
+    visibleMatchesRef,
+  });
+  const {
+    searchQuery,
+    searchRegex,
+    searchCaseSensitive,
+    searchJq,
+    recordFilter,
+    toolbarQuery,
+    commandInput,
+    pathError,
+    pathMatches,
+    currentPathMatchIndex,
+    currentMatchIndex,
+  } = qi.state;
+
   const detectedFormat = mode === "auto" ? result.format : mode;
   const parseModeLabel =
     mode === "auto" && result.stats.failed > 0 && result.stats.total > 0
@@ -314,20 +329,17 @@ export const UnquoteApp = ({
   }, [matches, recordsVersion, visibleRecords]);
   const matchCount = visibleMatches?.length ?? 0;
 
+  // Feed the computed match pipeline back to the interaction hook's refs so its
+  // callbacks/effects read the latest values next render.
+  visibleRecordsRef.current = visibleRecords;
+  matchCountRef.current = matchCount;
+  visibleMatchesRef.current = visibleMatches;
+
+  // Clear any pending scroll target when the filter or search options change
+  // (match-index reset lives in the interaction hook).
   useEffect(() => {
-    setCurrentMatchIndex(0);
     setScrollTarget(null);
   }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
-
-  useEffect(() => {
-    setPathError(null);
-    setPathMatches([]);
-    setCurrentPathMatchIndex(0);
-  }, [recordFilter]);
-
-  useEffect(() => {
-    setCurrentMatchIndex((current) => (matchCount === 0 ? 0 : Math.min(current, matchCount - 1)));
-  }, [matchCount]);
 
   useEffect(() => {
     if (!visibleMatches || visibleMatches.length === 0) return;
@@ -399,168 +411,47 @@ export const UnquoteApp = ({
     });
   };
 
-  const applyPathTarget = (target: ResolvedTreePath, index?: number) => {
-    setPathError(null);
-    if (typeof index === "number") {
-      setCurrentPathMatchIndex(index);
-    }
-    setSelectedPath(createSelectionFromTarget(target));
-    setActiveRecordId(target.recordId);
-    setRestoredRecordIds((current) => {
-      const next = new Set(current);
-      next.delete(target.recordId);
-      return next;
-    });
-    setExpandedStringifiedPaths((current) => {
-      const next = new Set(current);
-      for (const path of target.stringifiedPathChain) {
-        next.add(path);
-      }
-      return next;
-    });
-    scrollToPath(target.recordId, target.pathText);
-  };
-
-  const handlePrevMatch = () => {
-    if (matchCount === 0) return;
-    const nextIndex = (currentMatchIndex - 1 + matchCount) % matchCount;
-    setCurrentMatchIndex(nextIndex);
-    scrollToSearchMatch(nextIndex);
-  };
-
-  const handleNextMatch = () => {
-    if (matchCount === 0) return;
-    const nextIndex = (currentMatchIndex + 1) % matchCount;
-    setCurrentMatchIndex(nextIndex);
-    scrollToSearchMatch(nextIndex);
-  };
-
-  const handlePrevPathMatch = () => {
-    if (pathMatches.length === 0) return;
-    const nextIndex = (currentPathMatchIndex - 1 + pathMatches.length) % pathMatches.length;
-    applyPathTarget(pathMatches[nextIndex]!, nextIndex);
-  };
-
-  const handleNextPathMatch = () => {
-    if (pathMatches.length === 0) return;
-    const nextIndex = (currentPathMatchIndex + 1) % pathMatches.length;
-    applyPathTarget(pathMatches[nextIndex]!, nextIndex);
-  };
-
-  const handleToolbarQueryChange = (value: string) => {
-    setToolbarQuery(value);
-    setPathError(null);
-
-    if (!value.trim()) {
-      setSearchQuery("");
-      setPathQuery("");
-      setPathMatches([]);
-      setCurrentPathMatchIndex(0);
-      setCurrentMatchIndex(0);
+  // React to interaction-driven navigation: a path jump selects/expands the
+  // target node and scrolls to it; a search re-navigation scrolls to the match.
+  useEffect(() => {
+    const target = qi.navigationTarget;
+    if (!target) {
       return;
     }
 
-    if (isPathLikeQuery(value)) {
-      setPathQuery(value);
-      setPathMatches([]);
-      setCurrentPathMatchIndex(0);
-      setSearchQuery("");
-      setCurrentMatchIndex(0);
-      return;
+    if (target.kind === "path") {
+      setSelectedPath(
+        createSelectionFromTarget({
+          recordId: target.recordId,
+          pathText: target.pathText,
+          stringifiedPathChain: target.stringifiedPathChain,
+        } as ResolvedTreePath),
+      );
+      setActiveRecordId(target.recordId);
+      setRestoredRecordIds((current) => {
+        const next = new Set(current);
+        next.delete(target.recordId);
+        return next;
+      });
+      setExpandedStringifiedPaths((current) => {
+        const next = new Set(current);
+        for (const path of target.stringifiedPathChain) {
+          next.add(path);
+        }
+        return next;
+      });
+      scrollToPath(target.recordId, target.pathText);
+    } else {
+      scrollToSearchMatch(target.matchIndex);
     }
-
-    setPathQuery("");
-    setPathMatches([]);
-    setCurrentPathMatchIndex(0);
-    setSearchQuery(value);
-  };
-
-  const handleSubmitToolbarQuery = (value: string) => {
-    const query = value.trim();
-    setToolbarQuery(value);
-    if (!query) {
-      return;
-    }
-
-    if (isPathLikeQuery(query)) {
-      handlePathJumpForQuery(query);
-      return;
-    }
-
-    if (matchCount > 0) {
-      scrollToSearchMatch(currentMatchIndex);
-    }
-  };
-
-  const handleClearToolbarQuery = () => {
-    setToolbarQuery("");
-    setSearchQuery("");
-    setPathQuery("");
-    setPathError(null);
-    setPathMatches([]);
-    setCurrentPathMatchIndex(0);
-    setCurrentMatchIndex(0);
-    setScrollTarget(null);
-  };
-
-  const handlePathJumpForQuery = (query: string) => {
-    setToolbarQuery(query);
-    setPathQuery(query);
-    setSearchQuery("");
-    setCurrentMatchIndex(0);
-    setCurrentPathMatchIndex(0);
-    const resolved = resolveTreePathMatches(visibleRecords, query);
-    if (!resolved.ok) {
-      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
-      setPathMatches([]);
-      setCurrentPathMatchIndex(0);
-      return;
-    }
-
-    setPathMatches(resolved.targets);
-    applyPathTarget(resolved.targets[0]!, 0);
-  };
-
-  const handleCommandSearch = (query: string) => {
-    setToolbarQuery(query);
-    setSearchQuery(query);
-    setRecordFilter("matches");
-    setCurrentMatchIndex(0);
-    setScrollTarget(null);
-  };
-
-  const handleOverviewPathSelect = (pathText: string) => {
-    setToolbarQuery(pathText);
-    setPathQuery(pathText);
-    setRecordFilter("all");
-    setCurrentPathMatchIndex(0);
-    const resolved = resolveTreePathMatches(result.records, pathText);
-    if (!resolved.ok) {
-      setPathError(t(resolved.reason === "invalid" ? "path.invalid" : "path.notFound"));
-      setPathMatches([]);
-      setCurrentPathMatchIndex(0);
-      return;
-    }
-
-    setPathMatches(resolved.targets);
-    applyPathTarget(resolved.targets[0]!, 0);
-  };
-
-  const handleOverviewFieldValueSearch = (value: string) => {
-    setToolbarQuery(value);
-    setSearchQuery(value);
-    setSearchRegex(false);
-    setSearchCaseSensitive(false);
-    setSearchJq(false);
-    setRecordFilter("matches");
-    setCurrentMatchIndex(0);
-    setScrollTarget(null);
-  };
+    // navigationTarget carries a version token that changes on every navigating
+    // action, so re-submitting the same query re-scrolls.
+  }, [qi.navigationTarget]);
 
   const handleOpenCommandPalette = useCallback(() => {
-    setCommandInput(toolbarQuery || searchQuery || pathQuery);
+    qi.seedCommandInput();
     setCommandPaletteOpen(true);
-  }, [pathQuery, searchQuery, toolbarQuery]);
+  }, [qi]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -643,8 +534,7 @@ export const UnquoteApp = ({
     setFocusedPath(null);
     setScrollTarget(null);
     setRecordScrollTarget(null);
-    setPathError(null);
-    setPathMatches([]);
+    qi.reset();
     if (value.length > largeSourceCollapseBytes) {
       setSourceCollapsed(true);
     }
@@ -680,8 +570,7 @@ export const UnquoteApp = ({
       setFocusedPath(null);
       setScrollTarget(null);
       setRecordScrollTarget(null);
-      setPathError(null);
-      setPathMatches([]);
+      qi.reset();
       setSourceCollapsed(true);
       return;
     }
@@ -784,7 +673,7 @@ export const UnquoteApp = ({
     setSelectedPath(null);
     setFocusedPath(null);
     setScrollTarget(null);
-    setPathMatches([]);
+    qi.clearPathMatches();
   };
 
   const handleTogglePath = (path: string) => {
@@ -964,7 +853,7 @@ export const UnquoteApp = ({
       return;
     }
 
-    setRecordFilter("errors");
+    qi.setRecordFilter("errors");
     handleSelectRecord(record);
   };
 
@@ -1065,11 +954,11 @@ export const UnquoteApp = ({
           searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
         }`
       : progressLabel;
-  const toolbarInPathMode = isPathLikeQuery(toolbarQuery);
+  const toolbarInPathMode = qi.mode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
-  const handlePrevToolbarMatch = toolbarInPathMode ? handlePrevPathMatch : handlePrevMatch;
-  const handleNextToolbarMatch = toolbarInPathMode ? handleNextPathMatch : handleNextMatch;
+  const handlePrevToolbarMatch = toolbarInPathMode ? qi.prevPathMatch : qi.prevMatch;
+  const handleNextToolbarMatch = toolbarInPathMode ? qi.nextPathMatch : qi.nextMatch;
   const output = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
@@ -1077,11 +966,11 @@ export const UnquoteApp = ({
         query={toolbarQuery}
         matchCount={toolbarMatchCount}
         currentMatchIndex={toolbarMatchIndex}
-        onQueryChange={handleToolbarQueryChange}
-        onSubmitQuery={handleSubmitToolbarQuery}
+        onQueryChange={qi.setToolbarQuery}
+        onSubmitQuery={qi.submitToolbarQuery}
         onPrevMatch={handlePrevToolbarMatch}
         onNextMatch={handleNextToolbarMatch}
-        onClearQuery={handleClearToolbarQuery}
+        onClearQuery={qi.clearToolbarQuery}
         onOpenCommandPalette={handleOpenCommandPalette}
         onCopyJsonl={handleCopyJsonl}
         onCopyFormattedJson={handleCopyFormattedJson}
@@ -1095,8 +984,8 @@ export const UnquoteApp = ({
           overview={fileOverview}
           format={result.format}
           visibleCount={visibleStats.total}
-          onSelectNestedPath={handleOverviewPathSelect}
-          onSearchFieldValue={handleOverviewFieldValueSearch}
+          onSelectNestedPath={qi.overviewPathSelect}
+          onSearchFieldValue={qi.overviewFieldValueSearch}
           onSelectError={handleOverviewErrorSelect}
         />
       ) : null}
@@ -1257,13 +1146,13 @@ export const UnquoteApp = ({
         totalCount={result.stats.total}
         filterMode={recordFilter}
         onClose={() => setCommandPaletteOpen(false)}
-        onInputChange={setCommandInput}
-        onSearch={handleCommandSearch}
-        onJumpPath={handlePathJumpForQuery}
-        onRegexChange={setSearchRegex}
-        onCaseSensitiveChange={setSearchCaseSensitive}
-        onJqChange={setSearchJq}
-        onFilterChange={setRecordFilter}
+        onInputChange={qi.setCommandInput}
+        onSearch={qi.commandSearch}
+        onJumpPath={qi.submitToolbarQuery}
+        onRegexChange={(value) => qi.setSearchOption("regex", value)}
+        onCaseSensitiveChange={(value) => qi.setSearchOption("caseSensitive", value)}
+        onJqChange={(value) => qi.setSearchOption("jq", value)}
+        onFilterChange={qi.setRecordFilter}
       />
       <StatusFooter
         detectedFormat={detectedFormat}

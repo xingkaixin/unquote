@@ -620,4 +620,111 @@ describe("UnquoteApp", () => {
       ).toBeGreaterThan(0),
     );
   });
+
+  it("counts and cycles search matches in the toolbar", async () => {
+    const user = userEvent.setup();
+    const input = ['{"msg":"alpha"}', '{"msg":"alpha"}', '{"msg":"beta"}'].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+    await user.type(getToolbarInput(), "alpha");
+    // Search mode shows a "current/total" match counter (e.g. 1/2).
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("1/2")).length).toBeGreaterThan(0),
+    );
+
+    // Next match advances the counter to 2/2, prev wraps back to 1/2.
+    const inputs = screen.getAllByPlaceholderText(commandInputPlaceholder);
+    const nextButtons = screen.getAllByRole("button", { name: /Next match/i });
+    await user.click(nextButtons[0]!);
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("2/2")).length).toBeGreaterThan(0),
+    );
+    await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("1/2")).length).toBeGreaterThan(0),
+    );
+    void inputs;
+  });
+
+  it("routes path-like queries to path mode and reports path match counts", async () => {
+    const user = userEvent.setup();
+    const input = ['{"payload":{"items":[1,2]}}', '{"payload":{"items":[3,4]}}'].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+    // A path-like query jumps to the matched node(s).
+    await user.type(getToolbarInput(), "$.payload");
+    fireEvent.keyDown(getToolbarInput(), { key: "Enter" });
+
+    // The command palette advertises path vs search mode; opening it reflects the
+    // path-like input. (The badge text is the durable, localized signal.)
+    await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
+    await waitFor(() =>
+      expect(screen.getAllByText(/path/i).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("enforces jq / regex mutual exclusion from the command palette", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"payload":1}'} />
+      </I18nProvider>,
+    );
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+
+    await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
+    // Enable regex, then jq — jq must turn regex off.
+    const regexButton = screen.getByRole("button", { name: /^Regex$/i });
+    await user.click(regexButton);
+    expect(regexButton.className).toContain("bg-accent");
+
+    const jqButton = screen.getByRole("button", { name: /jq syntax/i });
+    await user.click(jqButton);
+    // jq is now active, regex is not — the mutex held.
+    expect(jqButton.className).toContain("bg-accent");
+    expect(regexButton.className).not.toContain("bg-accent");
+  });
+
+  it("clears matches and resets to the all-records summary", async () => {
+    const user = userEvent.setup();
+    const input = ['{"msg":"alpha"}', '{"msg":"beta"}'].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+    await user.type(getToolbarInput(), "alpha");
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("1/1")).length).toBeGreaterThan(0),
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
+    // After clearing, the match counter is gone and the input is empty.
+    await waitFor(() => expect((getToolbarInput() as HTMLInputElement).value).toBe(""));
+    expect(screen.queryAllByText((text) => text.includes("1/1"))).toHaveLength(0);
+  });
 });

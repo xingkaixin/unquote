@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RecordFilterMode } from "../lib/tree";
+import { resolveQueryMode } from "../lib/query-interaction";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
@@ -62,8 +63,6 @@ const filterOptions: Array<{
   { mode: "events", label: "filter.events", icon: Activity },
 ];
 
-const isPathQuery = (value: string) => /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
-
 export const CommandPalette = ({
   open,
   inputValue,
@@ -88,7 +87,7 @@ export const CommandPalette = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [commandQuery, setCommandQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const mode = isPathQuery(inputValue) ? "path" : "search";
+  const mode = resolveQueryMode(inputValue);
 
   useEffect(() => {
     if (!open) {
@@ -222,10 +221,7 @@ export const CommandPalette = ({
             variant={jq ? "secondary" : "ghost"}
             size="sm"
             className="h-7 gap-1.5"
-            onClick={() => {
-              if (!jq) onRegexChange(false);
-              onJqChange(!jq);
-            }}
+            onClick={() => onJqChange(!jq)}
           >
             <Braces className="size-3.5" />
             {t("search.jq")}
@@ -234,10 +230,7 @@ export const CommandPalette = ({
             variant={regex ? "secondary" : "ghost"}
             size="sm"
             className="h-7 gap-1.5"
-            onClick={() => {
-              if (!regex) onJqChange(false);
-              onRegexChange(!regex);
-            }}
+            onClick={() => onRegexChange(!regex)}
           >
             <Regex className="size-3.5" />
             {t("search.regex")}
