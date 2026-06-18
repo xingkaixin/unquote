@@ -152,6 +152,40 @@ export const RecordList = ({
     }
   }, [onActiveRecordChange, records, shouldVirtualize, virtualRecords]);
 
+  // Non-virtual path: derive the active record from the most-visible card.
+  // Both branches of the active-record rule live here so the app no longer
+  // maintains a parallel observer keyed on the virtualization threshold.
+  useLayoutEffect(() => {
+    if (shouldVirtualize || records.length === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+
+        if (visible?.target.id) {
+          onActiveRecordChange(visible.target.id);
+        }
+      },
+      {
+        root: null,
+        threshold: [0.3, 0.6, 0.9],
+      },
+    );
+
+    for (const record of records) {
+      const element = document.getElementById(record.id);
+      if (element) {
+        observer.observe(element);
+      }
+    }
+
+    return () => observer.disconnect();
+  }, [onActiveRecordChange, records, shouldVirtualize]);
+
   const renderRecord = (record: JsonlRecord, index: number) => {
     const renderedRecord = hydratedRecords.get(record.lineNumber) ?? record;
 
