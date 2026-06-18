@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
 
 const defaultOptions = { regex: false, caseSensitive: false, jq: false };

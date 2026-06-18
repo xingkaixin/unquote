@@ -5,14 +5,12 @@ import {
   createFileOverviewState,
   updateFileOverview,
 } from "../src/lib/file-overview";
+import { parseTreePath } from "../src/lib/path-codec";
 import {
   buildRecordRows,
   collectStringifiedPaths,
   filterRecords,
-  formatJqSelector,
-  formatJsonPath,
   getRenderedRecord,
-  parseTreePath,
   recordContainsStringifiedJson,
   resolveTreePath,
   resolveTreePathMatches,
@@ -20,26 +18,6 @@ import {
 } from "../src/lib/tree";
 
 describe("tree paths", () => {
-  it("parses and serializes JSONPath and jq selectors", () => {
-    const segments = parseTreePath('$.payload.items[0]["a.b"]["quote\\"key"]');
-
-    expect(segments).toEqual([
-      { kind: "key", value: "payload" },
-      { kind: "key", value: "items" },
-      { kind: "index", value: "0" },
-      { kind: "key", value: "a.b" },
-      { kind: "key", value: 'quote"key' },
-    ]);
-    expect(formatJsonPath(segments ?? [])).toBe('$.payload.items[0]["a.b"]["quote\\"key"]');
-    expect(formatJqSelector(segments ?? [])).toBe('.payload.items[0]["a.b"]["quote\\"key"]');
-    expect(parseTreePath('.payload.items[0]["a.b"]')).toEqual([
-      { kind: "key", value: "payload" },
-      { kind: "key", value: "items" },
-      { kind: "index", value: "0" },
-      { kind: "key", value: "a.b" },
-    ]);
-  });
-
   it("resolves paths inside stringified JSON", () => {
     const result = parseInput('{"payload":"{\\"items\\":[{\\"a.b\\":1,\\"0\\":\\"zero\\"}]}"}');
     const resolved = resolveTreePath(result.records, '$.payload.items[0]["a.b"]');
