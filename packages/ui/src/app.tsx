@@ -9,7 +9,7 @@ import type { SourceParseError } from "./components/input-pane";
 import { LocaleToggle } from "./components/locale-toggle";
 import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
-import { RecordList, recordVirtualizationThreshold } from "./components/record-list";
+import { RecordList } from "./components/record-list";
 import { StatusFooter } from "./components/status-footer";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
@@ -860,41 +860,6 @@ export const UnquoteApp = ({
   const handleActiveRecordChange = useCallback((recordId: string) => {
     setActiveRecordId((current) => (current === recordId ? current : recordId));
   }, []);
-
-  useEffect(() => {
-    if (
-      !outputRef.current ||
-      visibleRecords.length === 0 ||
-      visibleRecords.length > recordVirtualizationThreshold
-    ) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
-
-        if (visible?.target.id) {
-          setActiveRecordId(visible.target.id);
-        }
-      },
-      {
-        root: null,
-        threshold: [0.3, 0.6, 0.9],
-      },
-    );
-
-    visibleRecords.forEach((record) => {
-      const element = document.getElementById(record.id);
-      if (element) {
-        observer.observe(element);
-      }
-    });
-
-    return () => observer.disconnect();
-  }, [recordsVersion, visibleRecords]);
 
   const statsLabel =
     recordFilter === "all"
