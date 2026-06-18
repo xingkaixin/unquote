@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -726,5 +726,78 @@ describe("UnquoteApp", () => {
     // After clearing, the match counter is gone and the input is empty.
     await waitFor(() => expect((getToolbarInput() as HTMLInputElement).value).toBe(""));
     expect(screen.queryAllByText((text) => text.includes("1/1"))).toHaveLength(0);
+  });
+
+  it("keeps the clicked TOC record highlighted while scroll-spy reports another", async () => {
+    const user = userEvent.setup();
+    const originalObserver = globalThis.IntersectionObserver;
+    let observerCallback: IntersectionObserverCallback | null = null;
+    Object.assign(globalThis, {
+      IntersectionObserver: class {
+        constructor(callback: IntersectionObserverCallback) {
+          observerCallback = callback;
+        }
+        disconnect() {}
+        observe() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+      },
+    });
+
+    try {
+      const input = [
+        '{"event":"message","i":1}',
+        '{"event":"tool","i":2}',
+        '{"event":"tool_result","i":3}',
+      ].join("\n");
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput={input} />
+        </I18nProvider>,
+      );
+      fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+        target: { value: "jsonl" },
+      });
+      await user.click(screen.getByRole("tab", { name: "Output" }));
+      await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+
+      // Click the #3 entry in the TOC. TOC entries are wrapped in a div with
+      // `items-stretch rounded-md`; the record card uses a different wrapper.
+      const tocEntryButton = (lineNumber: number) =>
+        screen.getAllByRole("button").find((node) => {
+          if (!node.textContent?.includes(`#${lineNumber}`)) return false;
+          const wrapper = node.closest("[class*='items-stretch']");
+          return Boolean(wrapper && wrapper.className.includes("rounded-md"));
+        });
+      await user.click(tocEntryButton(3)!);
+
+      const tocEntryFor = (lineNumber: number) =>
+        tocEntryButton(lineNumber)?.closest("[class*='items-stretch']") ?? null;
+
+      // Simulate the IntersectionObserver firing during smooth-scroll, reporting
+      // #2 as the most-visible entry. The user's explicit #3 selection must win.
+      act(() => {
+        const target2 = document.getElementById("record-2") as HTMLElement;
+        observerCallback?.(
+          [
+            {
+              isIntersecting: true,
+              intersectionRatio: 0.9,
+              target: target2,
+            } as unknown as IntersectionObserverEntry,
+          ],
+          {} as IntersectionObserver,
+        );
+      });
+
+      const entry3 = tocEntryFor(3);
+      expect(entry3?.className).toContain("border-border");
+      const entry2 = tocEntryFor(2);
+      expect(entry2?.className).toContain("border-transparent");
+    } finally {
+      Object.assign(globalThis, { IntersectionObserver: originalObserver });
+    }
   });
 });
