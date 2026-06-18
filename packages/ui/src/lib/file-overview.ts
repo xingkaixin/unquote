@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { formatJsonPath } from "./tree";
-import type { TreePathSegment } from "./tree";
+import { formatJsonPath } from "./path-codec";
+import type { TreePathSegment } from "./path-codec";
 
 export type OverviewField = "event" | "type" | "tool";
 
