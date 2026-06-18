@@ -12,6 +12,7 @@ interface TocPaneProps {
   recordInsights: ReadonlyMap<string, RecordInsight>;
   totalCount: number;
   activeRecordId: string | null;
+  selectedRecordId: string | null;
   onSelect: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
 }
@@ -21,6 +22,7 @@ export const TocPane = ({
   recordInsights,
   totalCount,
   activeRecordId,
+  selectedRecordId,
   onSelect,
   onCopyRawLine,
 }: TocPaneProps) => {
@@ -42,7 +44,7 @@ export const TocPane = ({
         <div className="min-h-0 flex-1 overflow-y-auto px-1">
           <div className="flex flex-col gap-1">
             {records.map((record) => {
-              const active = activeRecordId === record.id;
+              const active = (selectedRecordId ?? activeRecordId) === record.id;
               const parsed = Boolean(record.node || record.deferred);
               const variant = parsed ? "success" : "danger";
               const insight = recordInsights.get(record.id);

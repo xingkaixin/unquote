@@ -181,6 +181,7 @@ export const UnquoteApp = ({
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
   const [hoveredPath, setHoveredPath] = useState("$");
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
   const [restoredRecordIds, setRestoredRecordIds] = useState<Set<string>>(new Set());
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
@@ -485,6 +486,9 @@ export const UnquoteApp = ({
     if (selectedPath && !visibleRecordIds.has(selectedPath.recordId)) {
       setSelectedPath(null);
     }
+    if (selectedRecordId && !visibleRecordIds.has(selectedRecordId)) {
+      setSelectedRecordId(null);
+    }
     if (focusedPath && !visibleRecordIds.has(focusedPath.recordId)) {
       setFocusedPath(null);
     }
@@ -500,6 +504,7 @@ export const UnquoteApp = ({
     recordsVersion,
     scrollTarget,
     selectedPath,
+    selectedRecordId,
     visibleRecords,
   ]);
 
@@ -531,6 +536,7 @@ export const UnquoteApp = ({
     setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
+    setSelectedRecordId(null);
     setFocusedPath(null);
     setScrollTarget(null);
     setRecordScrollTarget(null);
@@ -567,6 +573,7 @@ export const UnquoteApp = ({
       setRestoredRecordIds(new Set());
       setExpandedStringifiedPaths(new Set());
       setSelectedPath(null);
+      setSelectedRecordId(null);
       setFocusedPath(null);
       setScrollTarget(null);
       setRecordScrollTarget(null);
@@ -842,6 +849,7 @@ export const UnquoteApp = ({
 
   const handleSelectRecord = (record: JsonlRecord) => {
     setActiveRecordId(record.id);
+    setSelectedRecordId(record.id);
     setFocusedPath((current) => (current?.recordId === record.id ? current : null));
     scrollRequestIdRef.current += 1;
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
@@ -1089,6 +1097,7 @@ export const UnquoteApp = ({
                     recordInsights={recordInsights}
                     totalCount={result.stats.total}
                     activeRecordId={activeRecordId}
+                    selectedRecordId={selectedRecordId}
                     onSelect={handleSelectRecord}
                     onCopyRawLine={handleCopyRawLine}
                   />
