@@ -1,5 +1,5 @@
 import { materializeNode } from "@unquote/core";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
 import { RecordList } from "./components/record-list";
 import { StatusFooter } from "./components/status-footer";
+import { Toaster } from "./components/sonner";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
@@ -161,20 +162,35 @@ const formatRecordsAsJsonlParts = async (records: JsonlRecord[]): Promise<BlobPa
   return parts;
 };
 
-const formatRecordsAsJsonParts = (
+const formatRecordsAsJsonParts = async (
   records: JsonlRecord[],
   format: "json" | "jsonl",
-): BlobPart[] => {
+): Promise<BlobPart[]> => {
   if (format === "json") {
     const value = records[0] ? getCopyValue(records[0]) : null;
     return [JSON.stringify(value, null, 2)];
   }
 
-  // JSONL-as-JSON-array: a single pretty-printed stringify. JSON-array exports
-  // are rarer than line exports; matching standard array formatting matters
-  // more than chunking here. The "Exporting…" toast still covers the wait.
-  const values = records.map((record) => getCopyValue(record));
-  return [JSON.stringify(values, null, 2)];
+  // JSONL-as-JSON-array: stringify each record on its own and indent it to the
+  // array's nesting, instead of handing JSON.stringify one 300MB+ value — that
+  // single synchronous call can't be interrupted and freezes the tab. Per-record
+  // chunked yields keep the UI (and the "Exporting…" toast) live.
+  if (records.length === 0) {
+    return ["[]"];
+  }
+  const parts: BlobPart[] = ["[\n"];
+  for (let index = 0; index < records.length; index += 1) {
+    if (index > 0) {
+      parts.push(",\n");
+    }
+    const body = JSON.stringify(getCopyValue(records[index]!), null, 2);
+    parts.push(`  ${body.replace(/\n/g, "\n  ")}`);
+    if (index > 0 && index % exportChunkSize === 0) {
+      await yieldToMain();
+    }
+  }
+  parts.push("\n]");
+  return parts;
 };
 
 const isPathInsideFocus = (pathText: string, focusedPath: string) =>
@@ -661,40 +677,54 @@ export const UnquoteApp = ({
 
   const handleCopyJsonl = async () => {
     if (isCopyBlocked) {
-      toast.error(t("toolbar.copyBlocked"));
+      toast.warning(t("toolbar.copyBlocked"));
       return;
     }
     const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(formatRecordsAsJsonl(records));
-    toast.success(t("toolbar.copyDone"));
   };
 
   const handleCopyFormattedJson = async () => {
     if (isCopyBlocked) {
-      toast.error(t("toolbar.copyBlocked"));
+      toast.warning(t("toolbar.copyBlocked"));
       return;
     }
     const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(
       formatRecordsAsJson(records, result.format),
     );
-    toast.success(t("toolbar.copyDone"));
   };
 
-  const handleExportJsonl = async () => {
-    const records = await localFileSource.getFullRecords(visibleRecords);
-    const exportingId = toast.loading(t("toolbar.exporting"));
-    const parts = await formatRecordsAsJsonlParts(records);
-    downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
-    toast.success(t("toolbar.exportDone"), { id: exportingId });
+  const handleExportJsonl = () => {
+    toast.promise(
+      (async () => {
+        const records = await localFileSource.getFullRecords(visibleRecords);
+        await yieldToMain();
+        const parts = await formatRecordsAsJsonlParts(records);
+        downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
+      })(),
+      {
+        loading: t("toolbar.exporting"),
+        success: t("toolbar.exportDone"),
+        error: t("toolbar.exportFailed"),
+      },
+    );
   };
 
-  const handleExportFormattedJson = async () => {
-    const records = await localFileSource.getFullRecords(visibleRecords);
-    const exportingId = toast.loading(t("toolbar.exporting"));
-    const parts = formatRecordsAsJsonParts(records, result.format);
-    downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
-    toast.success(t("toolbar.exportDone"), { id: exportingId });
+  const handleExportFormattedJson = () => {
+    toast.promise(
+      (async () => {
+        const records = await localFileSource.getFullRecords(visibleRecords);
+        await yieldToMain();
+        const parts = await formatRecordsAsJsonParts(records, result.format);
+        downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
+      })(),
+      {
+        loading: t("toolbar.exporting"),
+        success: t("toolbar.exportDone"),
+        error: t("toolbar.exportFailed"),
+      },
+    );
   };
 
   const handleExpandAll = () => {
@@ -1171,13 +1201,7 @@ export const UnquoteApp = ({
           ) : null
         }
       />
-      <Toaster
-        position="bottom-right"
-        closeButton
-        toastOptions={{
-          classNames: { toast: "rounded-md border border-border bg-surface-100 text-text-primary" },
-        }}
-      />
+      <Toaster theme={theme} />
     </div>
   );
 };

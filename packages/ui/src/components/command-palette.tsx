@@ -100,15 +100,14 @@ export const CommandPalette = ({
   }, [open]);
 
   const actions = useMemo<CommandAction[]>(
-    () => [
-      ...filterOptions.map((option) => ({
+    () =>
+      filterOptions.map((option) => ({
         id: `filter-${option.mode}`,
         label: option.label,
         icon: option.icon,
         active: filterMode === option.mode,
         run: () => onFilterChange(option.mode),
       })),
-    ],
     [filterMode, onFilterChange],
   );
 
