@@ -99,9 +99,9 @@ const getRecordStats = (records: JsonlRecord[]) => {
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
+const getCopyValue = (record: JsonlRecord) => {
   if (record.node) {
-    return materializeRecord(record, restoredRecordIds);
+    return materializeRecord(record);
   }
 
   return {
@@ -119,15 +119,11 @@ const getCopyValue = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
   };
 };
 
-const formatRecordsAsJsonl = (records: JsonlRecord[], restoredRecordIds: Set<string>) =>
-  records.map((record) => JSON.stringify(getCopyValue(record, restoredRecordIds))).join("\n");
+const formatRecordsAsJsonl = (records: JsonlRecord[]) =>
+  records.map((record) => JSON.stringify(getCopyValue(record))).join("\n");
 
-const formatRecordsAsJson = (
-  records: JsonlRecord[],
-  restoredRecordIds: Set<string>,
-  format: "json" | "jsonl",
-) => {
-  const values = records.map((record) => getCopyValue(record, restoredRecordIds));
+const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "jsonl") => {
+  const values = records.map((record) => getCopyValue(record));
   if (format === "json") {
     return JSON.stringify(values[0] ?? null, null, 2);
   }
@@ -183,7 +179,6 @@ export const UnquoteApp = ({
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
-  const [restoredRecordIds, setRestoredRecordIds] = useState<Set<string>>(new Set());
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const [theme, setTheme] = useState<"system" | "light" | "dark">(() => {
     try {
@@ -429,11 +424,6 @@ export const UnquoteApp = ({
         } as ResolvedTreePath),
       );
       setActiveRecordId(target.recordId);
-      setRestoredRecordIds((current) => {
-        const next = new Set(current);
-        next.delete(target.recordId);
-        return next;
-      });
       setExpandedStringifiedPaths((current) => {
         const next = new Set(current);
         for (const path of target.stringifiedPathChain) {
@@ -533,7 +523,6 @@ export const UnquoteApp = ({
     setReadProgress(null);
     setSourceFile(null);
     setSourceText(value);
-    setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
     setSelectedRecordId(null);
@@ -570,7 +559,6 @@ export const UnquoteApp = ({
       setReadProgress(null);
       setSourceFile(file);
       setSourceText("");
-      setRestoredRecordIds(new Set());
       setExpandedStringifiedPaths(new Set());
       setSelectedPath(null);
       setSelectedRecordId(null);
@@ -623,20 +611,20 @@ export const UnquoteApp = ({
 
   const handleCopyJsonl = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
-    await navigator.clipboard.writeText(formatRecordsAsJsonl(records, restoredRecordIds));
+    await navigator.clipboard.writeText(formatRecordsAsJsonl(records));
   };
 
   const handleCopyFormattedJson = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(
-      formatRecordsAsJson(records, restoredRecordIds, result.format),
+      formatRecordsAsJson(records, result.format),
     );
   };
 
   const handleExportJsonl = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
     downloadText(
-      formatRecordsAsJsonl(records, restoredRecordIds),
+      formatRecordsAsJsonl(records),
       createExportFilename("jsonl"),
       "application/jsonl;charset=utf-8",
     );
@@ -645,7 +633,7 @@ export const UnquoteApp = ({
   const handleExportFormattedJson = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
     downloadText(
-      formatRecordsAsJson(records, restoredRecordIds, result.format),
+      formatRecordsAsJson(records, result.format),
       createExportFilename("json"),
       "application/json;charset=utf-8",
     );
@@ -655,36 +643,18 @@ export const UnquoteApp = ({
     const all = measurePerfFn("expand:all:collect", () => {
       const paths = new Set<string>();
       visibleRecords.forEach((record) => {
-        collectStringifiedPaths(record, expandedStringifiedPaths, restoredRecordIds).forEach(
-          (path) => {
-            paths.add(path);
-          },
-        );
+        collectStringifiedPaths(record, expandedStringifiedPaths).forEach((path) => {
+          paths.add(path);
+        });
       });
       return paths;
     });
-    setRestoredRecordIds(new Set());
     setExpandedStringifiedPaths(all);
     markPerf("expand:all:set-state");
   };
 
   const handleCollapseAll = () => {
     setExpandedStringifiedPaths(new Set());
-  };
-
-  const handleRestoreAll = () => {
-    setExpandedStringifiedPaths(new Set());
-    setRestoredRecordIds(
-      new Set(
-        result.records
-          .filter((record) => record.node || record.deferred)
-          .map((record) => record.id),
-      ),
-    );
-    setSelectedPath(null);
-    setFocusedPath(null);
-    setScrollTarget(null);
-    qi.clearPathMatches();
   };
 
   const handleTogglePath = (path: string) => {
@@ -702,7 +672,7 @@ export const UnquoteApp = ({
 
   const handleCopyRecord = async (record: JsonlRecord) => {
     const [copyRecord = record] = await localFileSource.getFullRecords([record]);
-    const value = getCopyValue(copyRecord, restoredRecordIds);
+    const value = getCopyValue(copyRecord);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
   };
 
@@ -711,7 +681,7 @@ export const UnquoteApp = ({
       const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
       const fullRecord = fullRecords.get(record.lineNumber);
       if (fullRecord?.node) {
-        await navigator.clipboard.writeText(JSON.stringify(getCopyValue(fullRecord, new Set())));
+        await navigator.clipboard.writeText(JSON.stringify(getCopyValue(fullRecord)));
         return;
       }
       if (fullRecord?.rawLine) {
@@ -743,7 +713,7 @@ export const UnquoteApp = ({
   const handleCopyNode = async (recordId: string, row: TreeRow) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
     const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
-    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
+    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord) : null;
     const resolved = renderedRecord?.node ? resolveTreePath([renderedRecord], row.pathText) : null;
     const value = materializeNode(resolved?.ok ? resolved.target.node : row.node);
     await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
@@ -756,7 +726,7 @@ export const UnquoteApp = ({
 
     const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
     const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
-    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord, restoredRecordIds) : null;
+    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord) : null;
     const resolved = renderedRecord?.node
       ? resolveTreePath([renderedRecord], selectedPath.pathText)
       : null;
@@ -771,11 +741,6 @@ export const UnquoteApp = ({
 
     setFocusedPath({ recordId: selectedPath.recordId, pathText: selectedPath.pathText });
     setActiveRecordId(selectedPath.recordId);
-    setRestoredRecordIds((current) => {
-      const next = new Set(current);
-      next.delete(selectedPath.recordId);
-      return next;
-    });
     if (selectedPath.sourceState === "stringified") {
       setExpandedStringifiedPaths((current) => new Set(current).add(selectedPath.pathText));
     }
@@ -956,7 +921,6 @@ export const UnquoteApp = ({
         onExpandAll={handleExpandAll}
         onCollapseAll={handleCollapseAll}
         hasExpandedStringified={expandedStringifiedPaths.size > 0}
-        onRestoreAll={handleRestoreAll}
       />
       {fileOverview.total > 0 ? (
         <FileOverview
@@ -973,7 +937,6 @@ export const UnquoteApp = ({
         recordInsights={recordInsights}
         hydratedRecords={localFileSource.hydratedRecords}
         expandedStringifiedPaths={expandedStringifiedPaths}
-        restoredRecordIds={restoredRecordIds}
         searchMatches={visibleMatches ?? []}
         activeMatch={activeMatch}
         scrollTarget={scrollTarget}
@@ -988,16 +951,6 @@ export const UnquoteApp = ({
         onCopyNode={handleCopyNode}
         onSelectNode={handleSelectNode}
         onActiveRecordChange={handleActiveRecordChange}
-        onRestoreRecord={(recordId) => {
-          setRestoredRecordIds((current) => new Set(current).add(recordId));
-          if (selectedPath?.recordId === recordId) {
-            setSelectedPath(null);
-            setScrollTarget(null);
-          }
-          if (focusedPath?.recordId === recordId) {
-            setFocusedPath(null);
-          }
-        }}
         onHydrateRecord={localFileSource.hydrateRecord}
         onClearFocus={() => setFocusedPath(null)}
         onHoverPath={(path) => setHoveredPath(path ?? "$")}

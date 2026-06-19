@@ -9,7 +9,6 @@ import {
   List,
   MoreHorizontal,
   PanelTopOpen,
-  RotateCcw,
   Search,
   X,
 } from "lucide-react";
@@ -41,7 +40,6 @@ interface ToolbarProps {
   onExpandAll: () => void;
   onCollapseAll: () => void;
   hasExpandedStringified: boolean;
-  onRestoreAll: () => void;
 }
 
 export const Toolbar = ({
@@ -62,7 +60,6 @@ export const Toolbar = ({
   onExpandAll,
   onCollapseAll,
   hasExpandedStringified,
-  onRestoreAll,
 }: ToolbarProps) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -189,10 +186,6 @@ export const Toolbar = ({
             <DropdownMenuItem className="text-[11px]" onSelect={onExportFormattedJson}>
               <Braces className="mr-2 size-3.5" />
               {t("toolbar.exportJson")}
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onSelect={onRestoreAll}>
-              <RotateCcw className="mr-2 size-3.5" />
-              {t("toolbar.restoreAll")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

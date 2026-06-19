@@ -10,7 +10,6 @@ import {
   buildRecordRows,
   collectStringifiedPaths,
   filterRecords,
-  getRenderedRecord,
   recordContainsStringifiedJson,
   resolveTreePath,
   resolveTreePathMatches,
@@ -34,21 +33,6 @@ describe("tree paths", () => {
     expect(resolved.target.node.value).toBe(1);
   });
 
-  it("resolves paths against restored record views", () => {
-    const result = parseInput('{"payload":"{\\"nested\\":true}"}');
-    const record = result.records[0]!;
-    const restoredRecord = getRenderedRecord(record, new Set([record.id]));
-    const resolved = resolveTreePath([restoredRecord], "$.payload");
-
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) {
-      return;
-    }
-
-    expect(resolved.target.kind).toBe("string");
-    expect(resolved.target.node.value).toBe('{"nested":true}');
-  });
-
   it("resolves exact paths across all JSONL records", () => {
     const result = parseInput(
       '{"payload":{"type":"request"}}\n{"payload":{"type":"response"}}\n{"meta":{"type":"skip"}}',
@@ -67,7 +51,7 @@ describe("tree paths", () => {
   it("serializes numeric object keys as quoted keys", () => {
     const result = parseInput('{"payload":"{\\"items\\":[{\\"0\\":\\"zero\\"}]}"}');
     const record = result.records[0]!;
-    const rows = buildRecordRows(record, new Set(["$.payload"]), new Set());
+    const rows = buildRecordRows(record, new Set(["$.payload"]));
     const numericKey = rows.find((row) => row.valueLabel === '"zero"');
 
     expect(numericKey?.jsonPath).toBe('$.payload.items[0]["0"]');
@@ -102,7 +86,7 @@ describe("tree paths", () => {
 
     const result = parseInput(JSON.stringify(value));
     const record = result.records[0]!;
-    const rows = buildRecordRows(record, new Set(), new Set());
+    const rows = buildRecordRows(record, new Set());
     const leaf = rows.find((row) => row.valueLabel === '"needle"');
     const matches = searchRecords(result.records, expectedJsonPath, {
       regex: false,
@@ -124,14 +108,14 @@ describe("tree paths", () => {
     const result = parseInput('{"payload":{"items":["{\\"a.b\\":1}"]}}');
     const record = result.records[0]!;
 
-    expect(collectStringifiedPaths(record, new Set(), new Set())).toEqual(["$.payload.items[0]"]);
+    expect(collectStringifiedPaths(record, new Set())).toEqual(["$.payload.items[0]"]);
   });
 
   it("limits long string labels without changing the node value", () => {
     const longValue = "a".repeat(600);
     const result = parseInput(JSON.stringify({ payload: longValue }));
     const record = result.records[0]!;
-    const rows = buildRecordRows(record, new Set(), new Set());
+    const rows = buildRecordRows(record, new Set());
     const payload = rows.find((row) => row.pathText === "$.payload");
 
     expect(payload?.valueLabel).toContain("600 chars");

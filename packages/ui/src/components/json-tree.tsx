@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, FileWarning, Focus, RotateCcw, Sparkles, Undo2 } from "lucide-react";
+import { ChevronRight, Copy, FileWarning, Focus, Sparkles, Undo2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +17,6 @@ interface JsonTreeProps {
   record: JsonlRecord;
   insight: RecordInsight | undefined;
   expandedStringifiedPaths: Set<string>;
-  restoredRecordIds: Set<string>;
   eager?: boolean;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
@@ -31,7 +30,6 @@ interface JsonTreeProps {
   onCopyPath: (path: string) => void;
   onCopyNode: (row: TreeRow) => void;
   onSelectNode: (row: TreeRow) => void;
-  onRestoreRecord: () => void;
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
@@ -41,7 +39,6 @@ export const JsonTree = ({
   record,
   insight,
   expandedStringifiedPaths,
-  restoredRecordIds,
   eager = false,
   searchMatches,
   activeMatch,
@@ -55,7 +52,6 @@ export const JsonTree = ({
   onCopyPath,
   onCopyNode,
   onSelectNode,
-  onRestoreRecord,
   onHydrateRecord,
   onClearFocus,
   onHoverPath,
@@ -69,10 +65,10 @@ export const JsonTree = ({
     () =>
       hydrated
         ? measurePerfFn("recordRows:build", () =>
-            buildRecordRows(record, expandedStringifiedPaths, restoredRecordIds, focusedPathText),
+            buildRecordRows(record, expandedStringifiedPaths, focusedPathText),
           )
         : [],
-    [expandedStringifiedPaths, focusedPathText, hydrated, record, restoredRecordIds],
+    [expandedStringifiedPaths, focusedPathText, hydrated, record],
   );
 
   useEffect(() => {
@@ -261,19 +257,6 @@ export const JsonTree = ({
           ) : null}
           <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onCopyRecord}>
             <Copy className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 px-0"
-            onClick={() => {
-              if (record.deferred) {
-                onHydrateRecord(record);
-              }
-              onRestoreRecord();
-            }}
-          >
-            <RotateCcw className="size-3.5" />
           </Button>
         </div>
       </div>
