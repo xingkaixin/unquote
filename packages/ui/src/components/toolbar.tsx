@@ -2,6 +2,8 @@ import {
   Braces,
   ChevronDown,
   ChevronUp,
+  ChevronsDownUp,
+  ChevronsUpDown,
   ClipboardCopy,
   Download,
   List,
@@ -9,7 +11,6 @@ import {
   PanelTopOpen,
   RotateCcw,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useRef } from "react";
@@ -38,6 +39,8 @@ interface ToolbarProps {
   onExportJsonl: () => void;
   onExportFormattedJson: () => void;
   onExpandAll: () => void;
+  onCollapseAll: () => void;
+  hasExpandedStringified: boolean;
   onRestoreAll: () => void;
 }
 
@@ -57,6 +60,8 @@ export const Toolbar = ({
   onExportJsonl,
   onExportFormattedJson,
   onExpandAll,
+  onCollapseAll,
+  hasExpandedStringified,
   onRestoreAll,
 }: ToolbarProps) => {
   const { t } = useTranslation();
@@ -141,9 +146,21 @@ export const Toolbar = ({
           <PanelTopOpen className="size-3.5" />
           <span className="hidden sm:inline">{t("command.openShort")}</span>
         </Button>
-        <Button variant="default" size="sm" className="gap-1.5" onClick={onExpandAll}>
-          <Sparkles className="size-3.5" />
-          {t("toolbar.expandAll")}
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-1.5"
+          onClick={hasExpandedStringified ? onCollapseAll : onExpandAll}
+          aria-pressed={hasExpandedStringified}
+        >
+          {hasExpandedStringified ? (
+            <ChevronsDownUp className="size-3.5" />
+          ) : (
+            <ChevronsUpDown className="size-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {t(hasExpandedStringified ? "toolbar.collapseAll" : "toolbar.expandAll")}
+          </span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

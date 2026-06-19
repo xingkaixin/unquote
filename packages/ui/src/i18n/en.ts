@@ -16,6 +16,7 @@ export const en: Messages = {
   "toolbar.exportJsonl": "Export JSONL",
   "toolbar.exportJson": "Export JSON",
   "toolbar.expandAll": "Expand All",
+  "toolbar.collapseAll": "Collapse All",
   "toolbar.restoreAll": "Restore All",
   "toolbar.more": "More actions",
   "command.launch": "Find / Jump",

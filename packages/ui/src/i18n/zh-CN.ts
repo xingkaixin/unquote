@@ -16,6 +16,7 @@ export const zhCN: Messages = {
   "toolbar.exportJsonl": "导出 JSONL",
   "toolbar.exportJson": "导出 JSON",
   "toolbar.expandAll": "展开全部",
+  "toolbar.collapseAll": "收起全部",
   "toolbar.restoreAll": "还原全部",
   "toolbar.more": "更多操作",
   "command.launch": "查找 / 跳转",
