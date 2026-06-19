@@ -1,4 +1,5 @@
 import { materializeNode } from "@unquote/core";
+import { Toaster, toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,6 +46,12 @@ import type {
 } from "./lib/tree";
 
 const largeSourceCollapseBytes = 1_000_000;
+// Copy builds one giant string and hands it to the clipboard API, which freezes
+// the main thread on large data. Export streams via Blob(parts[]) and is safe.
+export const copyRecordLimit = 5000;
+export const copyBytesLimit = 20_000_000;
+export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
+  recordCount > copyRecordLimit || bytes > copyBytesLimit;
 
 interface PathScrollTarget {
   recordId: string;
@@ -131,13 +138,52 @@ const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "jsonl") =
   return JSON.stringify(values, null, 2);
 };
 
+// Yield the main thread so a long stringify doesn't freeze the UI (toasts,
+// spinners stay live). Resolves on the next macrotask.
+const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+const exportChunkSize = 200;
+
+// Stream-friendly: each record stringifies to its own BlobPart so the engine
+// concatenates buffers directly instead of one giant JS string. Chunked with
+// main-thread yields so an "Exporting…" toast stays responsive.
+const formatRecordsAsJsonlParts = async (records: JsonlRecord[]): Promise<BlobPart[]> => {
+  const parts: BlobPart[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    if (index > 0) {
+      parts.push("\n");
+    }
+    parts.push(JSON.stringify(getCopyValue(records[index]!)));
+    if (index > 0 && index % exportChunkSize === 0) {
+      await yieldToMain();
+    }
+  }
+  return parts;
+};
+
+const formatRecordsAsJsonParts = (
+  records: JsonlRecord[],
+  format: "json" | "jsonl",
+): BlobPart[] => {
+  if (format === "json") {
+    const value = records[0] ? getCopyValue(records[0]) : null;
+    return [JSON.stringify(value, null, 2)];
+  }
+
+  // JSONL-as-JSON-array: a single pretty-printed stringify. JSON-array exports
+  // are rarer than line exports; matching standard array formatting matters
+  // more than chunking here. The "Exporting…" toast still covers the wait.
+  const values = records.map((record) => getCopyValue(record));
+  return [JSON.stringify(values, null, 2)];
+};
+
 const isPathInsideFocus = (pathText: string, focusedPath: string) =>
   pathText === focusedPath ||
   pathText.startsWith(`${focusedPath}.`) ||
   pathText.startsWith(`${focusedPath}[`);
 
-const downloadText = (contents: string, filename: string, type: string) => {
-  const blob = new Blob([contents], { type });
+const downloadBlob = (parts: BlobPart[], filename: string, type: string) => {
+  const blob = new Blob(parts, { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -313,6 +359,10 @@ export const UnquoteApp = ({
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
     [recordFilter, recordsVersion, result.stats, visibleRecords],
   );
+  // Copy is disabled above a record/byte threshold: the clipboard API freezes the
+  // main thread on large strings. Export streams via Blob and stays available.
+  const estimatedSourceBytes = sourceFile?.size ?? sourceText.length;
+  const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
   const fileOverview = useMemo(
     () => updateFileOverview(result.records, overviewStateRef.current),
     [recordsVersion, result.records],
@@ -610,33 +660,41 @@ export const UnquoteApp = ({
   };
 
   const handleCopyJsonl = async () => {
+    if (isCopyBlocked) {
+      toast.error(t("toolbar.copyBlocked"));
+      return;
+    }
     const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(formatRecordsAsJsonl(records));
+    toast.success(t("toolbar.copyDone"));
   };
 
   const handleCopyFormattedJson = async () => {
+    if (isCopyBlocked) {
+      toast.error(t("toolbar.copyBlocked"));
+      return;
+    }
     const records = await localFileSource.getFullRecords(visibleRecords);
     await navigator.clipboard.writeText(
       formatRecordsAsJson(records, result.format),
     );
+    toast.success(t("toolbar.copyDone"));
   };
 
   const handleExportJsonl = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
-    downloadText(
-      formatRecordsAsJsonl(records),
-      createExportFilename("jsonl"),
-      "application/jsonl;charset=utf-8",
-    );
+    const exportingId = toast.loading(t("toolbar.exporting"));
+    const parts = await formatRecordsAsJsonlParts(records);
+    downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
+    toast.success(t("toolbar.exportDone"), { id: exportingId });
   };
 
   const handleExportFormattedJson = async () => {
     const records = await localFileSource.getFullRecords(visibleRecords);
-    downloadText(
-      formatRecordsAsJson(records, result.format),
-      createExportFilename("json"),
-      "application/json;charset=utf-8",
-    );
+    const exportingId = toast.loading(t("toolbar.exporting"));
+    const parts = formatRecordsAsJsonParts(records, result.format);
+    downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
+    toast.success(t("toolbar.exportDone"), { id: exportingId });
   };
 
   const handleExpandAll = () => {
@@ -1112,6 +1170,13 @@ export const UnquoteApp = ({
             />
           ) : null
         }
+      />
+      <Toaster
+        position="bottom-right"
+        closeButton
+        toastOptions={{
+          classNames: { toast: "rounded-md border border-border bg-surface-100 text-text-primary" },
+        }}
       />
     </div>
   );
