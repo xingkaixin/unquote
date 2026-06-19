@@ -62,7 +62,8 @@ interface ParseResult {
 - `parseInput(text, opts?)` — auto-detects JSON vs JSONL, recursively expands stringified JSON strings into child nodes.
 - `maxDepth` guard prevents infinite recursion.
 - `formatResult(result)` — serializes parsed records back to formatted JSON/JSONL.
-- `materializeNode` / `restoreNode` — convert tree back to plain JS values.
+- `materializeNode` — converts expanded trees back to plain JS values.
+- `restoreNode` — core-level utility that rebuilds selected stringified nodes as raw strings; the current UI does not expose a restore-to-raw workflow.
 
 ## UI Layer (`packages/ui`)
 
@@ -90,11 +91,11 @@ CSS variables defined in `src/styles.css`:
 
 | File | Purpose |
 |---|---|
-| `app.tsx` | Root `UnquoteApp` component. Holds all top-level state (source text, theme, search, expanded paths, restored records). |
+| `app.tsx` | Root `UnquoteApp` component. Coordinates top-level UI state (source text, theme, query interaction, expanded paths, selection, focus, local-file source). |
 | `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >160 rows. |
 | `components/record-list.tsx` | Maps `records` → `JsonTree[]`, applies record virtualization, and swaps in hydrated local-file records. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
-| `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand All, and overflow actions. |
+| `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand/Collapse All, and overflow copy/export actions. |
 | `components/input-pane.tsx` | Textarea input + mode selector (auto/json/jsonl) + file drop zone. |
 | `components/toc-pane.tsx` | JSONL record navigation sidebar. |
 | `components/theme-toggle.tsx` / `locale-toggle.tsx` | User preference controls. |
@@ -104,13 +105,21 @@ CSS variables defined in `src/styles.css`:
 | File | Purpose |
 |---|---|
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms. Falls back to main-thread if `Worker` unavailable. |
+| `hooks/use-local-file-source.ts` | Stateful access layer for local JSONL files: deferred full-record hydration, search, copy/export resolution, cache eviction, and abort handling. |
+| `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
 
 ### Tree Utilities (`lib/tree.ts`)
 
-- `buildRecordRows(record, expandedPaths, restoredIds)` → `TreeRow[]` — flattens `JsonNode` tree into renderable rows.
+- `buildRecordRows(record, expandedPaths, focusedPath?)` → `TreeRow[]` — flattens `JsonNode` tree into renderable rows.
 - `searchRecords(records, query, options)` → `SearchMatch[] | null` — searches across key, value, and path (when `jq: true`).
-- `collectStringifiedPaths(record, ...)` — finds all `wasStringified` nodes for "Expand All".
-- `materializeRecord(record, restoredIds)` — converts tree back to plain JSON value.
+- `collectStringifiedPaths(record, ...)` — finds all `wasStringified` nodes for Expand/Collapse All.
+- `materializeRecord(record)` — converts the expanded tree back to a plain JSON value for copy/export.
+
+### UI Utility Modules
+
+- `lib/local-file-source.ts` — pure local-file line reading, deferred hydration, abortable whole-file search, and full-record lookup for copy/export.
+- `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
+- `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
 
 ### Search Feature
 
@@ -183,6 +192,9 @@ Active match auto-scroll:
 | `pnpm lint` | oxlint all packages |
 | `pnpm test` | Run all Vitest suites |
 | `pnpm check` | typecheck + lint + test |
+| `pnpm benchmark` | Build and run the release performance gate |
+| `pnpm benchmark:fixtures` | Generate ignored local JSONL benchmark fixtures |
+| `pnpm benchmark:case4-fixture` | Generate high-record-count JSONL release/stress fixtures |
 | `pnpm deploy:cf` | Build web + deploy to Cloudflare Pages |
 | `pnpm zip-extension` | Build + zip extension for store upload |
 
