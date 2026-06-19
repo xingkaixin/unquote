@@ -12,6 +12,10 @@ export interface Messages {
   readonly "toolbar.copy": string;
   readonly "toolbar.copyJsonl": string;
   readonly "toolbar.copyFormattedJson": string;
+  readonly "toolbar.copyBlocked": string;
+  readonly "toolbar.copyDone": string;
+  readonly "toolbar.exporting": string;
+  readonly "toolbar.exportDone": string;
   readonly "toolbar.export": string;
   readonly "toolbar.exportJsonl": string;
   readonly "toolbar.exportJson": string;

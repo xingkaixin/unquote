@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { UnquoteApp } from "../src/app";
+import { UnquoteApp, isCopyAboveThreshold } from "../src/app";
 import { I18nProvider } from "../src/i18n/context";
 
 const maxTransferStringLength = 4096;
@@ -760,6 +760,15 @@ describe("UnquoteApp", () => {
     expect(collapsedToggle.getAttribute("aria-pressed")).toBe("true");
     await user.click(collapsedToggle);
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
+  });
+
+  it("disables Copy above the large-source threshold and points to Export", () => {
+    // The guard is a pure rule; behavior is verified at the unit level to avoid
+    // parsing thousands of records in a render test.
+    expect(isCopyAboveThreshold(5000, 1)).toBe(false);
+    expect(isCopyAboveThreshold(5001, 1)).toBe(true);
+    expect(isCopyAboveThreshold(1, 20_000_001)).toBe(true);
+    expect(isCopyAboveThreshold(1, 20_000_000)).toBe(false);
   });
 
   it("keeps the clicked TOC record highlighted while scroll-spy reports another", async () => {
