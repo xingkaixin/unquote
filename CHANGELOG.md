@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0] - 2026-06-19
+
+### Added
+
+- Copy and export now surface blocked large clipboard operations and long-running exports through responsive toast feedback.
+
+### Changed
+
+- Expand All and Collapse All were merged into one state-aware toolbar toggle.
+- Copy and export actions now live in the overflow menu, and copy/export always emit the expanded object form instead of restoring stringified JSON back to escaped raw strings.
+- Large JSONL export now chunks record serialization, and formatted JSON array export now streams record output without changing the exported bytes.
+- Local JSONL source access, path parsing / formatting, and command/search/path interaction state were split into focused modules with dedicated tests.
+- Web and extension app versions bumped to `0.6.0`.
+
+### Fixed
+
+- Large copy and export operations no longer freeze the tab while building one giant string on the main thread.
+- Clicking a TOC record now keeps that record highlighted during smooth scroll instead of being overwritten by scroll-spy updates.
+
 ## [0.5.0] - 2026-06-05
 
 ### Added
