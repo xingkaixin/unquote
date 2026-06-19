@@ -16,6 +16,7 @@ export interface Messages {
   readonly "toolbar.exportJsonl": string;
   readonly "toolbar.exportJson": string;
   readonly "toolbar.expandAll": string;
+  readonly "toolbar.collapseAll": string;
   readonly "toolbar.restoreAll": string;
   readonly "toolbar.more": string;
   readonly "command.launch": string;

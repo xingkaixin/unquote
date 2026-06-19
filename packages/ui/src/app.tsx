@@ -668,6 +668,10 @@ export const UnquoteApp = ({
     markPerf("expand:all:set-state");
   };
 
+  const handleCollapseAll = () => {
+    setExpandedStringifiedPaths(new Set());
+  };
+
   const handleRestoreAll = () => {
     setExpandedStringifiedPaths(new Set());
     setRestoredRecordIds(
@@ -950,6 +954,8 @@ export const UnquoteApp = ({
         onExportJsonl={handleExportJsonl}
         onExportFormattedJson={handleExportFormattedJson}
         onExpandAll={handleExpandAll}
+        onCollapseAll={handleCollapseAll}
+        hasExpandedStringified={expandedStringifiedPaths.size > 0}
         onRestoreAll={handleRestoreAll}
       />
       {fileOverview.total > 0 ? (

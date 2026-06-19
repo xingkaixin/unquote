@@ -728,6 +728,40 @@ describe("UnquoteApp", () => {
     expect(screen.queryAllByText((text) => text.includes("1/1"))).toHaveLength(0);
   });
 
+  it("Collapse All reverses Expand All for stringified JSON", async () => {
+    const user = userEvent.setup();
+    const input = '{"level":"info","payload":"{\\"nested\\":true}"}';
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+
+    // Stringified payload is collapsed by default — the inner `nested` key is absent.
+    expect(screen.queryAllByText("nested")).toHaveLength(0);
+
+    // The toolbar toggle starts as "Expand All" (aria-pressed=false).
+    const toggle = screen
+      .getAllByRole("button", { name: /^Expand All$/i })
+      .find((button) => button.hasAttribute("aria-pressed"))!;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    await user.click(toggle);
+    await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
+
+    // Clicking again flips the toggle to "Collapse All" and re-folds the payload.
+    const collapsedToggle = screen
+      .getAllByRole("button", { name: /^Collapse All$/i })
+      .find((button) => button.hasAttribute("aria-pressed"))!;
+    expect(collapsedToggle.getAttribute("aria-pressed")).toBe("true");
+    await user.click(collapsedToggle);
+    await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
+  });
+
   it("keeps the clicked TOC record highlighted while scroll-spy reports another", async () => {
     const user = userEvent.setup();
     const originalObserver = globalThis.IntersectionObserver;
