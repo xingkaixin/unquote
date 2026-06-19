@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { materializeNode, restoreNode } from "@unquote/core";
+import { materializeNode } from "@unquote/core";
 import {
   appendJsonPathSegment,
   appendJqSelectorSegment,
@@ -69,21 +69,9 @@ const formatValueLabel = (node: JsonNode, maxStringLength?: number) => {
   }
 };
 
-export const getRenderedNode = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
-  if (!record.node) {
-    return null;
-  }
+export const getRenderedNode = (record: JsonlRecord) => record.node;
 
-  return restoredRecordIds.has(record.id) ? restoreNode(record.node) : record.node;
-};
-
-export const getRenderedRecord = (
-  record: JsonlRecord,
-  restoredRecordIds: Set<string>,
-): JsonlRecord => {
-  const node = getRenderedNode(record, restoredRecordIds);
-  return node ? { ...record, node } : record;
-};
+export const getRenderedRecord = (record: JsonlRecord): JsonlRecord => record;
 
 const pushRows = (
   node: JsonNode,
@@ -166,10 +154,9 @@ const pushRows = (
 export const buildRecordRows = (
   record: JsonlRecord,
   expandedStringifiedPaths: Set<string>,
-  restoredRecordIds: Set<string>,
   focusedPath?: string | null,
 ) => {
-  const renderedRecord = getRenderedRecord(record, restoredRecordIds);
+  const renderedRecord = getRenderedRecord(record);
   if (!renderedRecord.node) {
     return [];
   }
@@ -215,8 +202,8 @@ export const buildFocusedRecordRows = (
   return { rows, focus: resolved.target };
 };
 
-export const materializeRecord = (record: JsonlRecord, restoredRecordIds: Set<string>) => {
-  const node = getRenderedNode(record, restoredRecordIds);
+export const materializeRecord = (record: JsonlRecord) => {
+  const node = getRenderedNode(record);
   if (!node) {
     return null;
   }
@@ -266,9 +253,8 @@ const collectPaths = (
 export const collectStringifiedPaths = (
   record: JsonlRecord,
   expandedStringifiedPaths: Set<string>,
-  restoredRecordIds: Set<string>,
 ) => {
-  const node = getRenderedNode(record, restoredRecordIds);
+  const node = getRenderedNode(record);
   if (!node) {
     return [];
   }

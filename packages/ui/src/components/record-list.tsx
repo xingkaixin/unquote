@@ -14,7 +14,6 @@ interface RecordListProps {
   recordInsights: ReadonlyMap<string, RecordInsight>;
   hydratedRecords: ReadonlyMap<number, JsonlRecord>;
   expandedStringifiedPaths: Set<string>;
-  restoredRecordIds: Set<string>;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
   scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
@@ -28,7 +27,6 @@ interface RecordListProps {
   onCopyPath: (path: string) => void;
   onCopyNode: (recordId: string, row: import("../lib/tree").TreeRow) => void;
   onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
-  onRestoreRecord: (recordId: string) => void;
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
   onHoverPath: (path: string | null) => void;
@@ -40,7 +38,6 @@ export const RecordList = ({
   recordInsights,
   hydratedRecords,
   expandedStringifiedPaths,
-  restoredRecordIds,
   searchMatches,
   activeMatch,
   scrollTarget,
@@ -54,7 +51,6 @@ export const RecordList = ({
   onCopyPath,
   onCopyNode,
   onSelectNode,
-  onRestoreRecord,
   onHydrateRecord,
   onClearFocus,
   onHoverPath,
@@ -195,7 +191,6 @@ export const RecordList = ({
         record={renderedRecord}
         insight={recordInsights.get(record.id)}
         expandedStringifiedPaths={expandedStringifiedPaths}
-        restoredRecordIds={restoredRecordIds}
         eager={index < 6}
         searchMatches={searchMatchesByRecord.get(record.id) ?? []}
         activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
@@ -209,7 +204,6 @@ export const RecordList = ({
         onCopyPath={onCopyPath}
         onCopyNode={(row) => onCopyNode(renderedRecord.id, row)}
         onSelectNode={(row) => onSelectNode(renderedRecord, row)}
-        onRestoreRecord={() => onRestoreRecord(renderedRecord.id)}
         onHydrateRecord={onHydrateRecord}
         onClearFocus={onClearFocus}
         onHoverPath={onHoverPath}
