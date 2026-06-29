@@ -108,24 +108,27 @@ Object.assign(globalThis, {
     }
     removeEventListener() {}
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
-      import("@unquote/core").then(({ parseInput }) => {
-        const parsed = parseInput(input, forcedFormat ? { forcedFormat } : {});
-        const result = compact ? compactResultForTransfer(parsed) : parsed;
-        this.onmessage?.({
-          data: {
-            type: "complete",
-            requestId,
-            result,
-            progress: {
-              processedLines: result.stats.total,
-              success: result.stats.success,
-              failed: result.stats.failed,
-              elapsedMs: 0,
-              done: true,
+      Promise.all([import("@unquote/core"), import("../src/lib/agent-session")]).then(
+        ([{ parseInput }, { createAgentSessionFromText }]) => {
+          const parsed = parseInput(input, forcedFormat ? { forcedFormat } : {});
+          const result = compact ? compactResultForTransfer(parsed) : parsed;
+          this.onmessage?.({
+            data: {
+              type: "complete",
+              requestId,
+              result,
+              agentSession: result.format === "jsonl" ? createAgentSessionFromText(input) : null,
+              progress: {
+                processedLines: result.stats.total,
+                success: result.stats.success,
+                failed: result.stats.failed,
+                elapsedMs: 0,
+                done: true,
+              },
             },
-          },
-        } as MessageEvent);
-      });
+          } as MessageEvent);
+        },
+      );
     }
     postMessage(payload: {
       type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl";
@@ -258,6 +261,87 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText(/tool_call/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("action").length).toBeGreaterThan(0);
     expect(screen.getAllByText("nested json").length).toBeGreaterThan(0);
+  });
+
+  it("shows the Agent view for Codex rollout logs", async () => {
+    const user = userEvent.setup();
+    const source = [
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.579Z",
+        type: "session_meta",
+        payload: {
+          session_id: "session-1",
+          cwd: "/repo",
+          cli_version: "0.137.0",
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.581Z",
+        type: "event_msg",
+        payload: { type: "task_started", turn_id: "turn-1" },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:07.964Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Inspect the repo" }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:08.000Z",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "rg --files" }),
+          call_id: "call_1",
+        },
+      }),
+    ].join("\n");
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={source} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("tab", { name: "Agent" }).length).toBeGreaterThan(0),
+    );
+    expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Timeline").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Conversation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Tool call").length).toBeGreaterThan(0);
+
+    const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
+    const timelineToolCall = screen.getAllByRole("button", {
+      name: /^Timeline: tool_use exec_command/,
+    })[0]!;
+    const conversationToolCall = screen.getAllByRole("button", {
+      name: /^Conversation: Tool call/,
+    })[0]!;
+
+    await user.click(timelineToolCall);
+    await waitFor(() =>
+      expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument(),
+    );
+    expect(timelineToolCall).toHaveAttribute("aria-pressed", "true");
+    expect(conversationToolCall).toHaveAttribute("aria-pressed", "true");
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
+    expect(
+      screen
+        .getAllByRole("tab", { name: "Agent" })
+        .some((tab) => tab.getAttribute("aria-selected") === "true"),
+    ).toBe(true);
+    expect(screen.getByText("Content")).toBeInTheDocument();
+    expect(screen.getByText("call_1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Open raw JSON/ }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
   });
 
   it("loads the mixed JSONL sample with failed records", async () => {
@@ -676,9 +760,7 @@ describe("UnquoteApp", () => {
     // The command palette advertises path vs search mode; opening it reflects the
     // path-like input. (The badge text is the durable, localized signal.)
     await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
-    await waitFor(() =>
-      expect(screen.getAllByText(/path/i).length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(screen.getAllByText(/path/i).length).toBeGreaterThan(0));
   });
 
   it("enforces jq / regex mutual exclusion from the command palette", async () => {

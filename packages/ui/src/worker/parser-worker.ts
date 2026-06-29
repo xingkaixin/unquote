@@ -6,6 +6,11 @@ import {
   parseJson as parseJsonValue,
   parseJsonlRecordLine,
 } from "@unquote/core";
+import {
+  createAgentSessionFromText,
+  createAgentSessionTracker,
+  type AgentSession,
+} from "../lib/agent-session";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 
 export type ParserRequest =
@@ -52,6 +57,7 @@ export type ParserWorkerResponse =
       requestId: number;
       result?: ParseResult;
       stats?: ParseResult["stats"];
+      agentSession?: AgentSession | null;
       progress: ParserProgress;
     };
 
@@ -70,11 +76,12 @@ interface JsonlSession {
   success: number;
   failed: number;
   compactForTransfer: boolean;
+  agentTracker: ReturnType<typeof createAgentSessionTracker>;
 }
 
 let jsonlSession: JsonlSession | null = null;
 
-const createJsonlSession = (compactForTransfer = false): JsonlSession => ({
+const createJsonlSession = (compactForTransfer = false, fileName?: string): JsonlSession => ({
   startedAt: performance.now(),
   buffer: "",
   lineNumber: 1,
@@ -83,6 +90,7 @@ const createJsonlSession = (compactForTransfer = false): JsonlSession => ({
   success: 0,
   failed: 0,
   compactForTransfer,
+  agentTracker: createAgentSessionTracker(fileName),
 });
 
 const statsFromSession = (session: JsonlSession) => ({
@@ -190,6 +198,7 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
     return;
   }
 
+  session.agentTracker.pushRawLine(line, session.lineNumber);
   const record = session.compactForTransfer
     ? parseDeferredJsonlRecordLine(line, session.lineNumber)
     : parseJsonlRecordLine(line, session.lineNumber);
@@ -228,10 +237,12 @@ const parseJson = ({
 }: Extract<ParserRequest, { type: "parse" }>) => {
   const startedAt = performance.now();
   const result = parseInput(input, forcedFormat ? { forcedFormat } : {});
+  const agentSession = result.format === "jsonl" ? createAgentSessionFromText(input) : null;
   self.postMessage({
     type: "complete",
     requestId,
     result,
+    agentSession,
     progress: {
       processedLines: result.stats.total,
       success: result.stats.success,
@@ -263,6 +274,7 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
         type: "complete",
         requestId,
         stats: statsFromSession(session),
+        agentSession: session.agentTracker.finish(),
         progress: progressFromSession(session, true),
       } satisfies ParserWorkerResponse);
       return;
@@ -287,7 +299,7 @@ self.onmessage = (event: MessageEvent<ParserRequest>) => {
 
   if (message.type === "file-jsonl") {
     latestRequestId = message.requestId;
-    jsonlSession = createJsonlSession(true);
+    jsonlSession = createJsonlSession(true, message.file.name);
     void parseJsonlFile(message.requestId, message.file, jsonlSession);
     return;
   }
@@ -304,6 +316,7 @@ self.onmessage = (event: MessageEvent<ParserRequest>) => {
       type: "complete",
       requestId: message.requestId,
       stats: statsFromSession(session),
+      agentSession: session.agentTracker.finish(),
       progress: progressFromSession(session, true),
     } satisfies ParserWorkerResponse);
     jsonlSession = null;

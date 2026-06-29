@@ -1,6 +1,7 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
 import { parseInput, parseJson } from "@unquote/core";
+import { createAgentSessionFromText } from "../lib/agent-session";
 import { markPerf, measurePerf } from "../lib/perf";
 import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
@@ -73,6 +74,7 @@ export const useParser = (
 ) => {
   const [parserState, setParserState] = useState(() => ({
     result: parseInput(input, withForcedFormat(forcedFormat)),
+    agentSession: forcedFormat === "json" ? null : createAgentSessionFromText(input),
     recordsVersion: 0,
   }));
   const [progress, setProgress] = useState<ParserProgress>(idleProgress);
@@ -92,6 +94,7 @@ export const useParser = (
           const parsed = parseInput(text, { forcedFormat: "jsonl" });
           setParserState((current) => ({
             result: parsed,
+            agentSession: createAgentSessionFromText(text, sourceFile.name),
             recordsVersion: current.recordsVersion + 1,
           }));
           setProgress({
@@ -108,6 +111,7 @@ export const useParser = (
       const parsed = parseInput(input, withForcedFormat(forcedFormat));
       setParserState((current) => ({
         result: parsed,
+        agentSession: parsed.format === "jsonl" ? createAgentSessionFromText(input) : null,
         recordsVersion: current.recordsVersion + 1,
       }));
       setProgress({
@@ -127,6 +131,7 @@ export const useParser = (
     const currentWorker = workerRef.current;
     setParserState((current) => ({
       result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
+      agentSession: null,
       recordsVersion: current.recordsVersion + 1,
     }));
     setProgress({ ...idleProgress, done: false });
@@ -165,6 +170,7 @@ export const useParser = (
           records: streamedRecords,
           stats: snapshot.stats,
         },
+        agentSession: current.agentSession,
         recordsVersion: current.recordsVersion + 1,
       }));
     };
@@ -254,6 +260,7 @@ export const useParser = (
       if (message.result) {
         setParserState((current) => ({
           result: message.result!,
+          agentSession: message.agentSession ?? null,
           recordsVersion: current.recordsVersion + 1,
         }));
         return;
@@ -261,6 +268,7 @@ export const useParser = (
       if (message.stats) {
         setParserState((current) => ({
           result: { ...current.result, format: "jsonl", stats: message.stats! },
+          agentSession: message.agentSession ?? null,
           recordsVersion: current.recordsVersion + 1,
         }));
       }
@@ -277,5 +285,10 @@ export const useParser = (
     };
   }, [forcedFormat, input, sourceFile]);
 
-  return { result: parserState.result, progress, recordsVersion: parserState.recordsVersion };
+  return {
+    result: parserState.result,
+    progress,
+    recordsVersion: parserState.recordsVersion,
+    agentSession: parserState.agentSession,
+  };
 };
