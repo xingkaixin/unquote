@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-06-29
+
+### Added
+
+- Agent session view automatically detects Codex rollout and Claude Code JSONL transcripts, then presents session metadata, conversation turns, reasoning, tool calls/results, timeline events, and the matching raw JSONL record.
+- Sample inputs now include a Codex rollout JSONL session for exercising the Agent view.
+
+### Changed
+
+- Recognized agent logs now open in a dedicated Agent / JSON tabbed output so users can switch between the session lens and the normal expanded JSON tree.
+- The main UI was tightened around the source pane, record navigation, tree rows, and agent detail panels, replacing the old standalone Path Inspector / status footer flow with inline record and node actions.
+- Web and extension app versions bumped to `0.7.0`.
+
 ## [0.6.0] - 2026-06-19
 
 ### Added

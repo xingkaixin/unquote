@@ -21,6 +21,8 @@ apps/extension/.wxt
 .DS_Store
 
 
+# agent
+.design
 
 # benchmark case
 benchmark/case*.jsonl
