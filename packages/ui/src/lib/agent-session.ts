@@ -49,6 +49,7 @@ export interface AgentTimelineEvent {
   id: string;
   recordId: string;
   lineNumber: number;
+  rawLine: string;
   category: AgentEventCategory;
   kind: string;
   label: string;
@@ -198,6 +199,7 @@ const createBaseEvent = (
   id: `line-${line.lineNumber}`,
   recordId: getRecordId(line.lineNumber),
   lineNumber: line.lineNumber,
+  rawLine: line.raw,
   category,
   kind,
   label,

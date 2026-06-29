@@ -11,7 +11,7 @@ export const DropdownMenuContent = ({
     <DropdownMenuPrimitive.Content
       sideOffset={8}
       className={cn(
-        "z-50 min-w-40 rounded-md border border-border bg-surface-100 p-1 shadow-lg",
+        "z-50 min-w-40 rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 p-1 shadow-lg",
         className,
       )}
       {...props}
@@ -24,7 +24,7 @@ export const DropdownMenuItem = ({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item>) => (
   <DropdownMenuPrimitive.Item
     className={cn(
-      "flex cursor-pointer select-none items-center rounded-sm px-3 py-2 text-ui-11 text-text-primary outline-none hover:bg-surface-300",
+      "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono text-ui-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-display",
       className,
     )}
     {...props}

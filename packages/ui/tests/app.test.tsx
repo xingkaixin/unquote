@@ -241,7 +241,8 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(sourceInput.value).toContain('"body"'));
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
-    await waitFor(() => expect(screen.getAllByText("nested json").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("body").length).toBeGreaterThan(0));
+    expect(screen.queryByText("nested json")).not.toBeInTheDocument();
     expect(screen.getAllByText("items").length).toBeGreaterThan(0);
   });
 
@@ -260,7 +261,8 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText(/tool_call/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("action").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("nested json").length).toBeGreaterThan(0);
+    expect(screen.queryByText("nested json")).not.toBeInTheDocument();
+    expect(screen.getAllByText("customerId").length).toBeGreaterThan(0);
   });
 
   it("shows the Agent view for Codex rollout logs", async () => {
@@ -327,7 +329,9 @@ describe("UnquoteApp", () => {
 
     await user.click(timelineToolCall);
     await waitFor(() =>
-      expect(screen.getByRole("complementary", { name: "Details" })).toBeInTheDocument(),
+      expect(screen.getAllByRole("complementary", { name: "Raw JSONL" }).length).toBeGreaterThan(
+        0,
+      ),
     );
     expect(timelineToolCall).toHaveAttribute("aria-pressed", "true");
     expect(conversationToolCall).toHaveAttribute("aria-pressed", "true");
@@ -337,11 +341,23 @@ describe("UnquoteApp", () => {
         .getAllByRole("tab", { name: "Agent" })
         .some((tab) => tab.getAttribute("aria-selected") === "true"),
     ).toBe(true);
-    expect(screen.getByText("Content")).toBeInTheDocument();
-    expect(screen.getByText("call_1")).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Details" })).not.toBeInTheDocument();
+    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
+    expect(within(rawJsonPanel).getAllByText("call_id").length).toBeGreaterThan(0);
+    expect(within(rawJsonPanel).getAllByText('"call_1"').length).toBeGreaterThan(0);
+    expect(within(rawJsonPanel).queryByText(/"call_id":"call_1"/)).not.toBeInTheDocument();
+    await user.click(within(rawJsonPanel).getByRole("button", { name: "Collapse raw data" }));
+    expect(rawJsonPanel).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand raw data" }));
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("complementary", { name: "Raw JSONL" })
+          .some((panel) => within(panel).queryByText('"call_1"')),
+      ).toBe(true),
+    );
 
-    await user.click(screen.getByRole("button", { name: /Open raw JSON/ }));
-    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    expect(screen.queryByRole("button", { name: /Open raw JSON/ })).not.toBeInTheDocument();
   });
 
   it("loads the mixed JSONL sample with failed records", async () => {
@@ -429,7 +445,8 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("button", { name: /Nested/ }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("#2")).toHaveLength(0);
-    expect(screen.getAllByText("nested json").length).toBeGreaterThan(0);
+    expect(screen.queryByText("nested json")).not.toBeInTheDocument();
+    expect(screen.getAllByText("payload").length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
     await user.click(screen.getByText("Copy JSONL"));
@@ -491,7 +508,7 @@ describe("UnquoteApp", () => {
     }
   });
 
-  it("focuses selected nodes and copies extraction payloads", async () => {
+  it("selects nodes and copies extraction payloads", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
@@ -512,47 +529,15 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
     await user.click(screen.getAllByText("payload")[0]!);
-    await waitFor(() => expect(screen.getAllByText("Path Inspector").length).toBeGreaterThan(0));
+    expect(screen.queryByText("Path Inspector")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "path" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "jq" })).not.toBeInTheDocument();
+    expect(screen.queryByText("{2}")).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: /Focus subtree/ })[0]!);
-    await waitFor(() =>
-      expect(screen.getAllByText("Focused: $.payload").length).toBeGreaterThan(0),
-    );
-    expect(screen.queryAllByText("other")).toHaveLength(0);
-    expect(screen.getAllByText("nested").length).toBeGreaterThan(0);
-
-    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
-    await user.click(screen.getByText("Copy subtree"));
+    await user.keyboard("{Control>}c{/Control}");
     expect(writeText).toHaveBeenLastCalledWith(
-      JSON.stringify({ ok: true, nested: { count: 2 } }, null, 2),
+      `"payload": ${JSON.stringify({ ok: true, nested: { count: 2 } }, null, 2)}`,
     );
-
-    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
-    await user.click(screen.getByText("Copy escaped string"));
-    expect(writeText).toHaveBeenLastCalledWith(JSON.stringify('{"ok":true,"nested":{"count":2}}'));
-
-    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
-    await user.click(screen.getByText("Copy value"));
-    expect(writeText).toHaveBeenLastCalledWith('{"ok":true,"nested":{"count":2}}');
-
-    await user.click(screen.getAllByRole("button", { name: /More actions/ }).at(-1)!);
-    await user.click(screen.getByText("Copy debug bundle"));
-    const bundle = JSON.parse(writeText.mock.calls.at(-1)?.[0] as string) as {
-      recordLine: number;
-      path: string;
-      parseStatus: string;
-      value: unknown;
-    };
-    expect(bundle).toMatchObject({
-      recordLine: 1,
-      path: "$.payload",
-      parseStatus: "success",
-      value: { ok: true, nested: { count: 2 } },
-    });
-
-    await user.click(screen.getAllByRole("button", { name: /Exit focus/ })[0]!);
-    await waitFor(() => expect(screen.queryAllByText("Focused: $.payload")).toHaveLength(0));
-    expect(screen.getAllByText("other").length).toBeGreaterThan(0);
   });
 
   it("shows JSON parse location in the source pane", async () => {
@@ -564,7 +549,6 @@ describe("UnquoteApp", () => {
 
     await waitFor(() => expect(screen.getAllByText("JSON parse failed").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Auto parsed as JSON").length).toBeGreaterThan(0);
   });
 
   it("shows parse error UI in Chinese locale", async () => {

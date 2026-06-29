@@ -9,10 +9,7 @@ import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { AgentSessionView } from "./components/agent-session-view";
 import { LocaleToggle } from "./components/locale-toggle";
-import { PathInspector } from "./components/path-inspector";
-import type { PathInspectorSelection } from "./components/path-inspector";
 import { RecordList } from "./components/record-list";
-import { StatusFooter } from "./components/status-footer";
 import { Toaster } from "./components/sonner";
 import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
@@ -61,6 +58,12 @@ interface PathScrollTarget {
   requestId: number;
 }
 
+interface SelectedPath {
+  recordId: string;
+  pathText: string;
+  rawKey: string;
+}
+
 const formatFileSize = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB"] as const;
   let value = bytes;
@@ -75,27 +78,35 @@ const formatFileSize = (bytes: number) => {
   return `${formatted} ${units[unitIndex]}`;
 };
 
-const createSelectionFromTarget = (target: ResolvedTreePath): PathInspectorSelection => ({
+const createSelectionFromTarget = (target: ResolvedTreePath): SelectedPath => ({
   recordId: target.recordId,
-  recordLine: target.recordLine,
   pathText: target.pathText,
-  jsonPath: target.jsonPath,
-  jqPath: target.jqPath,
   rawKey: target.rawKey,
-  kind: target.kind,
-  sourceState: target.sourceState,
 });
 
-const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): PathInspectorSelection => ({
+const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
   recordId: record.id,
-  recordLine: record.lineNumber,
   pathText: row.pathText,
-  jsonPath: row.jsonPath,
-  jqPath: row.jqPath,
   rawKey: row.keyLabel,
-  kind: row.kind,
-  sourceState: row.sourceState,
 });
+
+const isTextEditingElement = (element: Element | null) =>
+  element instanceof HTMLInputElement ||
+  element instanceof HTMLTextAreaElement ||
+  element instanceof HTMLSelectElement ||
+  (element instanceof HTMLElement && element.isContentEditable);
+
+const isArraySelection = (selection: SelectedPath) =>
+  new RegExp(`\\[${selection.rawKey}\\]$`).test(selection.pathText);
+
+const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
+  const valueText = JSON.stringify(value, null, 2);
+  if (selection.rawKey === "$" || isArraySelection(selection)) {
+    return valueText;
+  }
+
+  return `${JSON.stringify(selection.rawKey)}: ${valueText}`;
+};
 
 const getRecordStats = (records: JsonlRecord[]) => {
   const success = records.filter((record) => record.node || record.deferred).length;
@@ -238,7 +249,6 @@ export const UnquoteApp = ({
   const [importedFile, setImportedFile] = useState<File | null>(null);
   const [readProgress, setReadProgress] = useState<number | null>(null);
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
-  const [hoveredPath, setHoveredPath] = useState("$");
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
@@ -252,7 +262,7 @@ export const UnquoteApp = ({
   });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
-  const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
+  const [selectedPath, setSelectedPath] = useState<SelectedPath | null>(null);
   const [focusedPath, setFocusedPath] = useState<{ recordId: string; pathText: string } | null>(
     null,
   );
@@ -322,11 +332,6 @@ export const UnquoteApp = ({
     setOutputView(agentSession ? "agent" : "json");
   }, [agentSession, agentSessionKey]);
 
-  const detectedFormat = mode === "auto" ? result.format : mode;
-  const parseModeLabel =
-    mode === "auto" && result.stats.failed > 0 && result.stats.total > 0
-      ? t("stats.autoFailureMode", { format: formatParseMode(result.format) })
-      : undefined;
   const sourceParseError = useMemo<SourceParseError | null>(() => {
     const record = result.records[0];
     if (result.format !== "json" || result.stats.failed !== 1 || !record?.errorMeta) {
@@ -393,6 +398,10 @@ export const UnquoteApp = ({
 
   const recordInsights = useMemo(
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
+    [recordsVersion, result.records],
+  );
+  const recordsById = useMemo(
+    () => new Map(result.records.map((record) => [record.id, record])),
     [recordsVersion, result.records],
   );
   const visibleRecords = useMemo(
@@ -826,15 +835,6 @@ export const UnquoteApp = ({
     await navigator.clipboard.writeText(details);
   };
 
-  const handleCopyNode = async (recordId: string, row: TreeRow) => {
-    const record = result.records.find((candidate) => candidate.id === recordId);
-    const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
-    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord) : null;
-    const resolved = renderedRecord?.node ? resolveTreePath([renderedRecord], row.pathText) : null;
-    const value = materializeNode(resolved?.ok ? resolved.target.node : row.node);
-    await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
-  };
-
   const getSelectedNodeContext = async () => {
     if (!selectedPath) {
       return null;
@@ -850,81 +850,39 @@ export const UnquoteApp = ({
     return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
   };
 
-  const handleFocusSelectedNode = () => {
-    if (!selectedPath) {
-      return;
-    }
-
-    setFocusedPath({ recordId: selectedPath.recordId, pathText: selectedPath.pathText });
-    setActiveRecordId(selectedPath.recordId);
-    if (selectedPath.sourceState === "stringified") {
-      setExpandedStringifiedPaths((current) => new Set(current).add(selectedPath.pathText));
-    }
-    scrollToPath(selectedPath.recordId, selectedPath.pathText);
-  };
-
   const handleCopySelectedSubtree = async () => {
-    const context = await getSelectedNodeContext();
-    if (!context) {
-      return;
-    }
-
-    await navigator.clipboard.writeText(
-      JSON.stringify(materializeNode(context.target.node), null, 2),
-    );
-  };
-
-  const handleCopySelectedEscapedString = async () => {
-    const context = await getSelectedNodeContext();
-    const rawString = context?.target.node.rawString;
-    if (typeof rawString !== "string") {
-      return;
-    }
-
-    await navigator.clipboard.writeText(JSON.stringify(rawString));
-  };
-
-  const handleCopySelectedValue = async () => {
-    const context = await getSelectedNodeContext();
-    if (!context) {
-      return;
-    }
-
-    const node = context.target.node;
-    const value =
-      node.wasStringified && typeof node.rawString === "string"
-        ? node.rawString
-        : materializeNode(node);
-    await navigator.clipboard.writeText(
-      typeof value === "string" ? value : JSON.stringify(value, null, 2),
-    );
-  };
-
-  const handleCopySelectedDebugBundle = async () => {
     const context = await getSelectedNodeContext();
     if (!context || !selectedPath) {
       return;
     }
 
-    const sourceLine = context.target.sourceLine;
     await navigator.clipboard.writeText(
-      JSON.stringify(
-        {
-          recordId: context.record.id,
-          recordLine: context.record.lineNumber,
-          path: selectedPath.jsonPath,
-          jqPath: selectedPath.jqPath,
-          parseStatus: context.record.node ? "success" : "failed",
-          type: context.target.kind,
-          source: context.target.sourceState,
-          ...(typeof sourceLine === "number" ? { sourceLine } : {}),
-          value: materializeNode(context.target.node),
-        },
-        null,
-        2,
-      ),
+      formatSelectionCopy(selectedPath, materializeNode(context.target.node)),
     );
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+        return;
+      }
+
+      if (!selectedPath || commandPaletteOpen) {
+        return;
+      }
+
+      const selectedText = window.getSelection?.()?.toString() ?? "";
+      if (selectedText || isTextEditingElement(document.activeElement)) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleCopySelectedSubtree();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [commandPaletteOpen, handleCopySelectedSubtree, selectedPath]);
 
   const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
     setSelectedPath(createSelectionFromRow(record, row));
@@ -938,16 +896,6 @@ export const UnquoteApp = ({
     setFocusedPath((current) => (current?.recordId === record.id ? current : null));
     scrollRequestIdRef.current += 1;
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
-  };
-
-  const handleSelectAgentRecord = (recordId: string) => {
-    const record = result.records.find((candidate) => candidate.id === recordId);
-    if (!record) {
-      return;
-    }
-
-    setOutputView("json");
-    handleSelectRecord(record);
   };
 
   const handleOverviewErrorSelect = (recordId: string) => {
@@ -1073,13 +1021,10 @@ export const UnquoteApp = ({
         onCopyRecord={handleCopyRecord}
         onCopyRawLine={handleCopyRawLine}
         onCopyError={handleCopyRecordError}
-        onCopyPath={(path) => navigator.clipboard.writeText(path)}
-        onCopyNode={handleCopyNode}
         onSelectNode={handleSelectNode}
         onActiveRecordChange={handleActiveRecordChange}
         onHydrateRecord={localFileSource.hydrateRecord}
         onClearFocus={() => setFocusedPath(null)}
-        onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />
     </div>
   );
@@ -1095,8 +1040,19 @@ export const UnquoteApp = ({
       <TabsContent value="agent">
         <AgentSessionView
           session={agentSession}
+          recordsById={recordsById}
+          recordInsights={recordInsights}
+          expandedStringifiedPaths={expandedStringifiedPaths}
+          selectedPath={selectedPath}
+          focusedPath={focusedPath}
           selectedRecordId={selectedRecordId}
-          onSelectRecord={handleSelectAgentRecord}
+          onTogglePath={handleTogglePath}
+          onCopyRecord={handleCopyRecord}
+          onCopyRawLine={handleCopyRawLine}
+          onCopyError={handleCopyRecordError}
+          onSelectNode={handleSelectNode}
+          onHydrateRecord={localFileSource.hydrateRecord}
+          onClearFocus={() => setFocusedPath(null)}
         />
       </TabsContent>
       <TabsContent value="json">{jsonOutput}</TabsContent>
@@ -1106,13 +1062,14 @@ export const UnquoteApp = ({
   );
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="sticky top-0 z-30 flex h-11 items-center justify-between border-b border-border bg-[var(--background)]/80 px-4 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <h1 className="m-0 text-[15px] font-semibold tracking-tight text-text-primary">
-            Unquote
+    <div className="uq-shell pb-8">
+      <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
+        <div className="flex items-center gap-3.5">
+          <span className="nf-led uq-logo-led" />
+          <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
+            UNQUOTE
           </h1>
-          <span className="font-mono text-[11px] text-text-muted">JSON / JSONL</span>
+          <span className="nf-mono-sub nf-dim hidden sm:inline">JSON · JSONL</span>
         </div>
         <div className="flex items-center gap-1">
           {chromeWebStoreUrl ? (
@@ -1120,10 +1077,10 @@ export const UnquoteApp = ({
               href={chromeWebStoreUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-surface-300 px-3 text-[13px] font-medium tracking-[0.01em] text-text-primary shadow-sm transition-[transform,box-shadow,background-color,color] duration-150 ease-out hover:-translate-y-px hover:text-accent-hover hover:shadow-md"
+              className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
             >
               <Chrome className="size-3.5" />
-              {t("app.chrome")}
+              <span className="hidden sm:inline">{t("app.chrome")}</span>
             </a>
           ) : null}
           <LocaleToggle />
@@ -1131,11 +1088,7 @@ export const UnquoteApp = ({
         </div>
       </header>
 
-      <main
-        className={`mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-4 pt-0 lg:px-6 ${
-          selectedPath ? "pb-36" : "pb-14"
-        }`}
-      >
+      <main className="mx-auto flex w-full max-w-[1760px] flex-col gap-3 px-4 pb-6 pt-3.5 sm:px-6">
         <Tabs defaultValue="workspace" className="flex flex-col gap-3 lg:hidden">
           <TabsList>
             <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
@@ -1163,17 +1116,13 @@ export const UnquoteApp = ({
         </Tabs>
 
         <div
-          className={`hidden items-start lg:grid ${sourceCollapsed ? "gap-1 lg:grid-cols-[44px_minmax(0,1fr)]" : "gap-3 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)]"}`}
+          className={`hidden items-start lg:grid ${sourceCollapsed ? "gap-3.5 lg:grid-cols-[46px_minmax(0,1fr)]" : "gap-3.5 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]"}`}
         >
-          <div
-            className={`sticky top-11 flex flex-col gap-3 overflow-hidden ${
-              selectedPath ? "max-h-[calc(100vh-9rem)]" : "max-h-[calc(100vh-5.75rem)]"
-            }`}
-          >
+          <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
             {sourceCollapsed ? (
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface-100 text-text-secondary shadow-sm"
+                className="flex size-[42px] items-center justify-center rounded-none border border-border bg-surface-100 text-text-secondary hover:border-border-medium hover:text-text-display"
                 onClick={() => setSourceCollapsed(false)}
                 aria-label={t("input.expandSource")}
               >
@@ -1233,32 +1182,6 @@ export const UnquoteApp = ({
         onCaseSensitiveChange={(value) => qi.setSearchOption("caseSensitive", value)}
         onJqChange={(value) => qi.setSearchOption("jq", value)}
         onFilterChange={qi.setRecordFilter}
-      />
-      <StatusFooter
-        detectedFormat={detectedFormat}
-        statsLabel={progressLabel}
-        modeLabel={parseModeLabel}
-        pathLabel={hoveredPath}
-        inspector={
-          selectedPath ? (
-            <PathInspector
-              selection={selectedPath}
-              focused={
-                focusedPath?.recordId === selectedPath.recordId &&
-                focusedPath.pathText === selectedPath.pathText
-              }
-              onCopy={(value) => navigator.clipboard.writeText(value)}
-              onCopySubtree={handleCopySelectedSubtree}
-              onCopyEscapedString={handleCopySelectedEscapedString}
-              onCopyValue={handleCopySelectedValue}
-              onCopyDebugBundle={handleCopySelectedDebugBundle}
-              onFocus={handleFocusSelectedNode}
-              onClearFocus={() => setFocusedPath(null)}
-              onClear={() => setSelectedPath(null)}
-              canCopyEscapedString={selectedPath.sourceState === "stringified"}
-            />
-          ) : null
-        }
       />
       <Toaster theme={theme} />
     </div>

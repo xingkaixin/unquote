@@ -45,7 +45,7 @@ const fieldLabel = (field: string) => {
 };
 
 const EmptyList = ({ label }: { label: string }) => (
-  <div className="rounded-md border border-dashed border-border px-3 py-3 text-[11px] text-text-muted">
+  <div className="border border-dashed border-border px-3 py-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
     {label}
   </div>
 );
@@ -100,7 +100,7 @@ export const FileOverview = ({
     <Card className="overflow-hidden">
       <button
         type="button"
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
       >
@@ -117,14 +117,14 @@ export const FileOverview = ({
               </Badge>
             ) : null}
           </div>
-          <CardDescription className="mt-1">{t("overview.fullScope")}</CardDescription>
+          <CardDescription className="nf-mono-sub mt-1">{t("overview.fullScope")}</CardDescription>
         </div>
         <ChevronDown
           className={`size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
       <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
-        <div className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-5">
+        <div className="grid overflow-hidden border border-border bg-surface-50 sm:grid-cols-5">
           {metrics.map((metric, index) => {
             const Icon = metric.icon;
             return (
@@ -134,7 +134,7 @@ export const FileOverview = ({
                   index === 0 ? "" : "border-t border-border sm:border-l sm:border-t-0"
                 }`}
               >
-                <div className="flex items-center gap-1.5 text-[10px] font-medium text-text-muted">
+                <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">
                   <Icon className={`size-3.5 shrink-0 ${metric.tone}`} />
                   <span className="truncate">{metric.label}</span>
                 </div>
@@ -167,7 +167,7 @@ export const FileOverview = ({
                       <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                         {item.pathText}
                       </span>
-                      <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                      <span className="inline-flex shrink-0 border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] text-text-secondary">
                         {t("overview.count", { count: item.count })}
                       </span>
                     </Button>
@@ -202,7 +202,7 @@ export const FileOverview = ({
                           {fieldLabel(item.field)} · {item.pathText}
                         </span>
                       </span>
-                      <span className="inline-flex shrink-0 rounded-full border border-border bg-surface-300 px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                      <span className="inline-flex shrink-0 border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] text-text-secondary">
                         {t("overview.count", { count: item.count })}
                       </span>
                     </Button>

@@ -5,7 +5,10 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-md border border-border bg-surface-100 shadow-sm", className)}
+      className={cn(
+        "rounded-[var(--radius-card)] border border-border bg-surface-100 text-text-primary shadow-none transition-colors duration-200 hover:border-border-medium",
+        className,
+      )}
       {...props}
     />
   ),
@@ -22,7 +25,7 @@ export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDiv
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
-    className={cn("text-[12px] font-medium tracking-wide text-text-primary", className)}
+    className={cn("text-[13px] font-medium tracking-[-0.01em] text-text-display", className)}
     {...props}
   />
 );
