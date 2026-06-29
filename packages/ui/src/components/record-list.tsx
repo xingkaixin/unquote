@@ -24,12 +24,9 @@ interface RecordListProps {
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
   onCopyError: (record: JsonlRecord) => void;
-  onCopyPath: (path: string) => void;
-  onCopyNode: (recordId: string, row: import("../lib/tree").TreeRow) => void;
   onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
-  onHoverPath: (path: string | null) => void;
   onActiveRecordChange: (recordId: string) => void;
 }
 
@@ -48,12 +45,9 @@ export const RecordList = ({
   onCopyRecord,
   onCopyRawLine,
   onCopyError,
-  onCopyPath,
-  onCopyNode,
   onSelectNode,
   onHydrateRecord,
   onClearFocus,
-  onHoverPath,
   onActiveRecordChange,
 }: RecordListProps) => {
   const listRef = useRef<HTMLDivElement>(null);
@@ -201,12 +195,9 @@ export const RecordList = ({
         onCopyRecord={() => onCopyRecord(renderedRecord)}
         onCopyRawLine={() => onCopyRawLine(renderedRecord)}
         onCopyError={() => onCopyError(renderedRecord)}
-        onCopyPath={onCopyPath}
-        onCopyNode={(row) => onCopyNode(renderedRecord.id, row)}
         onSelectNode={(row) => onSelectNode(renderedRecord, row)}
         onHydrateRecord={onHydrateRecord}
         onClearFocus={onClearFocus}
-        onHoverPath={onHoverPath}
       />
     );
   };

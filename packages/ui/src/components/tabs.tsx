@@ -9,7 +9,7 @@ export const TabsList = ({
 }: React.ComponentProps<typeof TabsPrimitive.List>) => (
   <TabsPrimitive.List
     className={cn(
-      "inline-flex h-9 items-center rounded-md border border-border bg-surface-200 p-0.5",
+      "inline-flex h-9 items-center rounded-none border border-border bg-surface-200 p-0.5",
       className,
     )}
     {...props}
@@ -22,7 +22,7 @@ export const TabsTrigger = ({
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) => (
   <TabsPrimitive.Trigger
     className={cn(
-      "inline-flex items-center rounded-sm px-3 py-1.5 text-[12px] text-text-secondary outline-none transition-[color,background-color] duration-150 data-[state=active]:bg-surface-100 data-[state=active]:text-text-primary data-[state=active]:shadow-sm",
+      "inline-flex items-center rounded-none px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary outline-none transition-[color,background-color] duration-150 data-[state=active]:bg-surface-100 data-[state=active]:text-text-display",
       className,
     )}
     {...props}

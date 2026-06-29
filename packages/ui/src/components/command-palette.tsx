@@ -153,7 +153,7 @@ export const CommandPalette = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/30 px-3 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 bg-black/35 px-3 pt-[16vh] backdrop-blur-sm dark:bg-black/65"
       role="dialog"
       aria-modal="true"
       aria-label={t("command.palette")}
@@ -163,8 +163,8 @@ export const CommandPalette = ({
         }
       }}
     >
-      <div className="mx-auto flex max-h-[76vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-50 shadow-lg">
-        <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-3 py-2">
+      <div className="mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg">
+        <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4">
           <Search className="size-4 shrink-0 text-text-muted" />
           <input
             ref={inputRef}
@@ -195,9 +195,9 @@ export const CommandPalette = ({
               }
             }}
             placeholder={t("command.placeholder")}
-            className="min-w-0 flex-1 bg-transparent font-mono text-ui-11 text-text-primary outline-none placeholder:font-sans placeholder:text-text-muted"
+            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-muted"
           />
-          <span className="shrink-0 rounded-sm bg-surface-300 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
+          <span className="shrink-0 bg-surface-200 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
             {t(mode === "path" ? "command.pathMode" : "command.searchMode")}
           </span>
           <Button
@@ -210,7 +210,7 @@ export const CommandPalette = ({
             <X className="size-3.5" />
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-2">
           <span className="mr-1 font-mono text-[10px] text-text-muted">
             {mode === "path"
               ? t("command.pathMatches", { count: pathMatchCount })
@@ -247,7 +247,7 @@ export const CommandPalette = ({
             {t(mode === "path" ? "path.jump" : "command.search")}
           </Button>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 px-[18px] py-2">
           <span className="font-mono text-[10px] text-text-muted">
             {t("command.visibleRecords", { shown: visibleCount, total: totalCount })}
           </span>
@@ -255,7 +255,7 @@ export const CommandPalette = ({
             value={commandQuery}
             onChange={(event) => setCommandQuery(event.target.value)}
             placeholder={t("command.filterCommands")}
-            className="ml-auto h-7 w-44 rounded-md border border-border bg-surface-100 px-2 text-ui-11 text-text-primary outline-none placeholder:text-text-muted"
+            className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted"
           />
         </div>
         <div className="min-h-0 overflow-y-auto px-2 pb-2">
@@ -265,8 +265,8 @@ export const CommandPalette = ({
               <button
                 key={action.id}
                 type="button"
-                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-ui-11 ${
-                  index === activeIndex ? "bg-surface-300 text-text-primary" : "text-text-secondary"
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
+                  index === activeIndex ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]" : "text-text-secondary"
                 } ${action.active ? "text-accent" : ""}`}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => runAction(action)}

@@ -249,10 +249,10 @@ export const InputPane = ({
       )}
       {...dropTargetProps}
     >
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+      <div className="flex items-center justify-between border-b border-border px-4 py-[11px]">
         <div className="flex items-center gap-2">
           <FileJson2 className="size-3.5 text-text-secondary" />
-          <span className="text-[12px] font-medium text-text-primary">Source</span>
+          <span className="nf-title">Source</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={handleOpenFile}>
@@ -274,7 +274,7 @@ export const InputPane = ({
               aria-label="format mode"
               value={mode}
               onChange={(event) => onModeChange(event.target.value as "auto" | "json" | "jsonl")}
-              className="h-7 appearance-none rounded-md border border-border bg-surface-200 pl-3 pr-8 text-[11px] font-medium text-text-primary outline-none hover:bg-surface-300 focus:border-border-medium"
+              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus:border-border-medium"
             >
               <option value="auto">auto</option>
               <option value="json">json</option>
@@ -289,14 +289,14 @@ export const InputPane = ({
       </div>
       <CardContent
         className={cn(
-          "bg-surface-50 transition-colors",
+          "bg-surface-50 px-3 py-3 transition-colors",
           isDraggingFile &&
             "bg-[color-mix(in_oklab,var(--color-accent)_6%,var(--color-surface-50))]",
         )}
       >
         {sourceStatus ? (
           <div
-            className="mb-2 flex min-h-7 items-center justify-between gap-3 rounded-md border border-border bg-surface-100 px-3 py-1.5 text-[11px] text-text-secondary"
+            className="mb-3 flex min-h-7 items-center justify-between gap-3 border border-border bg-surface-100 px-3 py-1.5 text-[11px] text-text-secondary"
             aria-live="polite"
           >
             <span className="min-w-0 truncate">{sourceStatus}</span>
@@ -337,20 +337,20 @@ export const InputPane = ({
         ) : null}
         {showSamples ? (
           <div
-            className="mb-2 flex flex-wrap items-center gap-1.5"
+            className="mb-3 flex flex-wrap items-center gap-2"
             role="group"
             aria-label={t("samples.ariaLabel")}
           >
-            <span className="mr-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            <span className="nf-mono-sub nf-dim mr-0.5">
               {t("samples.label")}
             </span>
             {sampleOptions.map((sample) => (
               <Button
                 key={sample.id}
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-7 rounded-full bg-surface-50 px-2.5 text-[11px] shadow-sm"
+                className="h-7 border border-border bg-surface-100 px-2.5 text-[10px]"
                 onClick={() => onSampleSelect?.(sample)}
               >
                 <FileJson2 className="size-3" />
@@ -366,20 +366,20 @@ export const InputPane = ({
             onPaste={handlePaste}
             spellCheck={false}
             className={cn(
-              "h-[min(42vh,520px)] min-h-[320px] w-full resize-none rounded-md border border-border bg-surface-50 px-4 py-4 font-mono text-[12px] leading-6 text-text-primary outline-none transition-[background-color,border-color,box-shadow]",
+              "uq-area h-[min(40vh,440px)] min-h-[280px] w-full resize-none rounded-none border-0 bg-transparent p-0.5 font-mono text-[12px] leading-[1.6] text-text-primary outline-none transition-[background-color,border-color,box-shadow]",
               isDraggingFile &&
-                "border-accent bg-surface-100 shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_18%,transparent)]",
+                "bg-surface-100 shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_18%,transparent)]",
             )}
             placeholder={t("input.placeholder")}
           />
           {isDraggingFile ? (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md border border-accent bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-surface-50))] text-accent shadow-sm">
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-none border border-accent bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-surface-50))] text-accent shadow-sm">
               <Upload className="size-5" />
               <div className="text-[12px] font-semibold">{t("input.dropActive")}</div>
               <div className="text-[11px] text-text-secondary">{t("input.dropHint")}</div>
             </div>
           ) : showSourcePreview ? (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md border border-border bg-surface-50 px-6 text-center">
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-none border border-border bg-surface-50 px-6 text-center">
               <FileJson2 className="size-5 text-accent" />
               <div className="max-w-full truncate text-[12px] font-semibold text-text-primary">
                 {sourceStatus}

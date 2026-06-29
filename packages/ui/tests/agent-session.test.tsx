@@ -85,6 +85,7 @@ describe("agent session", () => {
       "tool_call",
       "tool_result",
     ]);
+    expect(session?.events[4]?.rawLine).toContain(`"call_id":"${callId}"`);
     expect(session?.conversationItems[2]?.block).toMatchObject({
       toolName: "exec_command",
       toolCallId: callId,

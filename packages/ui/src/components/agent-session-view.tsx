@@ -3,15 +3,17 @@ import {
   Brain,
   CircleAlert,
   Clock3,
-  Copy,
-  ExternalLink,
   FileJson,
   Hash,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
+  PanelRightOpen,
   TerminalSquare,
   UserRound,
   Wrench,
 } from "lucide-react";
+import type { JsonlRecord } from "@unquote/core";
 import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
@@ -23,14 +25,28 @@ import type {
   AgentSession,
   AgentTimelineEvent,
 } from "../lib/agent-session";
+import type { RecordInsight } from "../lib/record-insight";
+import type { TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { JsonTree } from "./json-tree";
 
 interface AgentSessionViewProps {
   session: AgentSession;
+  recordsById: ReadonlyMap<string, JsonlRecord>;
+  recordInsights: ReadonlyMap<string, RecordInsight>;
+  expandedStringifiedPaths: Set<string>;
+  selectedPath: { recordId: string; pathText: string } | null;
+  focusedPath: { recordId: string; pathText: string } | null;
   selectedRecordId: string | null;
-  onSelectRecord: (recordId: string) => void;
+  onTogglePath: (path: string) => void;
+  onCopyRecord: (record: JsonlRecord) => void;
+  onCopyRawLine: (record: JsonlRecord) => void;
+  onCopyError: (record: JsonlRecord) => void;
+  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
+  onHydrateRecord: (record: JsonlRecord) => void;
+  onClearFocus: () => void;
 }
 
 type AgentDetailSelection =
@@ -130,35 +146,6 @@ const BlockText = ({ block }: { block: AgentContentBlock | undefined }) => {
       {block.text}
     </pre>
   );
-};
-
-const DetailRow = ({ label, value }: { label: string; value: string | number | undefined }) => {
-  if (value === undefined || value === "") {
-    return null;
-  }
-
-  return (
-    <div className="min-w-0">
-      <dt className="text-[10px] font-medium uppercase text-text-muted">{label}</dt>
-      <dd className="mt-0.5 min-w-0 break-words font-mono text-[12px] leading-5 text-text-primary">
-        {value}
-      </dd>
-    </div>
-  );
-};
-
-const formatUsage = (event: AgentTimelineEvent | undefined) => {
-  if (!event?.usage) {
-    return "";
-  }
-
-  const usage = event.usage;
-  return [
-    `input ${usage.inputTokens}`,
-    `cache write ${usage.cacheCreationInputTokens}`,
-    `cache read ${usage.cacheReadInputTokens}`,
-    `output ${usage.outputTokens}`,
-  ].join(" / ");
 };
 
 const ConversationItem = ({
@@ -262,33 +249,54 @@ const TimelineEvent = ({
   );
 };
 
-const DetailPanel = ({
-  selection,
+const RawJsonlPanel = ({
   event,
   item,
-  onClose,
-  onOpenRawJson,
+  record,
+  insight,
+  expandedStringifiedPaths,
+  selectedPath,
+  focusedPath,
+  onCollapse,
+  onTogglePath,
+  onCopyRecord,
+  onCopyRawLine,
+  onCopyError,
+  onSelectNode,
+  onHydrateRecord,
+  onClearFocus,
 }: {
-  selection: AgentDetailSelection;
-  event: AgentTimelineEvent | undefined;
+  event: AgentTimelineEvent;
   item: AgentConversationItem | undefined;
-  onClose: () => void;
-  onOpenRawJson: (recordId: string) => void;
+  record: JsonlRecord | undefined;
+  insight: RecordInsight | undefined;
+  expandedStringifiedPaths: Set<string>;
+  selectedPath: { recordId: string; pathText: string } | null;
+  focusedPath: { recordId: string; pathText: string } | null;
+  onCollapse: () => void;
+  onTogglePath: (path: string) => void;
+  onCopyRecord: (record: JsonlRecord) => void;
+  onCopyRawLine: (record: JsonlRecord) => void;
+  onCopyError: (record: JsonlRecord) => void;
+  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
+  onHydrateRecord: (record: JsonlRecord) => void;
+  onClearFocus: () => void;
 }) => {
   const { t } = useTranslation();
   const role = item ? roleConfig(item.role, t) : null;
-  const category = event ? categoryConfig(event.category, t) : null;
+  const category = categoryConfig(event.category, t);
   const RoleIcon = role?.icon;
-  const CategoryIcon = category?.icon;
-  const recordId = item?.recordId ?? event?.recordId;
-  const timestamp = formatTimestamp(event?.timestamp, event?.timestampLabel);
+  const CategoryIcon = category.icon;
+  const recordId = event.recordId;
+  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel);
 
   return (
-    <aside
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[31rem] flex-col border-l border-border bg-[var(--background)] shadow-2xl"
-      aria-label={t("agent.detail")}
+    <section
+      role="complementary"
+      aria-label={t("agent.rawJsonl")}
+      className="uq-agent-raw-panel min-w-0 overflow-hidden border border-border bg-surface-100"
     >
-      <div className="flex min-w-0 items-start gap-3 border-b border-border px-4 py-3">
+      <CardHeader className="flex-row items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {role && RoleIcon ? (
@@ -297,102 +305,93 @@ const DetailPanel = ({
                 {role.label}
               </Badge>
             ) : null}
-            {category && CategoryIcon ? (
-              <Badge>
-                <CategoryIcon className={`mr-1 size-3 ${category.tone}`} />
-                {category.label}
-              </Badge>
-            ) : null}
-            {selection.kind === "event" ? <Badge>{t("agent.detailEvent")}</Badge> : null}
+            <Badge>
+              <CategoryIcon className={`mr-1 size-3 ${category.tone}`} />
+              {category.label}
+            </Badge>
+            <Badge>{t("agent.line", { line: event.lineNumber })}</Badge>
           </div>
-          <h3 className="mt-2 truncate text-[14px] font-semibold text-text-primary">
-            {event?.label ?? item?.role ?? t("agent.detail")}
-          </h3>
-          {event?.preview ? (
-            <p className="mt-1 max-h-10 overflow-hidden text-[12px] leading-5 text-text-secondary">
-              {event.preview}
-            </p>
-          ) : null}
+          <CardTitle className="mt-2 truncate">{event.label}</CardTitle>
+          <p className="mt-1 truncate font-mono text-[11px] text-text-muted">
+            {recordId}
+            {timestamp ? ` · ${timestamp}` : ""}
+          </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label={t("agent.closeDetail")}>
-          <PanelRightClose className="size-4" />
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <DetailRow label={t("agent.lineLabel")} value={item?.lineNumber ?? event?.lineNumber} />
-          <DetailRow label={t("agent.kind")} value={event?.kind} />
-          <DetailRow label={t("agent.turnLabel")} value={item?.turnIndex ?? event?.turnIndex} />
-          <DetailRow label={t("agent.timestamp")} value={timestamp} />
-          <DetailRow label={t("agent.recordId")} value={recordId} />
-          <DetailRow label={t("agent.requestId")} value={event?.requestId} />
-          <DetailRow label={t("agent.model")} value={event?.model} />
-          <DetailRow label={t("agent.sessionId")} value={event?.sessionId} />
-          <DetailRow label={t("agent.cwd")} value={event?.cwd} />
-          <DetailRow label={t("agent.stopReason")} value={event?.stopReason} />
-        </dl>
-
-        {formatUsage(event) ? (
-          <div className="mt-4 rounded-md border border-border bg-surface-50 px-3 py-2">
-            <div className="text-[10px] font-medium uppercase text-text-muted">
-              {t("agent.usage")}
-            </div>
-            <div className="mt-1 font-mono text-[12px] text-text-primary">{formatUsage(event)}</div>
-          </div>
-        ) : null}
-
-        {item?.block ? (
-          <section className="mt-4">
-            <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-medium uppercase text-text-muted">
-                {t("agent.content")}
-              </span>
-              {item.block.toolName ? <Badge variant="warning">{item.block.toolName}</Badge> : null}
-              {item.block.toolCallId ? <Badge>{item.block.toolCallId}</Badge> : null}
-              {item.block.status ? <Badge>{item.block.status}</Badge> : null}
-            </div>
-            <BlockText block={item.block} />
-          </section>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
         <Button
           variant="ghost"
           size="sm"
-          disabled={!item?.block?.text}
-          onClick={() => {
-            if (item?.block?.text) {
-              void navigator.clipboard.writeText(item.block.text);
-            }
-          }}
+          className="h-7 w-7 px-0"
+          onClick={onCollapse}
+          aria-label={t("agent.collapseRawData")}
         >
-          <Copy className="size-3.5" />
-          {t("agent.copyContent")}
+          <PanelRightClose className="size-3.5" />
         </Button>
-        <Button
-          variant="default"
-          size="sm"
-          disabled={!recordId}
-          onClick={() => {
-            if (recordId) {
-              onOpenRawJson(recordId);
-            }
-          }}
-        >
-          <ExternalLink className="size-3.5" />
-          {t("agent.openJson")}
-        </Button>
+      </CardHeader>
+
+      <div className="min-h-0 overflow-auto p-2">
+        {record ? (
+          <JsonTree
+            record={record}
+            insight={insight}
+            expandedStringifiedPaths={expandedStringifiedPaths}
+            eager
+            searchMatches={[]}
+            activeMatch={null}
+            scrollTarget={null}
+            selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
+            focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
+            onTogglePath={onTogglePath}
+            onCopyRecord={() => onCopyRecord(record)}
+            onCopyRawLine={() => onCopyRawLine(record)}
+            onCopyError={() => onCopyError(record)}
+            onSelectNode={(row) => onSelectNode(record, row)}
+            onHydrateRecord={onHydrateRecord}
+            onClearFocus={onClearFocus}
+          />
+        ) : (
+          <pre className="max-h-[64vh] min-h-[12rem] overflow-auto border border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary">
+            {event.rawLine}
+          </pre>
+        )}
       </div>
-    </aside>
+
+    </section>
+  );
+};
+
+const RawJsonlRail = ({ onExpand }: { onExpand: () => void }) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="uq-agent-raw-rail min-w-0 border border-border bg-surface-100">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 px-0"
+        onClick={onExpand}
+        aria-label={t("agent.expandRawData")}
+      >
+        <PanelRightOpen className="size-3.5" />
+      </Button>
+    </div>
   );
 };
 
 export const AgentSessionView = ({
   session,
+  recordsById,
+  recordInsights,
+  expandedStringifiedPaths,
+  selectedPath,
+  focusedPath,
   selectedRecordId,
-  onSelectRecord,
+  onTogglePath,
+  onCopyRecord,
+  onCopyRawLine,
+  onCopyError,
+  onSelectNode,
+  onHydrateRecord,
+  onClearFocus,
 }: AgentSessionViewProps) => {
   const { t } = useTranslation();
   const eventById = useMemo(
@@ -409,6 +408,8 @@ export const AgentSessionView = ({
   );
   const metrics = useMemo(() => metricItems(session, t), [session, t]);
   const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
+  const [detailOpen, setDetailOpen] = useState(true);
+  const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
   const selectedItem =
     detailSelection?.kind === "conversation" ? conversationById.get(detailSelection.id) : undefined;
@@ -420,8 +421,16 @@ export const AgentSessionView = ({
         : selectedRecordId
           ? eventByRecordId.get(selectedRecordId)
           : undefined;
-  const highlightedRecordId = selectedItem?.recordId ?? selectedEvent?.recordId ?? selectedRecordId;
   const selectedConversationId = selectedItem?.id;
+  const detailEvent = detailOpen ? (selectedEvent ?? session.events[0]) : undefined;
+  const detailItem =
+    selectedItem ??
+    (detailEvent?.conversationItemIds[0]
+      ? conversationById.get(detailEvent.conversationItemIds[0])
+      : undefined);
+  const highlightedRecordId =
+    selectedItem?.recordId ?? selectedEvent?.recordId ?? selectedRecordId ?? detailEvent?.recordId;
+  const showRawRail = !detailEvent && session.events.length > 0;
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -433,6 +442,12 @@ export const AgentSessionView = ({
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [selectedConversationId]);
 
+  useEffect(() => {
+    if (selectedRecordId) {
+      setDetailOpen(true);
+    }
+  }, [selectedRecordId]);
+
   const handleSelectTimelineEvent = (eventId: string) => {
     const event = eventById.get(eventId);
     const conversationItemId = event?.conversationItemIds[0];
@@ -442,10 +457,15 @@ export const AgentSessionView = ({
         ? { kind: "conversation", id: conversationItemId }
         : { kind: "event", id: eventId },
     );
+    setDetailOpen(true);
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="uq-agent-shell flex flex-col gap-3"
+      data-raw-open={detailEvent ? "true" : "false"}
+      data-timeline-collapsed={timelineCollapsed ? "true" : "false"}
+    >
       <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,32rem)]">
         <div className="rounded-md border border-border bg-surface-100 px-4 py-3 shadow-sm">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -501,68 +521,102 @@ export const AgentSessionView = ({
         </div>
       </section>
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle>{t("agent.timeline")}</CardTitle>
+      <div className="uq-agent-workspace grid gap-3">
+        <div className="uq-agent-main grid gap-3">
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="uq-agent-timeline-header flex-row items-center justify-between gap-2">
+              <CardTitle className="uq-agent-timeline-title">
+                {t("agent.timeline")}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="uq-agent-timeline-toggle h-7 w-7 px-0"
+                onClick={() => setTimelineCollapsed((current) => !current)}
+                aria-label={t(
+                  timelineCollapsed ? "agent.expandTimeline" : "agent.collapseTimeline",
+                )}
+              >
+                {timelineCollapsed ? (
+                  <PanelLeftOpen className="size-3.5" />
+                ) : (
+                  <PanelLeftClose className="size-3.5" />
+              )}
+            </Button>
           </CardHeader>
-          <CardContent className="max-h-[72vh] overflow-auto p-2">
-            <div className="flex flex-col gap-1">
-              {session.events.map((event) => (
-                <TimelineEvent
-                  key={event.id}
-                  event={event}
-                  selected={highlightedRecordId === event.recordId}
-                  onSelect={handleSelectTimelineEvent}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle>{t("agent.conversation")}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {session.conversationItems.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
-                {t("agent.noConversation")}
-              </div>
-            ) : (
-              session.conversationItems.map((item) => (
-                <div
-                  key={item.id}
-                  ref={(node) => {
-                    if (node) {
-                      conversationRefs.current.set(item.id, node);
-                    } else {
-                      conversationRefs.current.delete(item.id);
-                    }
-                  }}
-                >
-                  <ConversationItem
-                    item={item}
-                    event={eventById.get(item.eventId)}
-                    selected={selectedConversationId === item.id}
-                    onSelect={(itemId) => setDetailSelection({ kind: "conversation", id: itemId })}
+            <CardContent className="uq-agent-timeline-content max-h-[72vh] overflow-auto p-2">
+              <div className="flex flex-col gap-1">
+                {session.events.map((event) => (
+                  <TimelineEvent
+                    key={event.id}
+                    event={event}
+                    selected={highlightedRecordId === event.recordId}
+                    onSelect={handleSelectTimelineEvent}
                   />
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-      {detailSelection ? (
-        <DetailPanel
-          selection={detailSelection}
-          event={selectedEvent}
-          item={selectedItem}
-          onClose={() => setDetailSelection(null)}
-          onOpenRawJson={onSelectRecord}
-        />
-      ) : null}
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader>
+              <CardTitle>{t("agent.conversation")}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {session.conversationItems.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
+                  {t("agent.noConversation")}
+                </div>
+              ) : (
+                session.conversationItems.map((item) => (
+                  <div
+                    key={item.id}
+                    ref={(node) => {
+                      if (node) {
+                        conversationRefs.current.set(item.id, node);
+                      } else {
+                        conversationRefs.current.delete(item.id);
+                      }
+                    }}
+                  >
+                    <ConversationItem
+                      item={item}
+                      event={eventById.get(item.eventId)}
+                      selected={selectedConversationId === item.id}
+                      onSelect={(itemId) => {
+                        setDetailSelection({ kind: "conversation", id: itemId });
+                        setDetailOpen(true);
+                      }}
+                    />
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {detailEvent ? (
+          <RawJsonlPanel
+            event={detailEvent}
+            item={detailItem}
+            record={recordsById.get(detailEvent.recordId)}
+            insight={recordInsights.get(detailEvent.recordId)}
+            expandedStringifiedPaths={expandedStringifiedPaths}
+            selectedPath={selectedPath}
+            focusedPath={focusedPath}
+            onCollapse={() => setDetailOpen(false)}
+            onTogglePath={onTogglePath}
+            onCopyRecord={onCopyRecord}
+            onCopyRawLine={onCopyRawLine}
+            onCopyError={onCopyError}
+            onSelectNode={onSelectNode}
+            onHydrateRecord={onHydrateRecord}
+            onClearFocus={onClearFocus}
+          />
+        ) : showRawRail ? (
+          <RawJsonlRail onExpand={() => setDetailOpen(true)} />
+        ) : null}
+      </div>
     </div>
   );
 };

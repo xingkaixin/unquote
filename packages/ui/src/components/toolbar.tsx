@@ -68,9 +68,9 @@ export const Toolbar = ({
   const hasMatches = hasQuery && matchCount > 0;
 
   return (
-    <div className="sticky top-11 z-20 flex items-center justify-between gap-2 border-x border-b border-border bg-[var(--background)]/85 px-4 py-2 shadow-sm backdrop-blur-md">
+    <div className="uq-glass sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border px-4 py-3">
       <form
-        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface-100 px-2.5 shadow-sm focus-within:border-border-medium"
+        className="flex h-[34px] min-w-[200px] flex-1 items-center gap-2 overflow-hidden border border-transparent bg-surface-50 px-3 focus-within:border-border-medium"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmitQuery(inputRef.current?.value ?? query);
@@ -89,12 +89,12 @@ export const Toolbar = ({
             }
           }}
           placeholder={t("command.placeholder")}
-          className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-text-primary outline-none placeholder:font-sans placeholder:text-text-muted"
+          className="uq-search min-w-0 flex-1 bg-transparent font-mono text-[11.5px] text-text-primary outline-none placeholder:text-text-muted"
         />
         {hasQuery ? (
           <button
             type="button"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-text-muted hover:bg-surface-300 hover:text-text-primary"
+            className="inline-flex size-5 shrink-0 items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-display"
             onClick={() => {
               onClearQuery();
               inputRef.current?.focus();
@@ -104,7 +104,7 @@ export const Toolbar = ({
             <X className="size-3" />
           </button>
         ) : null}
-        <span className="shrink-0 font-mono text-[10px] text-text-muted">
+        <span className="max-w-[42vw] shrink-0 truncate font-mono text-[10px] text-text-muted sm:max-w-64">
           {hasMatches ? `${currentMatchIndex + 1}/${matchCount}` : summary}
         </span>
         <div className="flex shrink-0 items-center gap-0.5 border-l border-border pl-1.5">
@@ -136,7 +136,7 @@ export const Toolbar = ({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5"
+          className="h-[34px] gap-1.5 px-3"
           onClick={onOpenCommandPalette}
           title={`${t("command.open")} · ${shortcut}`}
         >
@@ -144,9 +144,9 @@ export const Toolbar = ({
           <span className="hidden sm:inline">{t("command.openShort")}</span>
         </Button>
         <Button
-          variant="default"
+          variant={hasExpandedStringified ? "secondary" : "default"}
           size="sm"
-          className="gap-1.5"
+          className="h-[34px] gap-1.5 px-3"
           onClick={hasExpandedStringified ? onCollapseAll : onExpandAll}
           aria-pressed={hasExpandedStringified}
         >
@@ -164,7 +164,7 @@ export const Toolbar = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 px-0"
+              className="size-[34px] px-0"
               aria-label={t("toolbar.more")}
             >
               <MoreHorizontal className="size-4" />
