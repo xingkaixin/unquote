@@ -7,6 +7,7 @@ import { CommandPalette } from "./components/command-palette";
 import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
+import { AgentSessionView } from "./components/agent-session-view";
 import { LocaleToggle } from "./components/locale-toggle";
 import { PathInspector } from "./components/path-inspector";
 import type { PathInspectorSelection } from "./components/path-inspector";
@@ -250,6 +251,7 @@ export const UnquoteApp = ({
     }
   });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [outputView, setOutputView] = useState<"agent" | "json">("json");
   const [selectedPath, setSelectedPath] = useState<PathInspectorSelection | null>(null);
   const [focusedPath, setFocusedPath] = useState<{ recordId: string; pathText: string } | null>(
     null,
@@ -264,7 +266,8 @@ export const UnquoteApp = ({
   const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
   const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
-  const { result, progress, recordsVersion } = useParser(
+  const outputViewSessionKeyRef = useRef<string | null>(null);
+  const { result, progress, recordsVersion, agentSession } = useParser(
     sourceText,
     mode === "auto" ? undefined : mode,
     sourceFile,
@@ -300,6 +303,25 @@ export const UnquoteApp = ({
     currentMatchIndex,
   } = qi.state;
 
+  const agentSessionKey = agentSession
+    ? [
+        agentSession.fileType,
+        agentSession.fileName ?? "",
+        agentSession.meta.sessionId ?? "",
+        agentSession.events.length,
+        agentSession.conversationItems.length,
+      ].join(":")
+    : null;
+
+  useEffect(() => {
+    if (outputViewSessionKeyRef.current === agentSessionKey) {
+      return;
+    }
+
+    outputViewSessionKeyRef.current = agentSessionKey;
+    setOutputView(agentSession ? "agent" : "json");
+  }, [agentSession, agentSessionKey]);
+
   const detectedFormat = mode === "auto" ? result.format : mode;
   const parseModeLabel =
     mode === "auto" && result.stats.failed > 0 && result.stats.total > 0
@@ -332,6 +354,12 @@ export const UnquoteApp = ({
         label: t("samples.agentToolCallJsonl"),
         value: sourceSamples.agentToolCallJsonl.source,
         expandedPaths: sourceSamples.agentToolCallJsonl.expandedPaths,
+      },
+      {
+        id: "codex-rollout-jsonl",
+        label: t("samples.codexRolloutJsonl"),
+        value: sourceSamples.codexRolloutJsonl.source,
+        expandedPaths: sourceSamples.codexRolloutJsonl.expandedPaths,
       },
       {
         id: "mixed-valid-invalid-jsonl",
@@ -912,6 +940,16 @@ export const UnquoteApp = ({
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
   };
 
+  const handleSelectAgentRecord = (recordId: string) => {
+    const record = result.records.find((candidate) => candidate.id === recordId);
+    if (!record) {
+      return;
+    }
+
+    setOutputView("json");
+    handleSelectRecord(record);
+  };
+
   const handleOverviewErrorSelect = (recordId: string) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
     if (!record) {
@@ -989,7 +1027,7 @@ export const UnquoteApp = ({
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
   const handlePrevToolbarMatch = toolbarInPathMode ? qi.prevPathMatch : qi.prevMatch;
   const handleNextToolbarMatch = toolbarInPathMode ? qi.nextPathMatch : qi.nextMatch;
-  const output = (
+  const jsonOutput = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
         summary={toolbarSummary}
@@ -1044,6 +1082,27 @@ export const UnquoteApp = ({
         onHoverPath={(path) => setHoveredPath(path ?? "$")}
       />
     </div>
+  );
+  const output = agentSession ? (
+    <Tabs
+      value={outputView}
+      onValueChange={(value) => setOutputView(value === "agent" ? "agent" : "json")}
+    >
+      <TabsList className="mb-3">
+        <TabsTrigger value="agent">{t("app.tab.agent")}</TabsTrigger>
+        <TabsTrigger value="json">{t("app.tab.json")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="agent">
+        <AgentSessionView
+          session={agentSession}
+          selectedRecordId={selectedRecordId}
+          onSelectRecord={handleSelectAgentRecord}
+        />
+      </TabsContent>
+      <TabsContent value="json">{jsonOutput}</TabsContent>
+    </Tabs>
+  ) : (
+    jsonOutput
   );
 
   return (

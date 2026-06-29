@@ -49,6 +49,64 @@ export const sourceSamples = {
     ].join("\n"),
     expandedPaths: ["$.args", "$.result"],
   },
+  codexRolloutJsonl: {
+    source: [
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.579Z",
+        type: "session_meta",
+        payload: {
+          session_id: "019e9d2d-3639-75b2-b26e-be6650102fea",
+          cwd: "/Users/example/project",
+          cli_version: "0.137.0",
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.581Z",
+        type: "event_msg",
+        payload: {
+          type: "task_started",
+          turn_id: "turn-1",
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:07.964Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Find the files that mention billing.search." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:08.824Z",
+        type: "response_item",
+        payload: {
+          type: "reasoning",
+          summary: [{ text: "Search the workspace before editing." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:09.027Z",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: 'rg "billing.search"' }),
+          call_id: "call_demo",
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:09.300Z",
+        type: "response_item",
+        payload: {
+          type: "function_call_output",
+          call_id: "call_demo",
+          output: "packages/billing/search.ts\n",
+        },
+      }),
+    ].join("\n"),
+    expandedPaths: ["$.payload.arguments"],
+  },
   mixedValidInvalidJsonl: {
     source: [
       JSON.stringify({
