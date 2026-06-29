@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-06-29
+
+### Added
+
+- Agent 会话视图会自动识别 Codex rollout 和 Claude Code JSONL transcript，并展示会话元信息、对话轮次、思考内容、工具调用/结果、时间线事件，以及对应的原始 JSONL 记录。
+- 样例输入新增 Codex rollout JSONL 会话，用于直接体验 Agent 视图。
+
+### Changed
+
+- 被识别为 agent 日志的输入现在使用 Agent / JSON 双标签输出，可在会话视图和常规展开 JSON 树之间切换。
+- 主界面围绕 Source 面板、记录导航、树行和 agent 详情面板收紧，旧的独立 Path Inspector / 状态栏流程改为内联记录和节点操作。
+- Web 和扩展应用版本升级到 `0.7.0`。
+
 ## [0.6.0] - 2026-06-19
 
 ### Added

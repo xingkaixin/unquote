@@ -1,6 +1,6 @@
 # Unquote — Agent Reference
 
-Unquote is a local JSON / JSONL viewer that recursively expands stringified JSON. It is a pnpm monorepo with four packages.
+Unquote is a local JSON / JSONL viewer that recursively expands stringified JSON and adds a session lens for recognized agent JSONL logs. It is a pnpm monorepo with four packages.
 
 ## Architecture
 
@@ -91,7 +91,8 @@ CSS variables defined in `src/styles.css`:
 
 | File | Purpose |
 |---|---|
-| `app.tsx` | Root `UnquoteApp` component. Coordinates top-level UI state (source text, theme, query interaction, expanded paths, selection, focus, local-file source). |
+| `app.tsx` | Root `UnquoteApp` component. Coordinates top-level UI state (source text, theme, output view, query interaction, expanded paths, selection, focus, local-file source, agent session switching). |
+| `components/agent-session-view.tsx` | Agent log lens for detected Codex / Claude Code JSONL sessions. Shows session metadata, conversation turns, timeline events, and the matching raw JSONL record. |
 | `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >160 rows. |
 | `components/record-list.tsx` | Maps `records` → `JsonTree[]`, applies record virtualization, and swaps in hydrated local-file records. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
@@ -118,8 +119,17 @@ CSS variables defined in `src/styles.css`:
 ### UI Utility Modules
 
 - `lib/local-file-source.ts` — pure local-file line reading, deferred hydration, abortable whole-file search, and full-record lookup for copy/export.
+- `lib/agent-session.ts` — detects Codex rollout and Claude Code JSONL transcripts, then builds the `AgentSession` conversation, timeline, metadata, and parse-warning model.
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
 - `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
+- `lib/source-samples.ts` — sample payloads used by the input pane, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
+
+### Agent Session Feature
+
+- Detection runs only for JSONL input and currently recognizes Codex envelopes (`session_meta`, `event_msg`, `response_item`, `turn_context`) and Claude Code transcript / meta lines.
+- When a session is detected, the output area defaults to the Agent tab while keeping the normal expanded JSON tree available in the JSON tab.
+- Agent sessions preserve raw line linkage so conversation and timeline selections can show the underlying parsed record.
+- Invalid JSONL lines collected during agent-session parsing become parse warnings instead of disabling the detected session.
 
 ### Search Feature
 
@@ -203,6 +213,7 @@ Active match auto-scroll:
 - **New components** go in `packages/ui/src/components/`
 - **New i18n keys** must be added to `i18n/i18n.ts`, `en.ts`, and `zh-CN.ts`
 - **Core parser changes** should include tests in `packages/core/tests/`
+- **Agent session parser changes** should include tests in `packages/ui/tests/agent-session.test.tsx`.
 - **UI tests** use `@testing-library/react` + jsdom. Mock `Worker` as in `packages/ui/tests/app.test.tsx`.
 - **Styling:** Tailwind v4 utility classes + CSS variables. No arbitrary values unless necessary.
 - **Icons:** Always from `lucide-react`. Size convention: `size-3` (12px), `size-3.5` (14px), `size-4` (16px).
