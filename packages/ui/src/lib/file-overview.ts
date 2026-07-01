@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { formatJsonPath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
+import { walkJsonNode } from "./json-walk";
 
 export type OverviewField = "event" | "type" | "tool";
 
@@ -120,41 +120,24 @@ const addFieldValue = (
   values.set(key, { ...item, count });
 };
 
-const walkNode = (
-  node: JsonNode,
-  summary: RecordOverviewSummary,
-  pathSegments: TreePathSegment[] = [],
-) => {
-  const pathText = formatJsonPath(pathSegments);
-  summary.maxDepth = Math.max(summary.maxDepth, node.meta.depth);
-  if (node.wasStringified) {
-    summary.hasNestedJson = true;
-    addCount(summary.nestedPaths, pathText);
-  }
-
-  if (!node.children) {
-    return;
-  }
-
-  if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) =>
-      walkNode(child, summary, [...pathSegments, { kind: "index", value: String(index) }]),
-    );
-    return;
-  }
-
-  Object.entries(node.children).forEach(([key, child]) => {
-    const childPathSegments = [...pathSegments, { kind: "key" as const, value: key }];
-    const field = classifyOverviewField(key, childPathSegments);
-    const value = field ? getFieldValue(child) : null;
-    if (field && value !== null) {
-      addFieldValue(summary.fieldValues, {
-        field,
-        pathText: formatJsonPath(childPathSegments),
-        value,
-      });
+const walkNode = (root: JsonNode, summary: RecordOverviewSummary) => {
+  walkJsonNode(root, (ctx) => {
+    summary.maxDepth = Math.max(summary.maxDepth, ctx.node.meta.depth);
+    if (ctx.node.wasStringified) {
+      summary.hasNestedJson = true;
+      addCount(summary.nestedPaths, ctx.jsonPath);
     }
-    walkNode(child, summary, childPathSegments);
+
+    const lastSegment = ctx.pathSegments.at(-1);
+    if (lastSegment?.kind !== "key") {
+      return;
+    }
+
+    const field = classifyOverviewField(lastSegment.value, ctx.pathSegments);
+    const value = field ? getFieldValue(ctx.node) : null;
+    if (field && value !== null) {
+      addFieldValue(summary.fieldValues, { field, pathText: ctx.jsonPath, value });
+    }
   });
 };
 
