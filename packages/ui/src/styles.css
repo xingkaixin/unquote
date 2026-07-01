@@ -78,9 +78,7 @@
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --tracking-meta: 0.08em;
   --tracking-tag: 0.12em;
-  --shadow-glass:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 18px 40px -18px rgba(0, 0, 0, 0.22);
+  --shadow-glass: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.22);
 }
 
 /* --- Dark Mode --- */
@@ -129,9 +127,7 @@
   --syn-bool: #88a6d2;
   --syn-null: #5f5f5a;
   --dot: rgba(255, 255, 255, 0.08);
-  --shadow-glass:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 24px 48px -16px rgba(0, 0, 0, 0.6);
+  --shadow-glass: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 48px -16px rgba(0, 0, 0, 0.6);
 }
 
 /* --- Base Styles --- */

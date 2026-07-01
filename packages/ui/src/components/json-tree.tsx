@@ -293,8 +293,10 @@ export const JsonTree = ({
                 return null;
               }
 
-              const searchMatch = row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive = row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
+              const searchMatch =
+                row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
+              const isActive =
+                row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
               const isSelected = selectedPath
                 ? isPathInSelection(row.source.pathText, selectedPath.pathText)
                 : false;
@@ -329,8 +331,10 @@ export const JsonTree = ({
         ) : hydrated ? (
           <div>
             {displayRows.map((row) => {
-              const searchMatch = row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive = row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
+              const searchMatch =
+                row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
+              const isActive =
+                row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
               const isSelected = selectedPath
                 ? isPathInSelection(row.source.pathText, selectedPath.pathText)
                 : false;
@@ -380,9 +384,7 @@ const HighlightText = ({ text, ranges, isActive }: HighlightTextProps) => {
       <mark
         key={`mark-${range.start}`}
         className={
-          isActive
-            ? "bg-accent/45 font-medium ring-1 ring-accent/70"
-            : "bg-accent/25 font-medium"
+          isActive ? "bg-accent/45 font-medium ring-1 ring-accent/70" : "bg-accent/25 font-medium"
         }
       >
         {text.slice(range.start, range.end)}
@@ -574,9 +576,10 @@ const RowItem = ({
 }: RowItemProps) => {
   const { t } = useTranslation();
   const source = row.source;
-  const valueRanges = row.kind === "value" && searchMatch?.valueRanges.length
-    ? clampRanges(searchMatch.valueRanges, row.valueText.length)
-    : [];
+  const valueRanges =
+    row.kind === "value" && searchMatch?.valueRanges.length
+      ? clampRanges(searchMatch.valueRanges, row.valueText.length)
+      : [];
   const rowTone = isSelected
     ? "bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)]"
     : isActiveMatch
@@ -584,9 +587,7 @@ const RowItem = ({
       : searchMatch
         ? "bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]"
         : "hover:bg-surface-100";
-  const anchorTone = isSelectedAnchor
-    ? "shadow-[inset_2px_0_0_var(--color-accent)]"
-    : "";
+  const anchorTone = isSelectedAnchor ? "shadow-[inset_2px_0_0_var(--color-accent)]" : "";
 
   return (
     <div

@@ -8,6 +8,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "format": "turbo run format",
+    "format:check": "turbo run format:check",
     "test": "turbo run test",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "benchmark": "turbo run build --force && node benchmark/perf-benchmark.mjs",

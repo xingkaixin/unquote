@@ -49,9 +49,7 @@ interface AgentSessionViewProps {
   onClearFocus: () => void;
 }
 
-type AgentDetailSelection =
-  | { kind: "event"; id: string }
-  | { kind: "conversation"; id: string };
+type AgentDetailSelection = { kind: "event"; id: string } | { kind: "conversation"; id: string };
 
 interface RoleConfig {
   label: string;
@@ -354,7 +352,6 @@ const RawJsonlPanel = ({
           </pre>
         )}
       </div>
-
     </section>
   );
 };
@@ -525,9 +522,7 @@ export const AgentSessionView = ({
         <div className="uq-agent-main grid gap-3">
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="uq-agent-timeline-header flex-row items-center justify-between gap-2">
-              <CardTitle className="uq-agent-timeline-title">
-                {t("agent.timeline")}
-              </CardTitle>
+              <CardTitle className="uq-agent-timeline-title">{t("agent.timeline")}</CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
@@ -541,9 +536,9 @@ export const AgentSessionView = ({
                   <PanelLeftOpen className="size-3.5" />
                 ) : (
                   <PanelLeftClose className="size-3.5" />
-              )}
-            </Button>
-          </CardHeader>
+                )}
+              </Button>
+            </CardHeader>
             <CardContent className="uq-agent-timeline-content max-h-[72vh] overflow-auto p-2">
               <div className="flex flex-col gap-1">
                 {session.events.map((event) => (

@@ -341,9 +341,7 @@ export const InputPane = ({
             role="group"
             aria-label={t("samples.ariaLabel")}
           >
-            <span className="nf-mono-sub nf-dim mr-0.5">
-              {t("samples.label")}
-            </span>
+            <span className="nf-mono-sub nf-dim mr-0.5">{t("samples.label")}</span>
             {sampleOptions.map((sample) => (
               <Button
                 key={sample.id}

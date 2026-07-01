@@ -266,7 +266,9 @@ export const CommandPalette = ({
                 key={action.id}
                 type="button"
                 className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
-                  index === activeIndex ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]" : "text-text-secondary"
+                  index === activeIndex
+                    ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]"
+                    : "text-text-secondary"
                 } ${action.active ? "text-accent" : ""}`}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => runAction(action)}
