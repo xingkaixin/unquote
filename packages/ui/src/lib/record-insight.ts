@@ -1,6 +1,7 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
+import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
 
 export type RecordInsightKind = "error" | "tool" | "message" | "event";
 
@@ -62,18 +63,8 @@ const errorLikePattern =
   /(^|[-_\s.])(error|exception|failed|failure|fatal|panic|timeout)([-_\s.]|$)/i;
 const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
 
-const normalizeKey = (key: string) => key.replace(/[-_\s.]/g, "").toLowerCase();
-
 const truncateText = (value: string, maxLength: number) =>
   value.length <= maxLength ? value : `${value.slice(0, maxLength)}...`;
-
-const getPrimitiveValue = (node: JsonNode) => {
-  if (node.kind === "object" || node.kind === "array") {
-    return null;
-  }
-
-  return node.kind === "string" ? (node.value as string) : String(node.value);
-};
 
 const getDirectChildValue = (node: JsonNode, keys: string[]) => {
   if (node.kind !== "object" || !node.children || Array.isArray(node.children)) {
@@ -105,9 +96,6 @@ const getErrorValue = (node: JsonNode) => {
 
   return node.kind === "array" ? "error array" : "error object";
 };
-
-const isToolContext = (segments: TreePathSegment[]) =>
-  segments.some((segment) => /tool|function/i.test(segment.value));
 
 const classifyInsightField = (
   key: string,
