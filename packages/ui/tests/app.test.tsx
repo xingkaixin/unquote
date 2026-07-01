@@ -635,6 +635,42 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 
+  it("keeps the previous source text visible while a dropped file is being read", async () => {
+    let resolveRead: ((value: string) => void) | undefined;
+    const onReadFile = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    expect(sourceInput).toHaveValue('{"old":true}');
+
+    const file = new File(['{"new":true}'], "payload.json", { type: "application/json" });
+    fireEvent.paste(sourceInput, {
+      clipboardData: { files: [file], items: [], types: ["Files"] },
+    });
+
+    // While reading, the reading state carries prevText so the prior source text
+    // stays visible instead of collapsing to the file-preview overlay.
+    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
+    expect(sourceInput).toHaveValue('{"old":true}');
+
+    await act(async () => {
+      resolveRead?.('{"new":true}');
+    });
+    await waitFor(() => expect(sourceInput).toHaveValue('{"new":true}'));
+    await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
+  });
+
   it("searches full string content in streamed JSONL files", async () => {
     const user = userEvent.setup();
     render(
