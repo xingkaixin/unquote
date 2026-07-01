@@ -52,6 +52,12 @@ export const copyBytesLimit = 20_000_000;
 export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
   recordCount > copyRecordLimit || bytes > copyBytesLimit;
 
+type SourceState =
+  | { kind: "text"; text: string }
+  | { kind: "reading"; file: File; progress: number | null; prevText: string }
+  | { kind: "imported"; file: File; text: string }
+  | { kind: "streaming"; file: File };
+
 interface PathScrollTarget {
   recordId: string;
   pathText: string;
@@ -243,11 +249,17 @@ export const UnquoteApp = ({
   onReadFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const [sourceText, setSourceText] = useState(initialInput);
-  const [sourceFile, setSourceFile] = useState<File | null>(null);
-  const [readingFile, setReadingFile] = useState<File | null>(null);
-  const [importedFile, setImportedFile] = useState<File | null>(null);
-  const [readProgress, setReadProgress] = useState<number | null>(null);
+  const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
+  const sourceText =
+    sourceState.kind === "text" || sourceState.kind === "imported"
+      ? sourceState.text
+      : sourceState.kind === "reading"
+        ? sourceState.prevText
+        : "";
+  const sourceFile = sourceState.kind === "streaming" ? sourceState.file : null;
+  const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
+  const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
+  const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -619,13 +631,7 @@ export const UnquoteApp = ({
     localStorage.setItem("unquote-theme", theme);
   }, [theme]);
 
-  const handleSourceChange = (value: string) => {
-    fileImportIdRef.current += 1;
-    setReadingFile(null);
-    setImportedFile(null);
-    setReadProgress(null);
-    setSourceFile(null);
-    setSourceText(value);
+  const resetDerivedState = () => {
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
     setSelectedRecordId(null);
@@ -633,6 +639,12 @@ export const UnquoteApp = ({
     setScrollTarget(null);
     setRecordScrollTarget(null);
     qi.reset();
+  };
+
+  const handleSourceChange = (value: string) => {
+    fileImportIdRef.current += 1;
+    setSourceState({ kind: "text", text: value });
+    resetDerivedState();
     if (value.length > largeSourceCollapseBytes) {
       setSourceCollapsed(true);
     }
@@ -647,28 +659,16 @@ export const UnquoteApp = ({
   const handleFileDrop = async (file: File) => {
     const requestId = fileImportIdRef.current + 1;
     fileImportIdRef.current = requestId;
-    setReadingFile(file);
-    setImportedFile(null);
-    setReadProgress(onReadFile ? null : 0);
-    setSourceFile(null);
+    const prevText = sourceText;
+    setSourceState({ kind: "reading", file, progress: onReadFile ? null : 0, prevText });
 
     const streamAsJsonl =
       file.size > largeSourceCollapseBytes &&
       (mode === "jsonl" || (mode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
 
     if (streamAsJsonl) {
-      setReadingFile(null);
-      setImportedFile(null);
-      setReadProgress(null);
-      setSourceFile(file);
-      setSourceText("");
-      setExpandedStringifiedPaths(new Set());
-      setSelectedPath(null);
-      setSelectedRecordId(null);
-      setFocusedPath(null);
-      setScrollTarget(null);
-      setRecordScrollTarget(null);
-      qi.reset();
+      setSourceState({ kind: "streaming", file });
+      resetDerivedState();
       setSourceCollapsed(true);
       return;
     }
@@ -679,13 +679,16 @@ export const UnquoteApp = ({
         ? await onReadFile(file)
         : await readFileText(file, (nextProgress) => {
             if (fileImportIdRef.current === requestId) {
-              setReadProgress(nextProgress);
+              setSourceState((prev) =>
+                prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
+              );
             }
           });
     } catch (error) {
       if (fileImportIdRef.current === requestId) {
-        setReadingFile(null);
-        setReadProgress(null);
+        setSourceState((prev) =>
+          prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
+        );
       }
       throw error;
     }
@@ -694,10 +697,8 @@ export const UnquoteApp = ({
       return;
     }
 
-    setReadingFile(null);
-    setReadProgress(null);
     handleSourceChange(text);
-    setImportedFile(file);
+    setSourceState({ kind: "imported", file, text });
   };
 
   const handleOpenFile = async () => {
