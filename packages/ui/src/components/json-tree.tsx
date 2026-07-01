@@ -13,6 +13,12 @@ import { Button } from "./button";
 import { Card, CardContent } from "./card";
 import { RecordInsightSummary } from "./record-insight";
 
+// A record only virtualizes past a row count and when every row is short and
+// single-line: tall (long or multiline) values break the virtualizer's
+// fixed-size row estimate.
+const virtualizationRowThreshold = 180;
+const inlineValueLengthLimit = 160;
+
 interface JsonTreeProps {
   record: JsonlRecord;
   insight: RecordInsight | undefined;
@@ -80,8 +86,10 @@ export const JsonTree = ({
   }, [searchMatches]);
 
   const shouldVirtualize =
-    displayRows.length > 180 &&
-    displayRows.every((row) => row.valueText.length < 160 && !row.valueText.includes("\\n"));
+    displayRows.length > virtualizationRowThreshold &&
+    displayRows.every(
+      (row) => row.valueText.length < inlineValueLengthLimit && !row.valueText.includes("\\n"),
+    );
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,
     getScrollElement: () => parentRef.current,

@@ -1,5 +1,4 @@
 import { materializeNode } from "@unquote/core";
-import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,12 +18,11 @@ import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
 import { useQueryInteraction } from "./hooks/use-query-interaction";
+import { useExportActions } from "./hooks/use-export-actions";
+import { useThemePreference } from "./hooks/use-theme-preference";
+import { useSourceLoader } from "./hooks/use-source-loader";
 import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
 import type { FileOverviewState } from "./lib/file-overview";
-import {
-  readFileText,
-  readJsonlRecordsByLine,
-} from "./lib/local-file-source";
 import { markPerf, measurePerfFn } from "./lib/perf";
 import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
 import type { RecordInsightMapState } from "./lib/record-insight";
@@ -33,7 +31,6 @@ import {
   filterRecords,
   getRenderedRecord,
   hasJsonlRecords,
-  materializeRecord,
   resolveTreePath,
   searchRecords,
 } from "./lib/tree";
@@ -44,19 +41,12 @@ import type {
   TreeRow,
 } from "./lib/tree";
 
-const largeSourceCollapseBytes = 1_000_000;
 // Copy builds one giant string and hands it to the clipboard API, which freezes
 // the main thread on large data. Export streams via Blob(parts[]) and is safe.
 export const copyRecordLimit = 5000;
 export const copyBytesLimit = 20_000_000;
 export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
   recordCount > copyRecordLimit || bytes > copyBytesLimit;
-
-type SourceState =
-  | { kind: "text"; text: string }
-  | { kind: "reading"; file: File; progress: number | null; prevText: string }
-  | { kind: "imported"; file: File; text: string }
-  | { kind: "streaming"; file: File };
 
 interface PathScrollTarget {
   recordId: string;
@@ -125,113 +115,10 @@ const getRecordStats = (records: JsonlRecord[]) => {
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-const getCopyValue = (record: JsonlRecord) => {
-  if (record.node) {
-    return materializeRecord(record);
-  }
-
-  return {
-    lineNumber: record.lineNumber,
-    error: record.error ?? "Parse error",
-    ...(record.errorMeta
-      ? {
-          line: record.errorMeta.line,
-          column: record.errorMeta.column,
-          rawLine: record.rawLine ?? record.errorMeta.rawLine,
-          context: record.errorMeta.context,
-        }
-      : {}),
-    summary: record.summary,
-  };
-};
-
-const formatRecordsAsJsonl = (records: JsonlRecord[]) =>
-  records.map((record) => JSON.stringify(getCopyValue(record))).join("\n");
-
-const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "jsonl") => {
-  const values = records.map((record) => getCopyValue(record));
-  if (format === "json") {
-    return JSON.stringify(values[0] ?? null, null, 2);
-  }
-
-  return JSON.stringify(values, null, 2);
-};
-
-// Yield the main thread so a long stringify doesn't freeze the UI (toasts,
-// spinners stay live). Resolves on the next macrotask.
-const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-
-const exportChunkSize = 200;
-
-// Stream-friendly: each record stringifies to its own BlobPart so the engine
-// concatenates buffers directly instead of one giant JS string. Chunked with
-// main-thread yields so an "Exporting…" toast stays responsive.
-const formatRecordsAsJsonlParts = async (records: JsonlRecord[]): Promise<BlobPart[]> => {
-  const parts: BlobPart[] = [];
-  for (let index = 0; index < records.length; index += 1) {
-    if (index > 0) {
-      parts.push("\n");
-    }
-    parts.push(JSON.stringify(getCopyValue(records[index]!)));
-    if (index > 0 && index % exportChunkSize === 0) {
-      await yieldToMain();
-    }
-  }
-  return parts;
-};
-
-const formatRecordsAsJsonParts = async (
-  records: JsonlRecord[],
-  format: "json" | "jsonl",
-): Promise<BlobPart[]> => {
-  if (format === "json") {
-    const value = records[0] ? getCopyValue(records[0]) : null;
-    return [JSON.stringify(value, null, 2)];
-  }
-
-  // JSONL-as-JSON-array: stringify each record on its own and indent it to the
-  // array's nesting, instead of handing JSON.stringify one 300MB+ value — that
-  // single synchronous call can't be interrupted and freezes the tab. Per-record
-  // chunked yields keep the UI (and the "Exporting…" toast) live.
-  if (records.length === 0) {
-    return ["[]"];
-  }
-  const parts: BlobPart[] = ["[\n"];
-  for (let index = 0; index < records.length; index += 1) {
-    if (index > 0) {
-      parts.push(",\n");
-    }
-    const body = JSON.stringify(getCopyValue(records[index]!), null, 2);
-    parts.push(`  ${body.replace(/\n/g, "\n  ")}`);
-    if (index > 0 && index % exportChunkSize === 0) {
-      await yieldToMain();
-    }
-  }
-  parts.push("\n]");
-  return parts;
-};
-
 const isPathInsideFocus = (pathText: string, focusedPath: string) =>
   pathText === focusedPath ||
   pathText.startsWith(`${focusedPath}.`) ||
   pathText.startsWith(`${focusedPath}[`);
-
-const downloadBlob = (parts: BlobPart[], filename: string, type: string) => {
-  const blob = new Blob(parts, { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-};
-
-const createExportFilename = (extension: "json" | "jsonl") => {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `unquote-visible-${timestamp}.${extension}`;
-};
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -249,29 +136,31 @@ export const UnquoteApp = ({
   onReadFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
-  const sourceText =
-    sourceState.kind === "text" || sourceState.kind === "imported"
-      ? sourceState.text
-      : sourceState.kind === "reading"
-        ? sourceState.prevText
-        : "";
-  const sourceFile = sourceState.kind === "streaming" ? sourceState.file : null;
-  const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
-  const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
-  const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
-  const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
+  const [sourceCollapsed, setSourceCollapsed] = useState(false);
+  const resetDerivedStateRef = useRef<() => void>(() => {});
+  const {
+    mode,
+    setMode,
+    sourceText,
+    sourceFile,
+    readingFile,
+    readProgress,
+    importedFile,
+    onSourceChange: handleSourceChange,
+    onFileDrop: handleFileDrop,
+    onOpenFile: handleOpenFile,
+    onCopyRawLine: handleCopyRawLine,
+  } = useSourceLoader({
+    initialInput,
+    onReadFile,
+    onRequestOpenFile: onOpenFile,
+    onReset: () => resetDerivedStateRef.current(),
+    onCollapseSource: () => setSourceCollapsed(true),
+  });
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
-  const [sourceCollapsed, setSourceCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"system" | "light" | "dark">(() => {
-    try {
-      return (localStorage.getItem("unquote-theme") as "system" | "light" | "dark") ?? "system";
-    } catch {
-      return "system";
-    }
-  });
+  const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
   const [selectedPath, setSelectedPath] = useState<SelectedPath | null>(null);
@@ -286,7 +175,6 @@ export const UnquoteApp = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const overviewStateRef = useRef<FileOverviewState>(createFileOverviewState());
   const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
-  const fileImportIdRef = useRef(0);
   const scrollRequestIdRef = useRef(0);
   const outputViewSessionKeyRef = useRef<string | null>(null);
   const { result, progress, recordsVersion, agentSession } = useParser(
@@ -613,24 +501,6 @@ export const UnquoteApp = ({
     visibleRecords,
   ]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else if (theme === "light") {
-      root.classList.remove("dark");
-    } else {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      const apply = (e: MediaQueryListEvent | MediaQueryList) => {
-        root.classList.toggle("dark", e.matches);
-      };
-      apply(mq);
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
-    localStorage.setItem("unquote-theme", theme);
-  }, [theme]);
-
   const resetDerivedState = () => {
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
@@ -640,15 +510,7 @@ export const UnquoteApp = ({
     setRecordScrollTarget(null);
     qi.reset();
   };
-
-  const handleSourceChange = (value: string) => {
-    fileImportIdRef.current += 1;
-    setSourceState({ kind: "text", text: value });
-    resetDerivedState();
-    if (value.length > largeSourceCollapseBytes) {
-      setSourceCollapsed(true);
-    }
-  };
+  resetDerivedStateRef.current = resetDerivedState;
 
   const handleSampleSelect = (sample: { value: string; expandedPaths: readonly string[] }) => {
     setMode("auto");
@@ -656,114 +518,19 @@ export const UnquoteApp = ({
     setExpandedStringifiedPaths(new Set(sample.expandedPaths));
   };
 
-  const handleFileDrop = async (file: File) => {
-    const requestId = fileImportIdRef.current + 1;
-    fileImportIdRef.current = requestId;
-    const prevText = sourceText;
-    setSourceState({ kind: "reading", file, progress: onReadFile ? null : 0, prevText });
-
-    const streamAsJsonl =
-      file.size > largeSourceCollapseBytes &&
-      (mode === "jsonl" || (mode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
-
-    if (streamAsJsonl) {
-      setSourceState({ kind: "streaming", file });
-      resetDerivedState();
-      setSourceCollapsed(true);
-      return;
-    }
-
-    let text: string;
-    try {
-      text = onReadFile
-        ? await onReadFile(file)
-        : await readFileText(file, (nextProgress) => {
-            if (fileImportIdRef.current === requestId) {
-              setSourceState((prev) =>
-                prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
-              );
-            }
-          });
-    } catch (error) {
-      if (fileImportIdRef.current === requestId) {
-        setSourceState((prev) =>
-          prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
-        );
-      }
-      throw error;
-    }
-
-    if (fileImportIdRef.current !== requestId) {
-      return;
-    }
-
-    handleSourceChange(text);
-    setSourceState({ kind: "imported", file, text });
-  };
-
-  const handleOpenFile = async () => {
-    const source = await onOpenFile?.();
-    if (source instanceof File) {
-      await handleFileDrop(source);
-      return;
-    }
-
-    if (typeof source === "string") {
-      handleSourceChange(source);
-    }
-  };
-
-  const handleCopyJsonl = async () => {
-    if (isCopyBlocked) {
-      toast.warning(t("toolbar.copyBlocked"));
-      return;
-    }
-    const records = await localFileSource.getFullRecords(visibleRecords);
-    await navigator.clipboard.writeText(formatRecordsAsJsonl(records));
-  };
-
-  const handleCopyFormattedJson = async () => {
-    if (isCopyBlocked) {
-      toast.warning(t("toolbar.copyBlocked"));
-      return;
-    }
-    const records = await localFileSource.getFullRecords(visibleRecords);
-    await navigator.clipboard.writeText(
-      formatRecordsAsJson(records, result.format),
-    );
-  };
-
-  const handleExportJsonl = () => {
-    toast.promise(
-      (async () => {
-        const records = await localFileSource.getFullRecords(visibleRecords);
-        await yieldToMain();
-        const parts = await formatRecordsAsJsonlParts(records);
-        downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
-      })(),
-      {
-        loading: t("toolbar.exporting"),
-        success: t("toolbar.exportDone"),
-        error: t("toolbar.exportFailed"),
-      },
-    );
-  };
-
-  const handleExportFormattedJson = () => {
-    toast.promise(
-      (async () => {
-        const records = await localFileSource.getFullRecords(visibleRecords);
-        await yieldToMain();
-        const parts = await formatRecordsAsJsonParts(records, result.format);
-        downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
-      })(),
-      {
-        loading: t("toolbar.exporting"),
-        success: t("toolbar.exportDone"),
-        error: t("toolbar.exportFailed"),
-      },
-    );
-  };
+  const {
+    onCopyJsonl,
+    onCopyFormattedJson,
+    onExportJsonl,
+    onExportFormattedJson,
+    onCopyRecord,
+    onCopyRecordError,
+  } = useExportActions({
+    visibleRecords,
+    getFullRecords: localFileSource.getFullRecords,
+    format: result.format,
+    isCopyBlocked,
+  });
 
   const handleExpandAll = () => {
     const all = measurePerfFn("expand:all:collect", () => {
@@ -794,46 +561,6 @@ export const UnquoteApp = ({
       }
       return next;
     });
-  };
-
-  const handleCopyRecord = async (record: JsonlRecord) => {
-    const [copyRecord = record] = await localFileSource.getFullRecords([record]);
-    const value = getCopyValue(copyRecord);
-    await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
-  };
-
-  const handleCopyRawLine = async (record: JsonlRecord) => {
-    if (sourceFile) {
-      const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
-      const fullRecord = fullRecords.get(record.lineNumber);
-      if (fullRecord?.node) {
-        await navigator.clipboard.writeText(JSON.stringify(getCopyValue(fullRecord)));
-        return;
-      }
-      if (fullRecord?.rawLine) {
-        await navigator.clipboard.writeText(fullRecord.rawLine);
-        return;
-      }
-    }
-
-    await navigator.clipboard.writeText(
-      record.rawLine ?? record.errorMeta?.rawLine ?? record.summary,
-    );
-  };
-
-  const handleCopyRecordError = async (record: JsonlRecord) => {
-    const message = record.error ?? t("error.parseFailed");
-    const errorMeta = record.errorMeta;
-    const details = errorMeta
-      ? [
-          t("error.message", { message }),
-          t("error.location", { line: errorMeta.line, column: errorMeta.column }),
-          `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
-          `${t("error.context")}:\n${errorMeta.context}`,
-        ].join("\n")
-      : t("error.message", { message });
-
-    await navigator.clipboard.writeText(details);
   };
 
   const getSelectedNodeContext = async () => {
@@ -989,10 +716,10 @@ export const UnquoteApp = ({
         onNextMatch={handleNextToolbarMatch}
         onClearQuery={qi.clearToolbarQuery}
         onOpenCommandPalette={handleOpenCommandPalette}
-        onCopyJsonl={handleCopyJsonl}
-        onCopyFormattedJson={handleCopyFormattedJson}
-        onExportJsonl={handleExportJsonl}
-        onExportFormattedJson={handleExportFormattedJson}
+        onCopyJsonl={onCopyJsonl}
+        onCopyFormattedJson={onCopyFormattedJson}
+        onExportJsonl={onExportJsonl}
+        onExportFormattedJson={onExportFormattedJson}
         onExpandAll={handleExpandAll}
         onCollapseAll={handleCollapseAll}
         hasExpandedStringified={expandedStringifiedPaths.size > 0}
@@ -1019,9 +746,9 @@ export const UnquoteApp = ({
         selectedPath={selectedPath}
         focusedPath={focusedPath}
         onTogglePath={handleTogglePath}
-        onCopyRecord={handleCopyRecord}
+        onCopyRecord={onCopyRecord}
         onCopyRawLine={handleCopyRawLine}
-        onCopyError={handleCopyRecordError}
+        onCopyError={onCopyRecordError}
         onSelectNode={handleSelectNode}
         onActiveRecordChange={handleActiveRecordChange}
         onHydrateRecord={localFileSource.hydrateRecord}
@@ -1048,9 +775,9 @@ export const UnquoteApp = ({
           focusedPath={focusedPath}
           selectedRecordId={selectedRecordId}
           onTogglePath={handleTogglePath}
-          onCopyRecord={handleCopyRecord}
+          onCopyRecord={onCopyRecord}
           onCopyRawLine={handleCopyRawLine}
-          onCopyError={handleCopyRecordError}
+          onCopyError={onCopyRecordError}
           onSelectNode={handleSelectNode}
           onHydrateRecord={localFileSource.hydrateRecord}
           onClearFocus={() => setFocusedPath(null)}
