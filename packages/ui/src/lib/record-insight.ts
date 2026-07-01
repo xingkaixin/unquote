@@ -2,6 +2,8 @@ import type { JsonNode, JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
+import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
+import type { PartialRecordCache } from "./partial-record-cache";
 
 export type RecordInsightKind = "error" | "tool" | "message" | "event";
 
@@ -41,18 +43,8 @@ export interface RecordInsight {
   message?: string;
 }
 
-export type RecordInsightCache = Map<
-  string,
-  {
-    record: JsonlRecord;
-    insight: RecordInsight | null;
-  }
->;
-
 export interface RecordInsightMapState {
-  records: JsonlRecord[] | null;
-  processedLength: number;
-  cache: RecordInsightCache;
+  cache: PartialRecordCache<RecordInsight | null>;
   insights: Map<string, RecordInsight>;
 }
 
@@ -383,54 +375,33 @@ export const createRecordInsight = (record: JsonlRecord): RecordInsight | null =
   };
 };
 
-export const createRecordInsightMap = (records: JsonlRecord[], cache?: RecordInsightCache) => {
+export const createRecordInsightMap = (records: JsonlRecord[]) => {
   const insights = new Map<string, RecordInsight>();
-  const liveRecordIds = new Set<string>();
-
   for (const record of records) {
-    liveRecordIds.add(record.id);
-    const cached = cache?.get(record.id);
-    const insight = cached?.record === record ? cached.insight : createRecordInsight(record);
-    cache?.set(record.id, { record, insight });
+    const insight = createRecordInsight(record);
     if (insight) {
       insights.set(record.id, insight);
     }
   }
-
-  if (cache) {
-    for (const recordId of cache.keys()) {
-      if (!liveRecordIds.has(recordId)) {
-        cache.delete(recordId);
-      }
-    }
-  }
-
   return insights;
 };
 
 export const createRecordInsightMapState = (): RecordInsightMapState => ({
-  records: null,
-  processedLength: 0,
-  cache: new Map(),
+  cache: createPartialRecordCache(),
   insights: new Map(),
 });
 
 export const updateRecordInsightMap = (records: JsonlRecord[], state: RecordInsightMapState) => {
-  if (state.records === records && state.processedLength <= records.length) {
-    for (let index = state.processedLength; index < records.length; index += 1) {
-      const record = records[index]!;
-      const insight = createRecordInsight(record);
-      state.cache.set(record.id, { record, insight });
-      if (insight) {
-        state.insights.set(record.id, insight);
-      }
-    }
-    state.processedLength = records.length;
-    return state.insights;
+  const { rebuilt, processed } = updatePartialRecordCache(records, state.cache, createRecordInsight);
+  if (rebuilt) {
+    state.insights = new Map();
   }
-
-  state.records = records;
-  state.processedLength = records.length;
-  state.insights = createRecordInsightMap(records, state.cache);
+  for (const { record, value } of processed) {
+    if (value) {
+      state.insights.set(record.id, value);
+    } else {
+      state.insights.delete(record.id);
+    }
+  }
   return state.insights;
 };
