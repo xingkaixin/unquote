@@ -1,13 +1,8 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { materializeNode } from "@unquote/core";
-import {
-  appendJsonPathSegment,
-  appendJqSelectorSegment,
-  formatJsonPath,
-  formatJqSelector,
-  parseTreePath,
-} from "./path-codec";
+import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
+import { walkJsonNode } from "./json-walk";
 import type { RecordInsight } from "./record-insight";
 
 export interface TreeRow {
@@ -84,71 +79,37 @@ const pushRows = (
   parentKeyLabel = "$",
   depthOffset = 0,
 ) => {
-  const currentChain = node.wasStringified
-    ? [...stringifiedAncestors, jsonPath]
-    : stringifiedAncestors;
-  const sourceState: NodeSourceState = node.wasStringified
-    ? "stringified"
-    : stringifiedAncestors.length > 0
-      ? "inside-stringified"
-      : "source";
-  const expanded = !node.wasStringified || expandedStringifiedPaths.has(jsonPath);
-  const keyLabel = node.path.at(-1) ?? parentKeyLabel;
-  rows.push({
-    id: `${recordId}:${jsonPath}`,
-    recordId,
-    path: node.path,
-    pathText: jsonPath,
-    jsonPath,
-    jqPath,
-    stringifiedPathChain: [...currentChain],
-    sourceState,
-    depth: Math.max(0, node.path.length - 1 - depthOffset),
-    keyLabel,
-    kind: node.kind,
-    valueLabel: formatValueLabel(node, maxStringValueLabelLength),
-    wasStringified: node.wasStringified,
-    expandable: Boolean(node.children),
-    expanded,
+  walkJsonNode(
     node,
-  });
-
-  if (!node.children || !expanded) {
-    return;
-  }
-
-  if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) => {
-      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-      pushRows(
-        child,
-        rows,
-        expandedStringifiedPaths,
+    (ctx) => {
+      const sourceState: NodeSourceState = ctx.node.wasStringified
+        ? "stringified"
+        : ctx.stringifiedChain.length > 0
+          ? "inside-stringified"
+          : "source";
+      const expanded = !ctx.node.wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+      rows.push({
+        id: `${recordId}:${ctx.jsonPath}`,
         recordId,
-        appendJsonPathSegment(jsonPath, childSegment),
-        appendJqSelectorSegment(jqPath, childSegment),
-        currentChain,
-        String(index),
-        depthOffset,
-      );
-    });
-    return;
-  }
-
-  Object.entries(node.children).forEach(([key, child]) => {
-    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
-    pushRows(
-      child,
-      rows,
-      expandedStringifiedPaths,
-      recordId,
-      appendJsonPathSegment(jsonPath, childSegment),
-      appendJqSelectorSegment(jqPath, childSegment),
-      currentChain,
-      key,
-      depthOffset,
-    );
-  });
+        path: ctx.node.path,
+        pathText: ctx.jsonPath,
+        jsonPath: ctx.jsonPath,
+        jqPath: ctx.jqPath,
+        stringifiedPathChain: [...ctx.stringifiedChain],
+        sourceState,
+        depth: Math.max(0, ctx.node.path.length - 1 - depthOffset),
+        keyLabel: ctx.node.path.at(-1) ?? parentKeyLabel,
+        kind: ctx.node.kind,
+        valueLabel: formatValueLabel(ctx.node, maxStringValueLabelLength),
+        wasStringified: ctx.node.wasStringified,
+        expandable: Boolean(ctx.node.children),
+        expanded,
+        node: ctx.node,
+      });
+      return expanded;
+    },
+    { jsonPath, jqPath, stringifiedAncestors },
+  );
 };
 
 export const buildRecordRows = (
@@ -217,37 +178,16 @@ const collectPaths = (
   output: Set<string>,
   pathText = "$",
 ) => {
-  if (node.wasStringified) {
-    output.add(pathText);
-  }
-
-  const expanded = !node.wasStringified || expandedStringifiedPaths.has(pathText);
-  if (!node.children || !expanded) {
-    return;
-  }
-
-  if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) => {
-      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-      collectPaths(
-        child,
-        expandedStringifiedPaths,
-        output,
-        appendJsonPathSegment(pathText, childSegment),
-      );
-    });
-    return;
-  }
-
-  Object.entries(node.children).forEach(([key, child]) => {
-    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
-    collectPaths(
-      child,
-      expandedStringifiedPaths,
-      output,
-      appendJsonPathSegment(pathText, childSegment),
-    );
-  });
+  walkJsonNode(
+    node,
+    (ctx) => {
+      if (ctx.node.wasStringified) {
+        output.add(ctx.jsonPath);
+      }
+      return !ctx.node.wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+    },
+    { jsonPath: pathText },
+  );
 };
 
 export const collectStringifiedPaths = (
@@ -326,60 +266,28 @@ const searchNode = (
   options: SearchOptions,
   pathText = "$",
 ) => {
-  const currentChain = node.wasStringified
-    ? [...stringifiedAncestors, pathText]
-    : stringifiedAncestors;
+  walkJsonNode(
+    node,
+    (ctx) => {
+      const keyLabel = ctx.node.path.at(-1) ?? "$";
+      const valueLabel = formatValueLabel(ctx.node);
+      const keyRanges = findRanges(keyLabel, pattern);
+      const valueRanges = findRanges(valueLabel, pattern);
+      const pathRanges = options.jq ? findRanges(ctx.jsonPath, pattern) : [];
 
-  const keyLabel = node.path.at(-1) ?? "$";
-  const valueLabel = formatValueLabel(node);
-
-  const keyRanges = findRanges(keyLabel, pattern);
-  const valueRanges = findRanges(valueLabel, pattern);
-  const pathRanges = options.jq ? findRanges(pathText, pattern) : [];
-
-  if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
-    matches.push({
-      recordId,
-      pathText,
-      keyRanges,
-      valueRanges,
-      pathRanges,
-      stringifiedPathChain: [...currentChain],
-    });
-  }
-
-  if (!node.children) {
-    return;
-  }
-
-  if (Array.isArray(node.children)) {
-    node.children.forEach((child, index) => {
-      const childSegment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-      searchNode(
-        child,
-        recordId,
-        pattern,
-        currentChain,
-        matches,
-        options,
-        appendJsonPathSegment(pathText, childSegment),
-      );
-    });
-    return;
-  }
-
-  Object.entries(node.children).forEach(([key, child]) => {
-    const childSegment = { kind: "key", value: key } satisfies TreePathSegment;
-    searchNode(
-      child,
-      recordId,
-      pattern,
-      currentChain,
-      matches,
-      options,
-      appendJsonPathSegment(pathText, childSegment),
-    );
-  });
+      if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
+        matches.push({
+          recordId,
+          pathText: ctx.jsonPath,
+          keyRanges,
+          valueRanges,
+          pathRanges,
+          stringifiedPathChain: [...ctx.stringifiedChain],
+        });
+      }
+    },
+    { jsonPath: pathText, stringifiedAncestors },
+  );
 };
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
