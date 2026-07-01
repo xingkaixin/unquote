@@ -55,4 +55,15 @@ describe("walkJsonNode", () => {
     );
     expect(paths).toEqual(["$.items", "$.items[0]", "$.items[1]"]);
   });
+
+  it("exposes path segments whose last kind distinguishes object vs array members", () => {
+    const node = nodeFrom('{"a":[1]}');
+    const lastKindByPath = new Map<string, string>();
+    walkJsonNode(node, (ctx) => {
+      lastKindByPath.set(ctx.jsonPath, ctx.pathSegments.at(-1)?.kind ?? "root");
+    });
+    expect(lastKindByPath.get("$")).toBe("root");
+    expect(lastKindByPath.get("$.a")).toBe("key");
+    expect(lastKindByPath.get("$.a[0]")).toBe("index");
+  });
 });

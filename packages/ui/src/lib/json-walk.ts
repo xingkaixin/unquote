@@ -10,6 +10,10 @@ export interface JsonWalkContext {
   // path when it is itself stringified — mirrors the previous per-walker
   // `currentChain` computation.
   stringifiedChain: string[];
+  // Path segments to this node; the last segment's `kind` distinguishes an
+  // object member ("key") from an array element ("index"), which field-
+  // classifying walkers rely on.
+  pathSegments: TreePathSegment[];
 }
 
 // Return `false` to skip descending into this node's children; any other value
@@ -21,6 +25,7 @@ export interface JsonWalkStart {
   jsonPath?: string;
   jqPath?: string;
   stringifiedAncestors?: string[];
+  pathSegments?: TreePathSegment[];
 }
 
 // Single traversal primitive for JsonNode trees: walks array/object children,
@@ -36,12 +41,16 @@ export const walkJsonNode = (
     jsonPath: string,
     jqPath: string,
     stringifiedAncestors: string[],
+    pathSegments: TreePathSegment[],
   ) => {
     const stringifiedChain = node.wasStringified
       ? [...stringifiedAncestors, jsonPath]
       : stringifiedAncestors;
 
-    if (visit({ node, jsonPath, jqPath, stringifiedChain }) === false || !node.children) {
+    if (
+      visit({ node, jsonPath, jqPath, stringifiedChain, pathSegments }) === false ||
+      !node.children
+    ) {
       return;
     }
 
@@ -53,6 +62,7 @@ export const walkJsonNode = (
           appendJsonPathSegment(jsonPath, segment),
           appendJqSelectorSegment(jqPath, segment),
           stringifiedChain,
+          [...pathSegments, segment],
         );
       });
       return;
@@ -65,9 +75,16 @@ export const walkJsonNode = (
         appendJsonPathSegment(jsonPath, segment),
         appendJqSelectorSegment(jqPath, segment),
         stringifiedChain,
+        [...pathSegments, segment],
       );
     }
   };
 
-  walk(root, start.jsonPath ?? "$", start.jqPath ?? ".", start.stringifiedAncestors ?? []);
+  walk(
+    root,
+    start.jsonPath ?? "$",
+    start.jqPath ?? ".",
+    start.stringifiedAncestors ?? [],
+    start.pathSegments ?? [],
+  );
 };

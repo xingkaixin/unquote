@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { formatJsonPath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
+import { walkJsonNode } from "./json-walk";
 
 export type RecordInsightKind = "error" | "tool" | "message" | "event";
 
@@ -198,45 +198,37 @@ const addHit = (
 };
 
 const walkNode = (
-  node: JsonNode,
+  root: JsonNode,
   hits: RecordInsightHit[],
   metrics: { nestedJsonCount: number; maxDepth: number },
-  pathSegments: TreePathSegment[] = [],
 ) => {
-  metrics.maxDepth = Math.max(metrics.maxDepth, node.meta.depth);
-  if (node.wasStringified) {
-    metrics.nestedJsonCount += 1;
-  }
-
-  if (!node.children || Array.isArray(node.children)) {
-    if (Array.isArray(node.children)) {
-      node.children.forEach((child, index) =>
-        walkNode(child, hits, metrics, [...pathSegments, { kind: "index", value: String(index) }]),
-      );
+  walkJsonNode(root, (ctx) => {
+    metrics.maxDepth = Math.max(metrics.maxDepth, ctx.node.meta.depth);
+    if (ctx.node.wasStringified) {
+      metrics.nestedJsonCount += 1;
     }
-    return;
-  }
 
-  Object.entries(node.children).forEach(([key, child]) => {
-    const childPathSegments = [...pathSegments, { kind: "key" as const, value: key }];
-    const pathText = formatJsonPath(childPathSegments);
-    const field = classifyInsightField(key, childPathSegments);
-    const primitiveValue = getPrimitiveValue(child);
+    const lastSegment = ctx.pathSegments.at(-1);
+    if (lastSegment?.kind !== "key") {
+      return;
+    }
+
+    const key = lastSegment.value;
+    const field = classifyInsightField(key, ctx.pathSegments);
+    const primitiveValue = getPrimitiveValue(ctx.node);
 
     if (field === "error") {
-      addHit(hits, "error", key, getErrorValue(child), pathText);
+      addHit(hits, "error", key, getErrorValue(ctx.node), ctx.jsonPath);
     } else if (field && primitiveValue !== null) {
-      addHit(hits, field, key, primitiveValue, pathText);
+      addHit(hits, field, key, primitiveValue, ctx.jsonPath);
       if (
         (field === "level" || field === "status" || field === "message") &&
         isErrorLikeValue(primitiveValue) &&
         !isInstructionsText(primitiveValue)
       ) {
-        addHit(hits, "error", key, primitiveValue, pathText);
+        addHit(hits, "error", key, primitiveValue, ctx.jsonPath);
       }
     }
-
-    walkNode(child, hits, metrics, childPathSegments);
   });
 };
 
