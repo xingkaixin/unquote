@@ -329,9 +329,7 @@ describe("UnquoteApp", () => {
 
     await user.click(timelineToolCall);
     await waitFor(() =>
-      expect(screen.getAllByRole("complementary", { name: "Raw JSONL" }).length).toBeGreaterThan(
-        0,
-      ),
+      expect(screen.getAllByRole("complementary", { name: "Raw JSONL" }).length).toBeGreaterThan(0),
     );
     expect(timelineToolCall).toHaveAttribute("aria-pressed", "true");
     expect(conversationToolCall).toHaveAttribute("aria-pressed", "true");

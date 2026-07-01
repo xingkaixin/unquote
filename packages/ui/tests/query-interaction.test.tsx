@@ -15,9 +15,7 @@ const errPath = (reason: "invalid" | "not-found"): ResolvePathResult => ({
   targets: [],
 });
 
-const makeCtx = (
-  overrides: Partial<QueryInteractionContext> = {},
-): QueryInteractionContext => ({
+const makeCtx = (overrides: Partial<QueryInteractionContext> = {}): QueryInteractionContext => ({
   visibleRecords: [],
   allRecords: [],
   resolvePath: (): ResolvePathResult => ({ ok: false, reason: "not-found", targets: [] }),
@@ -70,7 +68,12 @@ describe("query-interaction", () => {
 
   it("clears every query field on clear", () => {
     const state = reduceQueryInteraction(
-      { ...createInitialQueryInteractionState(), searchQuery: "x", pathQuery: "$", pathMatches: [] },
+      {
+        ...createInitialQueryInteractionState(),
+        searchQuery: "x",
+        pathQuery: "$",
+        pathMatches: [],
+      },
       { type: "clearToolbarQuery" },
       makeCtx(),
     );
@@ -82,7 +85,11 @@ describe("query-interaction", () => {
 
   it("enforces jq and regex mutual exclusion in both directions", () => {
     const base = createInitialQueryInteractionState();
-    const afterJq = reduceQueryInteraction(base, { type: "setSearchOption", kind: "jq", on: true }, makeCtx());
+    const afterJq = reduceQueryInteraction(
+      base,
+      { type: "setSearchOption", kind: "jq", on: true },
+      makeCtx(),
+    );
     expect(afterJq.searchJq).toBe(true);
     expect(afterJq.searchRegex).toBe(false);
 
@@ -96,12 +103,20 @@ describe("query-interaction", () => {
     expect(afterRegex.searchJq).toBe(false);
 
     // Turning jq back on clears regex again.
-    const back = reduceQueryInteraction(afterRegex, { type: "setSearchOption", kind: "jq", on: true }, makeCtx());
+    const back = reduceQueryInteraction(
+      afterRegex,
+      { type: "setSearchOption", kind: "jq", on: true },
+      makeCtx(),
+    );
     expect(back.searchJq).toBe(true);
     expect(back.searchRegex).toBe(false);
 
     // caseSensitive is independent.
-    const cs = reduceQueryInteraction(base, { type: "setSearchOption", kind: "caseSensitive", on: true }, makeCtx());
+    const cs = reduceQueryInteraction(
+      base,
+      { type: "setSearchOption", kind: "caseSensitive", on: true },
+      makeCtx(),
+    );
     expect(cs.searchCaseSensitive).toBe(true);
     expect(cs.searchJq).toBe(false);
   });

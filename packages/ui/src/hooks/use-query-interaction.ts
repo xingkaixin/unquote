@@ -78,9 +78,7 @@ const NAVIGATING_ACTIONS = new Set<QueryInteractionAction["type"]>([
   "nextPathMatch",
 ]);
 
-export const useQueryInteraction = (
-  options: UseQueryInteractionOptions,
-): QueryInteraction => {
+export const useQueryInteraction = (options: UseQueryInteractionOptions): QueryInteraction => {
   const { allRecords, translateError, visibleRecordsRef, matchCountRef, visibleMatchesRef } =
     options;
 
@@ -211,7 +209,14 @@ export const useQueryInteraction = (
       return { kind: "search", matchIndex: state.currentMatchIndex, version: navVersion };
     }
     return null;
-  }, [mode, state.pathMatches, state.currentPathMatchIndex, state.currentMatchIndex, visibleMatches, navVersion]);
+  }, [
+    mode,
+    state.pathMatches,
+    state.currentPathMatchIndex,
+    state.currentMatchIndex,
+    visibleMatches,
+    navVersion,
+  ]);
 
   return {
     state,

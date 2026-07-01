@@ -36,11 +36,7 @@ import {
   searchRecords,
 } from "./lib/tree";
 import { sourceSamples } from "./lib/source-samples";
-import type {
-  ResolvedTreePath,
-  SearchOptions,
-  TreeRow,
-} from "./lib/tree";
+import type { ResolvedTreePath, SearchOptions, TreeRow } from "./lib/tree";
 
 // Copy builds one giant string and hands it to the clipboard API, which freezes
 // the main thread on large data. Export streams via Blob(parts[]) and is safe.
@@ -195,8 +191,7 @@ export const UnquoteApp = ({
 
   const qi = useQueryInteraction({
     allRecords: result.records,
-    translateError: (reason) =>
-      t(reason === "invalid" ? "path.invalid" : "path.notFound"),
+    translateError: (reason) => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     visibleRecordsRef,
     matchCountRef,
     visibleMatchesRef,
@@ -400,7 +395,8 @@ export const UnquoteApp = ({
     }
 
     setFocusedPath((current) =>
-      current && (current.recordId !== match.recordId || !isPathInsideFocus(match.pathText, current.pathText))
+      current &&
+      (current.recordId !== match.recordId || !isPathInsideFocus(match.pathText, current.pathText))
         ? null
         : current,
     );

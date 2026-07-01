@@ -70,9 +70,7 @@ export const TocPane = ({
                           #{record.lineNumber}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span
-                            className={`nf-led ${parsed ? "is-green is-static" : "is-red"}`}
-                          />
+                          <span className={`nf-led ${parsed ? "is-green is-static" : "is-red"}`} />
                           <Badge variant={variant}>{parsed ? "ok" : "err"}</Badge>
                         </span>
                       </div>

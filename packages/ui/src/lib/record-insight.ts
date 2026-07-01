@@ -435,10 +435,7 @@ export const createRecordInsightMapState = (): RecordInsightMapState => ({
   insights: new Map(),
 });
 
-export const updateRecordInsightMap = (
-  records: JsonlRecord[],
-  state: RecordInsightMapState,
-) => {
+export const updateRecordInsightMap = (records: JsonlRecord[], state: RecordInsightMapState) => {
   if (state.records === records && state.processedLength <= records.length) {
     for (let index = state.processedLength; index < records.length; index += 1) {
       const record = records[index]!;

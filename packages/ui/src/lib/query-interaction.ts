@@ -241,8 +241,8 @@ export const reduceQueryInteraction = (
       if (state.pathMatches.length === 0) {
         return state;
       }
-      const next = (state.currentPathMatchIndex - 1 + state.pathMatches.length) %
-        state.pathMatches.length;
+      const next =
+        (state.currentPathMatchIndex - 1 + state.pathMatches.length) % state.pathMatches.length;
       return { ...state, currentPathMatchIndex: next };
     }
 
