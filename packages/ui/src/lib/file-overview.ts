@@ -2,6 +2,8 @@ import type { JsonNode, JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
+import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
+import type { PartialRecordCache } from "./partial-record-cache";
 
 export type OverviewField = "event" | "type" | "tool";
 
@@ -43,18 +45,8 @@ interface RecordOverviewSummary {
   error?: OverviewError;
 }
 
-export type FileOverviewCache = Map<
-  string,
-  {
-    record: JsonlRecord;
-    summary: RecordOverviewSummary;
-  }
->;
-
 export interface FileOverviewState {
-  records: JsonlRecord[] | null;
-  processedLength: number;
-  cache: FileOverviewCache;
+  cache: PartialRecordCache<RecordOverviewSummary>;
   nestedPathCounts: Map<string, number>;
   fieldValues: Map<string, OverviewFieldValue>;
   errors: OverviewError[];
@@ -175,7 +167,14 @@ const createEmptyFileOverviewState = (): Omit<
   maxDepth: 0,
 });
 
-const addSummaryToState = (state: FileOverviewState, summary: RecordOverviewSummary) => {
+const addSummaryToState = (
+  state: FileOverviewState,
+  record: JsonlRecord,
+  summary: RecordOverviewSummary,
+) => {
+  if (record.node || record.deferred) {
+    state.success += 1;
+  }
   if (summary.hasNestedJson) {
     state.nestedRecords += 1;
   }
@@ -189,16 +188,6 @@ const addSummaryToState = (state: FileOverviewState, summary: RecordOverviewSumm
   if (summary.error) {
     state.errors.push(summary.error);
   }
-};
-
-const addRecordToState = (state: FileOverviewState, record: JsonlRecord) => {
-  if (record.node || record.deferred) {
-    state.success += 1;
-  }
-  const cached = state.cache.get(record.id);
-  const summary = cached?.record === record ? cached.summary : summarizeRecord(record);
-  state.cache.set(record.id, { record, summary });
-  addSummaryToState(state, summary);
 };
 
 const toFileOverview = (state: FileOverviewState, total: number): FileOverview => {
@@ -224,37 +213,18 @@ const toFileOverview = (state: FileOverviewState, total: number): FileOverview =
 };
 
 export const createFileOverviewState = (): FileOverviewState => ({
-  records: null,
-  processedLength: 0,
-  cache: new Map(),
+  cache: createPartialRecordCache(),
   ...createEmptyFileOverviewState(),
 });
 
-export const createFileOverview = (
-  records: JsonlRecord[],
-  cache?: FileOverviewCache,
-): FileOverview => {
+export const createFileOverview = (records: JsonlRecord[]): FileOverview => {
   const state: FileOverviewState = {
-    records,
-    processedLength: 0,
-    cache: cache ?? new Map(),
+    cache: createPartialRecordCache(),
     ...createEmptyFileOverviewState(),
   };
-  const liveRecordIds = new Set<string>();
-
   for (const record of records) {
-    liveRecordIds.add(record.id);
-    addRecordToState(state, record);
+    addSummaryToState(state, record, summarizeRecord(record));
   }
-
-  if (cache) {
-    for (const recordId of cache.keys()) {
-      if (!liveRecordIds.has(recordId)) {
-        cache.delete(recordId);
-      }
-    }
-  }
-
   return toFileOverview(state, records.length);
 };
 
@@ -262,17 +232,12 @@ export const updateFileOverview = (
   records: JsonlRecord[],
   state: FileOverviewState,
 ): FileOverview => {
-  if (state.records !== records || state.processedLength > records.length) {
-    state.records = records;
-    state.processedLength = 0;
-    state.cache.clear();
+  const { rebuilt, processed } = updatePartialRecordCache(records, state.cache, summarizeRecord);
+  if (rebuilt) {
     Object.assign(state, createEmptyFileOverviewState());
   }
-
-  for (let index = state.processedLength; index < records.length; index += 1) {
-    addRecordToState(state, records[index]!);
+  for (const { record, value } of processed) {
+    addSummaryToState(state, record, value);
   }
-  state.processedLength = records.length;
-
   return toFileOverview(state, records.length);
 };
