@@ -1,6 +1,7 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
+import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
 
 export type OverviewField = "event" | "type" | "tool";
 
@@ -69,13 +70,11 @@ const addCount = (counts: Map<string, number>, key: string, count = 1) => {
   counts.set(key, (counts.get(key) ?? 0) + count);
 };
 
-const normalizeKey = (key: string) => key.replace(/[-_\s]/g, "").toLowerCase();
-
 const classifyOverviewField = (
   key: string,
   pathSegments: TreePathSegment[],
 ): OverviewField | null => {
-  const normalized = normalizeKey(key);
+  const normalized = normalizeKey(key, false);
   if (normalized === "event" || normalized === "action") {
     return "event";
   }
@@ -89,17 +88,7 @@ const classifyOverviewField = (
     return null;
   }
 
-  return pathSegments.slice(0, -1).some((segment) => /tool|function/i.test(segment.value))
-    ? "tool"
-    : null;
-};
-
-const getFieldValue = (node: JsonNode) => {
-  if (node.kind === "object" || node.kind === "array") {
-    return null;
-  }
-
-  return node.kind === "string" ? (node.value as string) : String(node.value);
+  return isToolContext(pathSegments.slice(0, -1)) ? "tool" : null;
 };
 
 const fieldValueKey = (item: Omit<OverviewFieldValue, "count">) =>
@@ -134,7 +123,7 @@ const walkNode = (root: JsonNode, summary: RecordOverviewSummary) => {
     }
 
     const field = classifyOverviewField(lastSegment.value, ctx.pathSegments);
-    const value = field ? getFieldValue(ctx.node) : null;
+    const value = field ? getPrimitiveValue(ctx.node) : null;
     if (field && value !== null) {
       addFieldValue(summary.fieldValues, { field, pathText: ctx.jsonPath, value });
     }
