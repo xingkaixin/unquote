@@ -1,6 +1,4 @@
-import type { Messages } from "./i18n";
-
-export const en: Messages = {
+export const en = {
   "app.tab.input": "Input",
   "app.tab.output": "Output",
   "app.tab.agent": "Agent",
@@ -150,4 +148,9 @@ export const en: Messages = {
   "path.jump": "Jump to path",
   "path.invalid": "Invalid path syntax",
   "path.notFound": "No path match",
-};
+} as const;
+
+// en is the canonical schema: the key set and Messages type derive from it, so
+// a new message is edited in en + zh-CN only (no separate interface to sync).
+export type Messages = Record<keyof typeof en, string>;
+export type MessageKey = keyof typeof en;

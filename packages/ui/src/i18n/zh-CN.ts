@@ -1,4 +1,4 @@
-import type { Messages } from "./i18n";
+import type { Messages } from "./en";
 
 export const zhCN: Messages = {
   "app.tab.input": "输入",
