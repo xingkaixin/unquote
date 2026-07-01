@@ -31,11 +31,7 @@ export interface JsonWalkStart {
 // Single traversal primitive for JsonNode trees: walks array/object children,
 // builds the $.json / .jq paths incrementally, and threads the stringified
 // chain. Callers supply only per-node logic via the visitor.
-export const walkJsonNode = (
-  root: JsonNode,
-  visit: JsonNodeVisitor,
-  start: JsonWalkStart = {},
-) => {
+export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) => {
   const walk = (
     node: JsonNode,
     jsonPath: string,
