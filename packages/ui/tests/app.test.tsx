@@ -671,6 +671,30 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 
+  it("surfaces an error toast and restores prior text when a file read fails", async () => {
+    const onReadFile = vi.fn().mockRejectedValue(new Error("boom"));
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+
+    const file = new File(['{"new":true}'], "payload.json", { type: "application/json" });
+    fireEvent.paste(sourceInput, {
+      clipboardData: { files: [file], items: [], types: ["Files"] },
+    });
+
+    // The read rejects: an error toast surfaces (the hook no longer rethrows, so
+    // there is no unhandled rejection) and the prior source text is restored.
+    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
+    expect((await screen.findAllByText("Failed to read file")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(sourceInput).toHaveValue('{"old":true}'));
+  });
+
   it("searches full string content in streamed JSONL files", async () => {
     const user = userEvent.setup();
     render(
