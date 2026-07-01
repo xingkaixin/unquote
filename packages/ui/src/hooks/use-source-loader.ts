@@ -23,6 +23,10 @@ interface UseSourceLoaderParams {
   // parse/query pipeline downstream) exists.
   onReset: () => void;
   onCollapseSource: () => void;
+  // Called when a file read fails, so the caller can surface it (e.g. a toast).
+  // The hook does not rethrow — InputPane invokes onFileDrop fire-and-forget,
+  // so a throw here would become an unhandled rejection with no user feedback.
+  onError: (error: unknown) => void;
 }
 
 export const useSourceLoader = ({
@@ -31,6 +35,7 @@ export const useSourceLoader = ({
   onRequestOpenFile,
   onReset,
   onCollapseSource,
+  onError,
 }: UseSourceLoaderParams) => {
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
@@ -90,7 +95,8 @@ export const useSourceLoader = ({
           prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
         );
       }
-      throw error;
+      onError(error);
+      return;
     }
 
     if (fileImportIdRef.current !== requestId) {

@@ -1,4 +1,5 @@
 import { materializeNode } from "@unquote/core";
+import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { Chrome, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -156,6 +157,7 @@ export const UnquoteApp = ({
     onRequestOpenFile: onOpenFile,
     onReset: () => resetDerivedStateRef.current(),
     onCollapseSource: () => setSourceCollapsed(true),
+    onError: () => toast.error(t("input.readFailed")),
   });
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);

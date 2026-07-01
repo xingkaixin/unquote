@@ -96,6 +96,7 @@ export const en: Messages = {
   "input.readingFile": "Reading {name} · {size}",
   "input.parsingFile": "Parsing {name} · {size} · {processed} lines processed",
   "input.loadedFile": "{name} · {size} · {processed} lines processed",
+  "input.readFailed": "Failed to read file",
   "input.parseErrorTitle": "JSON parse failed",
   "input.parseErrorMode": "Parsed as {format}",
   "samples.label": "Samples",

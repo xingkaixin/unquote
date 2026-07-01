@@ -96,6 +96,7 @@ export const zhCN: Messages = {
   "input.readingFile": "正在读取 {name} · {size}",
   "input.parsingFile": "正在解析 {name} · {size} · 已处理 {processed} 行",
   "input.loadedFile": "{name} · {size} · 已处理 {processed} 行",
+  "input.readFailed": "文件读取失败",
   "input.parseErrorTitle": "JSON 解析失败",
   "input.parseErrorMode": "按 {format} 解析",
   "samples.label": "样例",

@@ -96,6 +96,7 @@ export interface Messages {
   readonly "input.readingFile": string;
   readonly "input.parsingFile": string;
   readonly "input.loadedFile": string;
+  readonly "input.readFailed": string;
   readonly "input.parseErrorTitle": string;
   readonly "input.parseErrorMode": string;
   readonly "samples.label": string;
