@@ -392,7 +392,11 @@ export const createRecordInsightMapState = (): RecordInsightMapState => ({
 });
 
 export const updateRecordInsightMap = (records: JsonlRecord[], state: RecordInsightMapState) => {
-  const { rebuilt, processed } = updatePartialRecordCache(records, state.cache, createRecordInsight);
+  const { rebuilt, processed } = updatePartialRecordCache(
+    records,
+    state.cache,
+    createRecordInsight,
+  );
   if (rebuilt) {
     state.insights = new Map();
   }
