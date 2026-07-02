@@ -17,6 +17,7 @@ import { resolveTreePathMatches } from "../lib/tree";
 export interface PathNavigationTarget {
   recordId: string;
   pathText: string;
+  rawKey: string;
   stringifiedPathChain: string[];
   kind: "path";
   version: number;
@@ -200,6 +201,7 @@ export const useQueryInteraction = (options: UseQueryInteractionOptions): QueryI
       return {
         recordId: target.recordId,
         pathText: target.pathText,
+        rawKey: target.rawKey,
         stringifiedPathChain: target.stringifiedPathChain,
         kind: "path",
         version: navVersion,
