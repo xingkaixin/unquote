@@ -26,7 +26,6 @@ import { useSourceLoader } from "./hooks/use-source-loader";
 import { markPerf, measurePerfFn } from "./lib/perf";
 import {
   collectStringifiedPaths,
-  getRenderedRecord,
   hasJsonlRecords,
   resolveTreePath,
 } from "./lib/tree";
@@ -529,9 +528,8 @@ export const UnquoteApp = ({
 
     const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
     const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
-    const renderedRecord = copyRecord ? getRenderedRecord(copyRecord) : null;
-    const resolved = renderedRecord?.node
-      ? resolveTreePath([renderedRecord], selectedPath.pathText)
+    const resolved = copyRecord?.node
+      ? resolveTreePath([copyRecord], selectedPath.pathText)
       : null;
 
     return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
