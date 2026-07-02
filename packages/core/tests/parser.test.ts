@@ -32,6 +32,13 @@ describe("parseInput", () => {
     expect(result.records[1]?.error).toBeTruthy();
   });
 
+  it("keeps forced json as a single error record for jsonl-shaped input", () => {
+    const result = parseInput('{"a":1}\n{"a":2}', { forcedFormat: "json" });
+    expect(result.format).toBe("json");
+    expect(result.stats).toEqual({ total: 1, success: 0, failed: 1 });
+    expect(result.records[0]?.error).toBeTruthy();
+  });
+
   it("returns json parse error metadata", () => {
     const result = parseInput("{\n bad\n}");
     const record = result.records[0];

@@ -145,7 +145,10 @@ export const parseJsonlRecordLine = (
   }
 };
 
-const parseJsonlRecords = (input: string, maxDepth: number, strict = false) => {
+// Strict pass: every non-empty line must parse, otherwise the whole input is
+// not (clean) JSONL. Returns a full result only for >1 records, mirroring the
+// auto-detection rule that a single line is treated as plain JSON.
+const parseStrictJsonlResult = (input: string, maxDepth: number): ParseResult | null => {
   const records: JsonlRecord[] = [];
 
   for (const [index, line] of input.split(/\r?\n/).entries()) {
@@ -154,116 +157,32 @@ const parseJsonlRecords = (input: string, maxDepth: number, strict = false) => {
     }
 
     const record = parseJsonlRecordLine(line, index + 1, { maxDepth });
-    if (record.node) {
-      records.push(record);
-    } else {
-      if (strict) {
-        return null;
-      }
-
-      records.push(record);
+    if (!record.node) {
+      return null;
     }
+
+    records.push(record);
+  }
+
+  return records.length > 1 ? buildJsonlResult(records) : null;
+};
+
+// Loose pass: keep every line, failed ones become error records.
+const parseLooseJsonlRecords = (input: string, maxDepth: number): JsonlRecord[] => {
+  const records: JsonlRecord[] = [];
+
+  for (const [index, line] of input.split(/\r?\n/).entries()) {
+    if (!line.trim()) {
+      continue;
+    }
+
+    records.push(parseJsonlRecordLine(line, index + 1, { maxDepth }));
   }
 
   return records;
 };
 
-export const detectFormat = (input: string): "json" | "jsonl" =>
-  probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
-
-export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const normalized = input.trim();
-  const format = options.forcedFormat ?? "json";
-
-  if (!normalized) {
-    return {
-      format: options.forcedFormat ?? detectFormat(input),
-      records: [],
-      stats: { total: 0, success: 0, failed: 0 },
-    };
-  }
-
-  if (!options.forcedFormat) {
-    const jsonlRecords = parseJsonlRecords(input, maxDepth, true);
-    if (jsonlRecords && jsonlRecords.length > 1) {
-      return {
-        format: "jsonl",
-        records: jsonlRecords,
-        stats: { total: jsonlRecords.length, success: jsonlRecords.length, failed: 0 },
-      };
-    }
-
-    try {
-      const parsed = parseJson(input);
-      return {
-        format: "json",
-        records: [createRecord(parsed, 1, maxDepth)],
-        stats: { total: 1, success: 1, failed: 0 },
-      };
-    } catch (error) {
-      const looseJsonlRecords = parseJsonlRecords(input, maxDepth) ?? [];
-      const jsonlSuccess = looseJsonlRecords.filter((record) => record.node).length;
-      if (looseJsonlRecords.length > 1 && jsonlSuccess > 0) {
-        return {
-          format: "jsonl",
-          records: looseJsonlRecords,
-          stats: {
-            total: looseJsonlRecords.length,
-            success: jsonlSuccess,
-            failed: looseJsonlRecords.length - jsonlSuccess,
-          },
-        };
-      }
-
-      const errorMeta = getParseErrorMeta(input, error);
-      return {
-        format,
-        records: [
-          {
-            id: "record-1",
-            lineNumber: 1,
-            node: null,
-            error: getErrorMessage(error),
-            errorMeta,
-            rawLine: errorMeta.rawLine,
-            summary: "Parse error",
-          },
-        ],
-        stats: { total: 1, success: 0, failed: 1 },
-      };
-    }
-  }
-
-  if (format === "json") {
-    try {
-      const parsed = parseJson(input);
-      return {
-        format: "json",
-        records: [createRecord(parsed, 1, maxDepth)],
-        stats: { total: 1, success: 1, failed: 0 },
-      };
-    } catch (error) {
-      const errorMeta = getParseErrorMeta(input, error);
-      return {
-        format,
-        records: [
-          {
-            id: "record-1",
-            lineNumber: 1,
-            node: null,
-            error: getErrorMessage(error),
-            errorMeta,
-            rawLine: errorMeta.rawLine,
-            summary: "Parse error",
-          },
-        ],
-        stats: { total: 1, success: 0, failed: 1 },
-      };
-    }
-  }
-
-  const records = parseJsonlRecords(input, maxDepth) ?? [];
+const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
   const success = records.filter((record) => record.node).length;
   return {
     format: "jsonl",
@@ -274,6 +193,75 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
       failed: records.length - success,
     },
   };
+};
+
+const parseSingleJsonResult = (input: string, maxDepth: number): ParseResult => {
+  try {
+    const parsed = parseJson(input);
+    return {
+      format: "json",
+      records: [createRecord(parsed, 1, maxDepth)],
+      stats: { total: 1, success: 1, failed: 0 },
+    };
+  } catch (error) {
+    const errorMeta = getParseErrorMeta(input, error);
+    return {
+      format: "json",
+      records: [
+        {
+          id: "record-1",
+          lineNumber: 1,
+          node: null,
+          error: getErrorMessage(error),
+          errorMeta,
+          rawLine: errorMeta.rawLine,
+          summary: "Parse error",
+        },
+      ],
+      stats: { total: 1, success: 0, failed: 1 },
+    };
+  }
+};
+
+export const detectFormat = (input: string): "json" | "jsonl" =>
+  probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
+
+export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
+  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+
+  if (!input.trim()) {
+    return {
+      format: options.forcedFormat ?? detectFormat(input),
+      records: [],
+      stats: { total: 0, success: 0, failed: 0 },
+    };
+  }
+
+  if (options.forcedFormat === "json") {
+    return parseSingleJsonResult(input, maxDepth);
+  }
+
+  if (options.forcedFormat === "jsonl") {
+    return buildJsonlResult(parseLooseJsonlRecords(input, maxDepth));
+  }
+
+  // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
+  const strict = parseStrictJsonlResult(input, maxDepth);
+  if (strict) {
+    return strict;
+  }
+
+  const single = parseSingleJsonResult(input, maxDepth);
+  if (single.stats.success > 0) {
+    return single;
+  }
+
+  const loose = parseLooseJsonlRecords(input, maxDepth);
+  if (loose.length > 1 && loose.some((record) => record.node)) {
+    return buildJsonlResult(loose);
+  }
+
+  return single;
 };
 
 export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode => {
