@@ -573,6 +573,29 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("10"));
   });
 
+  it("shows an error toast when the clipboard write fails", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"payload":1}'} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+    await user.click(screen.getAllByText("payload")[0]!);
+
+    await user.keyboard("{Control>}c{/Control}");
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect((await screen.findAllByText("Copy failed")).length).toBeGreaterThan(0);
+  });
+
   it("copies selections whose key contains regex metacharacters", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

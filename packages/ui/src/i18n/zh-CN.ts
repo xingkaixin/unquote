@@ -15,6 +15,7 @@ export const zhCN: Messages = {
   "toolbar.copyJsonl": "复制 JSONL",
   "toolbar.copyFormattedJson": "复制格式化 JSON",
   "toolbar.copyBlocked": "数据过大，无法复制——请改用导出",
+  "copy.failed": "复制失败",
   "toolbar.exporting": "导出中…",
   "toolbar.exportDone": "文件已导出",
   "toolbar.exportFailed": "导出失败",

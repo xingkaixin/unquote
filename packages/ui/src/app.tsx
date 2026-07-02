@@ -35,6 +35,7 @@ import {
   resolveTreePath,
   searchRecords,
 } from "./lib/tree";
+import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath } from "./lib/path-codec";
 import { sourceSamples } from "./lib/source-samples";
 import type { SearchOptions, TreeRow } from "./lib/tree";
@@ -146,6 +147,7 @@ export const UnquoteApp = ({
     onReset: () => resetDerivedStateRef.current(),
     onCollapseSource: () => setSourceCollapsed(true),
     onError: () => toast.error(t("input.readFailed")),
+    onCopyError: () => toast.error(t("copy.failed")),
   });
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -274,7 +276,9 @@ export const UnquoteApp = ({
     [searchCaseSensitive, searchJq, searchRegex],
   );
 
-  const localFileSource = useLocalFileSource(sourceFile, searchQuery, searchOptions);
+  const localFileSource = useLocalFileSource(sourceFile, searchQuery, searchOptions, () =>
+    toast.error(t("input.readFailed")),
+  );
 
   const inMemoryMatches = useMemo(() => {
     if (!searchQuery || sourceFile) return null;
@@ -567,14 +571,21 @@ export const UnquoteApp = ({
   };
 
   const handleCopySelectedSubtree = async () => {
-    const context = await getSelectedNodeContext();
+    let context: Awaited<ReturnType<typeof getSelectedNodeContext>>;
+    try {
+      context = await getSelectedNodeContext();
+    } catch {
+      toast.error(t("input.readFailed"));
+      return;
+    }
     if (!context || !selectedPath) {
       return;
     }
 
-    await navigator.clipboard.writeText(
-      formatSelectionCopy(selectedPath, materializeNode(context.target.node)),
-    );
+    const text = formatSelectionCopy(selectedPath, materializeNode(context.target.node));
+    if (!(await writeClipboardText(text))) {
+      toast.error(t("copy.failed"));
+    }
   };
 
   useEffect(() => {
