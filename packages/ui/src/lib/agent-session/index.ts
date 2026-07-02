@@ -42,17 +42,8 @@ const selectAdapter = (samples: ParsedAgentLine[], minScore: number) => {
   return bestAdapter && bestScore >= minScore ? bestAdapter : null;
 };
 
-export const detectAgentSession = (samples: ParsedAgentLine[]) => {
-  const adapter = selectAdapter(samples, finalDetectionScore);
-  if (!adapter) {
-    return null;
-  }
-
-  if (adapter === codexRolloutAdapter) {
-    return "Codex" as const;
-  }
-  return "Claude Code" as const;
-};
+export const detectAgentSession = (samples: ParsedAgentLine[]) =>
+  selectAdapter(samples, finalDetectionScore)?.fileType ?? null;
 
 export const createAgentSessionTracker = (fileName?: string) => {
   const samples: ParsedAgentLine[] = [];

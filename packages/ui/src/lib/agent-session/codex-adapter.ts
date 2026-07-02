@@ -433,6 +433,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
 };
 
 export const codexRolloutAdapter: AgentSessionAdapter = {
+  fileType: "Codex",
   detect(samples) {
     if (samples.length === 0) {
       return 0;
