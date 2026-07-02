@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
-import { isArrayElementPath } from "../lib/path-codec";
+import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
 import { buildRecordRows } from "../lib/tree";
@@ -299,7 +299,7 @@ export const JsonTree = ({
               const isActive =
                 row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
               const isSelected = selectedPath
-                ? isPathInSelection(row.source.pathText, selectedPath.pathText)
+                ? isPathWithin(row.source.pathText, selectedPath.pathText)
                 : false;
               const isSelectedAnchor = selectedPath?.pathText === row.source.pathText;
 
@@ -337,7 +337,7 @@ export const JsonTree = ({
               const isActive =
                 row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
               const isSelected = selectedPath
-                ? isPathInSelection(row.source.pathText, selectedPath.pathText)
+                ? isPathWithin(row.source.pathText, selectedPath.pathText)
                 : false;
               const isSelectedAnchor = selectedPath?.pathText === row.source.pathText;
               return (
@@ -542,11 +542,6 @@ const buildDisplayRows = (rows: TreeRow[]): DisplayTreeRow[] => {
 
   return displayRows;
 };
-
-const isPathInSelection = (pathText: string, selectedPath: string) =>
-  pathText === selectedPath ||
-  pathText.startsWith(`${selectedPath}.`) ||
-  pathText.startsWith(`${selectedPath}[`);
 
 interface RowItemProps {
   row: DisplayTreeRow;

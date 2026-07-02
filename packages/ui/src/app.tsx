@@ -30,7 +30,7 @@ import {
   resolveTreePath,
 } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
-import { isArrayElementPath } from "./lib/path-codec";
+import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { sourceSamples } from "./lib/source-samples";
 import type { SearchOptions, TreeRow } from "./lib/tree";
 
@@ -89,11 +89,6 @@ const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
 };
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
-
-const isPathInsideFocus = (pathText: string, focusedPath: string) =>
-  pathText === focusedPath ||
-  pathText.startsWith(`${focusedPath}.`) ||
-  pathText.startsWith(`${focusedPath}[`);
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -321,7 +316,7 @@ export const UnquoteApp = ({
       !focusedPath ||
       !activeMatch ||
       (focusedPath.recordId === activeMatch.recordId &&
-        isPathInsideFocus(activeMatch.pathText, focusedPath.pathText))
+        isPathWithin(activeMatch.pathText, focusedPath.pathText))
     ) {
       return;
     }
@@ -331,7 +326,7 @@ export const UnquoteApp = ({
 
   const scrollToPath = (recordId: string, pathText: string) => {
     setFocusedPath((current) =>
-      current && (current.recordId !== recordId || !isPathInsideFocus(pathText, current.pathText))
+      current && (current.recordId !== recordId || !isPathWithin(pathText, current.pathText))
         ? null
         : current,
     );
@@ -347,7 +342,7 @@ export const UnquoteApp = ({
 
     setFocusedPath((current) =>
       current &&
-      (current.recordId !== match.recordId || !isPathInsideFocus(match.pathText, current.pathText))
+      (current.recordId !== match.recordId || !isPathWithin(match.pathText, current.pathText))
         ? null
         : current,
     );
