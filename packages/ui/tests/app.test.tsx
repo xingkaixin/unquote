@@ -108,6 +108,9 @@ Object.assign(globalThis, {
       this.onmessage = listener;
     }
     removeEventListener() {}
+    terminate() {
+      this.onmessage = null;
+    }
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
       Promise.all([import("@unquote/core"), import("../src/lib/agent-session")]).then(
         ([{ parseInput }, { createAgentSessionFromText }]) => {

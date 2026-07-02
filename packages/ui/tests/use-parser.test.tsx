@@ -33,6 +33,10 @@ class MockWorker {
     this.listener = null;
   }
 
+  terminate() {
+    this.listener = null;
+  }
+
   postMessage(payload: { type: string; requestId: number; input?: string; chunk?: string }) {
     if (payload.type === "start-jsonl") {
       return;
