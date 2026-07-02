@@ -37,10 +37,10 @@ describe("query-interaction", () => {
   });
 
   it("routes a path-like toolbar change into path mode", () => {
-    const state = reduceQueryInteraction(
-      createInitialQueryInteractionState(),
-      { type: "toolbarQueryChange", value: "$.payload" },
-    );
+    const state = reduceQueryInteraction(createInitialQueryInteractionState(), {
+      type: "toolbarQueryChange",
+      value: "$.payload",
+    });
     expect(state.toolbarQuery).toBe("$.payload");
     expect(state.pathQuery).toBe("$.payload");
     expect(state.searchQuery).toBe("");
@@ -48,10 +48,10 @@ describe("query-interaction", () => {
   });
 
   it("routes a text toolbar change into search mode", () => {
-    const state = reduceQueryInteraction(
-      createInitialQueryInteractionState(),
-      { type: "toolbarQueryChange", value: "needle" },
-    );
+    const state = reduceQueryInteraction(createInitialQueryInteractionState(), {
+      type: "toolbarQueryChange",
+      value: "needle",
+    });
     expect(state.searchQuery).toBe("needle");
     expect(state.pathQuery).toBe("");
   });
@@ -74,34 +74,34 @@ describe("query-interaction", () => {
 
   it("enforces jq and regex mutual exclusion in both directions", () => {
     const base = createInitialQueryInteractionState();
-    const afterJq = reduceQueryInteraction(
-      base,
-      { type: "setSearchOption", kind: "jq", on: true },
-    );
+    const afterJq = reduceQueryInteraction(base, { type: "setSearchOption", kind: "jq", on: true });
     expect(afterJq.searchJq).toBe(true);
     expect(afterJq.searchRegex).toBe(false);
 
     // Turning regex on while jq is on clears jq.
-    const afterRegex = reduceQueryInteraction(
-      afterJq,
-      { type: "setSearchOption", kind: "regex", on: true },
-    );
+    const afterRegex = reduceQueryInteraction(afterJq, {
+      type: "setSearchOption",
+      kind: "regex",
+      on: true,
+    });
     expect(afterRegex.searchRegex).toBe(true);
     expect(afterRegex.searchJq).toBe(false);
 
     // Turning jq back on clears regex again.
-    const back = reduceQueryInteraction(
-      afterRegex,
-      { type: "setSearchOption", kind: "jq", on: true },
-    );
+    const back = reduceQueryInteraction(afterRegex, {
+      type: "setSearchOption",
+      kind: "jq",
+      on: true,
+    });
     expect(back.searchJq).toBe(true);
     expect(back.searchRegex).toBe(false);
 
     // caseSensitive is independent.
-    const cs = reduceQueryInteraction(
-      base,
-      { type: "setSearchOption", kind: "caseSensitive", on: true },
-    );
+    const cs = reduceQueryInteraction(base, {
+      type: "setSearchOption",
+      kind: "caseSensitive",
+      on: true,
+    });
     expect(cs.searchCaseSensitive).toBe(true);
     expect(cs.searchJq).toBe(false);
   });
@@ -168,10 +168,10 @@ describe("query-interaction", () => {
   });
 
   it("no-ops match navigation when there are no matches", () => {
-    const state = reduceQueryInteraction(
-      createInitialQueryInteractionState(),
-      { type: "nextMatch", matchCount: 0 },
-    );
+    const state = reduceQueryInteraction(createInitialQueryInteractionState(), {
+      type: "nextMatch",
+      matchCount: 0,
+    });
     expect(state.currentMatchIndex).toBe(0);
   });
 
@@ -184,10 +184,10 @@ describe("query-interaction", () => {
   });
 
   it("commandSearch switches the filter to matches", () => {
-    const state = reduceQueryInteraction(
-      createInitialQueryInteractionState(),
-      { type: "commandSearch", value: "boom" },
-    );
+    const state = reduceQueryInteraction(createInitialQueryInteractionState(), {
+      type: "commandSearch",
+      value: "boom",
+    });
     expect(state.searchQuery).toBe("boom");
     expect(state.toolbarQuery).toBe("boom");
     expect(state.recordFilter).toBe("matches");
@@ -200,10 +200,7 @@ describe("query-interaction", () => {
       searchJq: false,
       searchCaseSensitive: true,
     };
-    const state = reduceQueryInteraction(
-      base,
-      { type: "overviewFieldValueSearch", value: "boom" },
-    );
+    const state = reduceQueryInteraction(base, { type: "overviewFieldValueSearch", value: "boom" });
     expect(state.searchRegex).toBe(false);
     expect(state.searchCaseSensitive).toBe(false);
     expect(state.searchJq).toBe(false);
