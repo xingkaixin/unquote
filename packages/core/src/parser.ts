@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord, ParseErrorMeta, ParseOptions, ParseResult } from "./types";
-import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, isLikelyJsonl, parseJson } from "./utils";
+import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils";
 
 const toNode = (
   value: unknown,
@@ -168,13 +168,8 @@ const parseJsonlRecords = (input: string, maxDepth: number, strict = false) => {
   return records;
 };
 
-export const detectFormat = (input: string): "json" | "jsonl" => {
-  if (isLikelyJsonl(input)) {
-    return "jsonl";
-  }
-
-  return "json";
-};
+export const detectFormat = (input: string): "json" | "jsonl" =>
+  probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
 
 export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;

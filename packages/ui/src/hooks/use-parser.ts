@@ -1,6 +1,6 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
-import { parseInput, parseJson } from "@unquote/core";
+import { parseInput, probeJsonl } from "@unquote/core";
 import { createAgentSessionFromText } from "../lib/agent-session";
 import { markPerf, measurePerf } from "../lib/perf";
 import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
@@ -24,26 +24,6 @@ const idleProgress: ParserProgress = {
 
 const workerChunkSize = 256 * 1024;
 
-const getJsonlCandidateLines = (input: string) => {
-  const lines: string[] = [];
-  let start = 0;
-
-  for (let index = 0; index <= input.length && lines.length < 8; index += 1) {
-    if (index < input.length && input.charCodeAt(index) !== 10) {
-      continue;
-    }
-
-    const end = index > start && input.charCodeAt(index - 1) === 13 ? index - 1 : index;
-    const line = input.slice(start, end).trim();
-    if (line) {
-      lines.push(line);
-    }
-    start = index + 1;
-  }
-
-  return lines;
-};
-
 const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
   if (forcedFormat === "jsonl") {
     return true;
@@ -52,19 +32,7 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
     return false;
   }
 
-  const lines = getJsonlCandidateLines(input);
-  if (lines.length < 2) {
-    return false;
-  }
-
-  return lines.every((line) => {
-    try {
-      parseJson(line);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  return probeJsonl(input).isLikelyJsonl;
 };
 
 export const useParser = (
