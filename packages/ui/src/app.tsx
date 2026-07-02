@@ -24,22 +24,12 @@ import { useRecordPipeline } from "./hooks/use-record-pipeline";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { markPerf, measurePerfFn } from "./lib/perf";
-import {
-  collectStringifiedPaths,
-  hasJsonlRecords,
-  resolveTreePath,
-} from "./lib/tree";
+import { collectStringifiedPaths, hasJsonlRecords, resolveTreePath } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
+import { isCopyAboveThreshold } from "./lib/record-export";
 import { sourceSamples } from "./lib/source-samples";
 import type { SearchOptions, TreeRow } from "./lib/tree";
-
-// Copy builds one giant string and hands it to the clipboard API, which freezes
-// the main thread on large data. Export streams via Blob(parts[]) and is safe.
-export const copyRecordLimit = 5000;
-export const copyBytesLimit = 20_000_000;
-export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
-  recordCount > copyRecordLimit || bytes > copyBytesLimit;
 
 interface PathScrollTarget {
   recordId: string;
@@ -523,9 +513,7 @@ export const UnquoteApp = ({
 
     const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
     const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
-    const resolved = copyRecord?.node
-      ? resolveTreePath([copyRecord], selectedPath.pathText)
-      : null;
+    const resolved = copyRecord?.node ? resolveTreePath([copyRecord], selectedPath.pathText) : null;
 
     return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
   };

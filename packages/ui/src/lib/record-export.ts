@@ -1,6 +1,13 @@
 import type { JsonlRecord } from "@unquote/core";
 import { materializeRecord } from "./tree";
 
+// Copy builds one giant string and hands it to the clipboard API, which freezes
+// the main thread on large data. Export streams via Blob(parts[]) and is safe.
+export const copyRecordLimit = 5000;
+export const copyBytesLimit = 20_000_000;
+export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
+  recordCount > copyRecordLimit || bytes > copyBytesLimit;
+
 export const getCopyValue = (record: JsonlRecord) => {
   if (record.node) {
     return materializeRecord(record);
