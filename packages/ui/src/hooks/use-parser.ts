@@ -1,8 +1,10 @@
-import type { JsonlRecord, ParseResult } from "@unquote/core";
+import type { ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
 import { parseInput, probeJsonl } from "@unquote/core";
 import { createAgentSessionFromText } from "../lib/agent-session";
+import type { AgentSession } from "../lib/agent-session";
 import { markPerf, measurePerf } from "../lib/perf";
+import { createStreamPublisher } from "../lib/stream-publisher";
 import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const withForcedFormat = (forcedFormat?: "json" | "jsonl") =>
@@ -23,6 +25,41 @@ const idleProgress: ParserProgress = {
 };
 
 const workerChunkSize = 256 * 1024;
+
+interface MainThreadParse {
+  result: ParseResult;
+  agentSession: AgentSession | null;
+  progress: ParserProgress;
+}
+
+const completedProgress = (stats: ParseResult["stats"]): ParserProgress => ({
+  processedLines: stats.total,
+  success: stats.success,
+  failed: stats.failed,
+  elapsedMs: 0,
+  done: true,
+});
+
+// No-Worker fallback paths; both produce the same shape so the effect has a
+// single apply point.
+const parseTextOnMainThread = (input: string, forcedFormat?: "json" | "jsonl"): MainThreadParse => {
+  const result = parseInput(input, withForcedFormat(forcedFormat));
+  return {
+    result,
+    agentSession: result.format === "jsonl" ? createAgentSessionFromText(input) : null,
+    progress: completedProgress(result.stats),
+  };
+};
+
+const parseFileOnMainThread = async (file: File): Promise<MainThreadParse> => {
+  const text = await file.text();
+  const result = parseInput(text, { forcedFormat: "jsonl" });
+  return {
+    result,
+    agentSession: createAgentSessionFromText(text, file.name),
+    progress: completedProgress(result.stats),
+  };
+};
 
 const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
   if (forcedFormat === "jsonl") {
@@ -54,41 +91,25 @@ export const useParser = (
     requestIdRef.current = requestId;
 
     if (typeof Worker === "undefined") {
+      const applyMainThreadParse = ({ result, agentSession, progress }: MainThreadParse) => {
+        setParserState((current) => ({
+          result,
+          agentSession,
+          recordsVersion: current.recordsVersion + 1,
+        }));
+        setProgress(progress);
+      };
+
       if (sourceFile) {
-        void sourceFile.text().then((text) => {
-          if (requestIdRef.current !== requestId) {
-            return;
+        void parseFileOnMainThread(sourceFile).then((parsed) => {
+          if (requestIdRef.current === requestId) {
+            applyMainThreadParse(parsed);
           }
-          const parsed = parseInput(text, { forcedFormat: "jsonl" });
-          setParserState((current) => ({
-            result: parsed,
-            agentSession: createAgentSessionFromText(text, sourceFile.name),
-            recordsVersion: current.recordsVersion + 1,
-          }));
-          setProgress({
-            processedLines: parsed.stats.total,
-            success: parsed.stats.success,
-            failed: parsed.stats.failed,
-            elapsedMs: 0,
-            done: true,
-          });
         });
         return;
       }
 
-      const parsed = parseInput(input, withForcedFormat(forcedFormat));
-      setParserState((current) => ({
-        result: parsed,
-        agentSession: parsed.format === "jsonl" ? createAgentSessionFromText(input) : null,
-        recordsVersion: current.recordsVersion + 1,
-      }));
-      setProgress({
-        processedLines: parsed.stats.total,
-        success: parsed.stats.success,
-        failed: parsed.stats.failed,
-        elapsedMs: 0,
-        done: true,
-      });
+      applyMainThreadParse(parseTextOnMainThread(input, forcedFormat));
       return;
     }
 
@@ -105,53 +126,17 @@ export const useParser = (
     setProgress({ ...idleProgress, done: false });
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
-    const streamedRecords: JsonlRecord[] = [];
-    let pendingStreamSnapshot: {
-      stats: ParseResult["stats"];
-      progress: ParserProgress;
-    } | null = null;
-    let streamFlushFrameId: number | null = null;
-    let hasPublishedStream = false;
 
-    const cancelStreamFlush = () => {
-      if (streamFlushFrameId === null) {
-        return;
-      }
-
-      window.cancelAnimationFrame(streamFlushFrameId);
-      streamFlushFrameId = null;
-    };
-
-    const publishStream = () => {
-      streamFlushFrameId = null;
-      if (!pendingStreamSnapshot) {
-        return;
-      }
-
-      const snapshot = pendingStreamSnapshot;
-      pendingStreamSnapshot = null;
-      hasPublishedStream = true;
-      setProgress(snapshot.progress);
-      setParserState((current) => ({
-        result: {
-          format: "jsonl",
-          records: streamedRecords,
-          stats: snapshot.stats,
-        },
-        agentSession: current.agentSession,
-        recordsVersion: current.recordsVersion + 1,
-      }));
-    };
-
-    const scheduleStreamPublish = () => {
-      if (!hasPublishedStream || pendingStreamSnapshot?.progress.done) {
-        cancelStreamFlush();
-        publishStream();
-        return;
-      }
-
-      streamFlushFrameId ??= window.requestAnimationFrame(publishStream);
-    };
+    const publisher = createStreamPublisher<ParseResult["stats"], ParserProgress>(
+      (records, stats, progress) => {
+        setProgress(progress);
+        setParserState((current) => ({
+          result: { format: "jsonl", records, stats },
+          agentSession: current.agentSession,
+          recordsVersion: current.recordsVersion + 1,
+        }));
+      },
+    );
 
     const postJsonlChunks = () => {
       currentWorker.postMessage({ type: "start-jsonl", requestId } satisfies ParserRequest);
@@ -207,21 +192,15 @@ export const useParser = (
       }
 
       if (message.type === "batch") {
-        if (!hasPublishedStream) {
+        if (!publisher.hasPublished()) {
           markPerf("parse:first-batch");
           measurePerf("parse:first-batch", "parse:start", "parse:first-batch");
         }
-        streamedRecords.push(...message.records);
-        pendingStreamSnapshot = {
-          stats: message.stats,
-          progress: message.progress,
-        };
-        scheduleStreamPublish();
+        publisher.pushBatch(message.records, message.stats, message.progress);
         return;
       }
 
-      cancelStreamFlush();
-      publishStream();
+      publisher.flush();
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
       setProgress(message.progress);
@@ -248,10 +227,20 @@ export const useParser = (
       if (chunkTimeoutId !== null) {
         window.clearTimeout(chunkTimeoutId);
       }
-      cancelStreamFlush();
+      publisher.cancel();
       currentWorker.removeEventListener("message", onMessage);
     };
   }, [forcedFormat, input, sourceFile]);
+
+  // Terminate the worker thread when the hook's owner unmounts; the per-request
+  // cleanup above only detaches listeners and timers.
+  useEffect(
+    () => () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    },
+    [],
+  );
 
   return {
     result: parserState.result,

@@ -177,6 +177,16 @@ const parseDeferredJsonlRecordLine = (line: string, lineNumber: number): JsonlRe
   }
 };
 
+const postSessionComplete = (requestId: number, session: JsonlSession) => {
+  self.postMessage({
+    type: "complete",
+    requestId,
+    stats: statsFromSession(session),
+    agentSession: session.agentTracker.finish(),
+    progress: progressFromSession(session, true),
+  } satisfies ParserWorkerResponse);
+};
+
 const postBatch = (requestId: number, session: JsonlSession, done: boolean) => {
   if (session.batch.length === 0) {
     return;
@@ -270,13 +280,7 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
 
     processJsonlChunk(requestId, session, value ?? "", done);
     if (done) {
-      self.postMessage({
-        type: "complete",
-        requestId,
-        stats: statsFromSession(session),
-        agentSession: session.agentTracker.finish(),
-        progress: progressFromSession(session, true),
-      } satisfies ParserWorkerResponse);
+      postSessionComplete(requestId, session);
       return;
     }
   }
@@ -311,14 +315,7 @@ self.onmessage = (event: MessageEvent<ParserRequest>) => {
   processJsonlChunk(message.requestId, jsonlSession, message.chunk, message.done);
 
   if (message.done) {
-    const session = jsonlSession;
-    self.postMessage({
-      type: "complete",
-      requestId: message.requestId,
-      stats: statsFromSession(session),
-      agentSession: session.agentTracker.finish(),
-      progress: progressFromSession(session, true),
-    } satisfies ParserWorkerResponse);
+    postSessionComplete(message.requestId, jsonlSession);
     jsonlSession = null;
   }
 };
