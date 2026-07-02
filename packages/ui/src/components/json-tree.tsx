@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
+import { isArrayElementPath } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
 import { buildRecordRows } from "../lib/tree";
@@ -419,8 +420,6 @@ interface DisplayTreeRow {
 }
 
 const isContainer = (row: TreeRow) => row.kind === "object" || row.kind === "array";
-
-const isArrayElementPath = (pathText: string) => /\[\d+\]$/.test(pathText);
 
 const getDisplayKeyLabel = (row: TreeRow) => {
   if (row.pathText === "$" || isArrayElementPath(row.pathText)) {

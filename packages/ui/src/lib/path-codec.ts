@@ -37,6 +37,10 @@ export const appendJqSelectorSegment = (path: string, segment: TreePathSegment) 
 export const formatJsonPath = (segments: TreePathSegment[]) =>
   segments.reduce((path, segment) => appendJsonPathSegment(path, segment), "$");
 
+// Array indices always serialize as [n]; object keys serialize as .key or
+// ["key"] (quoted), so a bare-digit bracket tail uniquely marks an array element.
+export const isArrayElementPath = (pathText: string) => /\[\d+\]$/.test(pathText);
+
 export const formatJqSelector = (segments: TreePathSegment[]) => {
   if (segments.length === 0) {
     return ".";

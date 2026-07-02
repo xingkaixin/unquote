@@ -35,8 +35,9 @@ import {
   resolveTreePath,
   searchRecords,
 } from "./lib/tree";
+import { isArrayElementPath } from "./lib/path-codec";
 import { sourceSamples } from "./lib/source-samples";
-import type { ResolvedTreePath, SearchOptions, TreeRow } from "./lib/tree";
+import type { SearchOptions, TreeRow } from "./lib/tree";
 
 // Copy builds one giant string and hands it to the clipboard API, which freezes
 // the main thread on large data. Export streams via Blob(parts[]) and is safe.
@@ -71,12 +72,6 @@ const formatFileSize = (bytes: number) => {
   return `${formatted} ${units[unitIndex]}`;
 };
 
-const createSelectionFromTarget = (target: ResolvedTreePath): SelectedPath => ({
-  recordId: target.recordId,
-  pathText: target.pathText,
-  rawKey: target.rawKey,
-});
-
 const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
   recordId: record.id,
   pathText: row.pathText,
@@ -89,12 +84,9 @@ const isTextEditingElement = (element: Element | null) =>
   element instanceof HTMLSelectElement ||
   (element instanceof HTMLElement && element.isContentEditable);
 
-const isArraySelection = (selection: SelectedPath) =>
-  new RegExp(`\\[${selection.rawKey}\\]$`).test(selection.pathText);
-
 const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
   const valueText = JSON.stringify(value, null, 2);
-  if (selection.rawKey === "$" || isArraySelection(selection)) {
+  if (selection.rawKey === "$" || isArrayElementPath(selection.pathText)) {
     return valueText;
   }
 
@@ -417,13 +409,11 @@ export const UnquoteApp = ({
     }
 
     if (target.kind === "path") {
-      setSelectedPath(
-        createSelectionFromTarget({
-          recordId: target.recordId,
-          pathText: target.pathText,
-          stringifiedPathChain: target.stringifiedPathChain,
-        } as ResolvedTreePath),
-      );
+      setSelectedPath({
+        recordId: target.recordId,
+        pathText: target.pathText,
+        rawKey: target.rawKey,
+      });
       setActiveRecordId(target.recordId);
       setExpandedStringifiedPaths((current) => {
         const next = new Set(current);

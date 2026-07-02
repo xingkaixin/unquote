@@ -538,6 +538,63 @@ describe("UnquoteApp", () => {
     );
   });
 
+  it("copies path-jump selections with the resolved key prefix", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const input = JSON.stringify({ payload: { items: [10, 20] } });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+
+    // Path jump to an object member: the copy payload carries the member key.
+    fireEvent.change(getToolbarInput(), { target: { value: "$.payload" } });
+    fireEvent.keyDown(getToolbarInput(), { key: "Enter" });
+    await user.keyboard("{Control>}c{/Control}");
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(
+        `"payload": ${JSON.stringify({ items: [10, 20] }, null, 2)}`,
+      ),
+    );
+
+    // Path jump to an array element: the copy payload has no key prefix.
+    fireEvent.change(getToolbarInput(), { target: { value: "$.payload.items[0]" } });
+    fireEvent.keyDown(getToolbarInput(), { key: "Enter" });
+    await user.keyboard("{Control>}c{/Control}");
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("10"));
+  });
+
+  it("copies selections whose key contains regex metacharacters", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"a(b":1}'} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("a(b").length).toBeGreaterThan(0));
+    await user.click(screen.getAllByText("a(b")[0]!);
+
+    await user.keyboard("{Control>}c{/Control}");
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('"a(b": 1'));
+  });
+
   it("shows JSON parse location in the source pane", async () => {
     render(
       <I18nProvider>
