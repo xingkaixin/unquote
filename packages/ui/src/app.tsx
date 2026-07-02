@@ -18,22 +18,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
-import { useQueryInteraction } from "./hooks/use-query-interaction";
+import { buildNavigationTarget, useQueryInteraction } from "./hooks/use-query-interaction";
 import { useExportActions } from "./hooks/use-export-actions";
+import { useRecordPipeline } from "./hooks/use-record-pipeline";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import { createFileOverviewState, updateFileOverview } from "./lib/file-overview";
-import type { FileOverviewState } from "./lib/file-overview";
 import { markPerf, measurePerfFn } from "./lib/perf";
-import { createRecordInsightMapState, updateRecordInsightMap } from "./lib/record-insight";
-import type { RecordInsightMapState } from "./lib/record-insight";
 import {
   collectStringifiedPaths,
-  filterRecords,
   getRenderedRecord,
   hasJsonlRecords,
   resolveTreePath,
-  searchRecords,
 } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath } from "./lib/path-codec";
@@ -92,15 +87,6 @@ const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
   }
 
   return `${JSON.stringify(selection.rawKey)}: ${valueText}`;
-};
-
-const getRecordStats = (records: JsonlRecord[]) => {
-  const success = records.filter((record) => record.node || record.deferred).length;
-  return {
-    total: records.length,
-    success,
-    failed: records.length - success,
-  };
 };
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
@@ -165,8 +151,6 @@ export const UnquoteApp = ({
     requestId: number;
   } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const overviewStateRef = useRef<FileOverviewState>(createFileOverviewState());
-  const recordInsightStateRef = useRef<RecordInsightMapState>(createRecordInsightMapState());
   const scrollRequestIdRef = useRef(0);
   const outputViewSessionKeyRef = useRef<string | null>(null);
   const { result, progress, recordsVersion, agentSession } = useParser(
@@ -175,21 +159,11 @@ export const UnquoteApp = ({
     sourceFile,
   );
 
-  // Match-pipeline data is written into these refs during render so the
-  // interaction hook (called above the pipeline) can read the latest values.
-  const visibleRecordsRef = useRef<JsonlRecord[]>([]);
-  const matchCountRef = useRef(0);
-  const visibleMatchesRef = useRef<
-    { recordId: string; pathText: string; stringifiedPathChain: string[] }[] | null
-  >(null);
-
-  const qi = useQueryInteraction({
-    allRecords: result.records,
-    translateError: (reason) => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
-    visibleRecordsRef,
-    matchCountRef,
-    visibleMatchesRef,
-  });
+  const translateError = useCallback(
+    (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
+    [t],
+  );
+  const qi = useQueryInteraction({ allRecords: result.records, translateError });
   const {
     searchQuery,
     searchRegex,
@@ -280,52 +254,34 @@ export const UnquoteApp = ({
     toast.error(t("input.readFailed")),
   );
 
-  const inMemoryMatches = useMemo(() => {
-    if (!searchQuery || sourceFile) return null;
-    return measurePerfFn("search:memory", () =>
-      searchRecords(result.records, searchQuery, searchOptions),
-    );
-  }, [recordsVersion, result.records, searchOptions, searchQuery, sourceFile]);
-
-  const matches = sourceFile && searchQuery ? localFileSource.fileMatches : inMemoryMatches;
-
-  const recordInsights = useMemo(
-    () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
-    [recordsVersion, result.records],
-  );
-  const recordsById = useMemo(
-    () => new Map(result.records.map((record) => [record.id, record])),
-    [recordsVersion, result.records],
-  );
-  const visibleRecords = useMemo(
-    () => filterRecords(result.records, recordFilter, matches, recordInsights),
-    [matches, recordFilter, recordInsights, recordsVersion, result.records],
-  );
-  const visibleStats = useMemo(
-    () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
-    [recordFilter, recordsVersion, result.stats, visibleRecords],
-  );
+  const {
+    recordInsights,
+    recordsById,
+    visibleRecords,
+    visibleStats,
+    fileOverview,
+    visibleMatches,
+    matchCount,
+  } = useRecordPipeline({
+    result,
+    recordsVersion,
+    sourceFile,
+    fileMatches: localFileSource.fileMatches,
+    searchQuery,
+    searchOptions,
+    recordFilter,
+  });
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
   // main thread on large strings. Export streams via Blob and stays available.
   const estimatedSourceBytes = sourceFile?.size ?? sourceText.length;
   const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
-  const fileOverview = useMemo(
-    () => updateFileOverview(result.records, overviewStateRef.current),
-    [recordsVersion, result.records],
-  );
-  const visibleMatches = useMemo(() => {
-    if (!matches) return null;
 
-    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
-    return matches.filter((match) => visibleRecordIds.has(match.recordId));
-  }, [matches, recordsVersion, visibleRecords]);
-  const matchCount = visibleMatches?.length ?? 0;
-
-  // Feed the computed match pipeline back to the interaction hook's refs so its
-  // callbacks/effects read the latest values next render.
-  visibleRecordsRef.current = visibleRecords;
-  matchCountRef.current = matchCount;
-  visibleMatchesRef.current = visibleMatches;
+  // Keep the match index inside the current match count (the count lives in
+  // the pipeline, downstream of the interaction state).
+  const { clampMatchIndex } = qi;
+  useEffect(() => {
+    clampMatchIndex(matchCount);
+  }, [clampMatchIndex, matchCount]);
 
   // Clear any pending scroll target when the filter or search options change
   // (match-index reset lives in the interaction hook).
@@ -404,10 +360,21 @@ export const UnquoteApp = ({
     });
   };
 
+  const navigationTarget = useMemo(
+    () =>
+      buildNavigationTarget(
+        { pathMatches, currentPathMatchIndex, currentMatchIndex },
+        qi.mode,
+        matchCount > 0,
+        qi.navVersion,
+      ),
+    [currentMatchIndex, currentPathMatchIndex, matchCount, pathMatches, qi.mode, qi.navVersion],
+  );
+
   // React to interaction-driven navigation: a path jump selects/expands the
   // target node and scrolls to it; a search re-navigation scrolls to the match.
   useEffect(() => {
-    const target = qi.navigationTarget;
+    const target = navigationTarget;
     if (!target) {
       return;
     }
@@ -432,7 +399,7 @@ export const UnquoteApp = ({
     }
     // navigationTarget carries a version token that changes on every navigating
     // action, so re-submitting the same query re-scrolls.
-  }, [qi.navigationTarget]);
+  }, [navigationTarget]);
 
   const handleOpenCommandPalette = useCallback(() => {
     qi.seedCommandInput();
@@ -700,8 +667,15 @@ export const UnquoteApp = ({
   const toolbarInPathMode = qi.mode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
-  const handlePrevToolbarMatch = toolbarInPathMode ? qi.prevPathMatch : qi.prevMatch;
-  const handleNextToolbarMatch = toolbarInPathMode ? qi.nextPathMatch : qi.nextMatch;
+  // Bind the current frame's pipeline values into the interaction callbacks;
+  // events dispatch after commit, so these closures always see the latest.
+  const handleSubmitToolbarQuery = (value: string) => qi.submitToolbarQuery(value, visibleRecords);
+  const handlePrevToolbarMatch = toolbarInPathMode
+    ? qi.prevPathMatch
+    : () => qi.prevMatch(matchCount);
+  const handleNextToolbarMatch = toolbarInPathMode
+    ? qi.nextPathMatch
+    : () => qi.nextMatch(matchCount);
   const jsonOutput = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
@@ -710,7 +684,7 @@ export const UnquoteApp = ({
         matchCount={toolbarMatchCount}
         currentMatchIndex={toolbarMatchIndex}
         onQueryChange={qi.setToolbarQuery}
-        onSubmitQuery={qi.submitToolbarQuery}
+        onSubmitQuery={handleSubmitToolbarQuery}
         onPrevMatch={handlePrevToolbarMatch}
         onNextMatch={handleNextToolbarMatch}
         onClearQuery={qi.clearToolbarQuery}
@@ -904,7 +878,7 @@ export const UnquoteApp = ({
         onClose={() => setCommandPaletteOpen(false)}
         onInputChange={qi.setCommandInput}
         onSearch={qi.commandSearch}
-        onJumpPath={qi.submitToolbarQuery}
+        onJumpPath={handleSubmitToolbarQuery}
         onRegexChange={(value) => qi.setSearchOption("regex", value)}
         onCaseSensitiveChange={(value) => qi.setSearchOption("caseSensitive", value)}
         onJqChange={(value) => qi.setSearchOption("jq", value)}

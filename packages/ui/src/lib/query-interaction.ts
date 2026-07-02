@@ -40,12 +40,19 @@ export const createInitialQueryInteractionState = (): QueryInteractionState => (
 
 export type SearchOptionKind = "regex" | "caseSensitive" | "jq";
 
+// Path resolution needs the current record set, which only the caller has at
+// dispatch time — so it happens in the hook callback and the reducer receives
+// the outcome, staying a pure state transition.
+export type PathResolution =
+  | { query: string; ok: true; targets: ResolvedTreePath[] }
+  | { query: string; ok: false; error: string };
+
 export type QueryInteractionAction =
   | { type: "toolbarQueryChange"; value: string }
-  | { type: "submitToolbarQuery"; value: string }
+  | { type: "submitToolbarQuery"; value: string; resolution: PathResolution | null }
   | { type: "clearToolbarQuery" }
   | { type: "commandSearch"; value: string }
-  | { type: "overviewPathSelect"; value: string }
+  | { type: "overviewPathSelect"; value: string; resolution: PathResolution | null }
   | { type: "overviewFieldValueSearch"; value: string }
   | { type: "setSearchOption"; kind: SearchOptionKind; on: boolean }
   | { type: "setRecordFilter"; filter: QueryInteractionState["recordFilter"] }
@@ -61,23 +68,9 @@ export type QueryInteractionAction =
   | { type: "clearPathMatches" }
   | { type: "resetAll" };
 
-export interface ResolvePathResult {
-  ok: boolean;
-  reason?: "invalid" | "not-found";
-  targets: ResolvedTreePath[];
-}
-
-export interface QueryInteractionContext {
-  resolvePath: (records: unknown, query: string) => ResolvePathResult;
-  visibleRecords: unknown;
-  allRecords: unknown;
-  translateError: (reason: "invalid" | "not-found") => string;
-}
-
 export const reduceQueryInteraction = (
   state: QueryInteractionState,
   action: QueryInteractionAction,
-  ctx: QueryInteractionContext,
 ): QueryInteractionState => {
   switch (action.type) {
     case "toolbarQueryChange": {
@@ -120,30 +113,24 @@ export const reduceQueryInteraction = (
     }
 
     case "submitToolbarQuery": {
-      const query = action.value.trim();
-      if (!query || !isPathLikeQuery(query)) {
+      if (!action.resolution) {
         // Search mode: re-navigate to the current match (no state change beyond
         // the toolbar value); the hook bumps the nav version so the app re-scrolls.
         return { ...state, toolbarQuery: action.value };
       }
 
-      return resolvePathIntoState(
-        state,
-        { toolbarValue: action.value, query, records: ctx.visibleRecords },
-        ctx,
-      );
+      return applyPathResolution(state, action.value, action.resolution);
     }
 
     case "overviewPathSelect": {
-      const query = action.value.trim();
-      if (!query) {
+      if (!action.resolution) {
         return { ...state, toolbarQuery: action.value, recordFilter: "all" };
       }
 
-      return resolvePathIntoState(
+      return applyPathResolution(
         { ...state, recordFilter: "all" },
-        { toolbarValue: action.value, query, records: ctx.allRecords },
-        ctx,
+        action.value,
+        action.resolution,
       );
     }
 
@@ -287,35 +274,18 @@ export const reduceQueryInteraction = (
 };
 
 // Shared transition for path jumps driven by toolbar submit, palette submit,
-// or overview selection. Resolves the path against the given record set and
-// either records the error or lands on the first target.
-const resolvePathIntoState = (
+// or overview selection: either records the error or lands on the first target.
+const applyPathResolution = (
   state: QueryInteractionState,
-  jump: { toolbarValue: string; query: string; records: unknown },
-  ctx: QueryInteractionContext,
-): QueryInteractionState => {
-  const resolved = ctx.resolvePath(jump.records, jump.query);
-  if (!resolved.ok) {
-    return {
-      ...state,
-      toolbarQuery: jump.toolbarValue,
-      pathQuery: jump.query,
-      searchQuery: "",
-      currentMatchIndex: 0,
-      currentPathMatchIndex: 0,
-      pathError: ctx.translateError(resolved.reason ?? "not-found"),
-      pathMatches: [],
-    };
-  }
-
-  return {
-    ...state,
-    toolbarQuery: jump.toolbarValue,
-    pathQuery: jump.query,
-    searchQuery: "",
-    currentMatchIndex: 0,
-    currentPathMatchIndex: 0,
-    pathError: null,
-    pathMatches: resolved.targets,
-  };
-};
+  toolbarValue: string,
+  resolution: PathResolution,
+): QueryInteractionState => ({
+  ...state,
+  toolbarQuery: toolbarValue,
+  pathQuery: resolution.query,
+  searchQuery: "",
+  currentMatchIndex: 0,
+  currentPathMatchIndex: 0,
+  pathError: resolution.ok ? null : resolution.error,
+  pathMatches: resolution.ok ? resolution.targets : [],
+});
