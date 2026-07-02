@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
+import { writeClipboardText } from "../lib/clipboard";
 import { readFileText, readJsonlRecordsByLine } from "../lib/local-file-source";
 import { getCopyValue } from "../lib/record-export";
 
@@ -27,6 +28,8 @@ interface UseSourceLoaderParams {
   // The hook does not rethrow — InputPane invokes onFileDrop fire-and-forget,
   // so a throw here would become an unhandled rejection with no user feedback.
   onError: (error: unknown) => void;
+  // Called when a clipboard write fails (permission denied / document unfocused).
+  onCopyError: () => void;
 }
 
 export const useSourceLoader = ({
@@ -36,6 +39,7 @@ export const useSourceLoader = ({
   onReset,
   onCollapseSource,
   onError,
+  onCopyError,
 }: UseSourceLoaderParams) => {
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
@@ -120,22 +124,27 @@ export const useSourceLoader = ({
   };
 
   const onCopyRawLine = async (record: JsonlRecord) => {
+    let text = record.rawLine ?? record.errorMeta?.rawLine ?? record.summary;
     if (sourceFile) {
-      const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
-      const fullRecord = fullRecords.get(record.lineNumber);
-      if (fullRecord?.node) {
-        await navigator.clipboard.writeText(JSON.stringify(getCopyValue(fullRecord)));
+      let fullRecord: JsonlRecord | undefined;
+      try {
+        const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
+        fullRecord = fullRecords.get(record.lineNumber);
+      } catch (error) {
+        // Deferred records only carry a summary, so don't fall back to copying it.
+        onError(error);
         return;
       }
-      if (fullRecord?.rawLine) {
-        await navigator.clipboard.writeText(fullRecord.rawLine);
-        return;
+      if (fullRecord?.node) {
+        text = JSON.stringify(getCopyValue(fullRecord));
+      } else if (fullRecord?.rawLine) {
+        text = fullRecord.rawLine;
       }
     }
 
-    await navigator.clipboard.writeText(
-      record.rawLine ?? record.errorMeta?.rawLine ?? record.summary,
-    );
+    if (!(await writeClipboardText(text))) {
+      onCopyError();
+    }
   };
 
   return {

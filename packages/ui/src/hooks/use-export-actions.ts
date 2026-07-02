@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { useTranslation } from "../i18n/context";
+import { writeClipboardText } from "../lib/clipboard";
 import {
   createExportFilename,
   downloadBlob,
@@ -27,13 +28,33 @@ export const useExportActions = ({
 }: UseExportActionsParams) => {
   const { t } = useTranslation();
 
+  const copyText = async (text: string) => {
+    if (!(await writeClipboardText(text))) {
+      toast.error(t("copy.failed"));
+    }
+  };
+
+  // Copy actions are invoked fire-and-forget from onClick, so a rejected file
+  // read would become an unhandled rejection — surface it here instead.
+  const resolveCopyRecords = async (records: JsonlRecord[]) => {
+    try {
+      return await getFullRecords(records);
+    } catch {
+      toast.error(t("input.readFailed"));
+      return null;
+    }
+  };
+
   const onCopyJsonl = async () => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    const records = await getFullRecords(visibleRecords);
-    await navigator.clipboard.writeText(formatRecordsAsJsonl(records));
+    const records = await resolveCopyRecords(visibleRecords);
+    if (!records) {
+      return;
+    }
+    await copyText(formatRecordsAsJsonl(records));
   };
 
   const onCopyFormattedJson = async () => {
@@ -41,8 +62,11 @@ export const useExportActions = ({
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    const records = await getFullRecords(visibleRecords);
-    await navigator.clipboard.writeText(formatRecordsAsJson(records, format));
+    const records = await resolveCopyRecords(visibleRecords);
+    if (!records) {
+      return;
+    }
+    await copyText(formatRecordsAsJson(records, format));
   };
 
   const onExportJsonl = () => {
@@ -78,9 +102,13 @@ export const useExportActions = ({
   };
 
   const onCopyRecord = async (record: JsonlRecord) => {
-    const [copyRecord = record] = await getFullRecords([record]);
+    const records = await resolveCopyRecords([record]);
+    if (!records) {
+      return;
+    }
+    const [copyRecord = record] = records;
     const value = getCopyValue(copyRecord);
-    await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+    await copyText(JSON.stringify(value, null, 2));
   };
 
   const onCopyRecordError = async (record: JsonlRecord) => {
@@ -95,7 +123,7 @@ export const useExportActions = ({
         ].join("\n")
       : t("error.message", { message });
 
-    await navigator.clipboard.writeText(details);
+    await copyText(details);
   };
 
   return {

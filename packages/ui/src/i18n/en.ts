@@ -13,6 +13,7 @@ export const en = {
   "toolbar.copyJsonl": "Copy JSONL",
   "toolbar.copyFormattedJson": "Copy formatted JSON",
   "toolbar.copyBlocked": "Data is too large to copy — use Export instead",
+  "copy.failed": "Copy failed",
   "toolbar.exporting": "Exporting…",
   "toolbar.exportDone": "File exported",
   "toolbar.exportFailed": "Export failed",

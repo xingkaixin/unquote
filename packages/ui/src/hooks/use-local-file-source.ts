@@ -31,6 +31,9 @@ export const useLocalFileSource = (
   sourceFile: File | null,
   searchQuery: string,
   searchOptions: SearchOptions,
+  // Called when a file read fails (hydration or whole-file search), so the
+  // caller can surface it. Read through a ref: identity is not a dependency.
+  onError: (error: unknown) => void,
 ): LocalFileSource => {
   const [hydratedFileRecords, setHydratedFileRecords] = useState<Map<number, JsonlRecord>>(
     new Map(),
@@ -39,6 +42,8 @@ export const useLocalFileSource = (
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const fileSearchAbortRef = useRef<AbortController | null>(null);
   const hydratingFileLinesRef = useRef<Set<number>>(new Set());
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   // Drop the hydration cache whenever a different source is attached.
   useEffect(() => {
@@ -80,9 +85,11 @@ export const useLocalFileSource = (
           setFileSearchMatches(nextMatches);
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        // A real I/O failure must not read as "no matches" — surface it.
         if (!controller.signal.aborted) {
           setFileSearchMatches(null);
+          onErrorRef.current(error);
         }
       });
 
@@ -130,7 +137,12 @@ export const useLocalFileSource = (
             return next;
           });
         })
+        .catch((error) => {
+          onErrorRef.current(error);
+        })
         .finally(() => {
+          // Clearing the in-flight mark also lets a failed line retry when it
+          // scrolls back into view.
           hydratingFileLinesRef.current.delete(lineNumber);
         });
     },
