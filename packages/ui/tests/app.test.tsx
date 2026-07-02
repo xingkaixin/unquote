@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { UnquoteApp, isCopyAboveThreshold } from "../src/app";
+import { UnquoteApp } from "../src/app";
+import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider } from "../src/i18n/context";
 
 const maxTransferStringLength = 4096;

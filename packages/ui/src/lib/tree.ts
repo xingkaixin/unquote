@@ -64,10 +64,6 @@ const formatValueLabel = (node: JsonNode, maxStringLength?: number) => {
   }
 };
 
-export const getRenderedNode = (record: JsonlRecord) => record.node;
-
-export const getRenderedRecord = (record: JsonlRecord): JsonlRecord => record;
-
 const pushRows = (
   node: JsonNode,
   rows: TreeRow[],
@@ -117,20 +113,19 @@ export const buildRecordRows = (
   expandedStringifiedPaths: Set<string>,
   focusedPath?: string | null,
 ) => {
-  const renderedRecord = getRenderedRecord(record);
-  if (!renderedRecord.node) {
+  if (!record.node) {
     return [];
   }
 
   if (focusedPath) {
-    const focused = buildFocusedRecordRows(renderedRecord, expandedStringifiedPaths, focusedPath);
+    const focused = buildFocusedRecordRows(record, expandedStringifiedPaths, focusedPath);
     if (focused) {
       return focused.rows;
     }
   }
 
   const rows: TreeRow[] = [];
-  pushRows(renderedRecord.node, rows, expandedStringifiedPaths, record.id);
+  pushRows(record.node, rows, expandedStringifiedPaths, record.id);
   return rows;
 };
 
@@ -164,7 +159,7 @@ export const buildFocusedRecordRows = (
 };
 
 export const materializeRecord = (record: JsonlRecord) => {
-  const node = getRenderedNode(record);
+  const node = record.node;
   if (!node) {
     return null;
   }
@@ -194,7 +189,7 @@ export const collectStringifiedPaths = (
   record: JsonlRecord,
   expandedStringifiedPaths: Set<string>,
 ) => {
-  const node = getRenderedNode(record);
+  const node = record.node;
   if (!node) {
     return [];
   }

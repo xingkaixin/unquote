@@ -41,6 +41,12 @@ export const formatJsonPath = (segments: TreePathSegment[]) =>
 // ["key"] (quoted), so a bare-digit bracket tail uniquely marks an array element.
 export const isArrayElementPath = (pathText: string) => /\[\d+\]$/.test(pathText);
 
+// True when pathText is ancestorPath itself or a descendant of it.
+export const isPathWithin = (pathText: string, ancestorPath: string) =>
+  pathText === ancestorPath ||
+  pathText.startsWith(`${ancestorPath}.`) ||
+  pathText.startsWith(`${ancestorPath}[`);
+
 export const formatJqSelector = (segments: TreePathSegment[]) => {
   if (segments.length === 0) {
     return ".";
