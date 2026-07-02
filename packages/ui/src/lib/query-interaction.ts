@@ -65,7 +65,6 @@ export type QueryInteractionAction =
   | { type: "clampMatchIndex"; matchCount: number }
   | { type: "resetMatchIndex" }
   | { type: "resetPathForFilter" }
-  | { type: "clearPathMatches" }
   | { type: "resetAll" };
 
 export const reduceQueryInteraction = (
@@ -262,10 +261,6 @@ export const reduceQueryInteraction = (
 
     case "resetAll": {
       return createInitialQueryInteractionState();
-    }
-
-    case "clearPathMatches": {
-      return { ...state, pathMatches: [], currentPathMatchIndex: 0 };
     }
 
     default:

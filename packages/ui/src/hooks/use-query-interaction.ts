@@ -61,7 +61,6 @@ export interface QueryInteraction {
   clampMatchIndex: (matchCount: number) => void;
   prevPathMatch: () => void;
   nextPathMatch: () => void;
-  clearPathMatches: () => void;
   reset: () => void;
 }
 
@@ -194,9 +193,6 @@ export const useQueryInteraction = (options: UseQueryInteractionOptions): QueryI
   const reset = useCallback(() => {
     dispatch({ type: "resetAll" });
   }, []);
-  const clearPathMatches = useCallback(() => {
-    dispatch({ type: "clearPathMatches" });
-  }, []);
 
   // Reset match index when filter or search options/query change (mirrors app effect).
   const resetKey = `${state.recordFilter}|${state.searchRegex}|${state.searchCaseSensitive}|${state.searchJq}|${state.searchQuery}`;
@@ -231,7 +227,6 @@ export const useQueryInteraction = (options: UseQueryInteractionOptions): QueryI
     clampMatchIndex,
     prevPathMatch,
     nextPathMatch,
-    clearPathMatches,
     reset,
   };
 };
