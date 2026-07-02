@@ -29,27 +29,54 @@ export const isJsonContainer = (value: unknown) => value !== null && typeof valu
 
 export const parseJson = (input: string) => JSON.parse(input) as unknown;
 
-export const isLikelyJsonl = (input: string) => {
-  const lines = input
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+export interface JsonlProbeResult {
+  sampledLines: number;
+  parsableLines: number;
+  isLikelyJsonl: boolean;
+}
 
-  if (lines.length < 2) {
-    return false;
+/**
+ * Samples the first non-empty lines and checks whether each parses as JSON.
+ * Single source of truth for "does this look like JSONL" — shared by
+ * `detectFormat` and the UI's streaming-channel decision, so the verdict is
+ * the same on both sides. Probing only picks the channel; final correctness
+ * is guaranteed by parsing itself.
+ */
+export const probeJsonl = (input: string, sampleLimit = 8): JsonlProbeResult => {
+  const lines: string[] = [];
+  let start = 0;
+
+  // charCodeAt scan instead of split: avoids copying the whole (possibly
+  // huge) input just to look at the first few lines. Handles \r\n via the
+  // trailing-\r check.
+  for (let index = 0; index <= input.length && lines.length < sampleLimit; index += 1) {
+    if (index < input.length && input.charCodeAt(index) !== 10) {
+      continue;
+    }
+
+    const end = index > start && input.charCodeAt(index - 1) === 13 ? index - 1 : index;
+    const line = input.slice(start, end).trim();
+    if (line) {
+      lines.push(line);
+    }
+    start = index + 1;
   }
 
-  let valid = 0;
+  let parsableLines = 0;
   for (const line of lines) {
     try {
       parseJson(line);
-      valid += 1;
+      parsableLines += 1;
     } catch {
-      return false;
+      // keep counting: parsableLines reports how many sampled lines parse
     }
   }
 
-  return valid === lines.length;
+  return {
+    sampledLines: lines.length,
+    parsableLines,
+    isLikelyJsonl: lines.length >= 2 && parsableLines === lines.length,
+  };
 };
 
 export const extractSummary = (value: unknown) => {
