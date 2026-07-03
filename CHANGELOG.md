@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0] - 2026-07-03
+
+### Changed
+
+- The release quality gate now runs in GitHub Actions with type checking, linting, tests, and oxfmt formatting checks.
+- Parser, agent-session detection, source loading, export actions, record pipeline, tree walking, and streaming parser updates were split into focused modules with dedicated tests to reduce future release risk.
+- Web and extension app versions bumped to `0.8.0`.
+
+### Fixed
+
+- Copying after a JSONPath / jq path jump no longer loses raw key metadata or throws when copying the selected node.
+- File import and deferred local-file reads now surface failures with toast feedback instead of failing silently.
+- Clipboard write failures during copy actions now show user-visible errors.
+- Parser workers are terminated cleanly when parsing is superseded or the component unmounts.
+
 ## [0.7.0] - 2026-06-29
 
 ### Added
