@@ -105,9 +105,13 @@ CSS variables defined in `src/styles.css`:
 
 | File | Purpose |
 |---|---|
-| `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms. Falls back to main-thread if `Worker` unavailable. |
+| `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
 | `hooks/use-local-file-source.ts` | Stateful access layer for local JSONL files: deferred full-record hydration, search, copy/export resolution, cache eviction, and abort handling. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
+| `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
+| `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
+| `hooks/use-record-pipeline.ts` | Combines parser output, local-file hydration, agent session detection, search, filters, expansion helpers, and visible record derivation. |
+| `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
 ### Tree Utilities (`lib/tree.ts`)
 
@@ -119,7 +123,12 @@ CSS variables defined in `src/styles.css`:
 ### UI Utility Modules
 
 - `lib/local-file-source.ts` — pure local-file line reading, deferred hydration, abortable whole-file search, and full-record lookup for copy/export.
-- `lib/agent-session.ts` — detects Codex rollout and Claude Code JSONL transcripts, then builds the `AgentSession` conversation, timeline, metadata, and parse-warning model.
+- `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts, split into Codex / Claude adapters plus shared builders and types for the `AgentSession` conversation, timeline, metadata, and parse-warning model.
+- `lib/json-walk.ts` — shared `JsonNode` tree traversal used by tree rendering, search, overview, and record insight code.
+- `lib/partial-record-cache.ts` — shared incremental cache for file overview and record insight aggregation while records stream in.
+- `lib/record-export.ts` — pure copy/export formatting, filename, blob download, and large-copy threshold helpers.
+- `lib/record-fields.ts` — shared field extraction helpers for overview and insight classification.
+- `lib/stream-publisher.ts` — batches streamed parser records before React state updates.
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
 - `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
 - `lib/source-samples.ts` — sample payloads used by the input pane, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
@@ -200,6 +209,7 @@ Active match auto-scroll:
 | `pnpm dev` | Start all dev servers (web + extension) |
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm lint` | oxlint all packages |
+| `pnpm format:check` | oxfmt check across all packages |
 | `pnpm test` | Run all Vitest suites |
 | `pnpm check` | typecheck + lint + test |
 | `pnpm benchmark` | Build and run the release performance gate |
