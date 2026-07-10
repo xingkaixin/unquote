@@ -1,35 +1,16 @@
-import {
-  Bot,
-  Brain,
-  CircleAlert,
-  Clock3,
-  FileJson,
-  Hash,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  TerminalSquare,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { JsonlRecord } from "@unquote/core";
-import type { ComponentType } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../i18n/context";
-import type {
-  AgentContentBlock,
-  AgentConversationItem,
-  AgentConversationRole,
-  AgentEventCategory,
-  AgentSession,
-  AgentTimelineEvent,
-} from "../lib/agent-session";
+import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
 import type { RecordInsight } from "../lib/record-insight";
 import type { TreeRow } from "../lib/tree";
+import { AgentConversationPane } from "./agent-conversation-pane";
+import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
+import { AgentTimelinePane } from "./agent-timeline-pane";
 import { Badge } from "./badge";
 import { Button } from "./button";
-import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { CardHeader, CardTitle } from "./card";
 import { JsonTree } from "./json-tree";
 
 interface AgentSessionViewProps {
@@ -55,70 +36,6 @@ export type AgentDetailSelection =
   | { kind: "event"; id: string; recordId: string }
   | { kind: "conversation"; id: string; recordId: string };
 
-interface RoleConfig {
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  variant: "default" | "warning" | "success" | "danger";
-  align: "start" | "end";
-}
-
-const roleConfig = (
-  role: AgentConversationRole,
-  t: ReturnType<typeof useTranslation>["t"],
-): RoleConfig => {
-  switch (role) {
-    case "user":
-      return { label: t("agent.role.user"), icon: UserRound, variant: "default", align: "end" };
-    case "assistant":
-      return { label: t("agent.role.assistant"), icon: Bot, variant: "success", align: "start" };
-    case "thinking":
-      return { label: t("agent.role.thinking"), icon: Brain, variant: "default", align: "start" };
-    case "tool_call":
-      return { label: t("agent.role.toolCall"), icon: Wrench, variant: "warning", align: "start" };
-    case "tool_result":
-      return {
-        label: t("agent.role.toolResult"),
-        icon: TerminalSquare,
-        variant: "warning",
-        align: "start",
-      };
-    case "system":
-      return { label: t("agent.role.system"), icon: FileJson, variant: "default", align: "start" };
-  }
-};
-
-const categoryConfig = (
-  category: AgentEventCategory,
-  t: ReturnType<typeof useTranslation>["t"],
-) => {
-  switch (category) {
-    case "user":
-      return { label: t("agent.category.user"), icon: UserRound, tone: "text-text-secondary" };
-    case "assistant":
-      return { label: t("agent.category.assistant"), icon: Bot, tone: "text-success" };
-    case "thinking":
-      return { label: t("agent.category.thinking"), icon: Brain, tone: "text-code-boolean" };
-    case "tool":
-      return { label: t("agent.category.tool"), icon: Wrench, tone: "text-warning" };
-    case "system":
-      return { label: t("agent.category.system"), icon: FileJson, tone: "text-text-muted" };
-    case "meta":
-      return { label: t("agent.category.meta"), icon: Hash, tone: "text-text-muted" };
-    case "unknown":
-      return { label: t("agent.category.unknown"), icon: CircleAlert, tone: "text-error" };
-  }
-};
-
-const formatTimestamp = (timestamp: number | undefined, timestampLabel: string | undefined) => {
-  if (timestampLabel) {
-    return timestampLabel;
-  }
-  if (timestamp === undefined) {
-    return "";
-  }
-  return new Date(timestamp).toLocaleString();
-};
-
 const metricItems = (session: AgentSession, t: ReturnType<typeof useTranslation>["t"]) => {
   const toolCount = session.conversationItems.filter(
     (item) => item.role === "tool_call" || item.role === "tool_result",
@@ -129,126 +46,6 @@ const metricItems = (session: AgentSession, t: ReturnType<typeof useTranslation>
     { label: t("agent.metric.turns"), value: session.meta.turnCount },
     { label: t("agent.metric.tools"), value: toolCount },
   ];
-};
-
-const BlockText = ({ block }: { block: AgentContentBlock | undefined }) => {
-  if (!block) {
-    return null;
-  }
-
-  const codeLike = block.type === "tool_use" || block.toolCallId;
-  return (
-    <pre
-      className={`mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border px-3 py-2 text-[12px] leading-5 ${
-        codeLike
-          ? "bg-surface-50 font-mono text-text-primary"
-          : "bg-transparent font-sans text-text-secondary"
-      }`}
-    >
-      {block.text}
-    </pre>
-  );
-};
-
-const ConversationItem = ({
-  item,
-  event,
-  selected,
-  onSelect,
-}: {
-  item: AgentConversationItem;
-  event: AgentTimelineEvent | undefined;
-  selected: boolean;
-  onSelect: (itemId: string) => void;
-}) => {
-  const { t } = useTranslation();
-  const config = roleConfig(item.role, t);
-  const Icon = config.icon;
-  const timestamp = formatTimestamp(event?.timestamp, event?.timestampLabel);
-
-  return (
-    <article className={`flex ${config.align === "end" ? "justify-end" : "justify-start"}`}>
-      <button
-        type="button"
-        aria-label={`${t("agent.conversation")}: ${config.label}`}
-        aria-pressed={selected}
-        className={`min-w-0 max-w-[min(48rem,100%)] rounded-md border px-3 py-2 text-left shadow-sm transition-colors ${
-          selected
-            ? "border-accent bg-[rgba(229,112,62,0.08)]"
-            : "border-border bg-surface-100 hover:border-accent/50"
-        }`}
-        onClick={() => onSelect(item.id)}
-      >
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Badge variant={config.variant}>
-            <Icon className="mr-1 size-3" />
-            {config.label}
-          </Badge>
-          {item.block?.toolName ? <Badge variant="warning">{item.block.toolName}</Badge> : null}
-          {item.block?.status ? <Badge>{item.block.status}</Badge> : null}
-          {item.turnIndex ? <Badge>{t("agent.turn", { turn: item.turnIndex })}</Badge> : null}
-          <span className="inline-flex items-center gap-1 text-[11px] text-text-muted">
-            <Hash className="size-3" />
-            {t("agent.line", { line: item.lineNumber })}
-          </span>
-          {timestamp ? (
-            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-text-muted">
-              <Clock3 className="size-3 shrink-0" />
-              <span className="truncate">{timestamp}</span>
-            </span>
-          ) : null}
-        </div>
-        <BlockText block={item.block} />
-      </button>
-    </article>
-  );
-};
-
-const TimelineEvent = ({
-  event,
-  selected,
-  onSelect,
-}: {
-  event: AgentTimelineEvent;
-  selected: boolean;
-  onSelect: (eventId: string) => void;
-}) => {
-  const { t } = useTranslation();
-  const config = categoryConfig(event.category, t);
-  const Icon = config.icon;
-  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel);
-
-  return (
-    <button
-      type="button"
-      aria-label={`${t("agent.timeline")}: ${event.label}`}
-      aria-pressed={selected}
-      className={`flex w-full min-w-0 gap-2 rounded-md border px-2.5 py-2 text-left transition-colors ${
-        selected
-          ? "border-accent bg-[rgba(229,112,62,0.08)]"
-          : "border-transparent hover:border-border hover:bg-surface-100"
-      }`}
-      onClick={() => onSelect(event.id)}
-    >
-      <Icon className={`mt-0.5 size-3.5 shrink-0 ${config.tone}`} />
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[12px] font-medium text-text-primary">{event.label}</span>
-          <span className="shrink-0 text-[10px] uppercase text-text-muted">{config.label}</span>
-        </span>
-        {event.preview ? (
-          <span className="mt-0.5 block truncate text-[11px] text-text-secondary">
-            {event.preview}
-          </span>
-        ) : null}
-        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[10px] text-text-muted">
-          <span>{t("agent.line", { line: event.lineNumber })}</span>
-          {event.turnIndex ? <span>{t("agent.turn", { turn: event.turnIndex })}</span> : null}
-          {timestamp ? <span className="truncate">{timestamp}</span> : null}
-        </span>
-      </span>
-    </button>
-  );
 };
 
 const RawJsonlPanel = ({
@@ -411,7 +208,6 @@ export const AgentSessionView = ({
   const metrics = useMemo(() => metricItems(session, t), [session, t]);
   const [detailOpen, setDetailOpen] = useState(true);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
-  const conversationRefs = useRef(new Map<string, HTMLDivElement>());
   const selectedItem =
     detailSelection?.kind === "conversation" ? conversationById.get(detailSelection.id) : undefined;
   const selectedEvent =
@@ -431,16 +227,6 @@ export const AgentSessionView = ({
   const selectedConversationId = detailItem?.id;
   const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
   const showRawRail = !detailEvent && session.events.length > 0;
-
-  useEffect(() => {
-    if (!selectedConversationId) {
-      return;
-    }
-
-    conversationRefs.current
-      .get(selectedConversationId)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [detailSelection, selectedConversationId]);
 
   useEffect(() => {
     if (detailSelection) {
@@ -529,78 +315,24 @@ export const AgentSessionView = ({
 
       <div className="uq-agent-workspace grid gap-3">
         <div className="uq-agent-main grid gap-3">
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader className="uq-agent-timeline-header flex-row items-center justify-between gap-2">
-              <CardTitle className="uq-agent-timeline-title">{t("agent.timeline")}</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="uq-agent-timeline-toggle h-7 w-7 px-0"
-                onClick={() => setTimelineCollapsed((current) => !current)}
-                aria-label={t(
-                  timelineCollapsed ? "agent.expandTimeline" : "agent.collapseTimeline",
-                )}
-              >
-                {timelineCollapsed ? (
-                  <PanelLeftOpen className="size-3.5" />
-                ) : (
-                  <PanelLeftClose className="size-3.5" />
-                )}
-              </Button>
-            </CardHeader>
-            <CardContent className="uq-agent-timeline-content max-h-[72vh] overflow-auto p-2">
-              <div className="flex flex-col gap-1">
-                {session.events.map((event) => (
-                  <TimelineEvent
-                    key={event.id}
-                    event={event}
-                    selected={highlightedRecordId === event.recordId}
-                    onSelect={handleSelectTimelineEvent}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <AgentTimelinePane
+            events={session.events}
+            highlightedRecordId={highlightedRecordId}
+            collapsed={timelineCollapsed}
+            onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
+            onSelectEvent={handleSelectTimelineEvent}
+          />
 
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
-              <CardTitle>{t("agent.conversation")}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {session.conversationItems.length === 0 ? (
-                <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
-                  {t("agent.noConversation")}
-                </div>
-              ) : (
-                session.conversationItems.map((item) => (
-                  <div
-                    key={item.id}
-                    ref={(node) => {
-                      if (node) {
-                        conversationRefs.current.set(item.id, node);
-                      } else {
-                        conversationRefs.current.delete(item.id);
-                      }
-                    }}
-                  >
-                    <ConversationItem
-                      item={item}
-                      event={eventById.get(item.eventId)}
-                      selected={selectedConversationId === item.id}
-                      onSelect={(itemId) => {
-                        onDetailSelectionChange({
-                          kind: "conversation",
-                          id: itemId,
-                          recordId: item.recordId,
-                        });
-                        setDetailOpen(true);
-                      }}
-                    />
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <AgentConversationPane
+            items={session.conversationItems}
+            eventById={eventById}
+            selectedConversationId={selectedConversationId}
+            detailSelection={detailSelection}
+            onSelectItem={(itemId, recordId) => {
+              onDetailSelectionChange({ kind: "conversation", id: itemId, recordId });
+              setDetailOpen(true);
+            }}
+          />
         </div>
 
         {detailEvent ? (
