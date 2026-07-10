@@ -1,4 +1,4 @@
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { cn } from "../lib/utils";
 
 export const Tabs = TabsPrimitive.Root;
@@ -19,10 +19,10 @@ export const TabsList = ({
 export const TabsTrigger = ({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) => (
-  <TabsPrimitive.Trigger
+}: React.ComponentProps<typeof TabsPrimitive.Tab>) => (
+  <TabsPrimitive.Tab
     className={cn(
-      "inline-flex items-center rounded-none px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary outline-none transition-[color,background-color] duration-150 data-[state=active]:bg-surface-100 data-[state=active]:text-text-display",
+      "inline-flex items-center rounded-none px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary outline-none transition-[color,background-color] duration-150 data-active:bg-surface-100 data-active:text-text-display",
       className,
     )}
     {...props}
@@ -32,6 +32,6 @@ export const TabsTrigger = ({
 export const TabsContent = ({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) => (
-  <TabsPrimitive.Content className={cn("outline-none", className)} {...props} />
+}: React.ComponentProps<typeof TabsPrimitive.Panel>) => (
+  <TabsPrimitive.Panel className={cn("outline-none", className)} {...props} />
 );

@@ -28,21 +28,23 @@ export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
   const { t } = useTranslation();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label={t("theme.toggle")}>
-          <ThemeIcon theme={theme} />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label={t("theme.toggle")}>
+            <ThemeIcon theme={theme} />
+          </Button>
+        }
+      />
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => onChange("light")}>
+        <DropdownMenuItem onClick={() => onChange("light")}>
           <Sun className="mr-2 size-3.5" />
           {t("theme.light")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onChange("dark")}>
+        <DropdownMenuItem onClick={() => onChange("dark")}>
           <Moon className="mr-2 size-3.5" />
           {t("theme.dark")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onChange("system")}>
+        <DropdownMenuItem onClick={() => onChange("system")}>
           <Monitor className="mr-2 size-3.5" />
           {t("theme.system")}
         </DropdownMenuItem>

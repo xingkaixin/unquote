@@ -660,19 +660,19 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("payload").length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
-    await user.click(screen.getByText("Copy JSONL"));
+    await user.click(await screen.findByText("Copy JSONL"));
 
     expect(writeText).toHaveBeenLastCalledWith('{"level":"info","payload":{"nested":true}}');
 
     await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
-    await user.click(screen.getByText("Export JSONL"));
+    await user.click(await screen.findByText("Export JSONL"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(1));
     await expect(readBlobText(exportedBlobs[0]!)).resolves.toBe(
       '{"level":"info","payload":{"nested":true}}',
     );
 
     await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
-    await user.click(screen.getByText("Export JSON"));
+    await user.click(await screen.findByText("Export JSON"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(2));
     await expect(readBlobText(exportedBlobs[1]!)).resolves.toBe(
       JSON.stringify([{ level: "info", payload: { nested: true } }], null, 2),

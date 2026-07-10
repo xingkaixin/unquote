@@ -18,16 +18,18 @@ export const LocaleToggle = () => {
   const { locale, setLocale } = useTranslation();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="Language">
-          <Languages className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="Language">
+            <Languages className="size-4" />
+          </Button>
+        }
+      />
       <DropdownMenuContent align="end">
         {(Object.entries(labels) as [Locale, string][]).map(([key, label]) => (
           <DropdownMenuItem
             key={key}
-            onSelect={() => setLocale(key)}
+            onClick={() => setLocale(key)}
             className={key === locale ? "font-semibold" : ""}
           >
             {label}

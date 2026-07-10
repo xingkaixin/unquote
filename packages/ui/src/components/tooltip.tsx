@@ -1,23 +1,28 @@
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "../lib/utils";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 export const Tooltip = TooltipPrimitive.Root;
 export const TooltipTrigger = TooltipPrimitive.Trigger;
 export const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+  React.ElementRef<typeof TooltipPrimitive.Popup>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Popup> & {
+    sideOffset?: number;
+  }
 >(({ className, sideOffset = 6, ...props }, ref) => (
-  <TooltipPrimitive.Content
-    ref={ref}
-    sideOffset={sideOffset}
-    className={cn(
-      "z-50 rounded-md bg-surface-500 px-2 py-1 text-[12px] text-text-primary shadow-md",
-      className,
-    )}
-    {...props}
-  />
+  <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Positioner sideOffset={sideOffset} className="z-50">
+      <TooltipPrimitive.Popup
+        ref={ref}
+        className={cn(
+          "rounded-md bg-surface-500 px-2 py-1 text-[12px] text-text-primary shadow-md",
+          className,
+        )}
+        {...props}
+      />
+    </TooltipPrimitive.Positioner>
+  </TooltipPrimitive.Portal>
 ));
 
 TooltipContent.displayName = "TooltipContent";

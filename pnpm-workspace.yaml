@@ -2,6 +2,10 @@ packages:
   - apps/*
   - packages/*
 
+allowBuilds:
+  esbuild: true
+  spawn-sync: true
+
 overrides:
   "vitest@3>vite": "7.3.5"
   "jsdom@27>ws": "8.21.0"

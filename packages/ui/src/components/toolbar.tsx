@@ -160,30 +160,32 @@ export const Toolbar = ({
           </span>
         </Button>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="size-[34px] px-0"
-              aria-label={t("toolbar.more")}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-[34px] px-0"
+                aria-label={t("toolbar.more")}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            }
+          />
           <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-[11px]" onSelect={onCopyJsonl}>
+            <DropdownMenuItem className="text-[11px]" onClick={onCopyJsonl}>
               <List className="mr-2 size-3.5" />
               {t("toolbar.copyJsonl")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onSelect={onCopyFormattedJson}>
+            <DropdownMenuItem className="text-[11px]" onClick={onCopyFormattedJson}>
               <ClipboardCopy className="mr-2 size-3.5" />
               {t("toolbar.copyFormattedJson")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onSelect={onExportJsonl}>
+            <DropdownMenuItem className="text-[11px]" onClick={onExportJsonl}>
               <Download className="mr-2 size-3.5" />
               {t("toolbar.exportJsonl")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onSelect={onExportFormattedJson}>
+            <DropdownMenuItem className="text-[11px]" onClick={onExportFormattedJson}>
               <Braces className="mr-2 size-3.5" />
               {t("toolbar.exportJson")}
             </DropdownMenuItem>
