@@ -1,5 +1,6 @@
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Clock3, Hash } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type {
   AgentContentBlock,
@@ -10,6 +11,10 @@ import type { AgentDetailSelection } from "./agent-session-view";
 import { formatTimestamp, roleConfig } from "./agent-session-format";
 import { Badge } from "./badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
+
+export const conversationVirtualizationThreshold = 160;
+const conversationItemEstimateSize = 96;
+const conversationItemGap = 12;
 
 const BlockText = ({ block }: { block: AgentContentBlock | undefined }) => {
   if (!block) {
@@ -101,9 +106,54 @@ export const AgentConversationPane = ({
 }: AgentConversationPaneProps) => {
   const { t } = useTranslation();
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const shouldVirtualize = items.length > conversationVirtualizationThreshold;
+  const indexById = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item, index) => map.set(item.id, index));
+    return map;
+  }, [items]);
+  const conversationVirtualizer = useWindowVirtualizer<HTMLDivElement>({
+    count: items.length,
+    estimateSize: () => conversationItemEstimateSize,
+    overscan: 4,
+    gap: conversationItemGap,
+    getItemKey: (index) => items[index]?.id ?? index,
+    scrollMargin,
+    enabled: shouldVirtualize,
+  });
+  const virtualItems = conversationVirtualizer.getVirtualItems();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!shouldVirtualize) {
+      setScrollMargin(0);
+      return;
+    }
+
+    const updateScrollMargin = () => {
+      const element = listRef.current;
+      setScrollMargin(element ? element.getBoundingClientRect().top + window.scrollY : 0);
+    };
+
+    updateScrollMargin();
+    window.addEventListener("resize", updateScrollMargin);
+    return () => window.removeEventListener("resize", updateScrollMargin);
+  }, [items.length, shouldVirtualize]);
+
+  // Scrolling must react to selection changes only; the closure reads the
+  // latest items/virtualizer state without depending on them, so a rebuilt
+  // items array does not re-scroll to an already-selected item.
+  useLayoutEffect(() => {
     if (!selectedConversationId) {
+      return;
+    }
+
+    if (shouldVirtualize) {
+      const index = indexById.get(selectedConversationId);
+      if (index !== undefined) {
+        conversationVirtualizer.scrollToIndex(index, { align: "center" });
+      }
       return;
     }
 
@@ -111,6 +161,15 @@ export const AgentConversationPane = ({
       .get(selectedConversationId)
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [detailSelection, selectedConversationId]);
+
+  const renderItem = (item: AgentConversationItem) => (
+    <ConversationItem
+      item={item}
+      event={eventById.get(item.eventId)}
+      selected={selectedConversationId === item.id}
+      onSelect={(itemId) => onSelectItem(itemId, item.recordId)}
+    />
+  );
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -121,6 +180,35 @@ export const AgentConversationPane = ({
         {items.length === 0 ? (
           <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
             {t("agent.noConversation")}
+          </div>
+        ) : shouldVirtualize ? (
+          <div
+            ref={listRef}
+            className="relative w-full"
+            style={{ height: `${conversationVirtualizer.getTotalSize()}px` }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const item = items[virtualItem.index];
+              if (!item) {
+                return null;
+              }
+
+              return (
+                <div
+                  key={item.id}
+                  ref={(node) => {
+                    if (node) {
+                      conversationVirtualizer.measureElement(node);
+                    }
+                  }}
+                  data-index={virtualItem.index}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualItem.start - scrollMargin}px)` }}
+                >
+                  {renderItem(item)}
+                </div>
+              );
+            })}
           </div>
         ) : (
           items.map((item) => (
@@ -134,12 +222,7 @@ export const AgentConversationPane = ({
                 }
               }}
             >
-              <ConversationItem
-                item={item}
-                event={eventById.get(item.eventId)}
-                selected={selectedConversationId === item.id}
-                onSelect={(itemId) => onSelectItem(itemId, item.recordId)}
-              />
+              {renderItem(item)}
             </div>
           ))
         )}
