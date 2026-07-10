@@ -1,18 +1,34 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { CSSProperties } from "react";
+import { useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentTimelineEvent } from "../lib/agent-session";
 import { categoryConfig, formatTimestamp } from "./agent-session-format";
 import { Button } from "./button";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 
+export const timelineVirtualizationThreshold = 160;
+const timelineEventEstimateSize = 54;
+const timelineEventEstimateSizeWithPreview = 76;
+const timelineEventGap = 4;
+
 const TimelineEvent = ({
   event,
   selected,
   onSelect,
+  virtualized = false,
+  virtualIndex,
+  style,
+  measureRef,
 }: {
   event: AgentTimelineEvent;
   selected: boolean;
   onSelect: (eventId: string) => void;
+  virtualized?: boolean;
+  virtualIndex?: number;
+  style?: CSSProperties;
+  measureRef?: (node: HTMLButtonElement | null) => void;
 }) => {
   const { t } = useTranslation();
   const config = categoryConfig(event.category, t);
@@ -21,14 +37,19 @@ const TimelineEvent = ({
 
   return (
     <button
+      ref={measureRef}
       type="button"
+      data-index={virtualized ? virtualIndex : undefined}
       aria-label={`${t("agent.timeline")}: ${event.label}`}
       aria-pressed={selected}
       className={`flex w-full min-w-0 gap-2 rounded-md border px-2.5 py-2 text-left transition-colors ${
+        virtualized ? "absolute left-0 top-0" : ""
+      } ${
         selected
           ? "border-accent bg-[rgba(229,112,62,0.08)]"
           : "border-transparent hover:border-border hover:bg-surface-100"
       }`}
+      style={style}
       onClick={() => onSelect(event.id)}
     >
       <Icon className={`mt-0.5 size-3.5 shrink-0 ${config.tone}`} />
@@ -68,6 +89,20 @@ export const AgentTimelinePane = ({
   onSelectEvent,
 }: AgentTimelinePaneProps) => {
   const { t } = useTranslation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const shouldVirtualize = events.length > timelineVirtualizationThreshold;
+  const rowVirtualizer = useVirtualizer({
+    count: events.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) =>
+      events[index]?.preview ? timelineEventEstimateSizeWithPreview : timelineEventEstimateSize,
+    overscan: 12,
+    gap: timelineEventGap,
+    getItemKey: (index) => events[index]?.id ?? index,
+    measureElement: (element) =>
+      element?.getBoundingClientRect().height ?? timelineEventEstimateSize,
+    enabled: shouldVirtualize,
+  });
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -87,16 +122,49 @@ export const AgentTimelinePane = ({
           )}
         </Button>
       </CardHeader>
-      <CardContent className="uq-agent-timeline-content max-h-[72vh] overflow-auto p-2">
-        <div className="flex flex-col gap-1">
-          {events.map((event) => (
-            <TimelineEvent
-              key={event.id}
-              event={event}
-              selected={highlightedRecordId === event.recordId}
-              onSelect={onSelectEvent}
-            />
-          ))}
+      <CardContent className="uq-agent-timeline-content p-0">
+        <div ref={scrollRef} className="max-h-[72vh] overflow-auto p-2">
+          {shouldVirtualize ? (
+            <div
+              className="relative w-full"
+              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                const event = events[virtualItem.index];
+                if (!event) {
+                  return null;
+                }
+
+                return (
+                  <TimelineEvent
+                    key={event.id}
+                    event={event}
+                    selected={highlightedRecordId === event.recordId}
+                    onSelect={onSelectEvent}
+                    virtualized
+                    virtualIndex={virtualItem.index}
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                    measureRef={(node) => {
+                      if (node) {
+                        rowVirtualizer.measureElement(node);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {events.map((event) => (
+                <TimelineEvent
+                  key={event.id}
+                  event={event}
+                  selected={highlightedRecordId === event.recordId}
+                  onSelect={onSelectEvent}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
