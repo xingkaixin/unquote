@@ -99,6 +99,84 @@ describe("parseInput", () => {
     expect(payload.value).toBe('{"ok":true}');
   });
 
+  it("restores only the selected dotted key", () => {
+    const result = parseInput('{"a.b":"{\\"flat\\":true}","a":{"b":"{\\"nested\\":true}"}}');
+    const root = result.records[0]?.node;
+    expect(root?.children).toBeTruthy();
+    if (!root?.children || Array.isArray(root.children)) {
+      throw new Error("Expected an object root");
+    }
+
+    const restored = restoreNode(root, [["$", "a.b"]]);
+    if (!restored.children || Array.isArray(restored.children)) {
+      throw new Error("Expected a restored object root");
+    }
+
+    const restoredNested = restored.children.a;
+    if (!restoredNested?.children || Array.isArray(restoredNested.children)) {
+      throw new Error("Expected nested object children");
+    }
+
+    expect(restored.children["a.b"]).toMatchObject({ kind: "string", value: '{"flat":true}' });
+    expect(restoredNested.children.b).toMatchObject({ kind: "object", wasStringified: true });
+  });
+
+  it("matches special restore path segments exactly", () => {
+    const escapedKey = 'quote"\\';
+    const result = parseInput(
+      JSON.stringify({
+        "": JSON.stringify({ empty: true }),
+        0: JSON.stringify({ numeric: true }),
+        "items[0]": JSON.stringify({ flat: true }),
+        [escapedKey]: JSON.stringify({ escaped: true }),
+        items: [JSON.stringify({ indexed: true }), JSON.stringify({ sibling: true })],
+      }),
+    );
+    const root = result.records[0]?.node;
+    if (!root?.children || Array.isArray(root.children)) {
+      throw new Error("Expected an object root");
+    }
+
+    const restored = restoreNode(root, [
+      ["$", ""],
+      ["$", "0"],
+      ["$", "items[0]"],
+      ["$", escapedKey],
+    ]);
+    if (!restored.children || Array.isArray(restored.children)) {
+      throw new Error("Expected a restored object root");
+    }
+
+    expect(restored.children[""]).toMatchObject({ kind: "string", value: '{"empty":true}' });
+    expect(restored.children["0"]).toMatchObject({ kind: "string", value: '{"numeric":true}' });
+    expect(restored.children["items[0]"]).toMatchObject({ kind: "string", value: '{"flat":true}' });
+    expect(restored.children[escapedKey]).toMatchObject({
+      kind: "string",
+      value: '{"escaped":true}',
+    });
+
+    const items = restored.children.items;
+    if (!items?.children || !Array.isArray(items.children)) {
+      throw new Error("Expected array children");
+    }
+    expect(items.children[0]).toMatchObject({ kind: "object", wasStringified: true });
+
+    const restoredArray = restoreNode(root, [["$", "items", "0"]]);
+    if (!restoredArray.children || Array.isArray(restoredArray.children)) {
+      throw new Error("Expected a restored object root");
+    }
+    const restoredItems = restoredArray.children.items;
+    if (!restoredItems?.children || !Array.isArray(restoredItems.children)) {
+      throw new Error("Expected array children");
+    }
+    expect(restoredItems.children[0]).toMatchObject({ kind: "string", value: '{"indexed":true}' });
+    expect(restoredItems.children[1]).toMatchObject({ kind: "object", wasStringified: true });
+    expect(restoredArray.children["items[0]"]).toMatchObject({
+      kind: "object",
+      wasStringified: true,
+    });
+  });
+
   it("formats back to json", () => {
     const result = parseInput('{"payload":"{\\"ok\\":true}"}');
     expect(formatResult(result)).toContain('"ok": true');
