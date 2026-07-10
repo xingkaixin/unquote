@@ -1,7 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["entrypoints", "wxt.config.ts", "wxt.dev.config.ts", "src/**/*.d.ts"]
+  "include": [
+    "entrypoints",
+    "src",
+    "tests",
+    "vitest.config.ts",
+    "wxt.config.ts",
+    "wxt.dev.config.ts"
+  ]
 }
