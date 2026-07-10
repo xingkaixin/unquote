@@ -860,6 +860,7 @@ export const UnquoteApp = ({
                   <TocPane
                     records={visibleRecords}
                     recordInsights={recordInsights}
+                    stats={visibleStats}
                     totalCount={result.stats.total}
                     activeRecordId={activeRecordId}
                     selectedRecordId={selectedRecordId}

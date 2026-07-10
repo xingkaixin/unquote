@@ -10,6 +10,7 @@ import { RecordInsightSummary } from "./record-insight";
 interface TocPaneProps {
   records: JsonlRecord[];
   recordInsights: ReadonlyMap<string, RecordInsight>;
+  stats: { total: number; success: number; failed: number };
   totalCount: number;
   activeRecordId: string | null;
   selectedRecordId: string | null;
@@ -20,6 +21,7 @@ interface TocPaneProps {
 export const TocPane = ({
   records,
   recordInsights,
+  stats,
   totalCount,
   activeRecordId,
   selectedRecordId,
@@ -27,12 +29,15 @@ export const TocPane = ({
   onCopyRawLine,
 }: TocPaneProps) => {
   const { t } = useTranslation();
-  const success = records.filter((record) => record.node || record.deferred).length;
-  const failed = records.length - success;
   const description =
-    records.length === totalCount
-      ? t("toc.stats", { success, failed })
-      : t("toc.filteredStats", { shown: records.length, total: totalCount, success, failed });
+    stats.total === totalCount
+      ? t("toc.stats", { success: stats.success, failed: stats.failed })
+      : t("toc.filteredStats", {
+          shown: stats.total,
+          total: totalCount,
+          success: stats.success,
+          failed: stats.failed,
+        });
 
   return (
     <Card className="hidden min-h-0 flex-1 overflow-hidden lg:flex lg:flex-col">
