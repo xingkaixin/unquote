@@ -338,7 +338,11 @@ export const materializeNode = (node: JsonNode): unknown => {
 };
 
 const matchesPath = (path: string[], paths: string[][]) =>
-  paths.some((candidate) => candidate.join(".") === path.join("."));
+  paths.some(
+    (candidate) =>
+      candidate.length === path.length &&
+      candidate.every((segment, index) => segment === path[index]),
+  );
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown parse error";
