@@ -750,6 +750,7 @@ export const UnquoteApp = ({
         <AgentSessionView
           session={agentSession}
           recordsById={recordsById}
+          hydratedRecords={localFileSource.hydratedRecords}
           recordInsights={recordInsights}
           expandedStringifiedPaths={expandedStringifiedPaths}
           selectedPath={selectedPath}

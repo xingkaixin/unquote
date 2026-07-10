@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
 import type { RecordInsight } from "../lib/record-insight";
+import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { TreeRow } from "../lib/tree";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
@@ -16,6 +17,7 @@ import { JsonTree } from "./json-tree";
 interface AgentSessionViewProps {
   session: AgentSession;
   recordsById: ReadonlyMap<string, JsonlRecord>;
+  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
   recordInsights: ReadonlyMap<string, RecordInsight>;
   expandedStringifiedPaths: Set<string>;
   selectedPath: { recordId: string; pathText: string } | null;
@@ -178,6 +180,7 @@ const RawJsonlRail = ({ onExpand }: { onExpand: () => void }) => {
 export const AgentSessionView = ({
   session,
   recordsById,
+  hydratedRecords,
   recordInsights,
   expandedStringifiedPaths,
   selectedPath,
@@ -227,6 +230,10 @@ export const AgentSessionView = ({
   const selectedConversationId = detailItem?.id;
   const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
   const showRawRail = !detailEvent && session.events.length > 0;
+  const detailRecord = detailEvent ? recordsById.get(detailEvent.recordId) : undefined;
+  const renderedDetailRecord = detailRecord
+    ? resolveHydratedRecord(detailRecord, hydratedRecords)
+    : undefined;
 
   useEffect(() => {
     if (detailSelection) {
@@ -339,7 +346,7 @@ export const AgentSessionView = ({
           <RawJsonlPanel
             event={detailEvent}
             item={detailItem}
-            record={recordsById.get(detailEvent.recordId)}
+            record={renderedDetailRecord}
             insight={recordInsights.get(detailEvent.recordId)}
             expandedStringifiedPaths={expandedStringifiedPaths}
             selectedPath={selectedPath}
