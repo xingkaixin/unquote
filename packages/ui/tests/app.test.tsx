@@ -171,6 +171,26 @@ Object.assign(globalThis, {
         },
       );
     }
+    completeSearchFile(requestId: number, file: File, query: string, options: unknown) {
+      import("../src/lib/local-file-source").then(({ searchJsonlFile }) => {
+        searchJsonlFile(
+          file,
+          query,
+          options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+          new AbortController().signal,
+        )
+          .then((matches) => {
+            this.onmessage?.({
+              data: { type: "result", requestId, matches },
+            } as MessageEvent);
+          })
+          .catch(() => {
+            this.onmessage?.({
+              data: { type: "error", requestId, message: "search failed" },
+            } as MessageEvent);
+          });
+      });
+    }
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
       Promise.all([import("@unquote/core"), import("../src/lib/agent-session")]).then(
         ([{ parseInput }, { createAgentSessionFromText }]) => {
@@ -214,6 +234,19 @@ Object.assign(globalThis, {
           payload.requestId,
           payload.text ?? "",
           payload.forcedFormat,
+          payload.query ?? "",
+          payload.options,
+        );
+        return;
+      }
+
+      if (payload.type === "search-file") {
+        if (!this.isSearchWorker || !payload.file) {
+          return;
+        }
+        this.completeSearchFile(
+          payload.requestId,
+          payload.file,
           payload.query ?? "",
           payload.options,
         );

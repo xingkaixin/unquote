@@ -27,6 +27,7 @@ import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { markPerf, measurePerfFn } from "./lib/perf";
 import { collectStringifiedPaths, hasJsonlRecords, resolveTreePath } from "./lib/tree";
+import { fileSearchDebounceMs } from "./lib/local-file-source";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { isCopyAboveThreshold } from "./lib/record-export";
@@ -239,17 +240,15 @@ export const UnquoteApp = ({
     [searchCaseSensitive, searchJq, searchRegex],
   );
 
-  const localFileSource = useLocalFileSource(sourceFile, searchQuery, searchOptions, () =>
-    toast.error(t("input.readFailed")),
-  );
-  // File search hasn't moved to the worker yet, so keep it idle whenever a
-  // file is attached to avoid running the in-memory path against text that
-  // isn't the active search target.
+  const localFileSource = useLocalFileSource(sourceFile, () => toast.error(t("input.readFailed")));
+  // A source file scans the whole file per query, so it gets a debounce;
+  // in-memory text search is cheap enough to dispatch immediately.
   const searchWorker = useSearchWorker({
     text: sourceText,
-    sourceFile: null,
-    query: sourceFile ? "" : searchQuery,
+    sourceFile,
+    query: searchQuery,
     options: searchOptions,
+    debounceMs: sourceFile ? fileSearchDebounceMs : 0,
     ...(forcedFormat ? { forcedFormat } : {}),
   });
 
@@ -264,10 +263,7 @@ export const UnquoteApp = ({
   } = useRecordPipeline({
     result,
     recordsVersion,
-    sourceFile,
-    fileMatches: localFileSource.fileMatches,
-    inMemoryMatches: searchWorker.matches,
-    searchQuery,
+    searchMatches: searchWorker.matches,
     recordFilter,
   });
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
@@ -660,7 +656,7 @@ export const UnquoteApp = ({
     }
   })();
   const searchErrorLabel =
-    !sourceFile && searchQuery && searchWorker.status === "error"
+    searchQuery && searchWorker.status === "error"
       ? t(searchWorker.errorKind === "timeout" ? "search.timeout" : "search.failed")
       : null;
   const toolbarSummary = pathError
@@ -783,15 +779,7 @@ export const UnquoteApp = ({
       data-agent-session={agentSession ? "true" : "false"}
       data-output-view={agentSession ? outputView : "json"}
       data-search-query={searchQuery}
-      data-search-state={
-        !searchQuery
-          ? "idle"
-          : sourceFile
-            ? localFileSource.isSearchComplete
-              ? "complete"
-              : "pending"
-            : searchWorker.status
-      }
+      data-search-state={searchWorker.status}
     >
       <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
         <div className="flex items-center gap-3.5">

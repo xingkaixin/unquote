@@ -43,8 +43,11 @@ export const useSearchWorker = (params: {
   sourceFile: File | null;
   query: string;
   options: SearchOptions;
+  // Delay before a request is actually dispatched; only the last query
+  // within the window fires. Defaults to 0 (dispatch immediately).
+  debounceMs?: number;
 }): SearchWorkerResult => {
-  const { text, forcedFormat, sourceFile, query, options } = params;
+  const { text, forcedFormat, sourceFile, query, options, debounceMs = 0 } = params;
   const [state, setState] = useState<SearchWorkerResult>(idleResult);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -56,73 +59,94 @@ export const useSearchWorker = (params: {
       return;
     }
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
     setState(pendingResult);
 
-    if (typeof Worker === "undefined") {
-      if (sourceFile) {
-        const controller = new AbortController();
-        searchJsonlFile(sourceFile, query, options, controller.signal)
-          .then((matches) => {
-            if (requestIdRef.current === requestId) {
-              setState({ matches, status: "complete", errorKind: null });
-            }
-          })
-          .catch(() => {
-            if (requestIdRef.current === requestId) {
-              setState({ matches: null, status: "error", errorKind: "worker-error" });
-            }
-          });
-        return () => controller.abort();
+    // The dispatched request's cleanup (worker listener/timeout, or the
+    // fallback abort controller) doesn't exist until `dispatch` actually
+    // runs, so it's captured here and the effect cleanup below tears down
+    // whichever is active: the debounce timer, or the dispatched request.
+    let dispatchCleanup: (() => void) | undefined;
+
+    const dispatch = () => {
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+
+      if (typeof Worker === "undefined") {
+        if (sourceFile) {
+          const controller = new AbortController();
+          searchJsonlFile(sourceFile, query, options, controller.signal)
+            .then((matches) => {
+              if (requestIdRef.current === requestId) {
+                setState({ matches, status: "complete", errorKind: null });
+              }
+            })
+            .catch(() => {
+              if (requestIdRef.current === requestId) {
+                setState({ matches: null, status: "error", errorKind: "worker-error" });
+              }
+            });
+          dispatchCleanup = () => controller.abort();
+          return;
+        }
+
+        const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
+        setState({
+          matches: searchRecords(result.records, query, options),
+          status: "complete",
+          errorKind: null,
+        });
+        return;
       }
 
-      const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
-      setState({
-        matches: searchRecords(result.records, query, options),
-        status: "complete",
-        errorKind: null,
+      workerRef.current ??= new Worker(new URL("../worker/search-worker.ts", import.meta.url), {
+        type: "module",
       });
-      return;
+      const currentWorker = workerRef.current;
+      currentWorker.postMessage(
+        buildSearchRequest(requestId, text, forcedFormat, sourceFile, query, options),
+      );
+
+      const timeoutId = window.setTimeout(() => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+        currentWorker.terminate();
+        workerRef.current = null;
+        setState({ matches: null, status: "error", errorKind: "timeout" });
+      }, searchWorkerTimeoutMs);
+
+      const onMessage = (event: MessageEvent<SearchWorkerResponse>) => {
+        const response = event.data;
+        if (response.requestId !== requestIdRef.current) {
+          return;
+        }
+
+        window.clearTimeout(timeoutId);
+        if (response.type === "error") {
+          setState({ matches: null, status: "error", errorKind: "worker-error" });
+          return;
+        }
+        setState({ matches: response.matches, status: "complete", errorKind: null });
+      };
+
+      currentWorker.addEventListener("message", onMessage);
+      dispatchCleanup = () => {
+        window.clearTimeout(timeoutId);
+        currentWorker.removeEventListener("message", onMessage);
+      };
+    };
+
+    if (debounceMs > 0) {
+      const debounceTimeoutId = window.setTimeout(dispatch, debounceMs);
+      return () => {
+        window.clearTimeout(debounceTimeoutId);
+        dispatchCleanup?.();
+      };
     }
 
-    workerRef.current ??= new Worker(new URL("../worker/search-worker.ts", import.meta.url), {
-      type: "module",
-    });
-    const currentWorker = workerRef.current;
-    currentWorker.postMessage(
-      buildSearchRequest(requestId, text, forcedFormat, sourceFile, query, options),
-    );
-
-    const timeoutId = window.setTimeout(() => {
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-      currentWorker.terminate();
-      workerRef.current = null;
-      setState({ matches: null, status: "error", errorKind: "timeout" });
-    }, searchWorkerTimeoutMs);
-
-    const onMessage = (event: MessageEvent<SearchWorkerResponse>) => {
-      const response = event.data;
-      if (response.requestId !== requestIdRef.current) {
-        return;
-      }
-
-      window.clearTimeout(timeoutId);
-      if (response.type === "error") {
-        setState({ matches: null, status: "error", errorKind: "worker-error" });
-        return;
-      }
-      setState({ matches: response.matches, status: "complete", errorKind: null });
-    };
-
-    currentWorker.addEventListener("message", onMessage);
-    return () => {
-      window.clearTimeout(timeoutId);
-      currentWorker.removeEventListener("message", onMessage);
-    };
-  }, [text, forcedFormat, sourceFile, query, options]);
+    dispatch();
+    return () => dispatchCleanup?.();
+  }, [text, forcedFormat, sourceFile, query, options, debounceMs]);
 
   // Terminate the worker thread when the hook's owner unmounts; the per-request
   // cleanup above only detaches listeners and timers.

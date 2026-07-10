@@ -11,14 +11,9 @@ import type { SearchMatch } from "../lib/tree";
 export interface RecordPipelineParams {
   result: ParseResult;
   recordsVersion: number;
-  sourceFile: File | null;
-  // Whole-file matches from the local-file source; used instead of in-memory
-  // search whenever a streamed file is attached.
-  fileMatches: SearchMatch[] | null;
-  // In-memory search matches, computed by the caller (search worker or its
-  // main-thread fallback) whenever no file is attached.
-  inMemoryMatches: SearchMatch[] | null;
-  searchQuery: string;
+  // Search matches from the search worker — covers both in-memory text search
+  // and whole-file search, and is null while idle, pending, or errored.
+  searchMatches: SearchMatch[] | null;
   recordFilter: QueryInteractionState["recordFilter"];
 }
 
@@ -51,16 +46,13 @@ const getRecordStats = (records: JsonlRecord[]) => {
 export const useRecordPipeline = ({
   result,
   recordsVersion,
-  sourceFile,
-  fileMatches,
-  inMemoryMatches,
-  searchQuery,
+  searchMatches,
   recordFilter,
 }: RecordPipelineParams): RecordPipeline => {
   const overviewStateRef = useRef(createFileOverviewState());
   const recordInsightStateRef = useRef(createRecordInsightMapState());
 
-  const matches = sourceFile && searchQuery ? fileMatches : inMemoryMatches;
+  const matches = searchMatches;
 
   const recordInsights = useMemo(
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),

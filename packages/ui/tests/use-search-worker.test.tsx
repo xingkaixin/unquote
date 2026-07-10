@@ -46,8 +46,18 @@ class MockWorker {
   }
 }
 
-const Probe = ({ query, text }: { query: string; text: string }) => {
-  const result = useSearchWorker({ text, sourceFile: null, query, options: defaultOptions });
+const Probe = ({
+  query,
+  text,
+  sourceFile = null,
+  debounceMs = 0,
+}: {
+  query: string;
+  text: string;
+  sourceFile?: File | null;
+  debounceMs?: number;
+}) => {
+  const result = useSearchWorker({ text, sourceFile, query, options: defaultOptions, debounceMs });
   return (
     <div>
       <div data-testid="status">{result.status}</div>
@@ -147,5 +157,50 @@ describe("useSearchWorker", () => {
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("debounces consecutive queries, dispatching only the last one after the window elapses", () => {
+    const { rerender } = render(<Probe query="a" text="text" debounceMs={250} />);
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(MockWorker.instances).toHaveLength(0);
+
+    act(() => vi.advanceTimersByTime(100));
+    rerender(<Probe query="ab" text="text" debounceMs={250} />);
+    act(() => vi.advanceTimersByTime(100));
+    rerender(<Probe query="abc" text="text" debounceMs={250} />);
+    act(() => vi.advanceTimersByTime(200));
+    // 200ms since the last change is still short of the 250ms window.
+    expect(MockWorker.instances).toHaveLength(0);
+
+    act(() => vi.advanceTimersByTime(50));
+    expect(MockWorker.instances).toHaveLength(1);
+    const worker = MockWorker.instances[0]!;
+    expect(worker.postMessage).toHaveBeenCalledTimes(1);
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "abc", requestId: 1 }),
+    );
+  });
+
+  it("posts a search-file request for a source file and ignores its stale response", () => {
+    const file = new File(["{}"], "payload.jsonl");
+    const { rerender } = render(<Probe query="a" text="" sourceFile={file} />);
+
+    const worker = MockWorker.instances[0]!;
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: "search-file",
+      requestId: 1,
+      file,
+      query: "a",
+      options: defaultOptions,
+    });
+
+    rerender(<Probe query="b" text="" sourceFile={file} />);
+    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("stale-file")] }));
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
+
+    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("fresh-file")] }));
+    expect(screen.getByTestId("record-id")).toHaveTextContent("fresh-file");
   });
 });

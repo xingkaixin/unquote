@@ -35,6 +35,20 @@ const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   return file;
 };
 
+const makeFailingFile = (name = "payload.jsonl") => {
+  const file = new File(['{"a":1}\n'], name, { type: "application/jsonl" });
+  Object.defineProperty(file, "stream", {
+    configurable: true,
+    value: () =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error("io failure"));
+        },
+      }),
+  });
+  return file;
+};
+
 describe("search worker", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -115,6 +129,23 @@ describe("search worker", () => {
     const [response] = workerScope.postMessage.mock.calls[0]!;
     expect(response).toMatchObject({ type: "result", requestId: 1 });
     expect(response.matches.length).toBeGreaterThan(0);
+  });
+
+  it("reports an error instead of empty matches when a file read fails", async () => {
+    const file = makeFailingFile();
+    const workerScope = await loadWorker();
+    dispatch(workerScope, {
+      type: "search-file",
+      requestId: 1,
+      file,
+      query: "world",
+      options: defaultOptions,
+    });
+
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
+    const [response] = workerScope.postMessage.mock.calls[0]!;
+    expect(response.type).toBe("error");
+    expect(response).not.toHaveProperty("matches");
   });
 
   it("keeps error responses free of the input text and query", async () => {
