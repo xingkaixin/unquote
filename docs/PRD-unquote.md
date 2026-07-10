@@ -2,15 +2,21 @@
 
 ## 1. 概述
 
-Unquote 是一个用于检测并展开 JSON 中 stringified JSON 值的格式化工具。大模型返回内容、Agent 工具持久化存储的 JSONL 中，JSON 值经常以转义字符串形式存在，导致阅读和调试困难。Unquote 递归检测这些 stringified JSON 并提供可交互的展开、折叠、还原操作。同时原生支持 JSONL，提供带目录导航的多记录浏览体验。
+Unquote 是一个在本地检测并展开 JSON 中 stringified JSON 值的查看器。大模型返回内容、Agent 工具持久化记录和其他 JSONL 日志中，JSON 经常被二次编码为转义字符串，因而难以阅读、搜索和调试。Unquote 将这些值递归解析为可浏览的结构，并保留 JSONL 的逐条记录语义。
 
-产品形态为 monorepo，包含三个分发渠道：npm 包（core 逻辑）、Web 站点、Chrome Extension。
+产品提供三个分发渠道：供程序使用的 core 库、无需登录的 Web 应用，以及 Chrome 扩展。所有解析、搜索和导出均在浏览器或扩展本地完成。
+
+### 产品边界
+
+- Unquote 的交互模型是单向地把 stringified JSON 呈现为结构化内容；用户可以展开或收起节点，但不会在 UI 中把节点还原为原始转义字符串。
+- 输入内容不会被回写。复制和导出使用展开后的结构化结果。
+- `@unquote/core` 仍保留 `restoreNode` 供库消费者按需使用；这不是 Web 或扩展的产品功能。
 
 ## 2. 目标用户
 
-- 使用大模型 API 的开发者，需要阅读模型返回的嵌套 JSON 响应
-- Agent / MCP 工具链的开发者，需要检查 agent session dump、tool call 记录中的 JSONL
-- 日常需要格式化 JSON 的技术人员
+- 使用大模型 API 的开发者，需要阅读嵌套的 JSON 响应。
+- Agent / MCP 工具链的开发者，需要检查 Codex、Claude Code 等 session dump、tool call 记录和 JSONL 日志。
+- 日常需要在本地格式化、检索或导出 JSON / JSONL 的技术人员。
 
 ## 3. 核心问题
 
@@ -24,70 +30,62 @@ JSON 值中嵌套的 stringified JSON 是一个普遍痛点：
 }
 ```
 
-现有 JSON formatter 工具（如 jq、各类在线工具）将这类值视为普通字符串，不做进一步解析。用户需要手动复制字符串值、去除转义、再次格式化，遇到多层嵌套时操作极其繁琐。
+常规 JSON formatter 会将 `payload` 视为普通字符串。用户需要手动复制、去除转义并再次格式化；多层嵌套时，这个过程既慢又容易出错。
 
-### 3.2 JSONL 浏览
+### 3.2 JSONL 与 Agent 记录
 
-Agent session dump、日志文件等通常以 JSONL 格式存储，一个文件包含几十到上千条 JSON 记录。现有工具不支持 JSONL 的结构化浏览，用户只能逐行复制粘贴到 formatter 中查看，无法快速定位和跳转。
+Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十到数十万条记录。逐行查看会丢失记录之间的时间线和上下文，也难以定位字段、错误或特定事件。用户需要能在不上传数据的前提下，导航、搜索、筛选和按会话语义阅读这些记录。
 
-## 4. 功能需求
+## 4. 当前能力
 
 ### 4.1 Core（@unquote/core）
 
-| 编号 | 功能                  | 描述                                                                                                                   |
-| ---- | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| C-1  | Stringified JSON 检测 | 遍历 JSON 对象所有 string 类型值，尝试 `JSON.parse`，判断是否为 stringified JSON                                       |
-| C-2  | 递归展开              | 对检测到的 stringified JSON 递归解析，支持多层嵌套（默认最大深度 10）                                                  |
-| C-3  | 带标注的 AST          | 解析结果以树形结构返回，每个节点标记 `wasStringified`（是否来源于 string 解析）及 `rawString`（原始字符串）            |
-| C-4  | 选择性还原            | 支持将指定路径的节点重新 stringify 为原始形态                                                                          |
-| C-5  | JSONL 解析            | 按行分割输入，逐行解析为 JsonNode 数组，每条记录附带行号和摘要信息                                                     |
-| C-6  | 记录摘要提取          | 从每条 JSONL 记录的第一层字段中提取摘要（优先取 `timestamp`、`type`、`action`、`event`、`name`、`message` 等常见字段） |
-| C-7  | 格式化输出            | 将处理后的 JSON 输出为格式化字符串，支持自定义缩进                                                                     |
-| C-8  | 格式自动检测          | 根据输入内容自动判断 JSON 或 JSONL 格式                                                                                |
-| C-9  | 错误容忍              | 输入不合法时返回具体的错误位置和原因，JSONL 逐行报告成功/失败                                                          |
+| 编号 | 功能 | 描述 |
+| ---- | ---- | ---- |
+| C-1 | Stringified JSON 检测 | 遍历 JSON 的 string 值并尝试 `JSON.parse`，识别可展开的 stringified JSON。 |
+| C-2 | 递归展开 | 递归解析嵌套值，并以最大深度保护避免无限展开。 |
+| C-3 | 带标注的树 | 节点包含 `kind`、路径、`wasStringified` 和展开性等元数据，使 UI 和库消费者可以按结构处理。 |
+| C-4 | JSONL 解析 | 按行生成带稳定 ID、行号、摘要和错误元数据的记录；单行错误不阻断其余记录。 |
+| C-5 | 格式与导出基础 | 自动识别 JSON / JSONL，并将解析树物化为格式化 JSON 或 JSONL。 |
+| C-6 | 库级原始形态恢复 | `restoreNode` 可供程序化调用；当前 UI 不暴露还原操作。 |
 
 ### 4.2 UI 组件（@unquote/ui）
 
-| 编号 | 功能             | 描述                                                                   |
-| ---- | ---------------- | ---------------------------------------------------------------------- |
-| U-1  | JSON 输入区      | 文本编辑器，支持粘贴、拖拽文件、清空操作                               |
-| U-2  | 树形输出区       | 交互式树形视图，渲染 core 返回的 AST                                   |
-| U-3  | Stringified 标签 | stringified JSON 节点显示黄色 "stringified JSON" 标签，点击可展开/折叠 |
-| U-4  | 一键展开全部     | 全局按钮，调用 core 的递归展开，将所有 stringified JSON 就地展开       |
-| U-5  | 一键还原全部     | 全局按钮，将所有已展开节点恢复为原始 string 形态                       |
-| U-6  | 复制操作         | 支持复制整体结果、复制单个节点值、复制 JSON Path                       |
-| U-7  | 语法高亮         | key、string、number、boolean、null 分色显示                            |
-| U-8  | 错误提示         | 输入不合法时，在输入区标注错误位置，输出区显示错误信息                 |
-| U-9  | JSONL TOC 面板   | JSONL 模式下显示左侧目录面板，列出所有记录，每条显示行号 + 摘要文本    |
-| U-10 | TOC 跳转         | 点击 TOC 条目，输出区滚动到对应记录                                    |
-| U-11 | TOC 跟随高亮     | 滚动输出区时，TOC 自动高亮当前可见的记录                               |
-| U-12 | 记录级操作       | JSONL 模式下每条记录可独立展开/折叠 stringified JSON、复制单条记录     |
-| U-13 | JSONL 统计栏     | 显示总记录数、解析成功数、解析失败数                                   |
-| U-14 | 路径显示         | 鼠标悬停节点时显示 JSON Path（如 `$.payload.user.name`）               |
-| U-15 | 格式切换         | 手动切换 JSON / JSONL 模式（通常由自动检测处理，手动切换作为覆盖）     |
+| 编号 | 功能 | 描述 |
+| ---- | ---- | ---- |
+| U-1 | 输入与文件打开 | 支持粘贴、示例、拖拽和打开本地 `.json` / `.jsonl` 文件，并可手动覆盖格式识别。 |
+| U-2 | 结构化树视图 | 渲染解析树，提供语法高亮、节点路径、选中复制和错误详情。 |
+| U-3 | Stringified 标识与展开 | 对已识别节点标识其来源，并支持逐节点展开或收起。 |
+| U-4 | 批量展开与收起 | 对当前记录范围内的 stringified 节点执行 Expand All 或 Collapse All。 |
+| U-5 | JSONL 导航 | 提供记录目录、可见记录定位、记录级展开控制与成功/失败统计。 |
+| U-6 | 搜索、路径跳转与筛选 | 在键和值中搜索，支持正则、大小写、JSONPath / jq 风格路径跳转及记录过滤。 |
+| U-7 | 命令工具栏 | 在工具栏和 `Cmd/Ctrl+K` 命令面板集中执行搜索、路径跳转、展开/收起与筛选。 |
+| U-8 | Agent session 视图 | 自动识别 Codex rollout 与 Claude Code JSONL，以会话信息、对话、工具调用、时间线和原始记录的关联视图呈现。 |
+| U-9 | 复制与导出 | 复制或导出可见记录为 JSONL 或格式化 JSON；大数据复制会提示改用导出。 |
+| U-10 | 文件概览与记录洞察 | 汇总成功/失败、嵌套路径和常见字段值，并识别日志、消息、事件、工具调用和错误记录。 |
+| U-11 | 大文件浏览 | JSONL 支持流式导入、按需水合完整记录、虚拟列表和分块导出，降低首屏、滚动和导出时的内存压力。 |
 
 ### 4.3 Web（@unquote/web）
 
-| 编号 | 功能          | 描述                                                          |
-| ---- | ------------- | ------------------------------------------------------------- |
-| W-1  | SPA 页面      | 单页应用，加载即可使用，无需登录                              |
-| W-2  | 本地文件打开  | 支持通过文件选择器打开本地 .json / .jsonl 文件                |
-| W-3  | 深色/浅色主题 | 跟随系统 prefers-color-scheme，支持手动切换                   |
-| W-4  | URL 分享      | 支持将输入内容编码到 URL hash，打开链接即可复现（小体积数据） |
+| 编号 | 功能 | 描述 |
+| ---- | ---- | ---- |
+| W-1 | 单页应用 | 打开即用，无需登录。 |
+| W-2 | 本地文件与链接分享 | 可打开本地 `.json` / `.jsonl`，并以 URL hash 分享小体积输入。 |
+| W-3 | 偏好设置 | 支持浅色、深色和跟随系统主题，以及英文和简体中文。 |
 
 ### 4.4 Chrome Extension（@unquote/extension）
 
-| 编号 | 功能             | 描述                                                                                                                           |
-| ---- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| E-1  | 图标点击打开 Tab | 点击 Extension 图标，`chrome.tabs.create` 打开完整页面，功能与 Web 版一致                                                      |
-| E-2  | 右键菜单         | 选中页面文本后右键 "Open in Unquote"，自动将选中内容填入输入区                                                                 |
-| E-3  | 快捷键           | 支持自定义快捷键打开 Extension 页面                                                                                            |
+| 编号 | 功能 | 描述 |
+| ---- | ---- | ---- |
+| E-1 | 独立页面 | 点击扩展图标在独立标签页中打开完整 Unquote 体验。 |
+| E-2 | 右键菜单 | 选中文本后通过 “Open in Unquote” 将内容交给扩展页面查看。 |
+| E-3 | 快捷键 | 支持 `Ctrl+Shift+U` / `Cmd+Shift+U` 打开扩展页面。 |
 
 ## 5. 界面布局
 
-### 5.1 单条 JSON 模式
+### 5.1 JSON 模式
 
-两栏布局：
+输入与结构化结果并排显示；工具栏承载搜索、路径跳转、批量展开/收起及复制/导出操作。
 
 ```
 ┌──────────────────────┬──────────────────────┐
@@ -99,37 +97,31 @@ Agent session dump、日志文件等通常以 JSONL 格式存储，一个文件�
 
 ### 5.2 JSONL 模式
 
-三栏布局，左侧 TOC 常驻：
+记录目录、输入区和结果区并列。结果区可以在普通 JSON 树和识别出的 Agent session 视图之间切换。
 
 ```
 ┌────────┬─────────────────┬──────────────────┐
-│  TOC   │                 │                  │
-│        │  Input Editor   │  Tree Output     │
-│ #1 ◉   │                 │  ┌─ Record #1 ─┐│
-│ #2     │                 │  │  ...         ││
-│ #3     │                 │  └─────────────┘│
-│ #4     │                 │  ┌─ Record #2 ─┐│
-│ ...    │                 │  │  ...         ││
-│        │                 │  └─────────────┘│
-│ Stats: │                 │                  │
-│ 42 ok  │                 │                  │
-│ 1 err  │                 │                  │
+│  TOC   │                 │ JSON / Agent     │
+│        │  Input Editor   │ ┌─ Record #1 ─┐  │
+│ #1 ◉   │                 │ │  ...         │  │
+│ #2     │                 │ └─────────────┘  │
+│ #3     │                 │ ┌─ Record #2 ─┐  │
+│ ...    │                 │ │  ...         │  │
+│ Stats  │                 │ └─────────────┘  │
 └────────┴─────────────────┴──────────────────┘
 ```
 
-TOC 每条记录显示：行号、摘要（从记录中提取的关键字段值）、解析状态（成功/失败图标）。
+TOC 显示行号、摘要和解析状态；搜索和路径跳转会将目标记录带入视图，必要时先水合该记录。
 
 ## 6. 非功能需求
 
-| 编号 | 类别 | 要求                                                 |
-| ---- | ---- | ---------------------------------------------------- |
-| N-1  | 性能 | 10MB 以下 JSON 文件在 3 秒内完成解析和首屏渲染       |
-| N-2  | 性能 | 大文件解析在 Web Worker 中执行，不阻塞主线程         |
-| N-3  | 性能 | 树形视图使用虚拟滚动，仅渲染可视区域节点             |
-| N-4  | 安全 | 所有处理在客户端本地完成，不向任何服务器发送用户数据 |
-| N-5  | 体积 | Extension 打包体积 < 500KB（gzip）                   |
-| N-6  | 兼容 | Web 支持 Chrome / Firefox / Safari 最新两个版本      |
-| N-7  | 兼容 | Extension 支持 Chrome Manifest V3                    |
+| 编号 | 类别 | 要求 |
+| ---- | ---- | ---- |
+| N-1 | 本地性 | 输入、解析、搜索、复制和导出均在浏览器或扩展本地处理，不向服务端发送用户数据。 |
+| N-2 | 响应性 | 解析与搜索通过 Web Worker 执行；没有 Worker 的环境可回退到主线程。 |
+| N-3 | 大文件 | JSONL 使用流式发布、记录虚拟化和按需水合，避免为浏览少量记录而常驻完整树。 |
+| N-4 | 导出 | 大型导出分块生成并向主线程让步，避免长时间阻塞页面。 |
+| N-5 | 兼容 | Web 面向现代浏览器；Chrome 扩展使用 Manifest V3。 |
 
 ## 7. 技术架构
 
@@ -137,112 +129,59 @@ TOC 每条记录显示：行号、摘要（从记录中提取的关键字段值�
 
 ```
 unquote/
+├── apps/
+│   ├── web/          # Vite + React Web 应用
+│   └── extension/    # WXT + React Chrome Extension（MV3）
 ├── packages/
-│   ├── core/          # 纯 TypeScript，零依赖
-│   ├── ui/            # React 组件库
-│   ├── web/           # Vite SPA
-│   └── extension/     # Chrome Extension (Manifest V3)
+│   ├── core/         # 无框架依赖的 TypeScript 解析库
+│   └── ui/           # 共享的 React UI 与应用逻辑
 ├── pnpm-workspace.yaml
 ├── turbo.json
 └── package.json
 ```
 
-### 7.2 依赖关系
+`apps` 负责分发渠道，`packages` 负责可复用能力；应用依赖方向保持单向，避免平台细节渗入解析层。
 
 ```
 web ──→ ui ──→ core
 extension ──→ ui ──→ core
 ```
 
-### 7.3 技术选型
+### 7.2 技术选型
 
-| 层        | 选型                       | 理由                                                       |
-| --------- | -------------------------- | ---------------------------------------------------------- |
-| Monorepo  | pnpm workspace + turborepo | 依赖管理干净，构建缓存和任务编排                           |
-| Core      | TypeScript + tsup          | 纯逻辑包，输出 ESM + CJS                                   |
-| UI        | React + Tailwind CSS       | 组件复用于 Web 和 Extension                                |
-| Web       | Vite                       | 开发体验和构建速度                                         |
-| Extension | Vite 多入口                | background service worker + full page 入口，不引入额外框架 |
-| 测试      | Vitest                     | 与 Vite 生态一致                                           |
+| 层 | 选型 | 理由 |
+| --- | ---- | ---- |
+| Monorepo | pnpm workspace + Turborepo | 管理共享包、构建缓存和任务编排。 |
+| Core | TypeScript + tsup | 保持解析逻辑可独立使用，并输出 ESM 与 CJS。 |
+| UI | React + Tailwind CSS | 让 Web 与扩展共享一致的交互和设计系统。 |
+| Web | Vite | 提供 Web 应用的开发与构建能力。 |
+| Extension | WXT | 生成和管理 Manifest V3，组织 background 与 options 页面入口。 |
+| 测试 | Vitest | 覆盖 core、UI、Web 和扩展的单元及交互测试。 |
 
-### 7.4 Core 数据结构
+### 7.3 数据与扩展边界
 
-```typescript
-interface JsonNode {
-  type: "object" | "array" | "string" | "number" | "boolean" | "null";
-  value: unknown;
-  wasStringified: boolean;
-  rawString?: string;
-  path: string[];
-  children?: Record<string, JsonNode> | JsonNode[];
-}
+Core 将输入解析为以路径和元数据标注的树；UI 负责显示、查询、虚拟化和本地文件的延迟读取。Web 仅增加 URL hash 和文件选择等网页入口能力。
 
-interface JsonlRecord {
-  lineNumber: number;
-  node: JsonNode | null; // null 表示该行解析失败
-  error?: string; // 解析失败时的错误信息
-  summary: string; // 从记录中提取的摘要文本
-}
+扩展由 WXT 管理 MV3 manifest、background 与 options 页面；options 页面复用 `UnquoteApp`。选中文本通过扩展存储交接给页面，避免把内容编码进 URL 或泄漏给网页上下文。
 
-interface ParseResult {
-  format: "json" | "jsonl";
-  records: JsonlRecord[]; // JSON 模式下长度为 1
-  stats: {
-    total: number;
-    success: number;
-    failed: number;
-  };
-}
-```
+## 8. 产品状态与决策
 
-### 7.5 Extension 架构
+### 已交付
 
-```
-extension/
-├── src/
-│   ├── background.ts       # Service Worker，监听 icon click / 右键菜单
-│   ├── pages/
-│   │   └── main/           # Full page 入口，引用 @unquote/ui
-│   └── manifest.json
-```
+- JSON / JSONL 的递归解析、树形浏览、记录导航和错误隔离。
+- Web Worker 解析、流式 JSONL、大记录虚拟化、按需水合和分块导出。
+- 搜索、正则和大小写选项、JSONPath / jq 风格路径跳转、记录过滤及命令面板。
+- Codex rollout 和 Claude Code JSONL 的 session 识别与专用浏览视图。
+- URL 分享、主题与语言偏好、Chrome 扩展的独立页面、右键菜单和快捷键。
 
-权限需求：`contextMenus`、`storage`。
+### 已否决
 
-## 8. 分期计划
+- UI restore：不再提供 Restore All、单条 restore 或任何将结构化结果重新显示为原始转义字符串的操作。该能力会和 Collapse All 重复，并使显示与复制/导出的结果产生不必要的双重语义。
 
-### P0（MVP）
+### 未承诺方向
 
-- Core：C-1 ~ C-9（全部）
-- UI：U-1 ~ U-13
-- Web：W-1, W-2, W-3
-- Extension：E-1
+以下仅是可在明确用户需求和成本后评估的候选，不构成产品路线承诺：更专业的文本编辑体验、JSON Schema 校验，以及 JSON Diff。
 
-交付物：可用的 Web 站点 + Chrome Extension，覆盖 stringified JSON 检测展开 + JSONL TOC 浏览的完整核心体验。
+## 9. 价值定位
 
-### P1
-
-- UI：U-14（路径显示）, U-15（手动格式切换）
-- Web：W-4（URL 分享）
-- Extension：E-2（右键菜单）, E-3（快捷键）
-
-交付物：Extension 完整交互能力，细节体验补齐。
-
-### P2（按需）
-
-- 大文件优化：N-2 Web Worker, N-3 虚拟滚动
-- Monaco Editor 替代 textarea
-- JSON Schema 校验
-- JSON Diff（对比两个 JSON）
-- jq 表达式过滤
-- JSONL 记录过滤/搜索
-
-## 9. 竞品参考
-
-| 工具                           | Stringified JSON 处理     | JSONL 支持     | 形态      |
-| ------------------------------ | ------------------------- | -------------- | --------- |
-| quaily.com/tools/jsonformatter | 支持检测和展开，带标签 UI | 不支持         | Web       |
-| jsonformatter.org              | 不支持                    | 不支持         | Web       |
-| JSON Viewer (Chrome Extension) | 不支持                    | 不支持         | Extension |
-| jq                             | 不支持（需要手动 pipe）   | 支持但无可视化 | CLI       |
-
-Unquote 的核心差异点：递归 stringified JSON 检测与交互式展开/还原 + JSONL 原生 TOC 浏览体验，同时覆盖 Web + Extension + npm 包三种分发渠道。
+Unquote 的差异不在于替代通用 JSON formatter，而在于把难读的嵌套字符串和逐行 Agent 记录变为可探索的本地结构：递归 stringified JSON 展开、JSONL 原生导航，以及对已识别 Agent session 的上下文视图，同时覆盖 Web、Chrome Extension 和可复用 core 库。

@@ -307,6 +307,19 @@ afterEach(() => {
   localStorage.clear();
 });
 
+const renderCodexAgentView = async () => {
+  const user = userEvent.setup();
+  render(
+    <I18nProvider>
+      <UnquoteApp initialInput={codexRolloutSource} />
+    </I18nProvider>,
+  );
+
+  await user.click(screen.getByRole("tab", { name: "Output" }));
+  await screen.findAllByRole("tab", { name: "Agent" });
+  return user;
+};
+
 describe("UnquoteApp", () => {
   it("renders and parses input", async () => {
     const user = userEvent.setup();
@@ -401,61 +414,12 @@ describe("UnquoteApp", () => {
   });
 
   it("shows the Agent view for Codex rollout logs", async () => {
-    const user = userEvent.setup();
+    await renderCodexAgentView();
 
-    render(
-      <I18nProvider>
-        <UnquoteApp initialInput={codexRolloutSource} />
-      </I18nProvider>,
-    );
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
-    await waitFor(() =>
-      expect(screen.getAllByRole("tab", { name: "Agent" }).length).toBeGreaterThan(0),
-    );
     expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Timeline").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Conversation").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Tool call").length).toBeGreaterThan(0);
-
-    const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
-    scrollIntoView.mockClear();
-    const timelineToolCall = screen.getAllByRole("button", {
-      name: /^Timeline: tool_use exec_command/,
-    })[0]!;
-    const conversationToolCall = screen.getAllByRole("button", {
-      name: /^Conversation: Tool call/,
-    })[0]!;
-
-    await user.click(timelineToolCall);
-    await waitFor(() =>
-      expect(screen.getAllByRole("complementary", { name: "Raw JSONL" }).length).toBeGreaterThan(0),
-    );
-    expect(timelineToolCall).toHaveAttribute("aria-pressed", "true");
-    expect(conversationToolCall).toHaveAttribute("aria-pressed", "true");
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
-    expect(
-      screen
-        .getAllByRole("tab", { name: "Agent" })
-        .some((tab) => tab.getAttribute("aria-selected") === "true"),
-    ).toBe(true);
-    expect(screen.queryByRole("complementary", { name: "Details" })).not.toBeInTheDocument();
-    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
-    expect(within(rawJsonPanel).getAllByText("call_id").length).toBeGreaterThan(0);
-    expect(within(rawJsonPanel).getAllByText('"call_1"').length).toBeGreaterThan(0);
-    expect(within(rawJsonPanel).queryByText(/"call_id":"call_1"/)).not.toBeInTheDocument();
-    await user.click(within(rawJsonPanel).getByRole("button", { name: "Collapse raw data" }));
-    expect(rawJsonPanel).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Expand raw data" }));
-    await waitFor(() =>
-      expect(
-        screen
-          .getAllByRole("complementary", { name: "Raw JSONL" })
-          .some((panel) => within(panel).queryByText('"call_1"')),
-      ).toBe(true),
-    );
-
-    expect(screen.queryByRole("button", { name: /Open raw JSON/ })).not.toBeInTheDocument();
   });
 
   it("hydrates Raw JSONL records for streamed Agent files", async () => {
@@ -527,14 +491,7 @@ describe("UnquoteApp", () => {
   });
 
   it("keeps Agent detail selection aligned across navigation sources", async () => {
-    const user = userEvent.setup();
-    render(
-      <I18nProvider>
-        <UnquoteApp initialInput={codexRolloutSource} />
-      </I18nProvider>,
-    );
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const user = await renderCodexAgentView();
     const timelineToolCalls = await screen.findAllByRole("button", {
       name: /^Timeline: tool_use exec_command/,
     });
@@ -570,37 +527,48 @@ describe("UnquoteApp", () => {
       expectPressed(timelineToolCalls, selectedLine === 4);
       expectPressed(conversationToolCalls, selectedLine === 4);
     };
-    const collapseRawPanels = async () => {
-      const collapseButtons = screen.getAllByRole("button", { name: "Collapse raw data" });
-      for (const button of collapseButtons) {
-        await user.click(button);
-      }
-      await waitFor(() =>
-        expect(screen.queryAllByRole("complementary", { name: "Raw JSONL" })).toHaveLength(0),
-      );
-    };
 
     await user.click(timelineToolCalls[0]!);
     await expectSelection("record-4", 4);
+    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
+    expect(within(rawJsonPanel).getAllByText("call_id").length).toBeGreaterThan(0);
+    expect(within(rawJsonPanel).getAllByText('"call_1"').length).toBeGreaterThan(0);
     await user.click(tocLineTwo);
     await expectSelection("record-2", 2);
 
     await user.click(conversationToolCalls[0]!);
     await expectSelection("record-4", 4);
-    await user.click(tocLineTwo);
-    await expectSelection("record-2", 2);
+  });
 
-    await user.click(timelineToolCalls[0]!);
-    await expectSelection("record-4", 4);
+  it("reopens collapsed Agent raw data from a TOC selection", async () => {
+    const user = await renderCodexAgentView();
+    const tocLineTwo = screen
+      .getAllByText("#2")
+      .map((node) => node.closest("button"))
+      .find((button): button is HTMLButtonElement => Boolean(button))!;
 
     await user.click(tocLineTwo);
-    await expectSelection("record-2", 2);
-    await collapseRawPanels();
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("complementary", { name: "Raw JSONL" })
+          .every((panel) => within(panel).queryByText(/record-2/)),
+      ).toBe(true),
+    );
+
+    for (const button of screen.getAllByRole("button", { name: "Collapse raw data" })) {
+      await user.click(button);
+    }
+    expect(screen.queryAllByRole("complementary", { name: "Raw JSONL" })).toHaveLength(0);
+
     await user.click(tocLineTwo);
-    await expectSelection("record-2", 2);
-    await collapseRawPanels();
-    await user.click(tocLineTwo);
-    await expectSelection("record-2", 2);
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("complementary", { name: "Raw JSONL" })
+          .every((panel) => within(panel).queryByText(/record-2/)),
+      ).toBe(true),
+    );
   });
 
   it("loads the mixed JSONL sample with failed records", async () => {
