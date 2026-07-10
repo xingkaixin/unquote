@@ -8,6 +8,7 @@ import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { AgentSessionView } from "./components/agent-session-view";
+import type { AgentDetailSelection } from "./components/agent-session-view";
 import { LocaleToggle } from "./components/locale-toggle";
 import { RecordList } from "./components/record-list";
 import { Toaster } from "./components/sonner";
@@ -120,7 +121,8 @@ export const UnquoteApp = ({
     onCopyError: () => toast.error(t("copy.failed")),
   });
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
-  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
+  const selectedRecordId = detailSelection?.recordId ?? null;
   const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -424,7 +426,7 @@ export const UnquoteApp = ({
       setSelectedPath(null);
     }
     if (selectedRecordId && !visibleRecordIds.has(selectedRecordId)) {
-      setSelectedRecordId(null);
+      setDetailSelection(null);
     }
     if (focusedPath && !visibleRecordIds.has(focusedPath.recordId)) {
       setFocusedPath(null);
@@ -448,7 +450,7 @@ export const UnquoteApp = ({
   const resetDerivedState = () => {
     setExpandedStringifiedPaths(new Set());
     setSelectedPath(null);
-    setSelectedRecordId(null);
+    setDetailSelection(null);
     setFocusedPath(null);
     setScrollTarget(null);
     setRecordScrollTarget(null);
@@ -568,10 +570,16 @@ export const UnquoteApp = ({
 
   const handleSelectRecord = (record: JsonlRecord) => {
     setActiveRecordId(record.id);
-    setSelectedRecordId(record.id);
+    setDetailSelection({ kind: "record", recordId: record.id });
     setFocusedPath((current) => (current?.recordId === record.id ? current : null));
     scrollRequestIdRef.current += 1;
     setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
+  };
+
+  const handleSelectAgentDetail = (selection: AgentDetailSelection) => {
+    setActiveRecordId(selection.recordId);
+    setDetailSelection(selection);
+    setFocusedPath((current) => (current?.recordId === selection.recordId ? current : null));
   };
 
   const handleOverviewErrorSelect = (recordId: string) => {
@@ -732,7 +740,8 @@ export const UnquoteApp = ({
           expandedStringifiedPaths={expandedStringifiedPaths}
           selectedPath={selectedPath}
           focusedPath={focusedPath}
-          selectedRecordId={selectedRecordId}
+          detailSelection={detailSelection}
+          onDetailSelectionChange={handleSelectAgentDetail}
           onTogglePath={handleTogglePath}
           onCopyRecord={onCopyRecord}
           onCopyRawLine={handleCopyRawLine}

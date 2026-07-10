@@ -9,6 +9,41 @@ import { I18nProvider } from "../src/i18n/context";
 const maxTransferStringLength = 4096;
 const maxDeferredStringLength = 160;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
+const codexRolloutSource = [
+  JSON.stringify({
+    timestamp: "2026-06-06T13:44:06.579Z",
+    type: "session_meta",
+    payload: {
+      session_id: "session-1",
+      cwd: "/repo",
+      cli_version: "0.137.0",
+    },
+  }),
+  JSON.stringify({
+    timestamp: "2026-06-06T13:44:06.581Z",
+    type: "event_msg",
+    payload: { type: "task_started", turn_id: "turn-1" },
+  }),
+  JSON.stringify({
+    timestamp: "2026-06-06T13:44:07.964Z",
+    type: "response_item",
+    payload: {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: "Inspect the repo" }],
+    },
+  }),
+  JSON.stringify({
+    timestamp: "2026-06-06T13:44:08.000Z",
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      name: "exec_command",
+      arguments: JSON.stringify({ cmd: "rg --files" }),
+      call_id: "call_1",
+    },
+  }),
+].join("\n");
 
 const getToolbarInput = () => {
   const inputs = screen.getAllByPlaceholderText(commandInputPlaceholder);
@@ -288,45 +323,10 @@ describe("UnquoteApp", () => {
 
   it("shows the Agent view for Codex rollout logs", async () => {
     const user = userEvent.setup();
-    const source = [
-      JSON.stringify({
-        timestamp: "2026-06-06T13:44:06.579Z",
-        type: "session_meta",
-        payload: {
-          session_id: "session-1",
-          cwd: "/repo",
-          cli_version: "0.137.0",
-        },
-      }),
-      JSON.stringify({
-        timestamp: "2026-06-06T13:44:06.581Z",
-        type: "event_msg",
-        payload: { type: "task_started", turn_id: "turn-1" },
-      }),
-      JSON.stringify({
-        timestamp: "2026-06-06T13:44:07.964Z",
-        type: "response_item",
-        payload: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: "Inspect the repo" }],
-        },
-      }),
-      JSON.stringify({
-        timestamp: "2026-06-06T13:44:08.000Z",
-        type: "response_item",
-        payload: {
-          type: "function_call",
-          name: "exec_command",
-          arguments: JSON.stringify({ cmd: "rg --files" }),
-          call_id: "call_1",
-        },
-      }),
-    ].join("\n");
 
     render(
       <I18nProvider>
-        <UnquoteApp initialInput={source} />
+        <UnquoteApp initialInput={codexRolloutSource} />
       </I18nProvider>,
     );
 
@@ -377,6 +377,83 @@ describe("UnquoteApp", () => {
     );
 
     expect(screen.queryByRole("button", { name: /Open raw JSON/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps Agent detail selection aligned across navigation sources", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={codexRolloutSource} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const timelineToolCalls = await screen.findAllByRole("button", {
+      name: /^Timeline: tool_use exec_command/,
+    });
+    const timelineTaskStarted = screen.getAllByRole("button", {
+      name: /^Timeline: task_started/,
+    });
+    const conversationToolCalls = screen.getAllByRole("button", {
+      name: /^Conversation: Tool call/,
+    });
+    const getTocButton = (lineNumber: number) =>
+      screen
+        .getAllByText(`#${lineNumber}`)
+        .map((node) => node.closest("button"))
+        .find((button): button is HTMLButtonElement => Boolean(button))!;
+    const tocLineTwo = getTocButton(2);
+    const tocLineFour = getTocButton(4);
+    const expectPressed = (buttons: HTMLElement[], pressed: boolean) => {
+      for (const button of buttons) {
+        expect(button).toHaveAttribute("aria-pressed", String(pressed));
+      }
+    };
+    const expectSelection = async (recordId: string, selectedLine: 2 | 4) => {
+      await waitFor(() =>
+        expect(
+          screen
+            .getAllByRole("complementary", { name: "Raw JSONL" })
+            .every((panel) => within(panel).queryByText(new RegExp(recordId))),
+        ).toBe(true),
+      );
+      expect(tocLineTwo).toHaveAttribute("aria-pressed", String(selectedLine === 2));
+      expect(tocLineFour).toHaveAttribute("aria-pressed", String(selectedLine === 4));
+      expectPressed(timelineTaskStarted, selectedLine === 2);
+      expectPressed(timelineToolCalls, selectedLine === 4);
+      expectPressed(conversationToolCalls, selectedLine === 4);
+    };
+    const collapseRawPanels = async () => {
+      const collapseButtons = screen.getAllByRole("button", { name: "Collapse raw data" });
+      for (const button of collapseButtons) {
+        await user.click(button);
+      }
+      await waitFor(() =>
+        expect(screen.queryAllByRole("complementary", { name: "Raw JSONL" })).toHaveLength(0),
+      );
+    };
+
+    await user.click(timelineToolCalls[0]!);
+    await expectSelection("record-4", 4);
+    await user.click(tocLineTwo);
+    await expectSelection("record-2", 2);
+
+    await user.click(conversationToolCalls[0]!);
+    await expectSelection("record-4", 4);
+    await user.click(tocLineTwo);
+    await expectSelection("record-2", 2);
+
+    await user.click(timelineToolCalls[0]!);
+    await expectSelection("record-4", 4);
+
+    await user.click(tocLineTwo);
+    await expectSelection("record-2", 2);
+    await collapseRawPanels();
+    await user.click(tocLineTwo);
+    await expectSelection("record-2", 2);
+    await collapseRawPanels();
+    await user.click(tocLineTwo);
+    await expectSelection("record-2", 2);
   });
 
   it("loads the mixed JSONL sample with failed records", async () => {
