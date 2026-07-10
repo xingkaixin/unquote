@@ -1,4 +1,6 @@
 export type JsonKind = "object" | "array" | "string" | "number" | "boolean" | "null";
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonContainerKind = "object" | "array";
 
 export interface JsonNodeMeta {
   depth: number;
@@ -27,11 +29,18 @@ export interface ParseErrorMeta {
   context: string;
 }
 
+export interface JsonlRecordPreview {
+  fields: Record<string, JsonPrimitive>;
+  containers?: Record<string, JsonContainerKind>;
+  nestedFieldKeys?: string | string[];
+}
+
 export interface JsonlRecord {
   id: string;
   lineNumber: number;
   node: JsonNode | null;
   deferred?: boolean;
+  preview?: JsonlRecordPreview;
   error?: string;
   errorMeta?: ParseErrorMeta;
   rawLine?: string;

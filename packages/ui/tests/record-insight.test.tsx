@@ -1,4 +1,5 @@
 import { parseInput } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import {
   createRecordInsight,
@@ -118,6 +119,50 @@ describe("record insight", () => {
       role: "user",
     });
     expect(insight?.error).toBeUndefined();
+  });
+
+  it("derives the same filter fields from a deferred preview", () => {
+    const record = {
+      id: "record-1",
+      lineNumber: 1,
+      deferred: true,
+      node: {
+        kind: "object",
+        value: null,
+        path: ["$"],
+        wasStringified: false,
+        meta: {
+          depth: 0,
+          expandable: true,
+          restorable: false,
+          recordId: "record-1",
+          sourceLine: 1,
+        },
+      },
+      preview: {
+        fields: {
+          timestamp: "2026-05-15T10:02:11Z",
+          type: "tool_call",
+          tool_name: "billing.search",
+          message: "ready",
+        },
+        nestedFieldKeys: "payload",
+      },
+      summary: "type:tool_call",
+    } satisfies JsonlRecord;
+
+    const insight = createRecordInsight(record);
+
+    expect(insight).toMatchObject({
+      kind: "tool",
+      timestamp: "2026-05-15T10:02:11Z",
+      event: "tool_call",
+      tool: "billing.search",
+      message: "ready",
+      nestedJsonCount: 1,
+      maxDepth: 1,
+    });
+    expect(filterRecords([record], "nested", null)).toEqual([record]);
   });
 
   it("updates the insight map incrementally for appended records", () => {

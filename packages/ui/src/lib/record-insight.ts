@@ -1,4 +1,10 @@
-import type { JsonNode, JsonlRecord } from "@unquote/core";
+import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
+import {
+  getPreviewMaxDepth,
+  getPreviewNestedFieldKeys,
+  getPreviewPath,
+  getPreviewPathSegments,
+} from "./deferred-record-preview";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
@@ -177,6 +183,28 @@ const addHit = (
   });
 };
 
+const addPrimitiveInsightHits = (
+  hits: RecordInsightHit[],
+  key: string,
+  value: string,
+  pathText: string,
+  pathSegments: TreePathSegment[],
+) => {
+  const field = classifyInsightField(key, pathSegments);
+  if (!field) {
+    return;
+  }
+
+  addHit(hits, field, key, value, pathText);
+  if (
+    (field === "level" || field === "status" || field === "message") &&
+    isErrorLikeValue(value) &&
+    !isInstructionsText(value)
+  ) {
+    addHit(hits, "error", key, value, pathText);
+  }
+};
+
 const walkNode = (
   root: JsonNode,
   hits: RecordInsightHit[],
@@ -200,16 +228,35 @@ const walkNode = (
     if (field === "error") {
       addHit(hits, "error", key, getErrorValue(ctx.node), ctx.jsonPath);
     } else if (field && primitiveValue !== null) {
-      addHit(hits, field, key, primitiveValue, ctx.jsonPath);
-      if (
-        (field === "level" || field === "status" || field === "message") &&
-        isErrorLikeValue(primitiveValue) &&
-        !isInstructionsText(primitiveValue)
-      ) {
-        addHit(hits, "error", key, primitiveValue, ctx.jsonPath);
-      }
+      addPrimitiveInsightHits(hits, key, primitiveValue, ctx.jsonPath, ctx.pathSegments);
     }
   });
+};
+
+const walkPreview = (
+  preview: JsonlRecordPreview,
+  hits: RecordInsightHit[],
+  metrics: { nestedJsonCount: number; maxDepth: number },
+) => {
+  metrics.maxDepth = getPreviewMaxDepth(preview);
+  metrics.nestedJsonCount = getPreviewNestedFieldKeys(preview).length;
+
+  for (const [key, value] of Object.entries(preview.fields)) {
+    addPrimitiveInsightHits(
+      hits,
+      key,
+      String(value),
+      getPreviewPath(key),
+      getPreviewPathSegments(key),
+    );
+  }
+
+  for (const [key, kind] of Object.entries(preview.containers ?? {})) {
+    const pathSegments = getPreviewPathSegments(key);
+    if (classifyInsightField(key, pathSegments) === "error") {
+      addHit(hits, "error", key, `error ${kind}`, getPreviewPath(key));
+    }
+  }
 };
 
 const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
@@ -308,15 +355,11 @@ const getTitle = (
 
 const unique = (values: string[]) => [...new Set(values)];
 
-export const createRecordInsight = (record: JsonlRecord): RecordInsight | null => {
-  if (!record.node) {
-    return null;
-  }
-
-  const hits: RecordInsightHit[] = [];
-  const metrics = { nestedJsonCount: 0, maxDepth: 0 };
-  walkNode(record.node, hits, metrics);
-
+const createRecordInsightFromHits = (
+  record: JsonlRecord,
+  hits: RecordInsightHit[],
+  metrics: { nestedJsonCount: number; maxDepth: number },
+): RecordInsight => {
   const timestamp = pickHit(hits, "timestamp")?.value;
   const level = pickHit(hits, "level")?.value;
   const status = pickHit(hits, "status")?.value;
@@ -373,6 +416,22 @@ export const createRecordInsight = (record: JsonlRecord): RecordInsight | null =
     ...(error ? { error } : {}),
     ...(message ? { message } : {}),
   };
+};
+
+export const createRecordInsight = (record: JsonlRecord): RecordInsight | null => {
+  if (!record.node) {
+    return null;
+  }
+
+  const hits: RecordInsightHit[] = [];
+  const metrics = { nestedJsonCount: 0, maxDepth: 0 };
+  if (record.preview) {
+    walkPreview(record.preview, hits, metrics);
+  } else {
+    walkNode(record.node, hits, metrics);
+  }
+
+  return createRecordInsightFromHits(record, hits, metrics);
 };
 
 export const createRecordInsightMap = (records: JsonlRecord[]) => {

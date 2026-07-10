@@ -1,4 +1,11 @@
-import type { JsonlRecord, JsonNode, ParseResult } from "@unquote/core";
+import type {
+  JsonContainerKind,
+  JsonlRecord,
+  JsonlRecordPreview,
+  JsonNode,
+  JsonPrimitive,
+  ParseResult,
+} from "@unquote/core";
 import {
   extractSummary,
   getJsonKind,
@@ -121,6 +128,53 @@ const isLikelyStringifiedJson = (value: string) => {
 const truncateTransferString = (value: string) =>
   value.length > maxDeferredStringLength ? value.slice(0, maxDeferredStringLength) : value;
 
+const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, key: string) => {
+  if (!nestedFieldKeys) {
+    return key;
+  }
+
+  return Array.isArray(nestedFieldKeys) ? [...nestedFieldKeys, key] : [nestedFieldKeys, key];
+};
+
+const createDeferredPreview = (value: unknown): JsonlRecordPreview | undefined => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const fields: Record<string, JsonPrimitive> = {};
+  const containers: Record<string, JsonContainerKind> = {};
+  let hasFields = false;
+  let hasContainers = false;
+  let nestedFieldKeys: string | string[] | undefined;
+
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const kind = getJsonKind(child);
+    if (kind === "object" || kind === "array") {
+      containers[key] = kind;
+      hasContainers = true;
+      continue;
+    }
+
+    const stringValue = typeof child === "string" ? child : null;
+    fields[key] =
+      stringValue === null ? (child as JsonPrimitive) : truncateTransferString(stringValue);
+    hasFields = true;
+    if (stringValue && isLikelyStringifiedJson(stringValue)) {
+      nestedFieldKeys = appendNestedFieldKey(nestedFieldKeys, key);
+    }
+  }
+
+  if (!hasFields && !hasContainers) {
+    return undefined;
+  }
+
+  return {
+    fields,
+    ...(hasContainers ? { containers } : {}),
+    ...(nestedFieldKeys ? { nestedFieldKeys } : {}),
+  };
+};
+
 const createDeferredNode = (
   value: unknown,
   path: string[],
@@ -162,20 +216,14 @@ const parseDeferredJsonlRecordLine = (line: string, lineNumber: number): JsonlRe
     const value = parseJsonValue(line);
     const id = `record-${lineNumber}`;
     const root = createDeferredNode(value, ["$"], 0, id, lineNumber);
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      root.children = Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, child]) => [
-          key,
-          createDeferredNode(child, ["$", key], 1, id, lineNumber),
-        ]),
-      );
-    }
+    const preview = createDeferredPreview(value);
 
     return {
       id,
       lineNumber,
       node: root,
       deferred: true,
+      ...(preview ? { preview } : {}),
       summary: extractSummary(value),
     };
   } catch {

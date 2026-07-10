@@ -74,6 +74,47 @@ describe("parser worker file dispatch", () => {
     );
   });
 
+  it("transfers deferred records as a compact preview", async () => {
+    const reader = {
+      read: vi
+        .fn()
+        .mockResolvedValueOnce({
+          value: '{"type":"message","message":"ready","payload":"{\\"nested\\":true}"}\n',
+          done: false,
+        })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+      cancel: vi.fn().mockResolvedValue(undefined),
+    };
+    const file = {
+      name: "preview.jsonl",
+      stream: () => ({
+        pipeThrough: () => ({ getReader: () => reader }),
+      }),
+    } as unknown as File;
+
+    const workerScope = await loadWorker();
+    dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
+
+    await vi.waitFor(() =>
+      expect(workerScope.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "batch", requestId: 1 }),
+      ),
+    );
+
+    const batch = workerScope.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message.type === "batch");
+    const record = batch.records[0];
+    expect(record).toMatchObject({
+      deferred: true,
+      preview: {
+        fields: { type: "message", message: "ready", payload: '{"nested":true}' },
+        nestedFieldKeys: "payload",
+      },
+    });
+    expect(record.node?.children).toBeUndefined();
+  });
+
   it("cancels a stale reader without posting its rejection", async () => {
     let rejectRead: ((error: unknown) => void) | undefined;
     const reader = {
