@@ -39,7 +39,8 @@ interface AgentSessionViewProps {
   expandedStringifiedPaths: Set<string>;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
-  selectedRecordId: string | null;
+  detailSelection: AgentDetailSelection | null;
+  onDetailSelectionChange: (selection: AgentDetailSelection) => void;
   onTogglePath: (path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
@@ -49,7 +50,10 @@ interface AgentSessionViewProps {
   onClearFocus: () => void;
 }
 
-type AgentDetailSelection = { kind: "event"; id: string } | { kind: "conversation"; id: string };
+export type AgentDetailSelection =
+  | { kind: "record"; recordId: string }
+  | { kind: "event"; id: string; recordId: string }
+  | { kind: "conversation"; id: string; recordId: string };
 
 interface RoleConfig {
   label: string;
@@ -381,7 +385,8 @@ export const AgentSessionView = ({
   expandedStringifiedPaths,
   selectedPath,
   focusedPath,
-  selectedRecordId,
+  detailSelection,
+  onDetailSelectionChange,
   onTogglePath,
   onCopyRecord,
   onCopyRawLine,
@@ -404,7 +409,6 @@ export const AgentSessionView = ({
     [session.conversationItems],
   );
   const metrics = useMemo(() => metricItems(session, t), [session, t]);
-  const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
   const [detailOpen, setDetailOpen] = useState(true);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
@@ -415,18 +419,17 @@ export const AgentSessionView = ({
       ? eventById.get(detailSelection.id)
       : selectedItem
         ? eventById.get(selectedItem.eventId)
-        : selectedRecordId
-          ? eventByRecordId.get(selectedRecordId)
+        : detailSelection
+          ? eventByRecordId.get(detailSelection.recordId)
           : undefined;
-  const selectedConversationId = selectedItem?.id;
   const detailEvent = detailOpen ? (selectedEvent ?? session.events[0]) : undefined;
   const detailItem =
     selectedItem ??
     (detailEvent?.conversationItemIds[0]
       ? conversationById.get(detailEvent.conversationItemIds[0])
       : undefined);
-  const highlightedRecordId =
-    selectedItem?.recordId ?? selectedEvent?.recordId ?? selectedRecordId ?? detailEvent?.recordId;
+  const selectedConversationId = detailItem?.id;
+  const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
   const showRawRail = !detailEvent && session.events.length > 0;
 
   useEffect(() => {
@@ -437,22 +440,25 @@ export const AgentSessionView = ({
     conversationRefs.current
       .get(selectedConversationId)
       ?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedConversationId]);
+  }, [detailSelection, selectedConversationId]);
 
   useEffect(() => {
-    if (selectedRecordId) {
+    if (detailSelection) {
       setDetailOpen(true);
     }
-  }, [selectedRecordId]);
+  }, [detailSelection]);
 
   const handleSelectTimelineEvent = (eventId: string) => {
     const event = eventById.get(eventId);
     const conversationItemId = event?.conversationItemIds[0];
+    if (!event) {
+      return;
+    }
 
-    setDetailSelection(
+    onDetailSelectionChange(
       conversationItemId
-        ? { kind: "conversation", id: conversationItemId }
-        : { kind: "event", id: eventId },
+        ? { kind: "conversation", id: conversationItemId, recordId: event.recordId }
+        : { kind: "event", id: eventId, recordId: event.recordId },
     );
     setDetailOpen(true);
   };
@@ -582,7 +588,11 @@ export const AgentSessionView = ({
                       event={eventById.get(item.eventId)}
                       selected={selectedConversationId === item.id}
                       onSelect={(itemId) => {
-                        setDetailSelection({ kind: "conversation", id: itemId });
+                        onDetailSelectionChange({
+                          kind: "conversation",
+                          id: itemId,
+                          recordId: item.recordId,
+                        });
                         setDetailOpen(true);
                       }}
                     />
