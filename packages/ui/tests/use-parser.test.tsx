@@ -1,5 +1,5 @@
 import type { ParseResult } from "@unquote/core";
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 
@@ -37,8 +37,34 @@ class MockWorker {
     this.listener = null;
   }
 
-  postMessage(payload: { type: string; requestId: number; input?: string; chunk?: string }) {
+  postMessage(payload: {
+    type: string;
+    requestId: number;
+    input?: string;
+    chunk?: string;
+    file?: File;
+  }) {
     if (payload.type === "start-jsonl") {
+      return;
+    }
+    if (payload.type === "file-jsonl") {
+      const delay = payload.file?.name === "old.jsonl" ? 20 : 0;
+      setTimeout(() => {
+        this.listener?.({
+          data: {
+            type: "error",
+            requestId: payload.requestId,
+            stats: { total: 0, success: 0, failed: 0 },
+            progress: {
+              processedLines: 0,
+              success: 0,
+              failed: 0,
+              elapsedMs: 1,
+              done: true,
+            },
+          },
+        } as MessageEvent);
+      }, delay);
       return;
     }
 
@@ -136,8 +162,16 @@ class MockWorker {
   }
 }
 
-const Probe = ({ input }: { input: string }) => {
-  const { result, progress } = useParser(input, "jsonl");
+const Probe = ({
+  input,
+  sourceFile,
+  onFileReadError,
+}: {
+  input: string;
+  sourceFile?: File;
+  onFileReadError?: () => void;
+}) => {
+  const { result, progress } = useParser(input, "jsonl", sourceFile, onFileReadError);
   return (
     <div>
       <div data-testid="records">{result.records.map((record) => record.summary).join(",")}</div>
@@ -155,6 +189,7 @@ describe("useParser", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     Reflect.deleteProperty(globalThis, "Worker");
   });
@@ -170,5 +205,45 @@ describe("useParser", () => {
     expect(screen.getByTestId("records")).toHaveTextContent("new-1,new-2");
     expect(screen.getByTestId("records")).not.toHaveTextContent("old");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
+  it("finishes when worker file reading fails", async () => {
+    const onFileReadError = vi.fn();
+    render(
+      <Probe
+        input=""
+        sourceFile={new File(["x"], "broken.jsonl")}
+        onFileReadError={onFileReadError}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(onFileReadError).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a stale worker file error", async () => {
+    const onFileReadError = vi.fn();
+    const { rerender } = render(
+      <Probe
+        input=""
+        sourceFile={new File(["old"], "old.jsonl")}
+        onFileReadError={onFileReadError}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    rerender(
+      <Probe
+        input=""
+        sourceFile={new File(["new"], "new.jsonl")}
+        onFileReadError={onFileReadError}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(onFileReadError).toHaveBeenCalledTimes(1);
   });
 });

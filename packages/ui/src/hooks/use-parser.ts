@@ -76,6 +76,7 @@ export const useParser = (
   input: string,
   forcedFormat?: "json" | "jsonl",
   sourceFile?: File | null,
+  onFileReadError?: () => void,
 ) => {
   const [parserState, setParserState] = useState(() => ({
     result: parseInput(input, withForcedFormat(forcedFormat)),
@@ -85,6 +86,8 @@ export const useParser = (
   const [progress, setProgress] = useState<ParserProgress>(idleProgress);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
+  const onFileReadErrorRef = useRef(onFileReadError);
+  onFileReadErrorRef.current = onFileReadError;
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
@@ -101,11 +104,18 @@ export const useParser = (
       };
 
       if (sourceFile) {
-        void parseFileOnMainThread(sourceFile).then((parsed) => {
-          if (requestIdRef.current === requestId) {
-            applyMainThreadParse(parsed);
-          }
-        });
+        void parseFileOnMainThread(sourceFile)
+          .then((parsed) => {
+            if (requestIdRef.current === requestId) {
+              applyMainThreadParse(parsed);
+            }
+          })
+          .catch(() => {
+            if (requestIdRef.current === requestId) {
+              setProgress(idleProgress);
+              onFileReadErrorRef.current?.();
+            }
+          });
         return;
       }
 
@@ -201,6 +211,19 @@ export const useParser = (
       }
 
       publisher.flush();
+      if (message.type === "error") {
+        markPerf("parse:error");
+        measurePerf("parse:error", "parse:start", "parse:error");
+        setProgress(message.progress);
+        setParserState((current) => ({
+          result: { ...current.result, format: "jsonl", stats: message.stats },
+          agentSession: null,
+          recordsVersion: current.recordsVersion + 1,
+        }));
+        onFileReadErrorRef.current?.();
+        return;
+      }
+
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
       setProgress(message.progress);

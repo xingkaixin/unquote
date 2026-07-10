@@ -141,6 +141,7 @@ export const UnquoteApp = ({
     sourceText,
     mode === "auto" ? undefined : mode,
     sourceFile,
+    () => toast.error(t("input.readFailed")),
   );
 
   const translateError = useCallback(
