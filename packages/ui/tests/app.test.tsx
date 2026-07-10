@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
+import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider } from "../src/i18n/context";
 
@@ -137,7 +138,10 @@ const readBlobText = (blob: Blob) =>
 Object.assign(globalThis, {
   Worker: class {
     chunks = "";
-    constructor(..._args: unknown[]) {}
+    isSearchWorker: boolean;
+    constructor(...args: unknown[]) {
+      this.isSearchWorker = String(args[0]).includes("search-worker");
+    }
     onmessage: ((event: MessageEvent) => void) | null = null;
     addEventListener(_type: string, listener: (event: MessageEvent) => void) {
       this.onmessage = listener;
@@ -145,6 +149,27 @@ Object.assign(globalThis, {
     removeEventListener() {}
     terminate() {
       this.onmessage = null;
+    }
+    completeSearch(
+      requestId: number,
+      text: string,
+      forcedFormat: "json" | "jsonl" | undefined,
+      query: string,
+      options: unknown,
+    ) {
+      Promise.all([import("@unquote/core"), import("../src/lib/tree")]).then(
+        ([{ parseInput }, { searchRecords }]) => {
+          const parsed = parseInput(text, forcedFormat ? { forcedFormat } : {});
+          const matches = searchRecords(
+            parsed.records,
+            query,
+            options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+          );
+          this.onmessage?.({
+            data: { type: "result", requestId, matches },
+          } as MessageEvent);
+        },
+      );
     }
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
       Promise.all([import("@unquote/core"), import("../src/lib/agent-session")]).then(
@@ -170,14 +195,35 @@ Object.assign(globalThis, {
       );
     }
     postMessage(payload: {
-      type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl";
+      type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl" | "search-text" | "search-file";
       requestId: number;
       input?: string;
       forcedFormat?: "json" | "jsonl";
       chunk?: string;
       done?: boolean;
       file?: File;
+      text?: string;
+      query?: string;
+      options?: unknown;
     }) {
+      if (payload.type === "search-text") {
+        if (!this.isSearchWorker) {
+          return;
+        }
+        this.completeSearch(
+          payload.requestId,
+          payload.text ?? "",
+          payload.forcedFormat,
+          payload.query ?? "",
+          payload.options,
+        );
+        return;
+      }
+
+      if (this.isSearchWorker) {
+        return;
+      }
+
       if (payload.type === "start-jsonl") {
         this.chunks = "";
         return;
@@ -984,6 +1030,65 @@ describe("UnquoteApp", () => {
       expect(screen.getAllByText((text) => text.includes("1/2")).length).toBeGreaterThan(0),
     );
     void inputs;
+  });
+
+  it("completes an in-memory search through the search worker", async () => {
+    const user = userEvent.setup();
+    const input = ['{"msg":"alpha"}', '{"msg":"beta"}'].join("\n");
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await user.type(getToolbarInput(), "alpha");
+
+    await waitFor(() => expect(shell).toHaveAttribute("data-search-state", "complete"));
+    expect(screen.getAllByText((text) => text.includes("1/1")).length).toBeGreaterThan(0);
+  });
+
+  it("shows a search timeout message and recovers once the worker responds to a later query", async () => {
+    const input = ['{"msg":"alpha"}', '{"msg":"beta"}'].join("\n");
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    const workerProto = (
+      globalThis.Worker as unknown as {
+        prototype: { completeSearch: (...args: unknown[]) => void };
+      }
+    ).prototype;
+    const silence = vi.spyOn(workerProto, "completeSearch").mockImplementation(() => {});
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(getToolbarInput(), { target: { value: "alpha" } });
+      await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(shell).toHaveAttribute("data-search-state", "error");
+    expect(screen.getAllByText("Search timed out").length).toBeGreaterThan(0);
+
+    silence.mockRestore();
+    fireEvent.change(getToolbarInput(), { target: { value: "beta" } });
+    await waitFor(() => expect(shell).toHaveAttribute("data-search-state", "complete"));
+    expect(screen.getAllByText((text) => text.includes("1/1")).length).toBeGreaterThan(0);
   });
 
   it("routes path-like queries to path mode and reports path match counts", async () => {

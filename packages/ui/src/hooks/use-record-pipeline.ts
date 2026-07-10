@@ -2,12 +2,11 @@ import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useMemo, useRef } from "react";
 import { createFileOverviewState, updateFileOverview } from "../lib/file-overview";
 import type { FileOverview } from "../lib/file-overview";
-import { measurePerfFn } from "../lib/perf";
 import { createRecordInsightMapState, updateRecordInsightMap } from "../lib/record-insight";
 import type { RecordInsight } from "../lib/record-insight";
 import type { QueryInteractionState } from "../lib/query-interaction";
-import { filterRecords, searchRecords } from "../lib/tree";
-import type { SearchMatch, SearchOptions } from "../lib/tree";
+import { filterRecords } from "../lib/tree";
+import type { SearchMatch } from "../lib/tree";
 
 export interface RecordPipelineParams {
   result: ParseResult;
@@ -16,8 +15,10 @@ export interface RecordPipelineParams {
   // Whole-file matches from the local-file source; used instead of in-memory
   // search whenever a streamed file is attached.
   fileMatches: SearchMatch[] | null;
+  // In-memory search matches, computed by the caller (search worker or its
+  // main-thread fallback) whenever no file is attached.
+  inMemoryMatches: SearchMatch[] | null;
   searchQuery: string;
-  searchOptions: SearchOptions;
   recordFilter: QueryInteractionState["recordFilter"];
 }
 
@@ -52,19 +53,12 @@ export const useRecordPipeline = ({
   recordsVersion,
   sourceFile,
   fileMatches,
+  inMemoryMatches,
   searchQuery,
-  searchOptions,
   recordFilter,
 }: RecordPipelineParams): RecordPipeline => {
   const overviewStateRef = useRef(createFileOverviewState());
   const recordInsightStateRef = useRef(createRecordInsightMapState());
-
-  const inMemoryMatches = useMemo(() => {
-    if (!searchQuery || sourceFile) return null;
-    return measurePerfFn("search:memory", () =>
-      searchRecords(result.records, searchQuery, searchOptions),
-    );
-  }, [recordsVersion, result.records, searchOptions, searchQuery, sourceFile]);
 
   const matches = sourceFile && searchQuery ? fileMatches : inMemoryMatches;
 
