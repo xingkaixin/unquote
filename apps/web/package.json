@@ -15,11 +15,11 @@
   "dependencies": {
     "@unquote/ui": "workspace:*",
     "lz-string": "^1.5.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "tailwindcss": "^4.2.4",
+    "tailwindcss": "^4.3.2",
     "vite": "^8.0.16"
   }
 }

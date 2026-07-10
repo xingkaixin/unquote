@@ -1,5 +1,5 @@
 import * as React from "react";
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "../lib/utils";
 
 export const ScrollArea = React.forwardRef<
@@ -12,13 +12,13 @@ export const ScrollArea = React.forwardRef<
     {...props}
   >
     <ScrollAreaPrimitive.Viewport className="size-full rounded-[inherit]">
-      {children}
+      <ScrollAreaPrimitive.Content>{children}</ScrollAreaPrimitive.Content>
     </ScrollAreaPrimitive.Viewport>
     <ScrollAreaPrimitive.Scrollbar
       orientation="vertical"
       className="flex w-2.5 touch-none select-none p-0.5"
     >
-      <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-surface-400" />
+      <ScrollAreaPrimitive.Thumb className="relative w-full rounded-full bg-surface-400" />
     </ScrollAreaPrimitive.Scrollbar>
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
