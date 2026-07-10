@@ -458,6 +458,72 @@ describe("UnquoteApp", () => {
     expect(screen.queryByRole("button", { name: /Open raw JSON/ })).not.toBeInTheDocument();
   });
 
+  it("hydrates Raw JSONL records for streamed Agent files", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const fullValueMarker = "visible-after-hydration";
+    const fullOutput = `${"a".repeat(256)}${fullValueMarker}${"b".repeat(1_000_000)}`;
+    const fileContents = [
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.579Z",
+        type: "session_meta",
+        payload: { session_id: "streamed-session", cwd: "/repo" },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:06.581Z",
+        type: "event_msg",
+        payload: { type: "task_started", turn_id: "turn-1" },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-06T13:44:07.964Z",
+        type: "response_item",
+        payload: {
+          type: "function_call_output",
+          call_id: "call_streamed",
+          output: fullOutput,
+        },
+      }),
+    ].join("\n");
+    const file = new File([fileContents], "streamed-rollout.jsonl", {
+      type: "application/jsonl",
+    });
+
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    fireEvent.paste(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      { clipboardData: { files: [file], items: [], types: ["Files"] } },
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const timelineToolResult = (await screen.findAllByRole("button", {
+      name: /^Timeline: tool_result/,
+    }))[0]!;
+    await user.click(timelineToolResult);
+
+    const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;
+    await waitFor(() =>
+      expect(within(rawJsonPanel).getByText(new RegExp(fullValueMarker))).toBeInTheDocument(),
+    );
+
+    const copyRecordButton = within(rawJsonPanel)
+      .getAllByRole("button")
+      .find((button) => button.querySelector(".lucide-copy"));
+    expect(copyRecordButton).toBeDefined();
+    await user.click(copyRecordButton!);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining(fullValueMarker)),
+    );
+  });
+
   it("keeps Agent detail selection aligned across navigation sources", async () => {
     const user = userEvent.setup();
     render(

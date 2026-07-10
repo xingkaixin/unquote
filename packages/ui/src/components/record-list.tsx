@@ -1,6 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/tree";
 import { JsonTree } from "./json-tree";
@@ -177,7 +178,7 @@ export const RecordList = ({
   }, [onActiveRecordChange, records, shouldVirtualize]);
 
   const renderRecord = (record: JsonlRecord, index: number) => {
-    const renderedRecord = hydratedRecords.get(record.lineNumber) ?? record;
+    const renderedRecord = resolveHydratedRecord(record, hydratedRecords);
 
     return (
       <JsonTree
