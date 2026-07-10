@@ -504,9 +504,11 @@ describe("UnquoteApp", () => {
     );
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
-    const timelineToolResult = (await screen.findAllByRole("button", {
-      name: /^Timeline: tool_result/,
-    }))[0]!;
+    const timelineToolResult = (
+      await screen.findAllByRole("button", {
+        name: /^Timeline: tool_result/,
+      })
+    )[0]!;
     await user.click(timelineToolResult);
 
     const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;

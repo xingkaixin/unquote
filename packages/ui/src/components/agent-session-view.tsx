@@ -230,9 +230,7 @@ export const AgentSessionView = ({
   const selectedConversationId = detailItem?.id;
   const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
   const showRawRail = !detailEvent && session.events.length > 0;
-  const detailRecord = detailEvent
-    ? recordsById.get(detailEvent.recordId)
-    : undefined;
+  const detailRecord = detailEvent ? recordsById.get(detailEvent.recordId) : undefined;
   const renderedDetailRecord = detailRecord
     ? resolveHydratedRecord(detailRecord, hydratedRecords)
     : undefined;
