@@ -6,6 +6,8 @@ import type { SearchMatch, SearchOptions } from "../lib/tree";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
 export const searchWorkerTimeoutMs = 5000;
+export const largeFileSearchWorkerTimeoutMs = 15_000;
+const largeFileSearchBytes = 1_000_000;
 
 export type SearchWorkerStatus = "idle" | "pending" | "complete" | "error";
 
@@ -36,6 +38,11 @@ const buildSearchRequest = (
         options,
         ...(forcedFormat ? { forcedFormat } : {}),
       };
+
+const getSearchWorkerTimeoutMs = (sourceFile: File | null) =>
+  sourceFile && sourceFile.size > largeFileSearchBytes
+    ? largeFileSearchWorkerTimeoutMs
+    : searchWorkerTimeoutMs;
 
 export const useSearchWorker = (params: {
   text: string;
@@ -113,7 +120,7 @@ export const useSearchWorker = (params: {
         currentWorker.terminate();
         workerRef.current = null;
         setState({ matches: null, status: "error", errorKind: "timeout" });
-      }, searchWorkerTimeoutMs);
+      }, getSearchWorkerTimeoutMs(sourceFile));
 
       const onMessage = (event: MessageEvent<SearchWorkerResponse>) => {
         const response = event.data;
