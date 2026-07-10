@@ -1297,6 +1297,209 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
   });
 
+  it("keeps stringified expansion within its JSONL record", async () => {
+    const user = userEvent.setup();
+    const input = [
+      '{"payload":"{\\"nested\\":\\"first\\"}"}',
+      '{"payload":"{\\"nested\\":\\"second\\"}"}',
+    ].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+
+    await user.click(
+      within(document.getElementById("record-1")!).getByRole("button", {
+        name: "Toggle payload",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
+    );
+    expect(
+      within(document.getElementById("record-2")!).queryByText("nested"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expands stringified paths only in JSONL records matching search", async () => {
+    const user = userEvent.setup();
+    const input = [
+      '{"payload":"{\\"nested\\":\\"target-only\\"}"}',
+      '{"payload":"{\\"nested\\":\\"other-only\\"}"}',
+    ].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
+
+    await user.type(getToolbarInput(), "target-only");
+
+    await waitFor(() =>
+      expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
+    );
+    expect(
+      within(document.getElementById("record-2")!).queryByText("nested"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shares record-scoped expansion between Agent and JSON views", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={codexRolloutSource} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const timelineToolCall = (
+      await screen.findAllByRole("button", {
+        name: /^Timeline: tool_use exec_command/,
+      })
+    )[0]!;
+    await user.click(timelineToolCall);
+
+    const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;
+    await user.click(within(rawJsonPanel).getByRole("button", { name: "Toggle arguments" }));
+    await waitFor(() => expect(within(rawJsonPanel).getByText("cmd")).toBeInTheDocument());
+
+    await user.click(screen.getAllByRole("tab", { name: "JSON" })[0]!);
+    const jsonRecord = await waitFor(() => {
+      const record = document.getElementById("record-4");
+      expect(record).toBeInTheDocument();
+      return record!;
+    });
+    expect(within(jsonRecord).getByText("cmd")).toBeInTheDocument();
+
+    await user.click(within(jsonRecord).getByRole("button", { name: "Toggle arguments" }));
+    await user.click(screen.getAllByRole("tab", { name: "Agent" })[0]!);
+    const collapsedRawJsonPanel = (
+      await screen.findAllByRole("complementary", {
+        name: "Raw JSONL",
+      })
+    )[0]!;
+    expect(within(collapsedRawJsonPanel).queryByText("cmd")).not.toBeInTheDocument();
+  });
+
+  it("collapses only the records visible after filtering", async () => {
+    const user = userEvent.setup();
+    const input = [
+      '{"kind":"target","payload":"{\\"nested\\":\\"first\\"}"}',
+      '{"kind":"other","payload":"{\\"nested\\":\\"second\\"}"}',
+    ].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
+
+    const expandAll = screen
+      .getAllByRole("button", { name: /^Expand All$/i })
+      .find((button) => button.hasAttribute("aria-pressed"))!;
+    await user.click(expandAll);
+    await waitFor(() =>
+      expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
+    );
+    expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument();
+
+    await user.type(getToolbarInput(), "target");
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("button", { name: /Matches/ }));
+    await waitFor(() => expect(document.getElementById("record-2")).not.toBeInTheDocument());
+
+    const collapseAll = screen
+      .getAllByRole("button", { name: /^Collapse All$/i })
+      .find((button) => button.hasAttribute("aria-pressed"))!;
+    await user.click(collapseAll);
+    await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
+
+    await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("button", { name: /^All$/ }));
+    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
+    expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument();
+  });
+
+  it("resets expansion when the source changes", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"payload":"{\\"first\\":true}"}'} />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+    await user.click(
+      within(document.getElementById("record-1")!).getByRole("button", {
+        name: "Toggle payload",
+      }),
+    );
+    await waitFor(() => expect(screen.getAllByText("first")).toHaveLength(2));
+
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      {
+        target: { value: '{"payload":"{\\"second\\":true}"}' },
+      },
+    );
+
+    await waitFor(() => expect(screen.getAllByText("payload")).toHaveLength(2));
+    expect(screen.queryByText("second")).not.toBeInTheDocument();
+  });
+
+  it("rebuilds only the toggled JSONL record rows", async () => {
+    const user = userEvent.setup();
+    const input = [
+      '{"payload":"{\\"nested\\":\\"first\\"}"}',
+      '{"payload":"{\\"nested\\":\\"second\\"}"}',
+      '{"payload":"{\\"nested\\":\\"third\\"}"}',
+    ].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(document.getElementById("record-3")).toBeInTheDocument());
+
+    performance.clearMeasures("unquote:recordRows:build");
+    await user.click(
+      within(document.getElementById("record-1")!).getByRole("button", {
+        name: "Toggle payload",
+      }),
+    );
+    await waitFor(() =>
+      expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
+    );
+
+    expect(performance.getEntriesByName("unquote:recordRows:build")).toHaveLength(2);
+  });
+
   it("disables Copy above the large-source threshold and points to Export", () => {
     // The guard is a pure rule; behavior is verified at the unit level to avoid
     // parsing thousands of records in a render test.

@@ -23,14 +23,14 @@ const inlineValueLengthLimit = 160;
 interface JsonTreeProps {
   record: JsonlRecord;
   insight: RecordInsight | undefined;
-  expandedStringifiedPaths: Set<string>;
+  expandedStringifiedPaths: ReadonlySet<string>;
   eager?: boolean;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
   scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (recordId: string, path: string) => void;
   onCopyRecord: () => void;
   onCopyRawLine: () => void;
   onCopyError: () => void;
@@ -322,7 +322,7 @@ export const JsonTree = ({
                     if (record.deferred) {
                       onHydrateRecord(record);
                     }
-                    onTogglePath(path);
+                    onTogglePath(record.id, path);
                   }}
                   onSelectNode={onSelectNode}
                 />
@@ -352,7 +352,7 @@ export const JsonTree = ({
                     if (record.deferred) {
                       onHydrateRecord(record);
                     }
-                    onTogglePath(path);
+                    onTogglePath(record.id, path);
                   }}
                   onSelectNode={onSelectNode}
                 />

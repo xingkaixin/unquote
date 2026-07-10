@@ -30,6 +30,15 @@ import { collectStringifiedPaths, hasJsonlRecords, resolveTreePath } from "./lib
 import { fileSearchDebounceMs } from "./lib/local-file-source";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
+import {
+  addExpandedStringifiedPaths,
+  clearExpandedStringifiedPaths,
+  getExpandedStringifiedPaths,
+  mergeExpandedStringifiedPaths,
+  replaceExpandedStringifiedPaths,
+  toggleExpandedStringifiedPath,
+  type ExpandedStringifiedPathsByRecord,
+} from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import { sourceSamples } from "./lib/source-samples";
 import type { SearchOptions, TreeRow } from "./lib/tree";
@@ -125,7 +134,10 @@ export const UnquoteApp = ({
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
   const selectedRecordId = detailSelection?.recordId ?? null;
-  const [expandedStringifiedPaths, setExpandedStringifiedPaths] = useState<Set<string>>(new Set());
+  const [expandedStringifiedPathsByRecord, setExpandedStringifiedPathsByRecord] =
+    useState<ExpandedStringifiedPathsByRecord>(new Map());
+  const [searchExpandedStringifiedPathsByRecord, setSearchExpandedStringifiedPathsByRecord] =
+    useState<ExpandedStringifiedPathsByRecord>(new Map());
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
@@ -207,25 +219,25 @@ export const UnquoteApp = ({
         id: "escaped-api-response",
         label: t("samples.escapedApiResponse"),
         value: sourceSamples.escapedApiResponse.source,
-        expandedPaths: sourceSamples.escapedApiResponse.expandedPaths,
+        expandedPathsByRecord: sourceSamples.escapedApiResponse.expandedPathsByRecord,
       },
       {
         id: "agent-tool-call-jsonl",
         label: t("samples.agentToolCallJsonl"),
         value: sourceSamples.agentToolCallJsonl.source,
-        expandedPaths: sourceSamples.agentToolCallJsonl.expandedPaths,
+        expandedPathsByRecord: sourceSamples.agentToolCallJsonl.expandedPathsByRecord,
       },
       {
         id: "codex-rollout-jsonl",
         label: t("samples.codexRolloutJsonl"),
         value: sourceSamples.codexRolloutJsonl.source,
-        expandedPaths: sourceSamples.codexRolloutJsonl.expandedPaths,
+        expandedPathsByRecord: sourceSamples.codexRolloutJsonl.expandedPathsByRecord,
       },
       {
         id: "mixed-valid-invalid-jsonl",
         label: t("samples.mixedValidInvalidJsonl"),
         value: sourceSamples.mixedValidInvalidJsonl.source,
-        expandedPaths: sourceSamples.mixedValidInvalidJsonl.expandedPaths,
+        expandedPathsByRecord: sourceSamples.mixedValidInvalidJsonl.expandedPathsByRecord,
       },
     ],
     [t],
@@ -285,23 +297,30 @@ export const UnquoteApp = ({
   }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
-    if (!visibleMatches || visibleMatches.length === 0) return;
-
-    const pathsToExpand = new Set<string>();
-    for (const match of visibleMatches) {
-      for (const path of match.stringifiedPathChain) {
-        pathsToExpand.add(path);
-      }
+    let next: ExpandedStringifiedPathsByRecord = new Map();
+    for (const match of visibleMatches ?? []) {
+      next = addExpandedStringifiedPaths(next, match.recordId, match.stringifiedPathChain);
     }
-
-    setExpandedStringifiedPaths((current) => {
-      const next = new Set(current);
-      for (const path of pathsToExpand) {
-        next.add(path);
-      }
-      return next;
-    });
+    setSearchExpandedStringifiedPathsByRecord(next);
   }, [visibleMatches]);
+
+  const displayedExpandedStringifiedPathsByRecord = useMemo(
+    () =>
+      mergeExpandedStringifiedPaths(
+        expandedStringifiedPathsByRecord,
+        searchExpandedStringifiedPathsByRecord,
+      ),
+    [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
+  );
+  const hasExpandedVisibleStringifiedPaths = useMemo(
+    () =>
+      visibleRecords.some(
+        (record) =>
+          getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id).size >
+          0,
+      ),
+    [displayedExpandedStringifiedPathsByRecord, visibleRecords],
+  );
 
   const activeMatch = useMemo(() => {
     if (!visibleMatches || visibleMatches.length === 0) return null;
@@ -381,13 +400,9 @@ export const UnquoteApp = ({
         rawKey: target.rawKey,
       });
       setActiveRecordId(target.recordId);
-      setExpandedStringifiedPaths((current) => {
-        const next = new Set(current);
-        for (const path of target.stringifiedPathChain) {
-          next.add(path);
-        }
-        return next;
-      });
+      setExpandedStringifiedPathsByRecord((current) =>
+        addExpandedStringifiedPaths(current, target.recordId, target.stringifiedPathChain),
+      );
       scrollToPath(target.recordId, target.pathText);
     } else {
       scrollToSearchMatch(target.matchIndex);
@@ -456,7 +471,8 @@ export const UnquoteApp = ({
   ]);
 
   const resetDerivedState = () => {
-    setExpandedStringifiedPaths(new Set());
+    setExpandedStringifiedPathsByRecord(new Map());
+    setSearchExpandedStringifiedPathsByRecord(new Map());
     setSelectedPath(null);
     setDetailSelection(null);
     setFocusedPath(null);
@@ -466,10 +482,17 @@ export const UnquoteApp = ({
   };
   resetDerivedStateRef.current = resetDerivedState;
 
-  const handleSampleSelect = (sample: { value: string; expandedPaths: readonly string[] }) => {
+  const handleSampleSelect = (sample: {
+    value: string;
+    expandedPathsByRecord: readonly { recordId: string; paths: readonly string[] }[];
+  }) => {
     setMode("auto");
     handleSourceChange(sample.value);
-    setExpandedStringifiedPaths(new Set(sample.expandedPaths));
+    setExpandedStringifiedPathsByRecord(
+      new Map(
+        sample.expandedPathsByRecord.map(({ recordId, paths }) => [recordId, new Set(paths)]),
+      ),
+    );
   };
 
   const {
@@ -487,34 +510,42 @@ export const UnquoteApp = ({
   });
 
   const handleExpandAll = () => {
-    const all = measurePerfFn("expand:all:collect", () => {
-      const paths = new Set<string>();
-      visibleRecords.forEach((record) => {
-        collectStringifiedPaths(record, expandedStringifiedPaths).forEach((path) => {
-          paths.add(path);
-        });
-      });
-      return paths;
-    });
-    setExpandedStringifiedPaths(all);
+    setExpandedStringifiedPathsByRecord((current) =>
+      measurePerfFn("expand:all:collect", () => {
+        let next = current;
+        for (const record of visibleRecords) {
+          const paths = collectStringifiedPaths(
+            record,
+            getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id),
+          );
+          next = replaceExpandedStringifiedPaths(next, record.id, paths);
+        }
+        return next;
+      }),
+    );
     markPerf("expand:all:set-state");
   };
 
   const handleCollapseAll = () => {
-    setExpandedStringifiedPaths(new Set());
+    setExpandedStringifiedPathsByRecord((current) =>
+      clearExpandedStringifiedPaths(
+        current,
+        visibleRecords.map((record) => record.id),
+      ),
+    );
+    setSearchExpandedStringifiedPathsByRecord((current) =>
+      clearExpandedStringifiedPaths(
+        current,
+        visibleRecords.map((record) => record.id),
+      ),
+    );
   };
 
-  const handleTogglePath = (path: string) => {
+  const handleTogglePath = (recordId: string, path: string) => {
     markPerf("expand:path");
-    setExpandedStringifiedPaths((current) => {
-      const next = new Set(current);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
+    setExpandedStringifiedPathsByRecord((current) =>
+      toggleExpandedStringifiedPath(current, recordId, path),
+    );
   };
 
   const getSelectedNodeContext = async () => {
@@ -699,7 +730,7 @@ export const UnquoteApp = ({
         onExportFormattedJson={onExportFormattedJson}
         onExpandAll={handleExpandAll}
         onCollapseAll={handleCollapseAll}
-        hasExpandedStringified={expandedStringifiedPaths.size > 0}
+        hasExpandedStringified={hasExpandedVisibleStringifiedPaths}
       />
       {fileOverview.total > 0 ? (
         <FileOverview
@@ -715,7 +746,7 @@ export const UnquoteApp = ({
         records={visibleRecords}
         recordInsights={recordInsights}
         hydratedRecords={localFileSource.hydratedRecords}
-        expandedStringifiedPaths={expandedStringifiedPaths}
+        expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
         searchMatches={visibleMatches ?? []}
         activeMatch={activeMatch}
         scrollTarget={scrollTarget}
@@ -752,7 +783,7 @@ export const UnquoteApp = ({
           recordsById={recordsById}
           hydratedRecords={localFileSource.hydratedRecords}
           recordInsights={recordInsights}
-          expandedStringifiedPaths={expandedStringifiedPaths}
+          expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
           selectedPath={selectedPath}
           focusedPath={focusedPath}
           detailSelection={detailSelection}

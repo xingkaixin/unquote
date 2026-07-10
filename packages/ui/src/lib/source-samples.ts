@@ -16,7 +16,7 @@ export const sourceSamples = {
       null,
       2,
     ),
-    expandedPaths: ["$.body"],
+    expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.body"] }],
   },
   agentToolCallJsonl: {
     source: [
@@ -47,7 +47,10 @@ export const sourceSamples = {
         }),
       }),
     ].join("\n"),
-    expandedPaths: ["$.args", "$.result"],
+    expandedPathsByRecord: [
+      { recordId: "record-2", paths: ["$.args"] },
+      { recordId: "record-3", paths: ["$.result"] },
+    ],
   },
   codexRolloutJsonl: {
     source: [
@@ -105,7 +108,7 @@ export const sourceSamples = {
         },
       }),
     ].join("\n"),
-    expandedPaths: ["$.payload.arguments"],
+    expandedPathsByRecord: [{ recordId: "record-5", paths: ["$.payload.arguments"] }],
   },
   mixedValidInvalidJsonl: {
     source: [
@@ -122,6 +125,6 @@ export const sourceSamples = {
         payload: { id: "evt_001", reason: "parse_error" },
       }),
     ].join("\n"),
-    expandedPaths: ["$.payload"],
+    expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.payload"] }],
   },
 } as const;
