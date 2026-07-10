@@ -59,6 +59,12 @@ export type ParserWorkerResponse =
       stats?: ParseResult["stats"];
       agentSession?: AgentSession | null;
       progress: ParserProgress;
+    }
+  | {
+      type: "error";
+      requestId: number;
+      stats: ParseResult["stats"];
+      progress: ParserProgress;
     };
 
 const batchSize = 64;
@@ -187,6 +193,15 @@ const postSessionComplete = (requestId: number, session: JsonlSession) => {
   } satisfies ParserWorkerResponse);
 };
 
+const postSessionError = (requestId: number, session: JsonlSession) => {
+  self.postMessage({
+    type: "error",
+    requestId,
+    stats: statsFromSession(session),
+    progress: progressFromSession(session, true),
+  } satisfies ParserWorkerResponse);
+};
+
 const postBatch = (requestId: number, session: JsonlSession, done: boolean) => {
   if (session.batch.length === 0) {
     return;
@@ -264,25 +279,36 @@ const parseJson = ({
 };
 
 const parseJsonlFile = async (requestId: number, file: File, session: JsonlSession) => {
-  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+  let reader: ReadableStreamDefaultReader<string> | null = null;
+  let failed = false;
 
-  while (true) {
-    if (requestId !== latestRequestId) {
-      await reader.cancel();
-      return;
-    }
+  try {
+    reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
 
-    const { value, done } = await reader.read();
-    if (requestId !== latestRequestId) {
-      await reader.cancel();
-      return;
-    }
+    while (true) {
+      if (requestId !== latestRequestId) {
+        return;
+      }
 
-    processJsonlChunk(requestId, session, value ?? "", done);
-    if (done) {
-      postSessionComplete(requestId, session);
-      return;
+      const { value, done } = await reader.read();
+      if (requestId !== latestRequestId) {
+        return;
+      }
+
+      processJsonlChunk(requestId, session, value ?? "", done);
+      if (done) {
+        postSessionComplete(requestId, session);
+        return;
+      }
     }
+  } catch {
+    failed = true;
+  } finally {
+    await reader?.cancel().catch(() => undefined);
+  }
+
+  if (failed && requestId === latestRequestId) {
+    postSessionError(requestId, session);
   }
 };
 

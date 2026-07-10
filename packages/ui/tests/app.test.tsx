@@ -158,6 +158,23 @@ Object.assign(globalThis, {
 
       if (payload.type === "file-jsonl") {
         if (payload.file) {
+          if (payload.file.name === "worker-failure.jsonl") {
+            this.onmessage?.({
+              data: {
+                type: "error",
+                requestId: payload.requestId,
+                stats: { total: 0, success: 0, failed: 0 },
+                progress: {
+                  processedLines: 0,
+                  success: 0,
+                  failed: 0,
+                  elapsedMs: 1,
+                  done: true,
+                },
+              },
+            } as MessageEvent);
+            return;
+          }
           void readMockFileText(payload.file).then((text) =>
             this.complete(payload.requestId, text, "jsonl", true),
           );
@@ -775,6 +792,28 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
     expect((await screen.findAllByText("Failed to read file")).length).toBeGreaterThan(0);
     await waitFor(() => expect(sourceInput).toHaveValue('{"old":true}'));
+  });
+
+  it("ends streamed file parsing and reports a worker read failure once", async () => {
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const file = new File(["x".repeat(1_000_001)], "worker-failure.jsonl", {
+      type: "application/jsonl",
+    });
+
+    fireEvent.paste(sourceInput, {
+      clipboardData: { files: [file], items: [], types: ["Files"] },
+    });
+
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await waitFor(() => expect(screen.getAllByText("Failed to read file")).toHaveLength(1));
+    expect(shell).toHaveAttribute("data-parse-state", "complete");
   });
 
   it("searches full string content in streamed JSONL files", async () => {
