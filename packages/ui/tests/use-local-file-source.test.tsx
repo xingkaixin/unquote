@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { materializeNode } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
 
@@ -34,6 +35,55 @@ const makeFailingFile = (name = "payload.jsonl") => {
   return file;
 };
 
+interface ControlledRead {
+  delivered: boolean;
+  resolve?: (result: ReadableStreamReadResult<Uint8Array>) => void;
+  reject?: (error: unknown) => void;
+  cancel: ReturnType<typeof vi.fn>;
+}
+
+const makeControlledFile = (contents: string, name: string) => {
+  const reads: ControlledRead[] = [];
+  const file = new File([contents], name, { type: "application/jsonl" });
+  const stream = vi.fn(() => {
+    const state: ControlledRead = {
+      delivered: false,
+      cancel: vi.fn(() => Promise.resolve()),
+    };
+    reads.push(state);
+    return {
+      getReader: () => ({
+        read: () => {
+          if (state.delivered) {
+            return Promise.resolve({ done: true as const, value: undefined });
+          }
+
+          return new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+            state.resolve = resolve;
+            state.reject = reject;
+          });
+        },
+        cancel: state.cancel,
+      }),
+    };
+  });
+  Object.defineProperty(file, "stream", { configurable: true, value: stream });
+
+  return {
+    file,
+    stream,
+    reads,
+    resolve(index = 0) {
+      const state = reads[index]!;
+      state.delivered = true;
+      state.resolve?.({ done: false, value: new TextEncoder().encode(contents) });
+    },
+    reject(error: unknown, index = 0) {
+      reads[index]!.reject?.(error);
+    },
+  };
+};
+
 const makeDeferredRecord = (lineNumber: number) => ({
   id: `record-${lineNumber}`,
   lineNumber,
@@ -55,6 +105,64 @@ const makeDeferredRecord = (lineNumber: number) => ({
 });
 
 describe("useLocalFileSource", () => {
+  it("keeps current hydration when a previous source resolves last", async () => {
+    const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
+    const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
+      { initialProps: { file: sourceA.file as File } },
+    );
+
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    rerender({ file: sourceB.file });
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    expect(sourceA.reads[0]?.cancel).toHaveBeenCalledTimes(1);
+
+    await act(async () => sourceB.resolve());
+    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
+    expect(materializeNode(result.current.hydratedRecords.get(1)!.node!)).toEqual({ source: "B" });
+
+    await act(async () => sourceA.resolve());
+    expect(materializeNode(result.current.hydratedRecords.get(1)!.node!)).toEqual({ source: "B" });
+  });
+
+  it("does not report hydration failures from a previous source", async () => {
+    const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
+    const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
+    const onError = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(file, "", defaultOptions, onError),
+      { initialProps: { file: sourceA.file as File } },
+    );
+
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    rerender({ file: sourceB.file });
+    await act(async () => sourceA.reject(new Error("stale failure")));
+
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("does not let stale cleanup clear the current source in-flight line", async () => {
+    const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
+    const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
+      { initialProps: { file: sourceA.file as File } },
+    );
+
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    rerender({ file: sourceB.file });
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+
+    await act(async () => sourceA.resolve());
+    expect(result.current.hydratedRecords.size).toBe(0);
+    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    expect(sourceB.stream).toHaveBeenCalledTimes(1);
+
+    await act(async () => sourceB.resolve());
+    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
+  });
+
   it("clears the hydration cache when the source file changes", async () => {
     const fileA = makeStreamedFile('{"a":1}\n');
     const fileB = makeStreamedFile('{"b":2}\n');

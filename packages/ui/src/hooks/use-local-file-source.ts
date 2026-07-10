@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   fileSearchDebounceMs,
   hydratedFileRecordLimit,
@@ -20,6 +20,12 @@ interface CompletedFileSearch {
   sourceFile: File;
   query: string;
   options: SearchOptions;
+}
+
+interface HydrationGeneration {
+  sourceFile: File | null;
+  controller: AbortController;
+  inFlightLines: Set<number>;
 }
 
 /**
@@ -49,15 +55,37 @@ export const useLocalFileSource = (
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [completedFileSearch, setCompletedFileSearch] = useState<CompletedFileSearch | null>(null);
   const fileSearchAbortRef = useRef<AbortController | null>(null);
-  const hydratingFileLinesRef = useRef<Set<number>>(new Set());
+  const hydrationGenerationRef = useRef<HydrationGeneration>({
+    sourceFile,
+    controller: new AbortController(),
+    inFlightLines: new Set(),
+  });
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
-  // Drop the hydration cache whenever a different source is attached.
-  useEffect(() => {
+  // Replace the whole hydration generation before browser events can request
+  // records from a newly committed source.
+  useLayoutEffect(() => {
+    const previous = hydrationGenerationRef.current;
+    if (previous.sourceFile === sourceFile) {
+      return;
+    }
+
+    previous.controller.abort();
+    hydrationGenerationRef.current = {
+      sourceFile,
+      controller: new AbortController(),
+      inFlightLines: new Set(),
+    };
     setHydratedFileRecords(new Map());
-    hydratingFileLinesRef.current.clear();
   }, [sourceFile]);
+
+  useEffect(
+    () => () => {
+      hydrationGenerationRef.current.controller.abort();
+    },
+    [],
+  );
 
   // Debounce the file search: wait `fileSearchDebounceMs` after the query or
   // source settles before kicking off a read, and abort any in-flight search.
@@ -125,20 +153,32 @@ export const useLocalFileSource = (
       }
 
       const lineNumber = record.lineNumber;
-      if (hydratedFileRecords.has(lineNumber) || hydratingFileLinesRef.current.has(lineNumber)) {
+      const generation = hydrationGenerationRef.current;
+      if (
+        generation.sourceFile !== sourceFile ||
+        hydratedFileRecords.has(lineNumber) ||
+        generation.inFlightLines.has(lineNumber)
+      ) {
         return;
       }
 
-      hydratingFileLinesRef.current.add(lineNumber);
-      void readJsonlRecordsByLine(sourceFile, new Set([lineNumber]))
+      generation.inFlightLines.add(lineNumber);
+      void readJsonlRecordsByLine(sourceFile, new Set([lineNumber]), generation.controller.signal)
         .then((records) => {
+          if (
+            hydrationGenerationRef.current !== generation ||
+            generation.controller.signal.aborted
+          ) {
+            return;
+          }
+
           const hydrated = records.get(lineNumber);
           if (!hydrated) {
             return;
           }
 
           setHydratedFileRecords((current) => {
-            if (current.has(lineNumber)) {
+            if (hydrationGenerationRef.current !== generation || current.has(lineNumber)) {
               return current;
             }
 
@@ -155,12 +195,19 @@ export const useLocalFileSource = (
           });
         })
         .catch((error) => {
-          onErrorRef.current(error);
+          if (
+            hydrationGenerationRef.current === generation &&
+            !generation.controller.signal.aborted
+          ) {
+            onErrorRef.current(error);
+          }
         })
         .finally(() => {
-          // Clearing the in-flight mark also lets a failed line retry when it
-          // scrolls back into view.
-          hydratingFileLinesRef.current.delete(lineNumber);
+          if (hydrationGenerationRef.current === generation) {
+            // Clearing the in-flight mark also lets a failed line retry when it
+            // scrolls back into view.
+            generation.inFlightLines.delete(lineNumber);
+          }
         });
     },
     [hydratedFileRecords, sourceFile],

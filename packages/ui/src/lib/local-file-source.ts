@@ -131,18 +131,26 @@ export const readJsonlFileLines = async (
   }
 };
 
-export const readJsonlRecordsByLine = async (file: File, lineNumbers: Set<number>) => {
+export const readJsonlRecordsByLine = async (
+  file: File,
+  lineNumbers: Set<number>,
+  signal?: AbortSignal,
+) => {
   const records = new Map<number, JsonlRecord>();
   if (lineNumbers.size === 0) {
     return records;
   }
 
-  await readJsonlFileLines(file, (line, lineNumber) => {
-    if (lineNumbers.has(lineNumber)) {
-      records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
-    }
-    return records.size < lineNumbers.size;
-  });
+  await readJsonlFileLines(
+    file,
+    (line, lineNumber) => {
+      if (lineNumbers.has(lineNumber)) {
+        records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
+      }
+      return records.size < lineNumbers.size;
+    },
+    signal,
+  );
 
   return records;
 };
