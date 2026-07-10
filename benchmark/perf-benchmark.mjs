@@ -258,11 +258,11 @@ const runRenderFixture = async (client, fixture) => {
     files: [path.join(repoRoot, fixture.path)],
   });
 
-  const expression = `(
+  const settleExpression = `(
     async () => {
-      const expected = ${fixture.records}
+      const expectedFile = ${JSON.stringify(path.basename(fixture.path))}
       const start = window.__unquoteBenchmarkStart ?? performance.now()
-      const waitFor = (predicate, timeout = 30000) =>
+      const waitFor = (stage, predicate, timeout = 30000) =>
         new Promise((resolve, reject) => {
           const startedAt = performance.now()
           const step = () => {
@@ -273,7 +273,8 @@ const runRenderFixture = async (client, fixture) => {
             }
 
             if (performance.now() - startedAt > timeout) {
-              reject(new Error('timeout'))
+              const shell = document.querySelector('.uq-shell')
+              reject(new Error('timeout ' + stage + ' ' + JSON.stringify(shell?.dataset ?? {})))
               return
             }
 
@@ -282,26 +283,110 @@ const runRenderFixture = async (client, fixture) => {
 
           step()
         })
+      const settleFrames = () =>
+        new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
-      await waitFor(() => document.getElementById('record-1'))
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      await waitFor('source-file', () =>
+        document.querySelector('.uq-shell')?.dataset.sourceFile === expectedFile
+      )
+      await waitFor('first-record', () => document.getElementById('record-1'))
+      await settleFrames()
       const firstRecordReady = performance.now()
 
-      await waitFor(() =>
-        [...document.querySelectorAll('div')]
-          .find((node) => node.textContent?.includes(expected + ' total'))
-      )
+      const shell = await waitFor('parse-complete', () => {
+        const candidate = document.querySelector('.uq-shell')
+        return candidate?.dataset.sourceFile === expectedFile &&
+          candidate.dataset.parseState === 'complete'
+          ? candidate
+          : null
+      })
+      if (shell.dataset.agentSession === 'true') {
+        await waitFor('agent-view', () => {
+          const agentShell = document.querySelector('.uq-agent-shell')
+          const metrics = agentShell?.querySelector('[data-agent-metrics]')
+          return shell.dataset.outputView === 'agent' &&
+            Number(metrics?.dataset.agentMetrics) > 0
+        })
+      } else {
+        await waitFor('json-view', () => shell.dataset.outputView === 'json')
+      }
+      await settleFrames()
       const completeReady = performance.now()
 
-      const searchInput = document.querySelector('form input[type="text"]')
-      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      return {
+        firstRecordReadyMs: firstRecordReady - start,
+        completeReadyMs: completeReady - start,
+        domNodes: document.getElementsByTagName('*').length,
+        recordCards: document.querySelectorAll('[id^="record-"]:not([id*=":"])').length,
+      }
+    }
+  )()`;
+
+  const settledResult = await client.invoke("Runtime.evaluate", {
+    expression: settleExpression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+
+  if (settledResult.exceptionDetails) {
+    throw new Error(settledResult.exceptionDetails.text ?? "Runtime.evaluate failed");
+  }
+
+  const readMetrics = async () => {
+    await client.invoke("HeapProfiler.collectGarbage").catch(() => null);
+    const metrics = await client.invoke("Performance.getMetrics");
+    return Object.fromEntries(metrics.metrics.map((metric) => [metric.name, metric.value]));
+  };
+  const settledMetrics = await readMetrics();
+
+  const interactionExpression = `(
+    async () => {
+      const waitFor = (stage, predicate, timeout = 30000) =>
+        new Promise((resolve, reject) => {
+          const startedAt = performance.now()
+          const step = () => {
+            const value = predicate()
+            if (value) {
+              resolve(value)
+              return
+            }
+            if (performance.now() - startedAt > timeout) {
+              const shell = document.querySelector('.uq-shell')
+              reject(new Error('timeout ' + stage + ' ' + JSON.stringify(shell?.dataset ?? {})))
+              return
+            }
+            requestAnimationFrame(step)
+          }
+          step()
+        })
+      const settleFrames = () =>
+        new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const shell = document.querySelector('.uq-shell')
+
+      if (shell.dataset.agentSession === 'true') {
+        const jsonTabs = document.querySelectorAll('[data-output-tab="json"]')
+        const jsonTab = jsonTabs[jsonTabs.length - 1]
+        jsonTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+        await waitFor('json-view', () => shell.dataset.outputView === 'json')
+        await settleFrames()
+      }
+
+      const searchInput = await waitFor('search-input', () =>
+        [...document.querySelectorAll('form input[type="text"]')].at(-1)
+      )
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      if (!valueSetter || !searchInput.form) {
+        throw new Error('Search form not found')
+      }
+
       const searchStart = performance.now()
       valueSetter.call(searchInput, 'nested')
       searchInput.dispatchEvent(new Event('input', { bubbles: true }))
-      await waitFor(() =>
-        [...document.querySelectorAll('div, span')]
-          .find((node) => /\\d+\\s+matches/i.test(node.textContent ?? ''))
+      searchInput.form.requestSubmit()
+      await waitFor('search-complete', () =>
+        shell.dataset.searchQuery === 'nested' && shell.dataset.searchState === 'complete'
       )
+      await settleFrames()
       const searchReady = performance.now()
 
       const toggle = document.querySelector('[aria-label^="Toggle"]')
@@ -309,13 +394,11 @@ const runRenderFixture = async (client, fixture) => {
       if (toggle) {
         const expandPathStart = performance.now()
         toggle.click()
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        await settleFrames()
         expandPathReadyMs = performance.now() - expandPathStart
       }
 
       return {
-        firstRecordReadyMs: firstRecordReady - start,
-        completeReadyMs: completeReady - start,
         searchReadyMs: searchReady - searchStart,
         expandPathReadyMs,
         domNodes: document.getElementsByTagName('*').length,
@@ -323,29 +406,28 @@ const runRenderFixture = async (client, fixture) => {
       }
     }
   )()`;
-
-  const result = await client.invoke("Runtime.evaluate", {
-    expression,
+  const interactionResult = await client.invoke("Runtime.evaluate", {
+    expression: interactionExpression,
     awaitPromise: true,
     returnByValue: true,
   });
-
-  if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text ?? "Runtime.evaluate failed");
+  if (interactionResult.exceptionDetails) {
+    throw new Error(interactionResult.exceptionDetails.text ?? "Runtime.evaluate failed");
   }
-
-  await client.invoke("HeapProfiler.collectGarbage").catch(() => null);
-  const metrics = await client.invoke("Performance.getMetrics");
-  const metricMap = Object.fromEntries(
-    metrics.metrics.map((metric) => [metric.name, metric.value]),
-  );
+  const interactionMetrics = await readMetrics();
+  const settled = settledResult.result.value;
+  const interaction = interactionResult.result.value;
 
   return {
-    ...result.result.value,
-    layoutCount: metricMap.LayoutCount,
-    recalcStyleCount: metricMap.RecalcStyleCount,
-    taskDurationMs: metricMap.TaskDuration * 1000,
-    jsHeapUsedSizeMB: metricMap.JSHeapUsedSize / 1024 / 1024,
+    ...settled,
+    ...interaction,
+    domNodes: Math.max(settled.domNodes, interaction.domNodes),
+    recordCards: Math.max(settled.recordCards, interaction.recordCards),
+    layoutCount: interactionMetrics.LayoutCount,
+    recalcStyleCount: interactionMetrics.RecalcStyleCount,
+    taskDurationMs: interactionMetrics.TaskDuration * 1000,
+    jsHeapUsedSizeMB:
+      Math.max(settledMetrics.JSHeapUsedSize, interactionMetrics.JSHeapUsedSize) / 1024 / 1024,
   };
 };
 

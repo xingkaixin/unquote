@@ -716,8 +716,12 @@ export const UnquoteApp = ({
       onValueChange={(value) => setOutputView(value === "agent" ? "agent" : "json")}
     >
       <TabsList className="mb-3">
-        <TabsTrigger value="agent">{t("app.tab.agent")}</TabsTrigger>
-        <TabsTrigger value="json">{t("app.tab.json")}</TabsTrigger>
+        <TabsTrigger value="agent" data-output-tab="agent">
+          {t("app.tab.agent")}
+        </TabsTrigger>
+        <TabsTrigger value="json" data-output-tab="json">
+          {t("app.tab.json")}
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="agent">
         <AgentSessionView
@@ -744,7 +748,21 @@ export const UnquoteApp = ({
   );
 
   return (
-    <div className="uq-shell pb-8">
+    <div
+      className="uq-shell pb-8"
+      data-source-file={sourceFile?.name ?? ""}
+      data-parse-state={progress.done ? "complete" : "pending"}
+      data-agent-session={agentSession ? "true" : "false"}
+      data-output-view={agentSession ? outputView : "json"}
+      data-search-query={searchQuery}
+      data-search-state={
+        !searchQuery
+          ? "idle"
+          : !sourceFile || localFileSource.isSearchComplete
+            ? "complete"
+            : "pending"
+      }
+    >
       <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
         <div className="flex items-center gap-3.5">
           <span className="nf-led uq-logo-led" />
