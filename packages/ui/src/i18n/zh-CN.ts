@@ -132,6 +132,8 @@ export const zhCN: Messages = {
   "search.next": "下一个匹配",
   "search.clear": "清除搜索",
   "search.jq": "JSONPath / jq 语法",
+  "search.timeout": "搜索超时",
+  "search.failed": "搜索失败",
   "filter.all": "全部",
   "filter.matches": "匹配",
   "filter.errors": "错误",

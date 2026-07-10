@@ -3,7 +3,6 @@ import { materializeNode } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
 
-const defaultOptions = { regex: false, caseSensitive: false, jq: false };
 const noopError = () => {};
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
@@ -141,10 +140,9 @@ describe("useLocalFileSource", () => {
   it("keeps current hydration when a previous source resolves last", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
-    const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
-      { initialProps: { file: sourceA.file as File } },
-    );
+    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
+      initialProps: { file: sourceA.file as File },
+    });
 
     act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
@@ -165,10 +163,9 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const onError = vi.fn();
-    const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(file, "", defaultOptions, onError),
-      { initialProps: { file: sourceA.file as File } },
-    );
+    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, onError), {
+      initialProps: { file: sourceA.file as File },
+    });
 
     act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
@@ -181,10 +178,9 @@ describe("useLocalFileSource", () => {
   it("does not let stale cleanup clear the current source in-flight line", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
-    const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
-      { initialProps: { file: sourceA.file as File } },
-    );
+    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
+      initialProps: { file: sourceA.file as File },
+    });
 
     act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
@@ -205,10 +201,9 @@ describe("useLocalFileSource", () => {
     const fileA = makeStreamedFile('{"a":1}\n');
     const fileB = makeStreamedFile('{"b":2}\n');
 
-    const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
-      { initialProps: { file: fileA as File | null } },
-    );
+    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
+      initialProps: { file: fileA as File | null },
+    });
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -221,7 +216,7 @@ describe("useLocalFileSource", () => {
 
   it("de-duplicates in-flight hydration for the same line", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     const record = makeDeferredRecord(1);
     act(() => {
@@ -236,7 +231,7 @@ describe("useLocalFileSource", () => {
 
   it("merges same-tick hydration requests into a single file scan", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n{"n":4}\n{"n":5}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -253,7 +248,7 @@ describe("useLocalFileSource", () => {
 
   it("issues a separate file scan for hydration requests in a later tick", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -271,9 +266,7 @@ describe("useLocalFileSource", () => {
   it("stops a merged scan at the farthest requested line instead of reading the whole file", async () => {
     const lineByteLength = 11; // `{"n":"01"}\n`
     const chunked = makeChunkedFile(50, 8);
-    const { result } = renderHook(() =>
-      useLocalFileSource(chunked.file, "", defaultOptions, noopError),
-    );
+    const { result } = renderHook(() => useLocalFileSource(chunked.file, noopError));
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(2));
@@ -289,10 +282,9 @@ describe("useLocalFileSource", () => {
   it("discards a pending batch entirely when the source switches before it flushes", async () => {
     const sourceA = makeControlledFile('{"n":1}\n{"n":2}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"n":9}\n', "b.jsonl");
-    const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(file, "", defaultOptions, noopError),
-      { initialProps: { file: sourceA.file as File } },
-    );
+    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
+      initialProps: { file: sourceA.file as File },
+    });
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -317,7 +309,7 @@ describe("useLocalFileSource", () => {
   it("reports one error for a failed batch and lets the whole batch retry", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, onError));
+    const { result } = renderHook(() => useLocalFileSource(file, onError));
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -339,7 +331,7 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
@@ -355,7 +347,7 @@ describe("useLocalFileSource", () => {
 
   it("does not hydrate non-deferred records", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     const record = { ...makeDeferredRecord(1), deferred: false };
     act(() => {
@@ -367,46 +359,9 @@ describe("useLocalFileSource", () => {
     expect(result.current.hydratedRecords.size).toBe(0);
   });
 
-  it("debounces file search until the debounce window elapses", async () => {
-    const file = makeStreamedFile('{"message":"needle"}\n');
-    const { result, rerender } = renderHook(
-      ({ query }) => useLocalFileSource(file, query, defaultOptions, noopError),
-      { initialProps: { query: "" } },
-    );
-
-    rerender({ query: "needle" });
-    // Before the debounce window, no search has run.
-    expect(result.current.fileMatches).toBeNull();
-    expect(result.current.isSearchComplete).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(result.current.fileMatches).toBeNull();
-    expect(result.current.isSearchComplete).toBe(false);
-
-    await waitFor(() => expect(result.current.fileMatches?.length).toBe(1));
-    expect(result.current.isSearchComplete).toBe(true);
-  });
-
-  it("aborts the previous search when the query changes mid-flight", async () => {
-    const file = makeStreamedFile('{"message":"needle"}\n{"message":"other"}\n');
-    const { result, rerender } = renderHook(
-      ({ query }) => useLocalFileSource(file, query, defaultOptions, noopError),
-      { initialProps: { query: "" } },
-    );
-
-    rerender({ query: "needle" });
-    // Change the query before the first debounce window completes.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    rerender({ query: "other" });
-    expect(result.current.isSearchComplete).toBe(false);
-
-    await waitFor(() => expect(result.current.fileMatches?.length).toBe(1));
-    expect(result.current.fileMatches?.[0]?.recordId).toBe("record-2");
-    expect(result.current.isSearchComplete).toBe(true);
-  });
-
   it("getFullRecords returns full records for a streamed source", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
     const full = await act(async () => {
       return result.current.getFullRecords([makeDeferredRecord(2)]);
@@ -419,7 +374,7 @@ describe("useLocalFileSource", () => {
   it("reports hydration read failures and clears the in-flight mark", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(file, "", defaultOptions, onError));
+    const { result } = renderHook(() => useLocalFileSource(file, onError));
 
     act(() => {
       result.current.hydrateRecord(makeDeferredRecord(1));
@@ -434,21 +389,8 @@ describe("useLocalFileSource", () => {
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
 
-  it("reports whole-file search failures instead of treating them as no matches", async () => {
-    const file = makeFailingFile();
-    const onError = vi.fn();
-    const { result, rerender } = renderHook(
-      ({ query }) => useLocalFileSource(file, query, defaultOptions, onError),
-      { initialProps: { query: "" } },
-    );
-
-    rerender({ query: "needle" });
-    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(result.current.fileMatches).toBeNull();
-  });
-
   it("getFullRecords passes records through when there is no source file", async () => {
-    const { result } = renderHook(() => useLocalFileSource(null, "", defaultOptions, noopError));
+    const { result } = renderHook(() => useLocalFileSource(null, noopError));
 
     const record = makeDeferredRecord(1);
     const full = await act(async () => {

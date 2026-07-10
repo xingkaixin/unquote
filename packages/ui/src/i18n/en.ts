@@ -130,6 +130,8 @@ export const en = {
   "search.next": "Next match",
   "search.clear": "Clear search",
   "search.jq": "JSONPath / jq syntax",
+  "search.timeout": "Search timed out",
+  "search.failed": "Search failed",
   "filter.all": "All",
   "filter.matches": "Matches",
   "filter.errors": "Errors",

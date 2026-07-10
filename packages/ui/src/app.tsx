@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
+import { useSearchWorker } from "./hooks/use-search-worker";
 import { buildNavigationTarget, useQueryInteraction } from "./hooks/use-query-interaction";
 import { useExportActions } from "./hooks/use-export-actions";
 import { useRecordPipeline } from "./hooks/use-record-pipeline";
@@ -26,6 +27,7 @@ import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { markPerf, measurePerfFn } from "./lib/perf";
 import { collectStringifiedPaths, hasJsonlRecords, resolveTreePath } from "./lib/tree";
+import { fileSearchDebounceMs } from "./lib/local-file-source";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { isCopyAboveThreshold } from "./lib/record-export";
@@ -139,9 +141,10 @@ export const UnquoteApp = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const scrollRequestIdRef = useRef(0);
   const outputViewSessionKeyRef = useRef<string | null>(null);
+  const forcedFormat = mode === "auto" ? undefined : mode;
   const { result, progress, recordsVersion, agentSession } = useParser(
     sourceText,
-    mode === "auto" ? undefined : mode,
+    forcedFormat,
     sourceFile,
     () => toast.error(t("input.readFailed")),
   );
@@ -237,9 +240,17 @@ export const UnquoteApp = ({
     [searchCaseSensitive, searchJq, searchRegex],
   );
 
-  const localFileSource = useLocalFileSource(sourceFile, searchQuery, searchOptions, () =>
-    toast.error(t("input.readFailed")),
-  );
+  const localFileSource = useLocalFileSource(sourceFile, () => toast.error(t("input.readFailed")));
+  // A source file scans the whole file per query, so it gets a debounce;
+  // in-memory text search is cheap enough to dispatch immediately.
+  const searchWorker = useSearchWorker({
+    text: sourceText,
+    sourceFile,
+    query: searchQuery,
+    options: searchOptions,
+    debounceMs: sourceFile ? fileSearchDebounceMs : 0,
+    ...(forcedFormat ? { forcedFormat } : {}),
+  });
 
   const {
     recordInsights,
@@ -252,10 +263,7 @@ export const UnquoteApp = ({
   } = useRecordPipeline({
     result,
     recordsVersion,
-    sourceFile,
-    fileMatches: localFileSource.fileMatches,
-    searchQuery,
-    searchOptions,
+    searchMatches: searchWorker.matches,
     recordFilter,
   });
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
@@ -647,13 +655,19 @@ export const UnquoteApp = ({
         return t("filter.all");
     }
   })();
+  const searchErrorLabel =
+    searchQuery && searchWorker.status === "error"
+      ? t(searchWorker.errorKind === "timeout" ? "search.timeout" : "search.failed")
+      : null;
   const toolbarSummary = pathError
     ? pathError
-    : searchQuery || recordFilter !== "all"
-      ? `${filterLabel} · ${visibleStats.total}/${result.stats.total} · ${
-          searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
-        }`
-      : progressLabel;
+    : searchErrorLabel
+      ? searchErrorLabel
+      : searchQuery || recordFilter !== "all"
+        ? `${filterLabel} · ${visibleStats.total}/${result.stats.total} · ${
+            searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
+          }`
+        : progressLabel;
   const toolbarInPathMode = qi.mode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
@@ -765,13 +779,7 @@ export const UnquoteApp = ({
       data-agent-session={agentSession ? "true" : "false"}
       data-output-view={agentSession ? outputView : "json"}
       data-search-query={searchQuery}
-      data-search-state={
-        !searchQuery
-          ? "idle"
-          : !sourceFile || localFileSource.isSearchComplete
-            ? "complete"
-            : "pending"
-      }
+      data-search-state={searchWorker.status}
     >
       <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
         <div className="flex items-center gap-3.5">
