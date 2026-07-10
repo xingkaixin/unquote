@@ -2,16 +2,29 @@ import { useEffect, useState } from "react";
 
 export type Theme = "system" | "light" | "dark";
 
+const themeStorageKey = "unquote-theme";
+
+const isTheme = (value: string | null): value is Theme =>
+  value === "system" || value === "light" || value === "dark";
+
+const readThemePreference = (): Theme => {
+  try {
+    const storedTheme = localStorage.getItem(themeStorageKey);
+    return isTheme(storedTheme) ? storedTheme : "system";
+  } catch {
+    return "system";
+  }
+};
+
 export const useThemePreference = () => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    try {
-      return (localStorage.getItem("unquote-theme") as Theme) ?? "system";
-    } catch {
-      return "system";
-    }
-  });
+  const [theme, setTheme] = useState<Theme>(readThemePreference);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(themeStorageKey, theme);
+    } catch {
+      // Theme application must continue when persistence is unavailable.
+    }
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -26,7 +39,6 @@ export const useThemePreference = () => {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
     }
-    localStorage.setItem("unquote-theme", theme);
   }, [theme]);
 
   return { theme, setTheme };
