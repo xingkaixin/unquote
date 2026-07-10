@@ -1,6 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchWorkerTimeoutMs, useSearchWorker } from "../src/hooks/use-search-worker";
+import {
+  largeFileSearchWorkerTimeoutMs,
+  searchWorkerTimeoutMs,
+  useSearchWorker,
+} from "../src/hooks/use-search-worker";
 import type { SearchMatch } from "../src/lib/tree";
 
 interface Listener {
@@ -133,6 +137,20 @@ describe("useSearchWorker", () => {
     act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("recovered")] }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("recovered");
+  });
+
+  it("extends the timeout for a large local file", async () => {
+    const file = new File(["x".repeat(1_000_001)], "large.jsonl");
+    render(<Probe query="a" text="" sourceFile={file} />);
+    const worker = MockWorker.instances[0]!;
+
+    await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
+    expect(worker.terminated).toBe(false);
+
+    await act(() =>
+      vi.advanceTimersByTimeAsync(largeFileSearchWorkerTimeoutMs - searchWorkerTimeoutMs),
+    );
+    expect(worker.terminated).toBe(true);
   });
 
   it("reports a worker error response", () => {

@@ -17,6 +17,16 @@ const outputPath = path.resolve(
   repoRoot,
   process.env.UNQUOTE_BENCH_OUTPUT ?? "benchmark/results/latest.json",
 );
+const heapSnapshotDirectory = process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR
+  ? path.resolve(repoRoot, process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR)
+  : null;
+const renderOnly = process.env.UNQUOTE_BENCH_RENDER_ONLY === "1";
+const skipSearch = process.env.UNQUOTE_BENCH_SKIP_SEARCH === "1";
+const debug = (message) => {
+  if (process.env.UNQUOTE_BENCH_DEBUG === "1") {
+    console.error(`[benchmark] ${message}`);
+  }
+};
 
 const defaultFixtures = [
   "benchmark/case1.jsonl",
@@ -153,10 +163,14 @@ const connectTarget = async () => {
 
   let messageId = 0;
   const pending = new Map();
+  const notifications = new Map();
 
   socket.addEventListener("message", (event) => {
     const payload = JSON.parse(String(event.data));
     if (!payload.id) {
+      for (const listener of notifications.get(payload.method) ?? []) {
+        listener(payload.params);
+      }
       return;
     }
 
@@ -188,7 +202,48 @@ const connectTarget = async () => {
     socket.close();
   };
 
-  return { invoke, close };
+  const subscribe = (method, listener) => {
+    const listeners = notifications.get(method) ?? new Set();
+    listeners.add(listener);
+    notifications.set(method, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) {
+        notifications.delete(method);
+      }
+    };
+  };
+
+  return { invoke, close, subscribe };
+};
+
+const captureHeapSnapshot = async (client, fixture) => {
+  if (!heapSnapshotDirectory) {
+    return null;
+  }
+
+  fs.mkdirSync(heapSnapshotDirectory, { recursive: true });
+  const name = path.basename(fixture.path, path.extname(fixture.path));
+  const snapshotPath = path.join(heapSnapshotDirectory, `${name}.heapsnapshot`);
+  const snapshot = fs.createWriteStream(snapshotPath);
+  const unsubscribe = client.subscribe("HeapProfiler.addHeapSnapshotChunk", ({ chunk }) => {
+    snapshot.write(chunk);
+  });
+  const snapshotFinished = new Promise((resolve, reject) => {
+    snapshot.once("finish", resolve);
+    snapshot.once("error", reject);
+  });
+
+  try {
+    await client.invoke("HeapProfiler.takeHeapSnapshot", { reportProgress: false });
+  } finally {
+    unsubscribe();
+    snapshot.end();
+    await snapshotFinished;
+  }
+
+  console.log(`Heap snapshot: ${snapshotPath}`);
+  return snapshotPath;
 };
 
 const benchmarkCore = async (fixturesInfo) => {
@@ -199,6 +254,7 @@ const benchmarkCore = async (fixturesInfo) => {
 
   return Object.fromEntries(
     fixturesInfo.map((fixture) => {
+      debug(`Parsing ${fixture.path} in the core benchmark`);
       const input = fs.readFileSync(path.join(repoRoot, fixture.path), "utf8");
       for (let index = 0; index < warmupRuns; index += 1) {
         parseInput(input, { forcedFormat: "jsonl" });
@@ -222,6 +278,7 @@ const benchmarkCore = async (fixturesInfo) => {
 };
 
 const runRenderFixture = async (client, fixture) => {
+  debug(`Rendering ${fixture.path}`);
   await client.invoke("Page.navigate", { url: "http://127.0.0.1:4173/" });
   await client.invoke("Runtime.evaluate", {
     expression: `new Promise((resolve, reject) => {
@@ -338,6 +395,7 @@ const runRenderFixture = async (client, fixture) => {
     return Object.fromEntries(metrics.metrics.map((metric) => [metric.name, metric.value]));
   };
   const settledMetrics = await readMetrics();
+  debug(`Running interactions for ${fixture.path}`);
 
   const interactionExpression = `(
     async () => {
@@ -371,23 +429,32 @@ const runRenderFixture = async (client, fixture) => {
         await settleFrames()
       }
 
-      const searchInput = await waitFor('search-input', () =>
-        [...document.querySelectorAll('form input[type="text"]')].at(-1)
-      )
-      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      if (!valueSetter || !searchInput.form) {
-        throw new Error('Search form not found')
-      }
+      let searchReadyMs = null
+      if (!${JSON.stringify(skipSearch)}) {
+        const searchInput = await waitFor('search-input', () =>
+          [...document.querySelectorAll('form input[type="text"]')].at(-1)
+        )
+        const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        if (!valueSetter || !searchInput.form) {
+          throw new Error('Search form not found')
+        }
 
-      const searchStart = performance.now()
-      valueSetter.call(searchInput, 'nested')
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }))
-      searchInput.form.requestSubmit()
-      await waitFor('search-complete', () =>
-        shell.dataset.searchQuery === 'nested' && shell.dataset.searchState === 'complete'
-      )
-      await settleFrames()
-      const searchReady = performance.now()
+        const searchStart = performance.now()
+        valueSetter.call(searchInput, 'nested')
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+        searchInput.form.requestSubmit()
+        const searchResult = await waitFor('search-complete', () =>
+          shell.dataset.searchQuery === 'nested' &&
+          ['complete', 'error'].includes(shell.dataset.searchState)
+            ? shell
+            : null
+        )
+        if (searchResult.dataset.searchState === 'error') {
+          throw new Error('search failed: ' + searchInput.form.querySelector('span')?.textContent)
+        }
+        await settleFrames()
+        searchReadyMs = performance.now() - searchStart
+      }
 
       const toggle = document.querySelector('[aria-label^="Toggle"]')
       let expandPathReadyMs = null
@@ -418,7 +485,7 @@ const runRenderFixture = async (client, fixture) => {
       }
 
       return {
-        searchReadyMs: searchReady - searchStart,
+        searchReadyMs,
         expandPathReadyMs,
         tocReadyMs,
         domNodes: document.getElementsByTagName('*').length,
@@ -437,6 +504,8 @@ const runRenderFixture = async (client, fixture) => {
   const interactionMetrics = await readMetrics();
   const settled = settledResult.result.value;
   const interaction = interactionResult.result.value;
+  debug(`Capturing heap snapshot for ${fixture.path}`);
+  const heapSnapshot = await captureHeapSnapshot(client, fixture);
 
   return {
     ...settled,
@@ -448,6 +517,7 @@ const runRenderFixture = async (client, fixture) => {
     taskDurationMs: interactionMetrics.TaskDuration * 1000,
     jsHeapUsedSizeMB:
       Math.max(settledMetrics.JSHeapUsedSize, interactionMetrics.JSHeapUsedSize) / 1024 / 1024,
+    heapSnapshot,
   };
 };
 
@@ -456,6 +526,7 @@ const benchmarkRender = async (fixturesInfo) => {
   ensureFile(chromePath);
 
   const server = await serveStatic(webDist);
+  debug("Starting Chrome for the render benchmark");
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "unquote-bench-"));
   const chrome = spawn(
     chromePath,
@@ -488,6 +559,7 @@ const benchmarkRender = async (fixturesInfo) => {
     const entries = [];
 
     for (const fixture of fixturesInfo) {
+      debug(`Benchmarking render fixture ${fixture.path}`);
       for (let index = 0; index < warmupRuns; index += 1) {
         await runRenderFixture(client, fixture);
       }
@@ -545,11 +617,12 @@ const collectBudgetFailures = (render) => {
 
 const main = async () => {
   const startedAt = performance.now();
+  debug("Reading fixture metadata");
   const fixturesInfo = fixtures.map(fixtureInfo);
-  const [core, render] = await Promise.all([
-    benchmarkCore(fixturesInfo),
-    benchmarkRender(fixturesInfo),
-  ]);
+  debug(`Running ${fixturesInfo.length} fixture(s)${renderOnly ? " in render-only mode" : ""}`);
+  const [core, render] = renderOnly
+    ? [{}, await benchmarkRender(fixturesInfo)]
+    : await Promise.all([benchmarkCore(fixturesInfo), benchmarkRender(fixturesInfo)]);
   const budgetFailures = collectBudgetFailures(render);
 
   const report = {

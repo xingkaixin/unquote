@@ -1,7 +1,7 @@
-import { parseJsonlRecordLine } from "@unquote/core";
+import { parseJson, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
-import { buildSearchPattern, searchRecord } from "./tree";
+import { buildSearchPattern, searchJsonValue } from "./tree";
 import type { SearchMatch, SearchOptions } from "./tree";
 
 export const fileSearchDebounceMs = 250;
@@ -175,7 +175,13 @@ export const searchJsonlFile = async (
       }
 
       if (line.trim()) {
-        matches.push(...searchRecord(parseJsonlRecordLine(line, lineNumber), pattern, options));
+        try {
+          matches.push(
+            ...searchJsonValue(parseJson(line), `record-${lineNumber}`, pattern, options),
+          );
+        } catch {
+          // Invalid JSONL lines are excluded from search, matching the record-tree path.
+        }
       }
     },
     signal,

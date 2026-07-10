@@ -1,4 +1,10 @@
-import type { JsonNode, JsonlRecord } from "@unquote/core";
+import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
+import {
+  getPreviewMaxDepth,
+  getPreviewNestedFieldKeys,
+  getPreviewPath,
+  getPreviewPathSegments,
+} from "./deferred-record-preview";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
@@ -122,6 +128,27 @@ const walkNode = (root: JsonNode, summary: RecordOverviewSummary) => {
   });
 };
 
+const summarizePreview = (preview: JsonlRecordPreview, summary: RecordOverviewSummary) => {
+  summary.maxDepth = getPreviewMaxDepth(preview);
+  const nestedFieldKeys = getPreviewNestedFieldKeys(preview);
+  summary.hasNestedJson = nestedFieldKeys.length > 0;
+  for (const key of nestedFieldKeys) {
+    addCount(summary.nestedPaths, getPreviewPath(key));
+  }
+
+  for (const [key, value] of Object.entries(preview.fields)) {
+    const pathSegments = getPreviewPathSegments(key);
+    const field = classifyOverviewField(key, pathSegments);
+    if (field) {
+      addFieldValue(summary.fieldValues, {
+        field,
+        pathText: getPreviewPath(key),
+        value: String(value),
+      });
+    }
+  }
+};
+
 const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
   const summary: RecordOverviewSummary = {
     hasNestedJson: false,
@@ -146,7 +173,11 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
     return summary;
   }
 
-  walkNode(record.node, summary);
+  if (record.preview) {
+    summarizePreview(record.preview, summary);
+  } else {
+    walkNode(record.node, summary);
+  }
   return summary;
 };
 

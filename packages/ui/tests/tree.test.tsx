@@ -1,4 +1,5 @@
 import { parseInput } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import {
   createFileOverview,
@@ -7,6 +8,7 @@ import {
 } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
 import {
+  buildSearchPattern,
   buildRecordRows,
   collectStringifiedPaths,
   filterRecords,
@@ -14,6 +16,8 @@ import {
   resolveTreePath,
   resolveTreePathMatches,
   searchRecords,
+  searchJsonValue,
+  searchRecord,
 } from "../src/lib/tree";
 
 describe("tree paths", () => {
@@ -111,6 +115,29 @@ describe("tree paths", () => {
     expect(collectStringifiedPaths(record, new Set())).toEqual(["$.payload.items[0]"]);
   });
 
+  it("searches raw JSON values with the same matches as a JsonNode tree", () => {
+    const line = JSON.stringify({
+      "a.b": "needle",
+      payload: JSON.stringify({ nested: [{ value: "needle" }] }),
+      nullable: "null",
+    });
+    const result = parseInput(line);
+    const record = result.records[0]!;
+    const options = { regex: false, caseSensitive: false, jq: false };
+    const pattern = buildSearchPattern("needle", options);
+
+    expect(pattern).not.toBeNull();
+    expect(searchJsonValue(JSON.parse(line), record.id, pattern!, options)).toEqual(
+      searchRecord(record, pattern!, options),
+    );
+
+    const nullPattern = buildSearchPattern("null", options);
+    expect(nullPattern).not.toBeNull();
+    expect(searchJsonValue(JSON.parse(line), record.id, nullPattern!, options)).toEqual(
+      searchRecord(record, nullPattern!, options),
+    );
+  });
+
   it("limits long string labels without changing the node value", () => {
     const longValue = "a".repeat(600);
     const result = parseInput(JSON.stringify({ payload: longValue }));
@@ -179,6 +206,46 @@ describe("tree paths", () => {
     expect(overview.errors).toEqual([
       expect.objectContaining({ recordId: "record-3", lineNumber: 3 }),
     ]);
+  });
+
+  it("keeps overview fields and nested paths for deferred previews", () => {
+    const record = {
+      id: "record-1",
+      lineNumber: 1,
+      deferred: true,
+      node: {
+        kind: "object",
+        value: null,
+        path: ["$"],
+        wasStringified: false,
+        meta: {
+          depth: 0,
+          expandable: true,
+          restorable: false,
+          recordId: "record-1",
+          sourceLine: 1,
+        },
+      },
+      preview: {
+        fields: { event: "tool_call", tool: "billing.search" },
+        nestedFieldKeys: "args",
+      },
+      summary: "event:tool_call",
+    } satisfies JsonlRecord;
+
+    expect(createFileOverview([record])).toMatchObject({
+      total: 1,
+      success: 1,
+      nestedRecords: 1,
+      maxDepth: 1,
+      topNestedPaths: [{ pathText: "$.args", count: 1 }],
+    });
+    expect(createFileOverview([record]).topFieldValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "event", value: "tool_call" }),
+        expect.objectContaining({ field: "tool", value: "billing.search" }),
+      ]),
+    );
   });
 
   it("updates file overview incrementally for appended records", () => {

@@ -1,6 +1,12 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { materializeNode } from "@unquote/core";
-import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
+import { DEFAULT_MAX_DEPTH, getJsonKind, materializeNode } from "@unquote/core";
+import { getPreviewNestedFieldKeys } from "./deferred-record-preview";
+import {
+  appendJsonPathSegment,
+  formatJsonPath,
+  formatJqSelector,
+  parseTreePath,
+} from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import type { RecordInsight } from "./record-insight";
@@ -214,7 +220,10 @@ const containsStringifiedNode = (node: JsonNode): boolean => {
 };
 
 export const recordContainsStringifiedJson = (record: JsonlRecord) =>
-  Boolean(record.node && containsStringifiedNode(record.node));
+  Boolean(
+    (record.preview && getPreviewNestedFieldKeys(record.preview).length > 0) ||
+    (record.node && containsStringifiedNode(record.node)),
+  );
 
 export interface TextRange {
   start: number;
@@ -283,6 +292,117 @@ const searchNode = (
     },
     { jsonPath: pathText, stringifiedAncestors },
   );
+};
+
+const formatRawValueLabel = (value: unknown) => {
+  const kind = getJsonKind(value);
+  if (kind === "object") {
+    return `{${Object.keys(value as Record<string, unknown>).length}}`;
+  }
+  if (kind === "array") {
+    return `[${(value as unknown[]).length}]`;
+  }
+  if (kind === "string") {
+    return JSON.stringify(value);
+  }
+  if (kind === "null") {
+    return "null";
+  }
+  return String(value);
+};
+
+const parseStringifiedValue = (value: string, depth: number) => {
+  if (depth > DEFAULT_MAX_DEPTH || !value.trim()) {
+    return null;
+  }
+
+  try {
+    return { value: JSON.parse(value.trim()) as unknown };
+  } catch {
+    return null;
+  }
+};
+
+const searchRawValue = (
+  value: unknown,
+  recordId: string,
+  pattern: RegExp,
+  options: SearchOptions,
+  matches: SearchMatch[],
+  pathText: string,
+  pathSegments: TreePathSegment[],
+  stringifiedAncestors: string[],
+  depth: number,
+) => {
+  const parsedString = typeof value === "string" ? parseStringifiedValue(value, depth) : null;
+  const nodeValue = parsedString ? parsedString.value : value;
+  const stringifiedPathChain = parsedString
+    ? [...stringifiedAncestors, pathText]
+    : stringifiedAncestors;
+  const keyLabel = pathSegments.at(-1)?.value ?? "$";
+  const valueLabel = formatRawValueLabel(nodeValue);
+  const keyRanges = findRanges(keyLabel, pattern);
+  const valueRanges = findRanges(valueLabel, pattern);
+  const pathRanges = options.jq ? findRanges(pathText, pattern) : [];
+
+  if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
+    matches.push({
+      recordId,
+      pathText,
+      keyRanges,
+      valueRanges,
+      pathRanges,
+      stringifiedPathChain,
+    });
+  }
+
+  if (Array.isArray(nodeValue)) {
+    nodeValue.forEach((child, index) => {
+      const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
+      searchRawValue(
+        child,
+        recordId,
+        pattern,
+        options,
+        matches,
+        appendJsonPathSegment(pathText, segment),
+        [...pathSegments, segment],
+        stringifiedPathChain,
+        depth + 1,
+      );
+    });
+    return;
+  }
+
+  if (!nodeValue || typeof nodeValue !== "object") {
+    return;
+  }
+
+  for (const [key, child] of Object.entries(nodeValue as Record<string, unknown>)) {
+    const segment = { kind: "key", value: key } satisfies TreePathSegment;
+    searchRawValue(
+      child,
+      recordId,
+      pattern,
+      options,
+      matches,
+      appendJsonPathSegment(pathText, segment),
+      [...pathSegments, segment],
+      stringifiedPathChain,
+      depth + 1,
+    );
+  }
+};
+
+export const searchJsonValue = (
+  value: unknown,
+  recordId: string,
+  pattern: RegExp,
+  options: SearchOptions,
+): SearchMatch[] => {
+  const matches: SearchMatch[] = [];
+  searchRawValue(value, recordId, pattern, options, matches, "$", [], [], 0);
+  return matches;
 };
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
