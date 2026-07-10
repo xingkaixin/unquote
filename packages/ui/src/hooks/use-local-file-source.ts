@@ -12,7 +12,14 @@ export interface LocalFileSource {
   hydratedRecords: ReadonlyMap<number, JsonlRecord>;
   hydrateRecord: (record: JsonlRecord) => void;
   fileMatches: SearchMatch[] | null;
+  isSearchComplete: boolean;
   getFullRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
+}
+
+interface CompletedFileSearch {
+  sourceFile: File;
+  query: string;
+  options: SearchOptions;
 }
 
 /**
@@ -40,6 +47,7 @@ export const useLocalFileSource = (
   );
   const [debouncedFileSearchQuery, setDebouncedFileSearchQuery] = useState("");
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
+  const [completedFileSearch, setCompletedFileSearch] = useState<CompletedFileSearch | null>(null);
   const fileSearchAbortRef = useRef<AbortController | null>(null);
   const hydratingFileLinesRef = useRef<Set<number>>(new Set());
   const onErrorRef = useRef(onError);
@@ -58,10 +66,12 @@ export const useLocalFileSource = (
     if (!sourceFile || !searchQuery) {
       setDebouncedFileSearchQuery("");
       setFileSearchMatches(null);
+      setCompletedFileSearch(null);
       return;
     }
 
     setFileSearchMatches(null);
+    setCompletedFileSearch(null);
     const timeoutId = window.setTimeout(() => {
       setDebouncedFileSearchQuery(searchQuery);
     }, fileSearchDebounceMs);
@@ -79,16 +89,23 @@ export const useLocalFileSource = (
     const controller = new AbortController();
     fileSearchAbortRef.current = controller;
     setFileSearchMatches(null);
+    setCompletedFileSearch(null);
     void searchJsonlFile(sourceFile, debouncedFileSearchQuery, searchOptions, controller.signal)
       .then((nextMatches) => {
         if (!controller.signal.aborted) {
           setFileSearchMatches(nextMatches);
+          setCompletedFileSearch({
+            sourceFile,
+            query: debouncedFileSearchQuery,
+            options: searchOptions,
+          });
         }
       })
       .catch((error) => {
         // A real I/O failure must not read as "no matches" — surface it.
         if (!controller.signal.aborted) {
           setFileSearchMatches(null);
+          setCompletedFileSearch(null);
           onErrorRef.current(error);
         }
       });
@@ -168,6 +185,12 @@ export const useLocalFileSource = (
     hydratedRecords: hydratedFileRecords,
     hydrateRecord,
     fileMatches: fileSearchMatches,
+    isSearchComplete:
+      completedFileSearch?.sourceFile === sourceFile &&
+      completedFileSearch.query === searchQuery &&
+      completedFileSearch.options.regex === searchOptions.regex &&
+      completedFileSearch.options.caseSensitive === searchOptions.caseSensitive &&
+      completedFileSearch.options.jq === searchOptions.jq,
     getFullRecords,
   };
 };

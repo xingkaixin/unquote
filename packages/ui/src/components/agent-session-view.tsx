@@ -501,7 +501,10 @@ export const AgentSessionView = ({
             ) : null}
           </dl>
         </div>
-        <div className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-4">
+        <div
+          className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-4"
+          data-agent-metrics={metrics.length}
+        >
           {metrics.map((item, index) => (
             <div
               key={item.label}

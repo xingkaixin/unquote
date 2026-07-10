@@ -112,10 +112,13 @@ describe("useLocalFileSource", () => {
     rerender({ query: "needle" });
     // Before the debounce window, no search has run.
     expect(result.current.fileMatches).toBeNull();
+    expect(result.current.isSearchComplete).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(result.current.fileMatches).toBeNull();
+    expect(result.current.isSearchComplete).toBe(false);
 
     await waitFor(() => expect(result.current.fileMatches?.length).toBe(1));
+    expect(result.current.isSearchComplete).toBe(true);
   });
 
   it("aborts the previous search when the query changes mid-flight", async () => {
@@ -129,9 +132,11 @@ describe("useLocalFileSource", () => {
     // Change the query before the first debounce window completes.
     await new Promise((resolve) => setTimeout(resolve, 100));
     rerender({ query: "other" });
+    expect(result.current.isSearchComplete).toBe(false);
 
     await waitFor(() => expect(result.current.fileMatches?.length).toBe(1));
     expect(result.current.fileMatches?.[0]?.recordId).toBe("record-2");
+    expect(result.current.isSearchComplete).toBe(true);
   });
 
   it("getFullRecords returns full records for a streamed source", async () => {

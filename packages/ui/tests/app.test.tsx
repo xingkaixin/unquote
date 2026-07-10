@@ -779,7 +779,7 @@ describe("UnquoteApp", () => {
 
   it("searches full string content in streamed JSONL files", async () => {
     const user = userEvent.setup();
-    render(
+    const { container } = render(
       <I18nProvider>
         <UnquoteApp />
       </I18nProvider>,
@@ -817,13 +817,18 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "payload.jsonl"));
+    expect(shell).toHaveAttribute("data-parse-state", "complete");
 
-    await user.type(getToolbarInput(), "needle");
+    await user.type(getToolbarInput(), "needle{Enter}");
     const streamReadsBeforeSearch = streamSpy.mock.calls.length;
 
+    await waitFor(() => expect(shell).toHaveAttribute("data-search-query", "needle"));
     await waitFor(() =>
       expect(streamSpy.mock.calls.length).toBeGreaterThan(streamReadsBeforeSearch),
     );
+    await waitFor(() => expect(shell).toHaveAttribute("data-search-state", "complete"));
     await waitFor(() =>
       expect(
         screen.getAllByText((text) => text.includes("1/1") || /1\s+matches/i.test(text)).length,
