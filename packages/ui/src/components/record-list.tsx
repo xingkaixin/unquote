@@ -1,6 +1,10 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  getExpandedStringifiedPaths,
+  type ExpandedStringifiedPathsByRecord,
+} from "../lib/record-expansion";
 import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/tree";
@@ -14,14 +18,14 @@ interface RecordListProps {
   records: JsonlRecord[];
   recordInsights: ReadonlyMap<string, RecordInsight>;
   hydratedRecords: ReadonlyMap<number, JsonlRecord>;
-  expandedStringifiedPaths: Set<string>;
+  expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
   scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
   recordScrollTarget: { recordId: string; requestId: number } | null;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (recordId: string, path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
   onCopyError: (record: JsonlRecord) => void;
@@ -35,7 +39,7 @@ export const RecordList = ({
   records,
   recordInsights,
   hydratedRecords,
-  expandedStringifiedPaths,
+  expandedStringifiedPathsByRecord,
   searchMatches,
   activeMatch,
   scrollTarget,
@@ -185,7 +189,10 @@ export const RecordList = ({
         key={renderedRecord.id}
         record={renderedRecord}
         insight={recordInsights.get(record.id)}
-        expandedStringifiedPaths={expandedStringifiedPaths}
+        expandedStringifiedPaths={getExpandedStringifiedPaths(
+          expandedStringifiedPathsByRecord,
+          renderedRecord.id,
+        )}
         eager={index < 6}
         searchMatches={searchMatchesByRecord.get(record.id) ?? []}
         activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}

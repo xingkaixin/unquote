@@ -3,6 +3,10 @@ import type { JsonlRecord } from "@unquote/core";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
+import {
+  getExpandedStringifiedPaths,
+  type ExpandedStringifiedPathsByRecord,
+} from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
 import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { TreeRow } from "../lib/tree";
@@ -19,12 +23,12 @@ interface AgentSessionViewProps {
   recordsById: ReadonlyMap<string, JsonlRecord>;
   hydratedRecords: ReadonlyMap<number, JsonlRecord>;
   recordInsights: ReadonlyMap<string, RecordInsight>;
-  expandedStringifiedPaths: Set<string>;
+  expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   detailSelection: AgentDetailSelection | null;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (recordId: string, path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
   onCopyError: (record: JsonlRecord) => void;
@@ -71,11 +75,11 @@ const RawJsonlPanel = ({
   item: AgentConversationItem | undefined;
   record: JsonlRecord | undefined;
   insight: RecordInsight | undefined;
-  expandedStringifiedPaths: Set<string>;
+  expandedStringifiedPaths: ReadonlySet<string>;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   onCollapse: () => void;
-  onTogglePath: (path: string) => void;
+  onTogglePath: (recordId: string, path: string) => void;
   onCopyRecord: (record: JsonlRecord) => void;
   onCopyRawLine: (record: JsonlRecord) => void;
   onCopyError: (record: JsonlRecord) => void;
@@ -182,7 +186,7 @@ export const AgentSessionView = ({
   recordsById,
   hydratedRecords,
   recordInsights,
-  expandedStringifiedPaths,
+  expandedStringifiedPathsByRecord,
   selectedPath,
   focusedPath,
   detailSelection,
@@ -348,7 +352,10 @@ export const AgentSessionView = ({
             item={detailItem}
             record={renderedDetailRecord}
             insight={recordInsights.get(detailEvent.recordId)}
-            expandedStringifiedPaths={expandedStringifiedPaths}
+            expandedStringifiedPaths={getExpandedStringifiedPaths(
+              expandedStringifiedPathsByRecord,
+              detailEvent.recordId,
+            )}
             selectedPath={selectedPath}
             focusedPath={focusedPath}
             onCollapse={() => setDetailOpen(false)}

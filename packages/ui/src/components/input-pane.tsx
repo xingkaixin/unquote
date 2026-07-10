@@ -27,7 +27,7 @@ interface SourceSampleOption {
   id: string;
   label: string;
   value: string;
-  expandedPaths: readonly string[];
+  expandedPathsByRecord: readonly { recordId: string; paths: readonly string[] }[];
 }
 
 export interface SourceParseError {

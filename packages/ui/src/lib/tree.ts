@@ -73,7 +73,7 @@ const formatValueLabel = (node: JsonNode, maxStringLength?: number) => {
 const pushRows = (
   node: JsonNode,
   rows: TreeRow[],
-  expandedStringifiedPaths: Set<string>,
+  expandedStringifiedPaths: ReadonlySet<string>,
   recordId: string,
   jsonPath = "$",
   jqPath = ".",
@@ -116,7 +116,7 @@ const pushRows = (
 
 export const buildRecordRows = (
   record: JsonlRecord,
-  expandedStringifiedPaths: Set<string>,
+  expandedStringifiedPaths: ReadonlySet<string>,
   focusedPath?: string | null,
 ) => {
   if (!record.node) {
@@ -137,7 +137,7 @@ export const buildRecordRows = (
 
 export const buildFocusedRecordRows = (
   record: JsonlRecord,
-  expandedStringifiedPaths: Set<string>,
+  expandedStringifiedPaths: ReadonlySet<string>,
   focusedPath: string,
 ): FocusedTreeRows | null => {
   const resolved = resolveTreePath([record], focusedPath);
@@ -175,7 +175,7 @@ export const materializeRecord = (record: JsonlRecord) => {
 
 const collectPaths = (
   node: JsonNode,
-  expandedStringifiedPaths: Set<string>,
+  expandedStringifiedPaths: ReadonlySet<string>,
   output: Set<string>,
   pathText = "$",
 ) => {
@@ -193,7 +193,7 @@ const collectPaths = (
 
 export const collectStringifiedPaths = (
   record: JsonlRecord,
-  expandedStringifiedPaths: Set<string>,
+  expandedStringifiedPaths: ReadonlySet<string>,
 ) => {
   const node = record.node;
   if (!node) {
