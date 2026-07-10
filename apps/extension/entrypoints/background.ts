@@ -1,18 +1,26 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 import { createTranslator, en } from "@unquote/ui";
+import {
+  claimSelectionHandoffMessageType,
+  createSelectionHandoff,
+  createSelectionHandoffClaimer,
+  handoffQueryParameter,
+  type HandoffSessionStorage,
+} from "../src/selection-handoff";
 
 const OPEN_MENU_ID = "unquote-open-selection";
-const SESSION_KEY = "pendingInput";
 const t = createTranslator(en);
+const handoffStorage = browser.storage.session as unknown as HandoffSessionStorage;
+const claimSelectionHandoff = createSelectionHandoffClaimer(handoffStorage);
 
-const storePendingInput = async (value: string) => {
-  await browser.storage.session.set({ [SESSION_KEY]: value });
-};
-
-const openOptionsPage = async () => {
+const openOptionsPage = async (handoffId?: string) => {
+  const optionsUrl = new URL("/options.html", import.meta.url);
+  if (handoffId) {
+    optionsUrl.searchParams.set(handoffQueryParameter, handoffId);
+  }
   await browser.tabs.create({
-    url: new URL("/options.html", import.meta.url).href,
+    url: optionsUrl.href,
   });
 };
 
@@ -45,24 +53,19 @@ export default defineBackground(() => {
       return;
     }
 
-    await storePendingInput(selection);
-    await openOptionsPage();
+    const handoffId = await createSelectionHandoff(handoffStorage, selection);
+    await openOptionsPage(handoffId ?? undefined);
   });
 
   browser.runtime.onMessage.addListener((message: unknown) => {
-    if (!message || typeof message !== "object") {
+    if (
+      !message ||
+      typeof message !== "object" ||
+      (message as { type?: unknown }).type !== claimSelectionHandoffMessageType
+    ) {
       return undefined;
     }
 
-    const payload = message as { type?: string; payload?: unknown };
-    if (payload.type === "unquote:get-pending-input") {
-      return browser.storage.session.get(SESSION_KEY).then(async (result) => {
-        const pendingInput = result[SESSION_KEY];
-        await browser.storage.session.remove(SESSION_KEY);
-        return pendingInput ?? "";
-      });
-    }
-
-    return undefined;
+    return claimSelectionHandoff(message);
   });
 });

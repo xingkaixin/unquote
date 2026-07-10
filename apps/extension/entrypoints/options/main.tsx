@@ -3,10 +3,26 @@ import ReactDOM from "react-dom/client";
 import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
 import { browser } from "wxt/browser";
+import {
+  claimSelectionHandoffMessageType,
+  getHandoffIdFromSearch,
+} from "../../src/selection-handoff";
 
 const getPendingInput = async () => {
-  const response = await browser.runtime.sendMessage({ type: "unquote:get-pending-input" });
-  return typeof response === "string" ? response : "";
+  const handoffId = getHandoffIdFromSearch(window.location.search);
+  if (!handoffId) {
+    return "";
+  }
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: claimSelectionHandoffMessageType,
+      handoffId,
+    });
+    return typeof response === "string" ? response : "";
+  } catch {
+    return "";
+  }
 };
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
