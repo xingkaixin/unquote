@@ -398,9 +398,29 @@ const runRenderFixture = async (client, fixture) => {
         expandPathReadyMs = performance.now() - expandPathStart
       }
 
+      // Large fixtures auto-collapse the source panel (see app.tsx sourceCollapsed),
+      // which unmounts TocPane entirely. Re-expand it so the TOC's per-record DOM
+      // cost (currently unvirtualized) is captured by domNodes/recordCards below.
+      const sourceExpandButton = document.querySelector('button[aria-label="Expand source"]')
+      let tocReadyMs = null
+      if (sourceExpandButton) {
+        const tocStart = performance.now()
+        sourceExpandButton.click()
+        await waitFor('toc-ready', () => {
+          const heading = [...document.querySelectorAll('h3')].find(
+            (node) => node.textContent === 'Records'
+          )
+          const tocContent = heading?.parentElement?.parentElement?.nextElementSibling
+          return (tocContent?.querySelectorAll('button[aria-pressed]').length ?? 0) > 0
+        })
+        await settleFrames()
+        tocReadyMs = performance.now() - tocStart
+      }
+
       return {
         searchReadyMs: searchReady - searchStart,
         expandPathReadyMs,
+        tocReadyMs,
         domNodes: document.getElementsByTagName('*').length,
         recordCards: document.querySelectorAll('[id^="record-"]:not([id*=":"])').length,
       }
@@ -447,6 +467,9 @@ const benchmarkRender = async (fixturesInfo) => {
       "--lang=en-US",
       "--no-first-run",
       "--no-default-browser-check",
+      // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
+      // wide window so the source-panel expand + TOC render steps are reachable.
+      "--window-size=1440,900",
       "about:blank",
     ],
     { stdio: "ignore" },
@@ -481,6 +504,7 @@ const benchmarkRender = async (fixturesInfo) => {
           completeReadyMs: summarize(runs.map((run) => run.completeReadyMs)),
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
           expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
+          tocReadyMs: summarize(runs.map((run) => run.tocReadyMs)),
           domNodes: summarize(runs.map((run) => run.domNodes)),
           recordCards: summarize(runs.map((run) => run.recordCards)),
           layoutCount: summarize(runs.map((run) => run.layoutCount)),
