@@ -13,7 +13,16 @@ export const getInitialInputFromHash = (
   }
 
   const encoded = hash.slice(HASH_PREFIX.length);
-  return decompress(encoded) ?? "";
+  if (!encoded || encoded.length > HASH_LIMIT) {
+    return "";
+  }
+
+  try {
+    const decoded = decompress(encoded);
+    return decoded && decoded.length <= HASH_RAW_INPUT_LIMIT ? decoded : "";
+  } catch {
+    return "";
+  }
 };
 
 export const createSourceHash = (value: string, compress = compressToEncodedURIComponent) => {
