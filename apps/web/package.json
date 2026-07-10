@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "tailwindcss": "^4.2.4",
-    "vite": "^8.0.10"
+    "vite": "^8.0.16"
   }
 }

@@ -32,7 +32,7 @@
     "oxlint": "^1.62.0",
     "turbo": "^2.5.8",
     "typescript": "^6.0.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   },
   "packageManager": "pnpm@10.33.0"
 }
