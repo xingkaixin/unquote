@@ -26,7 +26,20 @@ interface HydrationGeneration {
   sourceFile: File | null;
   controller: AbortController;
   inFlightLines: Set<number>;
+  // Lines queued by `hydrateRecord` calls in the current tick; merged into a
+  // single scan when the microtask flush runs. Lives on the generation (not a
+  // standalone ref) so a source switch discards any not-yet-flushed batch too.
+  pendingLines: Set<number>;
+  flushScheduled: boolean;
 }
+
+const createHydrationGeneration = (sourceFile: File | null): HydrationGeneration => ({
+  sourceFile,
+  controller: new AbortController(),
+  inFlightLines: new Set(),
+  pendingLines: new Set(),
+  flushScheduled: false,
+});
 
 /**
  * Deep module for local JSONL file source access.
@@ -55,11 +68,7 @@ export const useLocalFileSource = (
   const [fileSearchMatches, setFileSearchMatches] = useState<SearchMatch[] | null>(null);
   const [completedFileSearch, setCompletedFileSearch] = useState<CompletedFileSearch | null>(null);
   const fileSearchAbortRef = useRef<AbortController | null>(null);
-  const hydrationGenerationRef = useRef<HydrationGeneration>({
-    sourceFile,
-    controller: new AbortController(),
-    inFlightLines: new Set(),
-  });
+  const hydrationGenerationRef = useRef<HydrationGeneration>(createHydrationGeneration(sourceFile));
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
@@ -72,11 +81,7 @@ export const useLocalFileSource = (
     }
 
     previous.controller.abort();
-    hydrationGenerationRef.current = {
-      sourceFile,
-      controller: new AbortController(),
-      inFlightLines: new Set(),
-    };
+    hydrationGenerationRef.current = createHydrationGeneration(sourceFile);
     setHydratedFileRecords(new Map());
   }, [sourceFile]);
 
@@ -146,6 +151,77 @@ export const useLocalFileSource = (
     };
   }, [debouncedFileSearchQuery, searchOptions, sourceFile]);
 
+  // Runs once per tick per generation: collects every line queued by
+  // `hydrateRecord` since the last flush and resolves them with one scan
+  // instead of one per record.
+  const flushHydrationGeneration = useCallback((generation: HydrationGeneration) => {
+    generation.flushScheduled = false;
+    if (hydrationGenerationRef.current !== generation || generation.controller.signal.aborted) {
+      generation.pendingLines.clear();
+      return;
+    }
+
+    const batch = generation.pendingLines;
+    generation.pendingLines = new Set();
+    if (batch.size === 0 || !generation.sourceFile) {
+      return;
+    }
+
+    for (const lineNumber of batch) {
+      generation.inFlightLines.add(lineNumber);
+    }
+
+    void readJsonlRecordsByLine(generation.sourceFile, batch, generation.controller.signal)
+      .then((records) => {
+        if (hydrationGenerationRef.current !== generation || generation.controller.signal.aborted) {
+          return;
+        }
+
+        setHydratedFileRecords((current) => {
+          if (hydrationGenerationRef.current !== generation) {
+            return current;
+          }
+
+          let next = current;
+          for (const lineNumber of batch) {
+            const hydrated = records.get(lineNumber);
+            if (!hydrated || next.has(lineNumber)) {
+              continue;
+            }
+            if (next === current) {
+              next = new Map(current);
+            }
+            next.set(lineNumber, hydrated);
+          }
+          while (next.size > hydratedFileRecordLimit) {
+            const oldest = next.keys().next().value;
+            if (typeof oldest !== "number") {
+              break;
+            }
+            next.delete(oldest);
+          }
+          return next;
+        });
+      })
+      .catch((error) => {
+        if (
+          hydrationGenerationRef.current === generation &&
+          !generation.controller.signal.aborted
+        ) {
+          onErrorRef.current(error);
+        }
+      })
+      .finally(() => {
+        if (hydrationGenerationRef.current === generation) {
+          // Clearing the in-flight marks also lets failed lines retry when
+          // they scroll back into view.
+          for (const lineNumber of batch) {
+            generation.inFlightLines.delete(lineNumber);
+          }
+        }
+      });
+  }, []);
+
   const hydrateRecord = useCallback(
     (record: JsonlRecord) => {
       if (!sourceFile || !record.deferred) {
@@ -157,60 +233,19 @@ export const useLocalFileSource = (
       if (
         generation.sourceFile !== sourceFile ||
         hydratedFileRecords.has(lineNumber) ||
-        generation.inFlightLines.has(lineNumber)
+        generation.inFlightLines.has(lineNumber) ||
+        generation.pendingLines.has(lineNumber)
       ) {
         return;
       }
 
-      generation.inFlightLines.add(lineNumber);
-      void readJsonlRecordsByLine(sourceFile, new Set([lineNumber]), generation.controller.signal)
-        .then((records) => {
-          if (
-            hydrationGenerationRef.current !== generation ||
-            generation.controller.signal.aborted
-          ) {
-            return;
-          }
-
-          const hydrated = records.get(lineNumber);
-          if (!hydrated) {
-            return;
-          }
-
-          setHydratedFileRecords((current) => {
-            if (hydrationGenerationRef.current !== generation || current.has(lineNumber)) {
-              return current;
-            }
-
-            const next = new Map(current);
-            next.set(lineNumber, hydrated);
-            while (next.size > hydratedFileRecordLimit) {
-              const oldest = next.keys().next().value;
-              if (typeof oldest !== "number") {
-                break;
-              }
-              next.delete(oldest);
-            }
-            return next;
-          });
-        })
-        .catch((error) => {
-          if (
-            hydrationGenerationRef.current === generation &&
-            !generation.controller.signal.aborted
-          ) {
-            onErrorRef.current(error);
-          }
-        })
-        .finally(() => {
-          if (hydrationGenerationRef.current === generation) {
-            // Clearing the in-flight mark also lets a failed line retry when it
-            // scrolls back into view.
-            generation.inFlightLines.delete(lineNumber);
-          }
-        });
+      generation.pendingLines.add(lineNumber);
+      if (!generation.flushScheduled) {
+        generation.flushScheduled = true;
+        queueMicrotask(() => flushHydrationGeneration(generation));
+      }
     },
-    [hydratedFileRecords, sourceFile],
+    [hydratedFileRecords, sourceFile, flushHydrationGeneration],
   );
 
   const getFullRecords = useCallback(
