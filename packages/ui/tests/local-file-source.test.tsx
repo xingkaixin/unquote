@@ -20,6 +20,36 @@ const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   return file;
 };
 
+const makeMeasuredFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY) => {
+  const sliceStarts: number[] = [];
+  const makeFile = (bytes: Uint8Array, absoluteStart: number): File => {
+    const fileBytes = Uint8Array.from(bytes);
+    const file = new File([fileBytes.buffer], "payload.jsonl", { type: "application/jsonl" });
+    Object.defineProperty(file, "stream", {
+      configurable: true,
+      value: () =>
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+              controller.enqueue(bytes.slice(offset, offset + chunkSize));
+            }
+            controller.close();
+          },
+        }),
+    });
+    Object.defineProperty(file, "slice", {
+      configurable: true,
+      value: (start = 0, end = bytes.byteLength) => {
+        sliceStarts.push(absoluteStart + start);
+        return makeFile(bytes.slice(start, end), absoluteStart + start);
+      },
+    });
+    return file;
+  };
+
+  return { file: makeFile(new TextEncoder().encode(contents), 0), sliceStarts };
+};
+
 describe("local-file-source", () => {
   it("reads full records for the requested line numbers", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n{"c":3}\n');
@@ -35,6 +65,82 @@ describe("local-file-source", () => {
   it("returns an empty map when no lines are requested", async () => {
     const file = makeStreamedFile('{"a":1}\n');
     await expect(readJsonlRecordsByLine(file, new Set())).resolves.toEqual(new Map());
+  });
+
+  it("accepts export-sized line-number sets", async () => {
+    const file = makeStreamedFile('{"a":1}');
+    const lineNumbers = new Set(Array.from({ length: 100_000 }, (_, index) => index + 1));
+
+    const records = await readJsonlRecordsByLine(file, lineNumbers);
+
+    expect(records.get(1)?.lineNumber).toBe(1);
+  });
+
+  it("reuses indexed byte offsets across sequential hydration reads", async () => {
+    const contents = Array.from({ length: 1_000 }, (_, index) => `{"i":${index}}`).join("\n");
+    const { file, sliceStarts } = makeMeasuredFile(contents);
+
+    await readJsonlRecordsByLine(file, new Set([250]));
+    await readJsonlRecordsByLine(file, new Set([500]));
+
+    expect(sliceStarts[0]).toBe(0);
+    expect(sliceStarts[1]).toBeGreaterThan(0);
+  });
+
+  it("keeps line indexes isolated per source file", async () => {
+    const first = makeMeasuredFile('{"source":1}\n{"source":1}');
+    const second = makeMeasuredFile('{"source":2}\n{"source":2}');
+
+    await readJsonlRecordsByLine(first.file, new Set([2]));
+    await readJsonlRecordsByLine(second.file, new Set([2]));
+
+    expect(first.sliceStarts[0]).toBe(0);
+    expect(second.sliceStarts[0]).toBe(0);
+  });
+
+  it("preserves UTF-8 and CRLF lines across stream chunks", async () => {
+    const { file } = makeMeasuredFile(
+      ['{"message":"一"}', '{"message":"二"}', '{"message":"三"}', '{"message":"四"}'].join("\r\n"),
+      5,
+    );
+
+    await readJsonlRecordsByLine(file, new Set([2]));
+    const records = await readJsonlRecordsByLine(file, new Set([4]));
+
+    expect(records.get(4)?.node?.children).toMatchObject({
+      message: expect.objectContaining({ value: "四" }),
+    });
+  });
+
+  it("reads backwards from a retained checkpoint", async () => {
+    const contents = Array.from({ length: 800 }, (_, index) => `{"i":${index}}`).join("\n");
+    const { file, sliceStarts } = makeMeasuredFile(contents);
+
+    await readJsonlRecordsByLine(file, new Set([700]));
+    const records = await readJsonlRecordsByLine(file, new Set([300]));
+
+    expect(sliceStarts[1]).toBeGreaterThan(0);
+    expect(records.get(300)?.lineNumber).toBe(300);
+  });
+
+  it("falls back safely after old checkpoints are evicted", async () => {
+    const contents = Array.from({ length: 10_000 }, (_, index) => `{"i":${index}}`).join("\n");
+    const { file } = makeMeasuredFile(contents);
+
+    await readJsonlRecordsByLine(file, new Set([10_000]));
+    const records = await readJsonlRecordsByLine(file, new Set([100]));
+
+    expect(records.get(100)?.lineNumber).toBe(100);
+  });
+
+  it("stops indexed reads when aborted", async () => {
+    const { file } = makeMeasuredFile('{"a":1}\n{"b":2}', 2);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(readJsonlRecordsByLine(file, new Set([2]), controller.signal)).resolves.toEqual(
+      new Map(),
+    );
   });
 
   it("searches raw lines and reports matches across them", async () => {
