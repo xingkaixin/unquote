@@ -7,12 +7,12 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Button } from "./button";
-import type { Locale } from "../i18n/i18n";
+import type { Locale, MessageKey } from "../i18n/i18n";
 
-const labels: Record<Locale, string> = {
-  en: "English",
-  "zh-CN": "中文",
-};
+const localeOptions: { locale: Locale; label: MessageKey }[] = [
+  { locale: "en", label: "locale.english" },
+  { locale: "zh-CN", label: "locale.chinese" },
+];
 
 export const LocaleToggle = () => {
   const { locale, setLocale, t } = useTranslation();
@@ -31,13 +31,13 @@ export const LocaleToggle = () => {
         }
       />
       <DropdownMenuContent align="end">
-        {(Object.entries(labels) as [Locale, string][]).map(([key, label]) => (
+        {localeOptions.map(({ locale: optionLocale, label }) => (
           <DropdownMenuItem
-            key={key}
-            onClick={() => setLocale(key)}
-            className={key === locale ? "font-semibold" : ""}
+            key={optionLocale}
+            onClick={() => setLocale(optionLocale)}
+            className={optionLocale === locale ? "font-semibold" : ""}
           >
-            {label}
+            {t(label)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

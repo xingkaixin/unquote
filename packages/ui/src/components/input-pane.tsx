@@ -252,7 +252,7 @@ export const InputPane = ({
       <div className="flex items-center justify-between border-b border-border px-4 py-[11px]">
         <div className="flex items-center gap-2">
           <FileJson2 className="size-3.5 text-text-secondary" />
-          <span className="nf-title">Source</span>
+          <span className="nf-title">{t("input.title")}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Button
@@ -288,9 +288,13 @@ export const InputPane = ({
               onChange={(event) => onModeChange(event.target.value as "auto" | "json" | "jsonl")}
               className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <option value="auto">auto</option>
-              <option value="json">json</option>
-              <option value="jsonl">jsonl</option>
+              <option value="auto">{t("input.mode.auto")}</option>
+              <option value="json" translate="no">
+                {t("input.mode.json")}
+              </option>
+              <option value="jsonl" translate="no">
+                {t("input.mode.jsonl")}
+              </option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-text-muted" />
           </div>

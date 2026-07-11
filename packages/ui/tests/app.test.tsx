@@ -6,12 +6,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
-import { I18nProvider } from "../src/i18n/context";
+import { I18nProvider, useTranslation } from "../src/i18n/context";
 
 const maxTransferStringLength = 4096;
 const maxDeferredStringLength = 160;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 const inputFormatLabel = "Input format";
+
+const LocaleProbe = () => {
+  const { setLocale, t } = useTranslation();
+  return <button onClick={() => setLocale("zh-CN")}>{t("input.title")}</button>;
+};
 const codexRolloutSource = [
   JSON.stringify({
     timestamp: "2026-06-06T13:44:06.579Z",
@@ -417,6 +422,24 @@ describe("UnquoteApp", () => {
     expect(
       within(sampleGroup).getByRole("button", { name: "有效/无效混合 JSONL" }),
     ).toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
+    expect(screen.getAllByText("来源").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("option", { name: "自动" }).length).toBeGreaterThan(0);
+  });
+
+  it("updates document language and accessible copy when locale changes", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <LocaleProbe />
+      </I18nProvider>,
+    );
+
+    expect(document.documentElement).toHaveAttribute("lang", "en");
+    await user.click(screen.getByRole("button", { name: "Source" }));
+
+    expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
+    expect(screen.getByRole("button", { name: "来源" })).toBeInTheDocument();
   });
 
   it("loads the escaped API response sample", async () => {
