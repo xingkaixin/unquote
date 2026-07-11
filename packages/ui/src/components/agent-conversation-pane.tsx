@@ -2,6 +2,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Clock3, Hash } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
+import { preferredScrollBehavior } from "../lib/motion-preference";
 import type {
   AgentContentBlock,
   AgentConversationItem,
@@ -159,7 +160,7 @@ export const AgentConversationPane = ({
 
     conversationRefs.current
       .get(selectedConversationId)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
   }, [detailSelection, selectedConversationId]);
 
   const renderItem = (item: AgentConversationItem) => (

@@ -1,6 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { preferredScrollBehavior } from "../lib/motion-preference";
 import {
   getExpandedStringifiedPaths,
   type ExpandedStringifiedPathsByRecord,
@@ -110,7 +111,9 @@ export const RecordList = ({
       }
 
       const frame = requestAnimationFrame(() => {
-        document.getElementById(recordId)?.scrollIntoView({ block: "start", behavior: "smooth" });
+        document
+          .getElementById(recordId)
+          ?.scrollIntoView({ block: "start", behavior: preferredScrollBehavior() });
       });
 
       return () => cancelAnimationFrame(frame);

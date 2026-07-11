@@ -322,8 +322,8 @@ export const InputPane = ({
               <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-300">
                 <span
                   className={cn(
-                    "block h-full rounded-full bg-accent transition-[width] duration-150",
-                    progressPercent === null && "w-1/2 animate-pulse",
+                    "uq-motion-progress block h-full rounded-full bg-accent transition-[width] duration-150",
+                    progressPercent === null && "uq-motion-pulse w-1/2 animate-pulse",
                   )}
                   style={progressPercent === null ? undefined : { width: `${progressPercent}%` }}
                 />

@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
+import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
@@ -146,7 +147,7 @@ export const JsonTree = ({
         rowVirtualizer.scrollToIndex(index, { align: "center" });
       } else {
         const element = document.getElementById(displayRows[index]!.id);
-        element?.scrollIntoView({ block: "center", behavior: "smooth" });
+        element?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
       }
     });
 
@@ -618,7 +619,7 @@ const RowItem = ({
             aria-label={t("tree.toggle", { key: source.keyLabel })}
           >
             <ChevronRight
-              className={`size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}
+              className={`uq-motion-transform size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}
             />
           </button>
         ) : (

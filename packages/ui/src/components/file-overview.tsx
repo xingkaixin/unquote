@@ -120,7 +120,7 @@ export const FileOverview = ({
           <CardDescription className="nf-mono-sub mt-1">{t("overview.fullScope")}</CardDescription>
         </div>
         <ChevronDown
-          className={`size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
+          className={`uq-motion-transform size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
       <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
