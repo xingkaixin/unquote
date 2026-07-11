@@ -339,3 +339,19 @@ a,
     opacity: 0.18;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .nf-led,
+  .uq-motion-pulse {
+    animation: none;
+  }
+
+  .uq-motion-transform,
+  .uq-motion-progress {
+    transition-duration: 0s;
+  }
+
+  button:active {
+    transform: none;
+  }
+}
