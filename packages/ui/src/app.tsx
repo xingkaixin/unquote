@@ -25,36 +25,17 @@ import { useExportActions } from "./hooks/use-export-actions";
 import { useRecordPipeline } from "./hooks/use-record-pipeline";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import { markPerf, measurePerfFn } from "./lib/perf";
-import { collectStringifiedPaths, hasJsonlRecords, resolveTreePath } from "./lib/tree";
+import { useWorkspaceSession } from "./hooks/use-workspace-session";
+import { hasJsonlRecords, resolveTreePath } from "./lib/tree";
 import { fileSearchDebounceMs } from "./lib/local-file-source";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
-import {
-  addExpandedStringifiedPaths,
-  clearExpandedStringifiedPaths,
-  getExpandedStringifiedPaths,
-  groupExpandedStringifiedPaths,
-  mergeExpandedStringifiedPaths,
-  replaceExpandedStringifiedPaths,
-  toggleExpandedStringifiedPath,
-  type ExpandedStringifiedPathsByRecord,
-} from "./lib/record-expansion";
+import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import { sourceSamples } from "./lib/source-samples";
 import type { SearchOptions, TreeRow } from "./lib/tree";
 
-interface PathScrollTarget {
-  recordId: string;
-  pathText: string;
-  requestId: number;
-}
-
-interface SelectedPath {
-  recordId: string;
-  pathText: string;
-  rawKey: string;
-}
+import type { SelectedPath } from "./hooks/use-workspace-session";
 
 const formatFileSize = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB"] as const;
@@ -69,12 +50,6 @@ const formatFileSize = (bytes: number) => {
   const formatted = unitIndex === 0 || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
   return `${formatted} ${units[unitIndex]}`;
 };
-
-const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
-  recordId: record.id,
-  pathText: row.pathText,
-  rawKey: row.keyLabel,
-});
 
 const isTextEditingElement = (element: Element | null) =>
   element instanceof HTMLInputElement ||
@@ -110,7 +85,17 @@ export const UnquoteApp = ({
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
-  const resetDerivedStateRef = useRef<() => void>(() => {});
+  const workspace = useWorkspaceSession();
+  const {
+    activeRecordId,
+    detailSelection,
+    expandedPaths: expandedStringifiedPathsByRecord,
+    searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
+    selectedPath,
+    focusedPath,
+    scrollTarget,
+    recordScrollTarget,
+  } = workspace.state;
   const {
     mode,
     setMode,
@@ -119,6 +104,7 @@ export const UnquoteApp = ({
     readingFile,
     readProgress,
     importedFile,
+    sourceRevision,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
     onOpenFile: handleOpenFile,
@@ -127,32 +113,16 @@ export const UnquoteApp = ({
     initialInput,
     onReadFile,
     onRequestOpenFile: onOpenFile,
-    onReset: () => resetDerivedStateRef.current(),
+    onReset: workspace.reset,
     onCollapseSource: () => setSourceCollapsed(true),
     onError: () => toast.error(t("input.readFailed")),
     onCopyError: () => toast.error(t("copy.failed")),
   });
-  const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
-  const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
   const selectedRecordId = detailSelection?.recordId ?? null;
-  const [expandedStringifiedPathsByRecord, setExpandedStringifiedPathsByRecord] =
-    useState<ExpandedStringifiedPathsByRecord>(new Map());
-  const [searchExpandedStringifiedPathsByRecord, setSearchExpandedStringifiedPathsByRecord] =
-    useState<ExpandedStringifiedPathsByRecord>(new Map());
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
-  const [selectedPath, setSelectedPath] = useState<SelectedPath | null>(null);
-  const [focusedPath, setFocusedPath] = useState<{ recordId: string; pathText: string } | null>(
-    null,
-  );
-  const [scrollTarget, setScrollTarget] = useState<PathScrollTarget | null>(null);
-  const [recordScrollTarget, setRecordScrollTarget] = useState<{
-    recordId: string;
-    requestId: number;
-  } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const scrollRequestIdRef = useRef(0);
   const outputViewSessionKeyRef = useRef<string | null>(null);
   const forcedFormat = mode === "auto" ? undefined : mode;
   const { result, progress, recordsVersion, agentSession } = useParser(
@@ -180,6 +150,10 @@ export const UnquoteApp = ({
     currentPathMatchIndex,
     currentMatchIndex,
   } = qi.state;
+  const { reset: resetQuery } = qi;
+  useEffect(() => {
+    resetQuery();
+  }, [resetQuery, sourceRevision]);
 
   const agentSessionKey = agentSession
     ? [
@@ -294,12 +268,19 @@ export const UnquoteApp = ({
   // Clear any pending scroll target when the filter or search options change
   // (match-index reset lives in the interaction hook).
   useEffect(() => {
-    setScrollTarget(null);
-  }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
+    workspace.clearPathScroll();
+  }, [
+    recordFilter,
+    searchQuery,
+    searchRegex,
+    searchCaseSensitive,
+    searchJq,
+    workspace.clearPathScroll,
+  ]);
 
   useEffect(() => {
-    setSearchExpandedStringifiedPathsByRecord(groupExpandedStringifiedPaths(visibleMatches ?? []));
-  }, [visibleMatches]);
+    workspace.synchronizeSearchExpansions(visibleMatches ?? []);
+  }, [visibleMatches, workspace.synchronizeSearchExpansions]);
 
   const displayedExpandedStringifiedPathsByRecord = useMemo(
     () =>
@@ -338,37 +319,15 @@ export const UnquoteApp = ({
       return;
     }
 
-    setFocusedPath(null);
-  }, [activeMatch, focusedPath]);
-
-  const scrollToPath = (recordId: string, pathText: string) => {
-    setFocusedPath((current) =>
-      current && (current.recordId !== recordId || !isPathWithin(pathText, current.pathText))
-        ? null
-        : current,
-    );
-    scrollRequestIdRef.current += 1;
-    setScrollTarget({ recordId, pathText, requestId: scrollRequestIdRef.current });
-  };
+    workspace.clearFocus();
+  }, [activeMatch, focusedPath, workspace.clearFocus]);
 
   const scrollToSearchMatch = (index: number) => {
     const match = visibleMatches?.[index];
     if (!match) {
       return;
     }
-
-    setFocusedPath((current) =>
-      current &&
-      (current.recordId !== match.recordId || !isPathWithin(match.pathText, current.pathText))
-        ? null
-        : current,
-    );
-    scrollRequestIdRef.current += 1;
-    setScrollTarget({
-      recordId: match.recordId,
-      pathText: match.pathText,
-      requestId: scrollRequestIdRef.current,
-    });
+    workspace.scrollToPath(match.recordId, match.pathText);
   };
 
   const navigationTarget = useMemo(
@@ -391,16 +350,14 @@ export const UnquoteApp = ({
     }
 
     if (target.kind === "path") {
-      setSelectedPath({
-        recordId: target.recordId,
-        pathText: target.pathText,
-        rawKey: target.rawKey,
-      });
-      setActiveRecordId(target.recordId);
-      setExpandedStringifiedPathsByRecord((current) =>
-        addExpandedStringifiedPaths(current, target.recordId, target.stringifiedPathChain),
+      workspace.selectPath(
+        {
+          recordId: target.recordId,
+          pathText: target.pathText,
+          rawKey: target.rawKey,
+        },
+        target.stringifiedPathChain,
       );
-      scrollToPath(target.recordId, target.pathText);
     } else {
       scrollToSearchMatch(target.matchIndex);
     }
@@ -433,51 +390,8 @@ export const UnquoteApp = ({
   }, [onSourceChange, sourceText]);
 
   useEffect(() => {
-    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
-    const firstRecord = visibleRecords[0];
-    setActiveRecordId((current) =>
-      current && visibleRecordIds.has(current) ? current : (firstRecord?.id ?? null),
-    );
-  }, [recordsVersion, visibleRecords]);
-
-  useEffect(() => {
-    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
-    if (selectedPath && !visibleRecordIds.has(selectedPath.recordId)) {
-      setSelectedPath(null);
-    }
-    if (selectedRecordId && !visibleRecordIds.has(selectedRecordId)) {
-      setDetailSelection(null);
-    }
-    if (focusedPath && !visibleRecordIds.has(focusedPath.recordId)) {
-      setFocusedPath(null);
-    }
-    if (scrollTarget && !visibleRecordIds.has(scrollTarget.recordId)) {
-      setScrollTarget(null);
-    }
-    if (recordScrollTarget && !visibleRecordIds.has(recordScrollTarget.recordId)) {
-      setRecordScrollTarget(null);
-    }
-  }, [
-    focusedPath,
-    recordScrollTarget,
-    recordsVersion,
-    scrollTarget,
-    selectedPath,
-    selectedRecordId,
-    visibleRecords,
-  ]);
-
-  const resetDerivedState = () => {
-    setExpandedStringifiedPathsByRecord(new Map());
-    setSearchExpandedStringifiedPathsByRecord(new Map());
-    setSelectedPath(null);
-    setDetailSelection(null);
-    setFocusedPath(null);
-    setScrollTarget(null);
-    setRecordScrollTarget(null);
-    qi.reset();
-  };
-  resetDerivedStateRef.current = resetDerivedState;
+    workspace.reconcileVisibleRecords(visibleRecords);
+  }, [recordsVersion, visibleRecords, workspace.reconcileVisibleRecords]);
 
   const handleSampleSelect = (sample: {
     value: string;
@@ -485,11 +399,7 @@ export const UnquoteApp = ({
   }) => {
     setMode("auto");
     handleSourceChange(sample.value);
-    setExpandedStringifiedPathsByRecord(
-      new Map(
-        sample.expandedPathsByRecord.map(({ recordId, paths }) => [recordId, new Set(paths)]),
-      ),
-    );
+    workspace.setSampleExpansions(sample.expandedPathsByRecord);
   };
 
   const {
@@ -507,42 +417,15 @@ export const UnquoteApp = ({
   });
 
   const handleExpandAll = () => {
-    setExpandedStringifiedPathsByRecord((current) =>
-      measurePerfFn("expand:all:collect", () => {
-        let next = current;
-        for (const record of visibleRecords) {
-          const paths = collectStringifiedPaths(
-            record,
-            getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id),
-          );
-          next = replaceExpandedStringifiedPaths(next, record.id, paths);
-        }
-        return next;
-      }),
-    );
-    markPerf("expand:all:set-state");
+    workspace.expandAll(visibleRecords, displayedExpandedStringifiedPathsByRecord);
   };
 
   const handleCollapseAll = () => {
-    setExpandedStringifiedPathsByRecord((current) =>
-      clearExpandedStringifiedPaths(
-        current,
-        visibleRecords.map((record) => record.id),
-      ),
-    );
-    setSearchExpandedStringifiedPathsByRecord((current) =>
-      clearExpandedStringifiedPaths(
-        current,
-        visibleRecords.map((record) => record.id),
-      ),
-    );
+    workspace.collapseAll(visibleRecords.map((record) => record.id));
   };
 
   const handleTogglePath = (recordId: string, path: string) => {
-    markPerf("expand:path");
-    setExpandedStringifiedPathsByRecord((current) =>
-      toggleExpandedStringifiedPath(current, recordId, path),
-    );
+    workspace.togglePath(recordId, path);
   };
 
   const getSelectedNodeContext = async () => {
@@ -599,23 +482,15 @@ export const UnquoteApp = ({
   }, [commandPaletteOpen, handleCopySelectedSubtree, selectedPath]);
 
   const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
-    setSelectedPath(createSelectionFromRow(record, row));
-    setActiveRecordId(record.id);
-    scrollToPath(record.id, row.pathText);
+    workspace.selectNode(record, row);
   };
 
   const handleSelectRecord = (record: JsonlRecord) => {
-    setActiveRecordId(record.id);
-    setDetailSelection({ kind: "record", recordId: record.id });
-    setFocusedPath((current) => (current?.recordId === record.id ? current : null));
-    scrollRequestIdRef.current += 1;
-    setRecordScrollTarget({ recordId: record.id, requestId: scrollRequestIdRef.current });
+    workspace.selectRecord(record);
   };
 
   const handleSelectAgentDetail = (selection: AgentDetailSelection) => {
-    setActiveRecordId(selection.recordId);
-    setDetailSelection(selection);
-    setFocusedPath((current) => (current?.recordId === selection.recordId ? current : null));
+    workspace.selectAgentDetail(selection);
   };
 
   const handleOverviewErrorSelect = (recordId: string) => {
@@ -628,9 +503,12 @@ export const UnquoteApp = ({
     handleSelectRecord(record);
   };
 
-  const handleActiveRecordChange = useCallback((recordId: string) => {
-    setActiveRecordId((current) => (current === recordId ? current : recordId));
-  }, []);
+  const handleActiveRecordChange = useCallback(
+    (recordId: string) => {
+      workspace.reportActiveRecord(recordId);
+    },
+    [workspace.reportActiveRecord],
+  );
 
   const statsLabel =
     recordFilter === "all"
@@ -757,7 +635,7 @@ export const UnquoteApp = ({
         onSelectNode={handleSelectNode}
         onActiveRecordChange={handleActiveRecordChange}
         onHydrateRecord={localFileSource.hydrateRecord}
-        onClearFocus={() => setFocusedPath(null)}
+        onClearFocus={workspace.clearFocus}
       />
     </div>
   );
@@ -791,7 +669,7 @@ export const UnquoteApp = ({
           onCopyError={onCopyRecordError}
           onSelectNode={handleSelectNode}
           onHydrateRecord={localFileSource.hydrateRecord}
-          onClearFocus={() => setFocusedPath(null)}
+          onClearFocus={workspace.clearFocus}
         />
       </TabsContent>
       <TabsContent value="json">{jsonOutput}</TabsContent>

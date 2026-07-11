@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useReducer, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { writeClipboardText } from "../lib/clipboard";
 import { readFileText, readJsonlRecordsByLine } from "../lib/local-file-source";
@@ -18,10 +18,9 @@ interface UseSourceLoaderParams {
   onRequestOpenFile?:
     | (() => Promise<File | string | null> | File | string | null | void)
     | undefined;
-  // Called after a new source is loaded, to reset the derived (selection /
-  // search / expansion) state that lives in the app. Read through a ref so the
-  // source hook can be initialized before that reset (which depends on the
-  // parse/query pipeline downstream) exists.
+  // Reset source-scoped workspace state before publishing the new source.
+  // Query state observes sourceRevision because its pipeline is initialized
+  // downstream from this hook.
   onReset: () => void;
   onCollapseSource: () => void;
   // Called when a file read fails, so the caller can surface it (e.g. a toast).
@@ -43,6 +42,7 @@ export const useSourceLoader = ({
 }: UseSourceLoaderParams) => {
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
+  const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
   const fileImportIdRef = useRef(0);
 
   const sourceText =
@@ -60,6 +60,7 @@ export const useSourceLoader = ({
     fileImportIdRef.current += 1;
     setSourceState({ kind: "text", text: value });
     onReset();
+    incrementSourceRevision();
     if (value.length > largeSourceCollapseBytes) {
       onCollapseSource();
     }
@@ -78,6 +79,7 @@ export const useSourceLoader = ({
     if (streamAsJsonl) {
       setSourceState({ kind: "streaming", file });
       onReset();
+      incrementSourceRevision();
       onCollapseSource();
       return;
     }
@@ -157,6 +159,7 @@ export const useSourceLoader = ({
     readingFile,
     readProgress,
     importedFile,
+    sourceRevision,
     onSourceChange,
     onFileDrop,
     onOpenFile,

@@ -1553,6 +1553,31 @@ describe("UnquoteApp", () => {
     expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
 
+  it("resets query state when the source revision changes", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"message":"first"}'} />
+      </I18nProvider>,
+    );
+
+    await user.type(getToolbarInput(), "first");
+    await waitFor(() =>
+      expect(container.querySelector("[data-search-query]")).toHaveAttribute(
+        "data-search-query",
+        "first",
+      ),
+    );
+
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      { target: { value: '{"message":"second"}' } },
+    );
+
+    await waitFor(() => expect(getToolbarInput()).toHaveValue(""));
+    expect(container.querySelector("[data-search-query]")).toHaveAttribute("data-search-query", "");
+  });
+
   it("rebuilds only the toggled JSONL record rows", async () => {
     const user = userEvent.setup();
     const input = [
