@@ -1330,9 +1330,9 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
 
     await user.click(
-      within(document.getElementById("record-1")!).getByRole("button", {
-        name: "Toggle payload",
-      }),
+      within(document.getElementById("record-1")!)
+        .getByRole("treeitem", { name: /payload/ })
+        .querySelector("[data-tree-toggle]")!,
     );
 
     await waitFor(() =>
@@ -1388,7 +1388,11 @@ describe("UnquoteApp", () => {
     await user.click(timelineToolCall);
 
     const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;
-    await user.click(within(rawJsonPanel).getByRole("button", { name: "Toggle arguments" }));
+    await user.click(
+      within(rawJsonPanel)
+        .getByRole("treeitem", { name: /arguments/ })
+        .querySelector("[data-tree-toggle]")!,
+    );
     await waitFor(() => expect(within(rawJsonPanel).getByText("cmd")).toBeInTheDocument());
 
     await user.click(screen.getAllByRole("tab", { name: "JSON" })[0]!);
@@ -1399,7 +1403,11 @@ describe("UnquoteApp", () => {
     });
     expect(within(jsonRecord).getByText("cmd")).toBeInTheDocument();
 
-    await user.click(within(jsonRecord).getByRole("button", { name: "Toggle arguments" }));
+    await user.click(
+      within(jsonRecord)
+        .getByRole("treeitem", { name: /arguments/ })
+        .querySelector("[data-tree-toggle]")!,
+    );
     await user.click(screen.getAllByRole("tab", { name: "Agent" })[0]!);
     const collapsedRawJsonPanel = (
       await screen.findAllByRole("complementary", {
@@ -1465,9 +1473,9 @@ describe("UnquoteApp", () => {
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
     await user.click(
-      within(document.getElementById("record-1")!).getByRole("button", {
-        name: "Toggle payload",
-      }),
+      within(document.getElementById("record-1")!)
+        .getByRole("treeitem", { name: /payload/ })
+        .querySelector("[data-tree-toggle]")!,
     );
     await waitFor(() => expect(screen.getAllByText("first")).toHaveLength(2));
 
@@ -1503,9 +1511,9 @@ describe("UnquoteApp", () => {
 
     performance.clearMeasures("unquote:recordRows:build");
     await user.click(
-      within(document.getElementById("record-1")!).getByRole("button", {
-        name: "Toggle payload",
-      }),
+      within(document.getElementById("record-1")!)
+        .getByRole("treeitem", { name: /payload/ })
+        .querySelector("[data-tree-toggle]")!,
     );
     await waitFor(() =>
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),

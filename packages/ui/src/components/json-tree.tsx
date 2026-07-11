@@ -1,7 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { ChevronRight, Copy, FileWarning, Focus, Undo2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
@@ -73,6 +73,19 @@ export const JsonTree = ({
     [expandedStringifiedPaths, focusedPathText, hydrated, record],
   );
   const displayRows = useMemo(() => buildDisplayRows(rows), [rows]);
+  const interactiveRows = useMemo(
+    () => displayRows.filter((row) => row.kind !== "close"),
+    [displayRows],
+  );
+  const [activeRowId, setActiveRowId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (interactiveRows.some((row) => row.id === activeRowId)) {
+      return;
+    }
+
+    setActiveRowId(interactiveRows[0]?.id);
+  }, [activeRowId, interactiveRows]);
 
   useEffect(() => {
     if (record.deferred && hydrated) {
@@ -100,6 +113,72 @@ export const JsonTree = ({
     measureElement: (element) => element?.getBoundingClientRect().height ?? 38,
     enabled: shouldVirtualize,
   });
+
+  const toggleRow = (row: DisplayTreeRow) => {
+    if (record.deferred) {
+      onHydrateRecord(record);
+    }
+    onTogglePath(record.id, row.source.pathText);
+  };
+
+  const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const activeIndex = interactiveRows.findIndex((row) => row.id === activeRowId);
+    const currentIndex = activeIndex === -1 ? 0 : activeIndex;
+    const activeRow = interactiveRows[currentIndex];
+    if (!activeRow) {
+      return;
+    }
+
+    let nextIndex: number | undefined;
+    switch (event.key) {
+      case "ArrowDown":
+        nextIndex = Math.min(currentIndex + 1, interactiveRows.length - 1);
+        break;
+      case "ArrowUp":
+        nextIndex = Math.max(currentIndex - 1, 0);
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = interactiveRows.length - 1;
+        break;
+      case "ArrowRight":
+        if (activeRow.showToggle && !activeRow.source.expanded) {
+          toggleRow(activeRow);
+        }
+        break;
+      case "ArrowLeft":
+        if (activeRow.showToggle && activeRow.source.expanded) {
+          toggleRow(activeRow);
+        } else {
+          for (let index = currentIndex - 1; index >= 0; index--) {
+            if (interactiveRows[index]!.depth < activeRow.depth) {
+              nextIndex = index;
+              break;
+            }
+          }
+        }
+        break;
+      case "Enter":
+      case " ":
+        onSelectNode(activeRow.source);
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    if (nextIndex !== undefined && nextIndex >= 0) {
+      setActiveRowId(interactiveRows[nextIndex]!.id);
+      if (shouldVirtualize) {
+        const displayIndex = displayRows.findIndex(
+          (row) => row.id === interactiveRows[nextIndex]!.id,
+        );
+        rowVirtualizer.scrollToIndex(displayIndex, { align: "auto" });
+      }
+    }
+  };
 
   useEffect(() => {
     if (hydrated) {
@@ -287,7 +366,15 @@ export const JsonTree = ({
           </Button>
         </div>
       </div>
-      <div ref={parentRef} className="max-h-[560px] overflow-auto bg-surface-50 py-2">
+      <div
+        ref={parentRef}
+        className="max-h-[560px] overflow-auto bg-surface-50 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        role="tree"
+        aria-label={record.summary}
+        aria-activedescendant={activeRowId}
+        tabIndex={0}
+        onKeyDown={handleTreeKeyDown}
+      >
         {!hydrated ? (
           <div className="flex h-[200px] items-center justify-center px-6 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
             {t("tree.scrollHint")}
@@ -325,13 +412,10 @@ export const JsonTree = ({
                   isActiveMatch={isActive}
                   isSelected={isSelected}
                   isSelectedAnchor={isSelectedAnchor}
-                  onTogglePath={(path) => {
-                    if (record.deferred) {
-                      onHydrateRecord(record);
-                    }
-                    onTogglePath(record.id, path);
-                  }}
+                  isActiveDescendant={row.id === activeRowId}
                   onSelectNode={onSelectNode}
+                  onActivate={setActiveRowId}
+                  onTogglePath={toggleRow}
                 />
               );
             })}
@@ -355,13 +439,10 @@ export const JsonTree = ({
                   isActiveMatch={isActive}
                   isSelected={isSelected}
                   isSelectedAnchor={isSelectedAnchor}
-                  onTogglePath={(path) => {
-                    if (record.deferred) {
-                      onHydrateRecord(record);
-                    }
-                    onTogglePath(record.id, path);
-                  }}
+                  isActiveDescendant={row.id === activeRowId}
                   onSelectNode={onSelectNode}
+                  onActivate={setActiveRowId}
+                  onTogglePath={toggleRow}
                 />
               );
             })}
@@ -556,8 +637,10 @@ interface RowItemProps {
   isActiveMatch: boolean;
   isSelected: boolean;
   isSelectedAnchor: boolean;
-  onTogglePath: (path: string) => void;
+  isActiveDescendant: boolean;
   onSelectNode: (row: TreeRow) => void;
+  onActivate: (rowId: string) => void;
+  onTogglePath: (row: DisplayTreeRow) => void;
   virtualized?: boolean;
   style?: CSSProperties;
   measureRef?: (node: HTMLDivElement | null) => void;
@@ -569,13 +652,14 @@ const RowItem = ({
   isActiveMatch,
   isSelected,
   isSelectedAnchor,
-  onTogglePath,
+  isActiveDescendant,
   onSelectNode,
+  onActivate,
+  onTogglePath,
   virtualized = false,
   style,
   measureRef,
 }: RowItemProps) => {
-  const { t } = useTranslation();
   const source = row.source;
   const valueRanges =
     row.kind === "value" && searchMatch?.valueRanges.length
@@ -589,39 +673,46 @@ const RowItem = ({
         ? "bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]"
         : "hover:bg-surface-100";
   const anchorTone = isSelectedAnchor ? "shadow-[inset_2px_0_0_var(--color-accent)]" : "";
+  const activeDescendantTone = isActiveDescendant
+    ? "outline outline-1 -outline-offset-1 outline-accent"
+    : "";
 
   return (
     <div
       ref={measureRef}
       id={row.id}
-      className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full cursor-pointer items-start px-3 ${rowTone} ${anchorTone}`}
+      className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full ${row.kind === "close" ? "cursor-default" : "cursor-pointer"} items-start px-3 ${rowTone} ${anchorTone} ${activeDescendantTone}`}
       style={style}
-      onClick={() => onSelectNode(source)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelectNode(source);
+      onClick={(event) => {
+        if (row.kind === "close") {
+          return;
         }
+
+        onActivate(row.id);
+        if ((event.target as Element).closest("[data-tree-toggle]")) {
+          onTogglePath(row);
+          return;
+        }
+        onSelectNode(source);
       }}
-      role="button"
-      tabIndex={0}
+      role={row.kind === "close" ? "presentation" : "treeitem"}
+      aria-level={row.kind === "close" ? undefined : row.depth + 1}
+      aria-selected={row.kind === "close" ? undefined : isSelectedAnchor}
+      aria-expanded={row.showToggle ? source.expanded : undefined}
+      tabIndex={row.kind === "close" ? undefined : -1}
     >
       <span style={{ width: `${row.depth * 16}px` }} className="shrink-0" />
       <div className="flex min-w-0 flex-1 items-start py-0.5">
         {row.showToggle ? (
-          <button
-            type="button"
+          <span
+            data-tree-toggle
+            aria-hidden="true"
             className="mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center border border-accent bg-accent/10 text-accent"
-            onClick={(event) => {
-              event.stopPropagation();
-              onTogglePath(source.pathText);
-            }}
-            aria-label={t("tree.toggle", { key: source.keyLabel })}
           >
             <ChevronRight
               className={`uq-motion-transform size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}
             />
-          </button>
+          </span>
         ) : (
           <span className="w-[21px] shrink-0" />
         )}
