@@ -1,0 +1,62 @@
+import { act, renderHook } from "@testing-library/react";
+import { parseInput } from "@unquote/core";
+import { describe, expect, it } from "vitest";
+import { useWorkspaceSession } from "../src/hooks/use-workspace-session";
+
+describe("useWorkspaceSession", () => {
+  it("coordinates path selection, expansion, focus, and reset through intents", () => {
+    const { result } = renderHook(() => useWorkspaceSession());
+
+    act(() => {
+      result.current.selectPath(
+        { recordId: "record-2", pathText: "$.payload.nested", rawKey: "nested" },
+        ["$.payload"],
+      );
+    });
+
+    expect(result.current.state).toMatchObject({
+      activeRecordId: "record-2",
+      selectedPath: {
+        recordId: "record-2",
+        pathText: "$.payload.nested",
+        rawKey: "nested",
+      },
+      scrollTarget: {
+        recordId: "record-2",
+        pathText: "$.payload.nested",
+        requestId: 1,
+      },
+    });
+    expect(result.current.state.expandedPaths.get("record-2")).toEqual(new Set(["$.payload"]));
+
+    act(() => result.current.reset());
+
+    expect(result.current.state.selectedPath).toBeNull();
+    expect(result.current.state.scrollTarget).toBeNull();
+    expect(result.current.state.expandedPaths).toEqual(new Map());
+  });
+
+  it("reconciles navigation state when visible records change", () => {
+    const records = parseInput('{"value":1}\n{"value":2}', { forcedFormat: "jsonl" }).records;
+    const { result } = renderHook(() => useWorkspaceSession());
+
+    act(() => {
+      result.current.selectRecord(records[0]!);
+      result.current.selectPath({
+        recordId: records[0]!.id,
+        pathText: "$.value",
+        rawKey: "value",
+      });
+    });
+    act(() => result.current.reconcileVisibleRecords([records[1]!]));
+
+    expect(result.current.state).toMatchObject({
+      activeRecordId: records[1]!.id,
+      detailSelection: null,
+      selectedPath: null,
+      focusedPath: null,
+      scrollTarget: null,
+      recordScrollTarget: null,
+    });
+  });
+});
