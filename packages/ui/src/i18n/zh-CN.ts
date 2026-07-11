@@ -39,6 +39,7 @@ export const zhCN: Messages = {
   "command.pathMatches": "{count} 条路径",
   "command.visibleRecords": "当前显示 {shown}/{total} 条",
   "command.filterCommands": "过滤命令…",
+  "command.recordFilters": "记录过滤器",
   "command.active": "已启用",
   "overview.title": "文件概览",
   "overview.fullScope": "全文件统计",

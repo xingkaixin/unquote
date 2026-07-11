@@ -12,6 +12,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RecordFilterMode } from "../lib/tree";
 import { resolveQueryMode } from "../lib/query-interaction";
@@ -90,13 +91,9 @@ export const CommandPalette = ({
   const mode = resolveQueryMode(inputValue);
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-
+    if (!open) return;
     setCommandQuery("");
     setActiveIndex(0);
-    window.setTimeout(() => inputRef.current?.focus(), 0);
   }, [open]);
 
   const actions = useMemo<CommandAction[]>(
@@ -126,9 +123,7 @@ export const CommandPalette = ({
     );
   }, [visibleActions.length]);
 
-  if (!open) {
-    return null;
-  }
+  const activeActionId = visibleActions[activeIndex]?.id;
 
   const runPrimary = () => {
     const value = inputValue.trim();
@@ -152,137 +147,164 @@ export const CommandPalette = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/35 px-3 pt-[16vh] backdrop-blur-sm dark:bg-black/65"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("command.palette")}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
+    <Dialog.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
       }}
     >
-      <div className="mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg">
-        <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4">
-          <Search className="size-4 shrink-0 text-text-muted" />
-          <input
-            ref={inputRef}
-            value={inputValue}
-            onChange={(event) => onInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                runPrimary();
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                onClose();
-              }
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setActiveIndex((current) =>
-                  visibleActions.length === 0 ? 0 : (current + 1) % visibleActions.length,
-                );
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setActiveIndex((current) =>
-                  visibleActions.length === 0
-                    ? 0
-                    : (current - 1 + visibleActions.length) % visibleActions.length,
-                );
-              }
-            }}
-            placeholder={t("command.placeholder")}
-            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-muted"
-          />
-          <span className="shrink-0 bg-surface-200 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
-            {t(mode === "path" ? "command.pathMode" : "command.searchMode")}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="uq-icon-button h-7 w-7 px-0"
-            onClick={onClose}
-            aria-label={t("command.close")}
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm dark:bg-black/65" />
+        <Dialog.Viewport className="fixed inset-0 z-50 px-3 pt-[16vh]">
+          <Dialog.Popup
+            initialFocus={inputRef}
+            className="mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            <X className="size-3.5" />
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-2">
-          <span className="mr-1 font-mono text-[10px] text-text-muted">
-            {mode === "path"
-              ? t("command.pathMatches", { count: pathMatchCount })
-              : t("command.searchMatches", { count: matchCount })}
-          </span>
-          <Button
-            variant={jq ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 gap-1.5"
-            onClick={() => onJqChange(!jq)}
-          >
-            <Braces className="size-3.5" />
-            {t("search.jq")}
-          </Button>
-          <Button
-            variant={regex ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 gap-1.5"
-            onClick={() => onRegexChange(!regex)}
-          >
-            <Regex className="size-3.5" />
-            {t("search.regex")}
-          </Button>
-          <Button
-            variant={caseSensitive ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 gap-1.5"
-            onClick={() => onCaseSensitiveChange(!caseSensitive)}
-          >
-            <CaseSensitive className="size-3.5" />
-            {t("search.caseSensitive")}
-          </Button>
-          <Button variant="secondary" size="sm" className="ml-auto h-7" onClick={runPrimary}>
-            {t(mode === "path" ? "path.jump" : "command.search")}
-          </Button>
-        </div>
-        <div className="flex items-center gap-2 px-[18px] py-2">
-          <span className="font-mono text-[10px] text-text-muted">
-            {t("command.visibleRecords", { shown: visibleCount, total: totalCount })}
-          </span>
-          <input
-            value={commandQuery}
-            onChange={(event) => setCommandQuery(event.target.value)}
-            placeholder={t("command.filterCommands")}
-            className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted"
-          />
-        </div>
-        <div className="min-h-0 overflow-y-auto px-2 pb-2">
-          {visibleActions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.id}
-                type="button"
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
-                  index === activeIndex
-                    ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]"
-                    : "text-text-secondary"
-                } ${action.active ? "text-accent" : ""}`}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => runAction(action)}
+            <Dialog.Title className="sr-only">{t("command.palette")}</Dialog.Title>
+            <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4">
+              <Search className="size-4 shrink-0 text-text-muted" />
+              <input
+                ref={inputRef}
+                role="combobox"
+                aria-label={t("search.inputLabel")}
+                aria-autocomplete="list"
+                aria-expanded="true"
+                aria-controls="command-action-list"
+                aria-activedescendant={
+                  activeActionId ? `command-action-${activeActionId}` : undefined
+                }
+                value={inputValue}
+                onChange={(event) => onInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    runPrimary();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onClose();
+                  }
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setActiveIndex((current) =>
+                      visibleActions.length === 0 ? 0 : (current + 1) % visibleActions.length,
+                    );
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActiveIndex((current) =>
+                      visibleActions.length === 0
+                        ? 0
+                        : (current - 1 + visibleActions.length) % visibleActions.length,
+                    );
+                  }
+                }}
+                placeholder={t("command.placeholder")}
+                className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-muted"
+              />
+              <span className="shrink-0 bg-surface-200 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
+                {t(mode === "path" ? "command.pathMode" : "command.searchMode")}
+              </span>
+              <Dialog.Close
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="uq-icon-button h-7 w-7 px-0"
+                    aria-label={t("command.close")}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                }
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-2">
+              <span className="mr-1 font-mono text-[10px] text-text-muted">
+                {mode === "path"
+                  ? t("command.pathMatches", { count: pathMatchCount })
+                  : t("command.searchMatches", { count: matchCount })}
+              </span>
+              <Button
+                variant={jq ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5"
+                onClick={() => onJqChange(!jq)}
               >
-                <Icon className="size-3.5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{t(action.label)}</span>
-                {action.active ? (
-                  <span className="font-mono text-[10px] text-accent">{t("command.active")}</span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+                <Braces className="size-3.5" />
+                {t("search.jq")}
+              </Button>
+              <Button
+                variant={regex ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5"
+                onClick={() => onRegexChange(!regex)}
+              >
+                <Regex className="size-3.5" />
+                {t("search.regex")}
+              </Button>
+              <Button
+                variant={caseSensitive ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5"
+                onClick={() => onCaseSensitiveChange(!caseSensitive)}
+              >
+                <CaseSensitive className="size-3.5" />
+                {t("search.caseSensitive")}
+              </Button>
+              <Button variant="secondary" size="sm" className="ml-auto h-7" onClick={runPrimary}>
+                {t(mode === "path" ? "path.jump" : "command.search")}
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 px-[18px] py-2">
+              <span className="font-mono text-[10px] text-text-muted">
+                {t("command.visibleRecords", { shown: visibleCount, total: totalCount })}
+              </span>
+              <input
+                aria-label={t("command.filterCommands")}
+                value={commandQuery}
+                onChange={(event) => setCommandQuery(event.target.value)}
+                placeholder={t("command.filterCommands")}
+                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted"
+              />
+            </div>
+            <div
+              id="command-action-list"
+              role="listbox"
+              aria-label={t("command.recordFilters")}
+              className="min-h-0 overflow-y-auto px-2 pb-2"
+            >
+              {visibleActions.map((action, index) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.id}
+                    id={`command-action-${action.id}`}
+                    type="button"
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={index === activeIndex}
+                    className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
+                      index === activeIndex
+                        ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]"
+                        : "text-text-secondary"
+                    } ${action.active ? "text-accent" : ""}`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => runAction(action)}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{t(action.label)}</span>
+                    {action.active ? (
+                      <span className="font-mono text-[10px] text-accent">
+                        {t("command.active")}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };

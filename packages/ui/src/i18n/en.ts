@@ -37,6 +37,7 @@ export const en = {
   "command.pathMatches": "{count} paths",
   "command.visibleRecords": "{shown}/{total} records visible",
   "command.filterCommands": "Filter commands...",
+  "command.recordFilters": "Record filters",
   "command.active": "active",
   "overview.title": "File Overview",
   "overview.fullScope": "Full file statistics",
