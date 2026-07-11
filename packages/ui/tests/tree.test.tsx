@@ -267,4 +267,29 @@ describe("tree paths", () => {
     records.push(...result.records.slice(1));
     expect(updateFileOverview(records, state)).toEqual(createFileOverview(records));
   });
+
+  it("keeps incremental Top-K equal to full recomputation across rebuilds", () => {
+    const allRecords = parseInput(
+      Array.from({ length: 500 }, (_, index) =>
+        JSON.stringify({
+          event: `event-${index % 73}`,
+          type: `type-${index % 41}`,
+          payload: JSON.stringify({ index }),
+        }),
+      ).join("\n"),
+      { forcedFormat: "jsonl" },
+    ).records;
+    const state = createFileOverviewState();
+    const streamedRecords: JsonlRecord[] = [];
+
+    for (let offset = 0; offset < allRecords.length; offset += 17) {
+      streamedRecords.push(...allRecords.slice(offset, offset + 17));
+      expect(updateFileOverview(streamedRecords, state)).toEqual(
+        createFileOverview(streamedRecords),
+      );
+    }
+
+    const shortened = allRecords.slice(0, 83);
+    expect(updateFileOverview(shortened, state)).toEqual(createFileOverview(shortened));
+  });
 });

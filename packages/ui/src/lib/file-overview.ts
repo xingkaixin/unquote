@@ -59,6 +59,10 @@ export interface FileOverviewState {
   success: number;
   nestedRecords: number;
   maxDepth: number;
+  topNestedPaths: OverviewNestedPath[];
+  topFieldValues: OverviewFieldValue[];
+  dirtyNestedPaths: Set<string>;
+  dirtyFieldValues: Set<string>;
 }
 
 const topNestedPathLimit = 6;
@@ -196,6 +200,10 @@ const createEmptyFileOverviewState = (): Omit<
   success: 0,
   nestedRecords: 0,
   maxDepth: 0,
+  topNestedPaths: [],
+  topFieldValues: [],
+  dirtyNestedPaths: new Set(),
+  dirtyFieldValues: new Set(),
 });
 
 const addSummaryToState = (
@@ -212,9 +220,11 @@ const addSummaryToState = (
   state.maxDepth = Math.max(state.maxDepth, summary.maxDepth);
   for (const [pathText, count] of summary.nestedPaths) {
     addCount(state.nestedPathCounts, pathText, count);
+    state.dirtyNestedPaths.add(pathText);
   }
   for (const item of summary.fieldValues.values()) {
     addFieldValue(state.fieldValues, item, item.count);
+    state.dirtyFieldValues.add(fieldValueKey(item));
   }
   if (summary.error) {
     state.errors.push(summary.error);
@@ -222,14 +232,30 @@ const addSummaryToState = (
 };
 
 const toFileOverview = (state: FileOverviewState, total: number): FileOverview => {
-  const topNestedPaths = sortCountItems(
-    [...state.nestedPathCounts.entries()].map(([pathText, count]) => ({ pathText, count })),
+  const nestedPathCandidates = new Set([
+    ...state.topNestedPaths.map((item) => item.pathText),
+    ...state.dirtyNestedPaths,
+  ]);
+  state.topNestedPaths = sortCountItems(
+    [...nestedPathCandidates].map((pathText) => ({
+      pathText,
+      count: state.nestedPathCounts.get(pathText) ?? 0,
+    })),
     (item) => item.pathText,
   ).slice(0, topNestedPathLimit);
-  const topFieldValues = sortCountItems(
-    [...state.fieldValues.values()],
+  state.dirtyNestedPaths.clear();
+
+  const fieldValueCandidates = new Set([
+    ...state.topFieldValues.map(fieldValueKey),
+    ...state.dirtyFieldValues,
+  ]);
+  state.topFieldValues = sortCountItems(
+    [...fieldValueCandidates]
+      .map((key) => state.fieldValues.get(key))
+      .filter((item): item is OverviewFieldValue => Boolean(item)),
     (item) => `${item.field}:${item.pathText}:${item.value}`,
   ).slice(0, topFieldValueLimit);
+  state.dirtyFieldValues.clear();
 
   return {
     total,
@@ -237,8 +263,8 @@ const toFileOverview = (state: FileOverviewState, total: number): FileOverview =
     failed: total - state.success,
     nestedRecords: state.nestedRecords,
     maxDepth: state.maxDepth,
-    topNestedPaths,
-    topFieldValues,
+    topNestedPaths: state.topNestedPaths,
+    topFieldValues: state.topFieldValues,
     errors: state.errors,
   };
 };
