@@ -34,6 +34,7 @@ import {
   addExpandedStringifiedPaths,
   clearExpandedStringifiedPaths,
   getExpandedStringifiedPaths,
+  groupExpandedStringifiedPaths,
   mergeExpandedStringifiedPaths,
   replaceExpandedStringifiedPaths,
   toggleExpandedStringifiedPath,
@@ -297,11 +298,7 @@ export const UnquoteApp = ({
   }, [recordFilter, searchQuery, searchRegex, searchCaseSensitive, searchJq]);
 
   useEffect(() => {
-    let next: ExpandedStringifiedPathsByRecord = new Map();
-    for (const match of visibleMatches ?? []) {
-      next = addExpandedStringifiedPaths(next, match.recordId, match.stringifiedPathChain);
-    }
-    setSearchExpandedStringifiedPathsByRecord(next);
+    setSearchExpandedStringifiedPathsByRecord(groupExpandedStringifiedPaths(visibleMatches ?? []));
   }, [visibleMatches]);
 
   const displayedExpandedStringifiedPathsByRecord = useMemo(

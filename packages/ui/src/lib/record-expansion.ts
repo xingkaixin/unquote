@@ -7,6 +7,28 @@ export const getExpandedStringifiedPaths = (
   recordId: string,
 ) => pathsByRecord.get(recordId) ?? noExpandedStringifiedPaths;
 
+export const groupExpandedStringifiedPaths = (
+  matches: Iterable<{
+    readonly recordId: string;
+    readonly stringifiedPathChain: Iterable<string>;
+  }>,
+): ExpandedStringifiedPathsByRecord => {
+  const grouped = new Map<string, Set<string>>();
+
+  for (const match of matches) {
+    for (const path of match.stringifiedPathChain) {
+      let paths = grouped.get(match.recordId);
+      if (!paths) {
+        paths = new Set();
+        grouped.set(match.recordId, paths);
+      }
+      paths.add(path);
+    }
+  }
+
+  return grouped;
+};
+
 const pathsAreEqual = (left: ReadonlySet<string>, right: ReadonlySet<string>) =>
   left.size === right.size && [...left].every((path) => right.has(path));
 
