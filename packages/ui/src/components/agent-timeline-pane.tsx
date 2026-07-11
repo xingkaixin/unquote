@@ -111,7 +111,7 @@ export const AgentTimelinePane = ({
         <Button
           variant="ghost"
           size="sm"
-          className="uq-agent-timeline-toggle h-7 w-7 px-0"
+          className="uq-agent-timeline-toggle uq-icon-button h-7 w-7 px-0"
           onClick={onToggleCollapsed}
           aria-label={t(collapsed ? "agent.expandTimeline" : "agent.collapseTimeline")}
         >

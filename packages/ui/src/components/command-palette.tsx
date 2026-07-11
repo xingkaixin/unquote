@@ -203,7 +203,7 @@ export const CommandPalette = ({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 px-0"
+            className="uq-icon-button h-7 w-7 px-0"
             onClick={onClose}
             aria-label={t("command.close")}
           >

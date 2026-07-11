@@ -15,12 +15,17 @@ const labels: Record<Locale, string> = {
 };
 
 export const LocaleToggle = () => {
-  const { locale, setLocale } = useTranslation();
+  const { locale, setLocale, t } = useTranslation();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" aria-label="Language">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="uq-icon-button h-7 w-7 px-0"
+            aria-label={t("locale.toggle")}
+          >
             <Languages className="size-4" />
           </Button>
         }

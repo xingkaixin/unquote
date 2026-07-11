@@ -255,7 +255,13 @@ export const InputPane = ({
           <span className="nf-title">Source</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={handleOpenFile}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="uq-icon-button h-7 w-7 px-0"
+            onClick={handleOpenFile}
+            aria-label={t("input.openFile")}
+          >
             <Upload className="size-3.5" />
           </Button>
           <input
@@ -266,15 +272,21 @@ export const InputPane = ({
             tabIndex={-1}
             onChange={handleFileInputChange}
           />
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onClear}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="uq-icon-button h-7 w-7 px-0"
+            onClick={onClear}
+            aria-label={t("input.clear")}
+          >
             <X className="size-3.5" />
           </Button>
           <div className="relative">
             <select
-              aria-label="format mode"
+              aria-label={t("input.modeLabel")}
               value={mode}
               onChange={(event) => onModeChange(event.target.value as "auto" | "json" | "jsonl")}
-              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus:border-border-medium"
+              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <option value="auto">auto</option>
               <option value="json">json</option>
@@ -282,7 +294,13 @@ export const InputPane = ({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-text-muted" />
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onToggleCollapse}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="uq-icon-button h-7 w-7 px-0"
+            onClick={onToggleCollapse}
+            aria-label={t("input.collapseSource")}
+          >
             <PanelLeftClose className="size-3.5" />
           </Button>
         </div>
@@ -359,12 +377,13 @@ export const InputPane = ({
         ) : null}
         <div className="relative">
           <textarea
+            aria-label={t("input.sourceLabel")}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onPaste={handlePaste}
             spellCheck={false}
             className={cn(
-              "uq-area h-[min(40vh,440px)] min-h-[280px] w-full resize-none rounded-none border-0 bg-transparent p-0.5 font-mono text-[12px] leading-[1.6] text-text-primary outline-none transition-[background-color,border-color,box-shadow]",
+              "uq-area h-[min(40vh,440px)] min-h-[280px] w-full resize-none rounded-none border-0 bg-transparent p-0.5 font-mono text-[12px] leading-[1.6] text-text-primary outline-none transition-[background-color,border-color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               isDraggingFile &&
                 "bg-surface-100 shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_18%,transparent)]",
             )}
