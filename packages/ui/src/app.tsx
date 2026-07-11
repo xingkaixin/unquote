@@ -19,21 +19,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
-import { useSearchWorker } from "./hooks/use-search-worker";
-import { buildNavigationTarget, useQueryInteraction } from "./hooks/use-query-interaction";
+import { useQueryInteraction } from "./hooks/use-query-interaction";
 import { useExportActions } from "./hooks/use-export-actions";
-import { useRecordPipeline } from "./hooks/use-record-pipeline";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { hasJsonlRecords, resolveTreePath } from "./lib/tree";
-import { fileSearchDebounceMs } from "./lib/local-file-source";
 import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import { sourceSamples } from "./lib/source-samples";
-import type { SearchOptions, TreeRow } from "./lib/tree";
+import type { TreeRow } from "./lib/tree";
 
 import type { SelectedPath } from "./hooks/use-workspace-session";
 
@@ -136,7 +133,14 @@ export const UnquoteApp = ({
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
-  const qi = useQueryInteraction({ allRecords: result.records, translateError });
+  const query = useQueryInteraction({
+    result,
+    recordsVersion,
+    sourceText,
+    sourceFile,
+    forcedFormat,
+    translateError,
+  });
   const {
     searchQuery,
     searchRegex,
@@ -149,8 +153,20 @@ export const UnquoteApp = ({
     pathMatches,
     currentPathMatchIndex,
     currentMatchIndex,
-  } = qi.state;
-  const { reset: resetQuery } = qi;
+    mode: queryMode,
+    navigationTarget,
+    searchStatus,
+    searchErrorKind,
+    recordInsights,
+    recordsById,
+    visibleRecords,
+    visibleStats,
+    fileOverview,
+    visibleMatches,
+    matchCount,
+  } = query.snapshot;
+  const { intent: queryIntent } = query;
+  const { reset: resetQuery } = queryIntent;
   useEffect(() => {
     resetQuery();
   }, [resetQuery, sourceRevision]);
@@ -218,52 +234,11 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const searchOptions = useMemo<SearchOptions>(
-    () => ({
-      regex: searchRegex,
-      caseSensitive: searchCaseSensitive,
-      jq: searchJq,
-    }),
-    [searchCaseSensitive, searchJq, searchRegex],
-  );
-
   const localFileSource = useLocalFileSource(sourceFile, () => toast.error(t("input.readFailed")));
-  // A source file scans the whole file per query, so it gets a debounce;
-  // in-memory text search is cheap enough to dispatch immediately.
-  const searchWorker = useSearchWorker({
-    text: sourceText,
-    sourceFile,
-    query: searchQuery,
-    options: searchOptions,
-    debounceMs: sourceFile ? fileSearchDebounceMs : 0,
-    ...(forcedFormat ? { forcedFormat } : {}),
-  });
-
-  const {
-    recordInsights,
-    recordsById,
-    visibleRecords,
-    visibleStats,
-    fileOverview,
-    visibleMatches,
-    matchCount,
-  } = useRecordPipeline({
-    result,
-    recordsVersion,
-    searchMatches: searchWorker.matches,
-    recordFilter,
-  });
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
   // main thread on large strings. Export streams via Blob and stays available.
   const estimatedSourceBytes = sourceFile?.size ?? sourceText.length;
   const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
-
-  // Keep the match index inside the current match count (the count lives in
-  // the pipeline, downstream of the interaction state).
-  const { clampMatchIndex } = qi;
-  useEffect(() => {
-    clampMatchIndex(matchCount);
-  }, [clampMatchIndex, matchCount]);
 
   // Clear any pending scroll target when the filter or search options change
   // (match-index reset lives in the interaction hook).
@@ -330,17 +305,6 @@ export const UnquoteApp = ({
     workspace.scrollToPath(match.recordId, match.pathText);
   };
 
-  const navigationTarget = useMemo(
-    () =>
-      buildNavigationTarget(
-        { pathMatches, currentPathMatchIndex, currentMatchIndex },
-        qi.mode,
-        matchCount > 0,
-        qi.navVersion,
-      ),
-    [currentMatchIndex, currentPathMatchIndex, matchCount, pathMatches, qi.mode, qi.navVersion],
-  );
-
   // React to interaction-driven navigation: a path jump selects/expands the
   // target node and scrolls to it; a search re-navigation scrolls to the match.
   useEffect(() => {
@@ -366,9 +330,9 @@ export const UnquoteApp = ({
   }, [navigationTarget]);
 
   const handleOpenCommandPalette = useCallback(() => {
-    qi.seedCommandInput();
+    queryIntent.prepareCommandInput();
     setCommandPaletteOpen(true);
-  }, [qi]);
+  }, [queryIntent]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -499,7 +463,7 @@ export const UnquoteApp = ({
       return;
     }
 
-    qi.setRecordFilter("errors");
+    queryIntent.setFilter("errors");
     handleSelectRecord(record);
   };
 
@@ -562,8 +526,8 @@ export const UnquoteApp = ({
     }
   })();
   const searchErrorLabel =
-    searchQuery && searchWorker.status === "error"
-      ? t(searchWorker.errorKind === "timeout" ? "search.timeout" : "search.failed")
+    searchQuery && searchStatus === "error"
+      ? t(searchErrorKind === "timeout" ? "search.timeout" : "search.failed")
       : null;
   const toolbarSummary = pathError
     ? pathError
@@ -574,18 +538,9 @@ export const UnquoteApp = ({
             searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
           }`
         : progressLabel;
-  const toolbarInPathMode = qi.mode === "path";
+  const toolbarInPathMode = queryMode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
-  // Bind the current frame's pipeline values into the interaction callbacks;
-  // events dispatch after commit, so these closures always see the latest.
-  const handleSubmitToolbarQuery = (value: string) => qi.submitToolbarQuery(value, visibleRecords);
-  const handlePrevToolbarMatch = toolbarInPathMode
-    ? qi.prevPathMatch
-    : () => qi.prevMatch(matchCount);
-  const handleNextToolbarMatch = toolbarInPathMode
-    ? qi.nextPathMatch
-    : () => qi.nextMatch(matchCount);
   const jsonOutput = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
@@ -593,11 +548,11 @@ export const UnquoteApp = ({
         query={toolbarQuery}
         matchCount={toolbarMatchCount}
         currentMatchIndex={toolbarMatchIndex}
-        onQueryChange={qi.setToolbarQuery}
-        onSubmitQuery={handleSubmitToolbarQuery}
-        onPrevMatch={handlePrevToolbarMatch}
-        onNextMatch={handleNextToolbarMatch}
-        onClearQuery={qi.clearToolbarQuery}
+        onQueryChange={queryIntent.changeToolbarQuery}
+        onSubmitQuery={queryIntent.submitToolbarQuery}
+        onPrevMatch={queryIntent.previousResult}
+        onNextMatch={queryIntent.nextResult}
+        onClearQuery={queryIntent.clearToolbarQuery}
         onOpenCommandPalette={handleOpenCommandPalette}
         onCopyJsonl={onCopyJsonl}
         onCopyFormattedJson={onCopyFormattedJson}
@@ -612,8 +567,8 @@ export const UnquoteApp = ({
           overview={fileOverview}
           format={result.format}
           visibleCount={visibleStats.total}
-          onSelectNestedPath={qi.overviewPathSelect}
-          onSearchFieldValue={qi.overviewFieldValueSearch}
+          onSelectNestedPath={queryIntent.selectOverviewPath}
+          onSearchFieldValue={queryIntent.searchOverviewFieldValue}
           onSelectError={handleOverviewErrorSelect}
         />
       ) : null}
@@ -686,7 +641,7 @@ export const UnquoteApp = ({
       data-agent-session={agentSession ? "true" : "false"}
       data-output-view={agentSession ? outputView : "json"}
       data-search-query={searchQuery}
-      data-search-state={searchWorker.status}
+      data-search-state={searchStatus}
     >
       <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
         <div className="flex items-center gap-3.5">
@@ -803,13 +758,13 @@ export const UnquoteApp = ({
         totalCount={result.stats.total}
         filterMode={recordFilter}
         onClose={() => setCommandPaletteOpen(false)}
-        onInputChange={qi.setCommandInput}
-        onSearch={qi.commandSearch}
-        onJumpPath={handleSubmitToolbarQuery}
-        onRegexChange={(value) => qi.setSearchOption("regex", value)}
-        onCaseSensitiveChange={(value) => qi.setSearchOption("caseSensitive", value)}
-        onJqChange={(value) => qi.setSearchOption("jq", value)}
-        onFilterChange={qi.setRecordFilter}
+        onInputChange={queryIntent.changeCommandInput}
+        onSearch={queryIntent.searchFromCommand}
+        onJumpPath={queryIntent.submitToolbarQuery}
+        onRegexChange={(value) => queryIntent.setOption("regex", value)}
+        onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
+        onJqChange={(value) => queryIntent.setOption("jq", value)}
+        onFilterChange={queryIntent.setFilter}
       />
       <Toaster theme={theme} />
     </div>
