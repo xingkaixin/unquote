@@ -125,7 +125,7 @@ const RawJsonlPanel = ({
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 w-7 px-0"
+          className="uq-icon-button h-7 w-7 px-0"
           onClick={onCollapse}
           aria-label={t("agent.collapseRawData")}
         >
@@ -171,7 +171,7 @@ const RawJsonlRail = ({ onExpand }: { onExpand: () => void }) => {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 w-7 px-0"
+        className="uq-icon-button h-7 w-7 px-0"
         onClick={onExpand}
         aria-label={t("agent.expandRawData")}
       >

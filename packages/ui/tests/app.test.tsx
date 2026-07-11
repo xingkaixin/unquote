@@ -10,6 +10,7 @@ import { I18nProvider } from "../src/i18n/context";
 const maxTransferStringLength = 4096;
 const maxDeferredStringLength = 160;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
+const inputFormatLabel = "Input format";
 const codexRolloutSource = [
   JSON.stringify({
     timestamp: "2026-06-06T13:44:06.579Z",
@@ -321,6 +322,20 @@ const renderCodexAgentView = async () => {
 };
 
 describe("UnquoteApp", () => {
+  it("names the primary source and search controls", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByRole("button", { name: "Open file" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: "Clear source" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: "Collapse source" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("textbox", { name: "Source input" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).not.toHaveLength(0);
+  });
+
   it("renders and parses input", async () => {
     const user = userEvent.setup();
     render(
@@ -630,7 +645,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1075,7 +1090,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1109,7 +1124,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1129,7 +1144,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     fireEvent.click(screen.getByRole("tab", { name: "Output" }));
@@ -1168,7 +1183,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1214,7 +1229,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1239,7 +1254,7 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1277,7 +1292,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1309,7 +1324,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1375,7 +1390,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1449,7 +1464,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
     await user.click(screen.getByRole("tab", { name: "Output" }));
@@ -1506,7 +1521,7 @@ describe("UnquoteApp", () => {
           <UnquoteApp initialInput={input} />
         </I18nProvider>,
       );
-      fireEvent.change(screen.getAllByLabelText("format mode")[0]!, {
+      fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
         target: { value: "jsonl" },
       });
       await user.click(screen.getByRole("tab", { name: "Output" }));

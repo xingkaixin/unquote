@@ -275,7 +275,13 @@ export const JsonTree = ({
               {t("tree.exitFocus")}
             </Button>
           ) : null}
-          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={onCopyRecord}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="uq-icon-button h-7 w-7 px-0"
+            onClick={onCopyRecord}
+            aria-label={t("tree.copyRecord")}
+          >
             <Copy className="size-3.5" />
           </Button>
         </div>

@@ -198,6 +198,13 @@ a,
     box-shadow 150ms ease;
 }
 
+@media (hover: none) and (pointer: coarse) {
+  .uq-icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .uq-shell {
   min-height: 100vh;
   background-color: var(--canvas);
