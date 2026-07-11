@@ -1,309 +1,256 @@
-# Design System: Cursor
+# Unquote Design System
 
-## 1. Visual Theme & Atmosphere
+This document describes the design system currently shipped by Unquote. It applies to the shared
+UI package, the web app, and the browser extension.
 
-Cursor's website is a study in warm minimalism meets code-editor elegance. The entire experience is built on a warm off-white canvas (`#f2f1ed`) with dark warm-brown text (`#26251e`) -- not pure black, not neutral gray, but a deeply warm near-black with a yellowish undertone that evokes old paper, ink, and craft. This warmth permeates every surface: backgrounds lean toward cream (`#e6e5e0`, `#ebeae5`), borders dissolve into transparent warm overlays using `oklab` color space, and even the error state (`#cf2d56`) carries warmth rather than clinical red. The result feels more like a premium print publication than a tech website.
+## Source of truth
 
-The custom CursorGothic font is the typographic signature -- a gothic sans-serif with aggressive negative letter-spacing at display sizes (-2.16px at 72px) that creates a compressed, engineered feel. As a secondary voice, the jjannon serif font (with OpenType `"cswh"` contextual swash alternates) provides literary counterpoint for body copy and editorial passages. The monospace voice comes from berkeleyMono, a refined coding font that connects the marketing site to Cursor's core identity as a code editor. This three-font system (gothic display, serif body, mono code) gives Cursor one of the most typographically rich palettes in developer tooling.
+Runtime tokens in `packages/ui/src/styles.css` are the executable source of truth. This document
+explains their intended use; it does not define a separate visual direction.
 
-The border system is particularly distinctive -- Cursor uses `oklab()` color space for border colors, applying warm brown at various alpha levels (0.1, 0.2, 0.55) to create borders that feel organic rather than mechanical. The signature border color `oklab(0.263084 -0.00230259 0.0124794 / 0.1)` is not a simple rgba value but a perceptually uniform color that maintains visual consistency across different backgrounds.
+When the implementation and this document disagree:
 
-**Key Characteristics:**
-- CursorGothic with aggressive negative letter-spacing (-2.16px at 72px, -0.72px at 36px) for compressed display headings
-- jjannon serif for body text with OpenType `"cswh"` (contextual swash alternates)
-- berkeleyMono for code and technical labels
-- Warm off-white background (`#f2f1ed`) instead of pure white -- the entire system is warm-shifted
-- Primary text color `#26251e` (warm near-black with yellow undertone)
-- Accent orange `#f54e00` for brand highlight and links
-- oklab-space borders at various alpha levels for perceptually uniform edge treatment
-- Pill-shaped elements with extreme radius (33.5M px, effectively full-pill)
-- 8px base spacing system with fine-grained sub-8px increments (1.5px, 2px, 2.5px, 3px, 4px, 5px, 6px)
+1. preserve current runtime behavior unless a visual migration is explicitly approved;
+2. update tokens and this document in the same pull request;
+3. verify both light and dark themes in the web app and extension.
 
-## 2. Color Palette & Roles
+Do not introduce product tokens only in this document. Do not copy visual systems, proprietary
+fonts, or component rules from another product without an explicit migration decision.
 
-### Primary
-- **Cursor Dark** (`#26251e`): Primary text, headings, dark UI surfaces. A warm near-black with distinct yellow-brown undertone -- the defining color of the system.
-- **Cursor Cream** (`#f2f1ed`): Page background, primary surface. Not white but a warm cream that sets the entire warm tone.
-- **Cursor Light** (`#e6e5e0`): Secondary surface, button backgrounds, card fills. A slightly warmer, slightly darker cream.
-- **Pure White** (`#ffffff`): Used sparingly for maximum contrast elements and specific surface highlights.
-- **True Black** (`#000000`): Minimal use, specific code/console contexts.
+## Product character
 
-### Accent
-- **Cursor Orange** (`#f54e00`): Brand accent, `--color-accent`. A vibrant red-orange used for primary CTAs, active links, and brand moments. Warm and urgent.
-- **Gold** (`#c08532`): Secondary accent, warm gold for premium or highlighted contexts.
+Unquote is a dense developer tool for reading JSON, JSONL, and agent sessions. Its interface should
+feel precise, quiet, and operational:
 
-### Semantic
-- **Error** (`#cf2d56`): `--color-error`. A warm crimson-rose rather than cold red.
-- **Success** (`#1f8a65`): `--color-success`. A muted teal-green, warm-shifted.
+- neutral surfaces keep syntax and status colors legible;
+- orange marks action, attention, and the product identity;
+- compact typography and square controls support information density;
+- rounded cards separate major work areas without making every control soft;
+- a subtle dot grid gives the workspace texture while preserving contrast;
+- motion communicates state changes and never delays work.
 
-### Timeline / Feature Colors
-- **Thinking** (`#dfa88f`): Warm peach for "thinking" state in AI timeline.
-- **Grep** (`#9fc9a2`): Soft sage green for search/grep operations.
-- **Read** (`#9fbbe0`): Soft blue for file reading operations.
-- **Edit** (`#c0a8dd`): Soft lavender for editing operations.
+The visual system is not a marketing-site theme. Readability, scanning speed, keyboard use, and
+large-data stability take priority over decorative expression.
 
-### Surface Scale
-- **Surface 100** (`#f7f7f4`): Lightest button/card surface, barely tinted.
-- **Surface 200** (`#f2f1ed`): Primary page background.
-- **Surface 300** (`#ebeae5`): Button default background, subtle emphasis.
-- **Surface 400** (`#e6e5e0`): Card backgrounds, secondary surfaces.
-- **Surface 500** (`#e1e0db`): Tertiary button background, deeper emphasis.
+## Token architecture
 
-### Border Colors
-- **Border Primary** (`oklab(0.263084 -0.00230259 0.0124794 / 0.1)`): Standard border, 10% warm brown in oklab space.
-- **Border Medium** (`oklab(0.263084 -0.00230259 0.0124794 / 0.2)`): Emphasized border, 20% warm brown.
-- **Border Strong** (`rgba(38, 37, 30, 0.55)`): Strong borders, table rules.
-- **Border Solid** (`#26251e`): Full-opacity dark border for maximum contrast.
-- **Border Light** (`#f2f1ed`): Light border matching page background.
+Use semantic Tailwind tokens such as `bg-surface-100`, `text-text-secondary`, and `border-border`.
+Use the lower-level CSS variables only for effects that cannot be expressed through the theme.
 
-### Shadows & Depth
-- **Card Shadow** (`rgba(0,0,0,0.14) 0px 28px 70px, rgba(0,0,0,0.1) 0px 14px 32px, oklab(0.263084 -0.00230259 0.0124794 / 0.1) 0px 0px 0px 1px`): Heavy elevated card with warm oklab border ring.
-- **Ambient Shadow** (`rgba(0,0,0,0.02) 0px 0px 16px, rgba(0,0,0,0.008) 0px 0px 8px`): Subtle ambient glow for floating elements.
+### Light theme
 
-## 3. Typography Rules
+| Role | Token | Value | Use |
+| --- | --- | --- | --- |
+| Canvas | `--background`, `--canvas` | `#f2f2ef` | Page and workspace background |
+| Primary surface | `--color-surface-100`, `--surface` | `#ffffff` | Cards, dialogs, active tabs |
+| Raised surface | `--color-surface-50`, `--surface-raised` | `#f7f7f4` | Inputs, subtle emphasis |
+| Surface step 2 | `--color-surface-200` | `#f2f2ef` | Hover and grouped controls |
+| Surface step 3 | `--color-surface-300` | `#e6e6e1` | Stronger separation |
+| Surface step 4 | `--color-surface-400` | `#d2d2cc` | Disabled or structural emphasis |
+| Surface step 5 | `--color-surface-500` | `#b2b2ac` | Muted structural color |
+| Display text | `--color-text-display` | `#000000` | Product name and strongest headings |
+| Primary text | `--color-text-primary` | `#1a1a18` | Main content |
+| Secondary text | `--color-text-secondary` | `#6c6c66` | Labels and supporting content |
+| Tertiary text | `--color-text-tertiary` | `#8a8a84` | Low-emphasis metadata |
+| Muted text | `--color-text-muted` | `#b2b2ac` | Placeholders and disabled context |
+| Border | `--color-border` | `#e6e6e1` | Default separation |
+| Border medium | `--color-border-medium` | `#d2d2cc` | Hover, focus-adjacent emphasis |
+| Border strong | `--color-border-strong` | `#6c6c66` | High-contrast edges |
 
-### Font Family
-- **Display/Headlines**: `CursorGothic`, with fallbacks: `CursorGothic Fallback, system-ui, Helvetica Neue, Helvetica, Arial`
-- **Body/Editorial**: `jjannon`, with fallbacks: `Iowan Old Style, Palatino Linotype, URW Palladio L, P052, ui-serif, Georgia, Cambria, Times New Roman, Times`
-- **Code/Technical**: `berkeleyMono`, with fallbacks: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New`
-- **UI/System**: `system-ui`, with fallbacks: `-apple-system, Segoe UI, Helvetica Neue, Arial`
-- **Icons**: `CursorIcons16` (icon font at 14px and 12px)
-- **OpenType Features**: `"cswh"` on jjannon body text, `"ss09"` on CursorGothic buttons/captions
+### Dark theme
 
-### Hierarchy
+Dark mode is activated by the `.dark` class on `<html>`. It is a first-class theme, not a color
+inversion.
 
-| Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
-|------|------|------|--------|-------------|----------------|-------|
-| Display Hero | CursorGothic | 72px (4.50rem) | 400 | 1.10 (tight) | -2.16px | Maximum compression, hero statements |
-| Section Heading | CursorGothic | 36px (2.25rem) | 400 | 1.20 (tight) | -0.72px | Feature sections, CTA headlines |
-| Sub-heading | CursorGothic | 26px (1.63rem) | 400 | 1.25 (tight) | -0.325px | Card headings, sub-sections |
-| Title Small | CursorGothic | 22px (1.38rem) | 400 | 1.30 (tight) | -0.11px | Smaller titles, list headings |
-| Body Serif | jjannon | 19.2px (1.20rem) | 500 | 1.50 | normal | Editorial body with `"cswh"` |
-| Body Serif SM | jjannon | 17.28px (1.08rem) | 400 | 1.35 | normal | Standard body text, descriptions |
-| Body Sans | CursorGothic | 16px (1.00rem) | 400 | 1.50 | normal/0.08px | UI body text |
-| Button Label | CursorGothic | 14px (0.88rem) | 400 | 1.00 (tight) | normal | Primary button text |
-| Button Caption | CursorGothic | 14px (0.88rem) | 400 | 1.50 | 0.14px | Secondary button with `"ss09"` |
-| Caption | CursorGothic | 11px (0.69rem) | 400-500 | 1.50 | normal | Small captions, metadata |
-| System Heading | system-ui | 20px (1.25rem) | 700 | 1.55 | normal | System UI headings |
-| System Caption | system-ui | 13px (0.81rem) | 500-600 | 1.33 | normal | System UI labels |
-| System Micro | system-ui | 11px (0.69rem) | 500 | 1.27 (tight) | 0.048px | Uppercase micro labels |
-| Mono Body | berkeleyMono | 12px (0.75rem) | 400 | 1.67 (relaxed) | normal | Code blocks |
-| Mono Small | berkeleyMono | 11px (0.69rem) | 400 | 1.33 | -0.275px | Inline code, terminal |
-| Lato Heading | Lato | 16px (1.00rem) | 600 | 1.33 | normal | Lato section headings |
-| Lato Caption | Lato | 14px (0.88rem) | 400-600 | 1.33 | normal | Lato captions |
-| Lato Micro | Lato | 12px (0.75rem) | 400-600 | 1.27 (tight) | 0.053px | Lato small labels |
+| Role | Value |
+| --- | --- |
+| Canvas | `#000000` |
+| Primary surface | `#111111` |
+| Raised surface | `#1a1a1a` |
+| Structural surfaces | `#222222`, `#333333`, `#666666` |
+| Display text | `#ffffff` |
+| Primary text | `#e8e8e8` |
+| Secondary text | `#999999` |
+| Tertiary text | `#777777` |
+| Default border | `#222222` |
+| Medium border | `#333333` |
 
-### Principles
-- **Gothic compression for impact**: CursorGothic at display sizes uses -2.16px letter-spacing at 72px, progressively relaxing: -0.72px at 36px, -0.325px at 26px, -0.11px at 22px, normal at 16px and below. The tracking creates a sense of precision engineering.
-- **Serif for soul**: jjannon provides literary warmth. The `"cswh"` feature adds contextual swash alternates that give body text a calligraphic quality.
-- **Three typographic voices**: Gothic (display/UI), serif (editorial/body), mono (code/technical). Each serves a distinct communication purpose.
-- **Weight restraint**: CursorGothic uses weight 400 almost exclusively, relying on size and tracking for hierarchy rather than weight. System-ui components use 500-700 for functional emphasis.
+Components must use semantic tokens so theme changes do not require component-level color
+overrides. Hard-coded black is reserved for backdrops or the dark canvas; hard-coded white is
+reserved for content placed on the accent fill.
 
-## 4. Component Stylings
+## Semantic color
+
+| Role | Light | Dark | Use |
+| --- | --- | --- | --- |
+| Accent | `#f26522` | `#f26522` | Primary active state, focus outline, product LED |
+| Accent hover | `#ff7a36` | `#ff7a36` | Interactive emphasis |
+| Success | `#2f8a4c` | `#4a9e5c` | Valid records and completed states |
+| Error | `#d71921` | `#d71921` | Parse failures and destructive/error feedback |
+| Warning | `#f26522` | `#f26522` | Tool warnings and attention states |
+
+Semantic colors communicate meaning. Do not use success or error colors as general decoration.
+Orange may carry both brand and warning meaning only where surrounding labels make the state
+unambiguous.
+
+## JSON syntax color
+
+Syntax colors are semantic and theme-aware:
+
+| JSON role | Light | Dark |
+| --- | --- | --- |
+| Key | `#6c6c66` | `#9b9b95` |
+| String | `#3a7d52` | `#7bb389` |
+| Number | `#9a6a33` | `#d6a76a` |
+| Boolean | `#46689e` | `#88a6d2` |
+| Null | `#a8a8a2` | `#5f5f5a` |
+
+Syntax color supplements text and structure; it must not be the only indicator of selection,
+errors, expansion, or focus.
+
+## Typography
+
+The project loads three Google Fonts in `packages/ui/src/styles.css`:
+
+- `Space Grotesk` is the default UI sans-serif;
+- `Space Mono` is used for JSON, paths, metadata, commands, and technical labels;
+- `Doto` is the display voice and should remain limited to distinctive brand moments.
+
+Fallback stacks are part of the tokens and must remain usable if remote fonts fail to load.
+
+The base UI is 13px. Common roles are:
+
+| Role | Typical treatment |
+| --- | --- |
+| Card or pane title | 13px, medium, `-0.01em`, display text |
+| Standard content | 12–13px, normal or medium |
+| Search and code | 11.5–12px mono |
+| Metadata | 11px mono, uppercase, `0.08em` tracking |
+| Badge | 9px mono, bold, uppercase, `0.12em` tracking |
+
+Use weight and contrast sparingly. Dense screens should establish hierarchy through grouping,
+spacing, and text roles before adding larger type.
+
+## Shape and elevation
+
+The shape system intentionally contrasts square controls with rounded containers:
+
+- `--radius-sm: 0px` and `--radius-md: 0px` keep buttons, tabs, badges, and compact inputs square;
+- `--radius-card: 16px` defines primary cards and sticky toolbars;
+- `--radius-overlay: 12px` defines dialogs, popovers, and command surfaces;
+- `--radius-lg: 16px` is available to Tailwind utilities for large containers.
+
+Do not add arbitrary intermediate radii. A new radius must represent a reusable structural role.
+
+Default cards are flat: white or dark surfaces, a one-pixel semantic border, and no shadow.
+Elevation is reserved for overlays and transient emphasis:
+
+- `--shadow-sm` is none;
+- `--shadow-md` and `--shadow-lg` use the same restrained ambient shadow;
+- `--shadow-glass` combines an inset highlight with ambient elevation for translucent surfaces.
+
+## Layout and spacing
+
+Use Tailwind's spacing scale and existing component patterns. The current interface commonly uses:
+
+- 4–8px gaps for icons, badges, and compact controls;
+- 10–16px internal padding for cards and toolbars;
+- 12–14px gaps between major workspace regions;
+- a 52px sticky application header;
+- a maximum application width of 1760px.
+
+The desktop workspace uses an input/navigation rail plus a flexible output region. On smaller
+screens, Input and Output become tabs. Agent-session layouts use container queries at 44rem and
+64rem so they respond to their allocated panel width rather than the viewport alone.
+
+Avoid fixed widths for data-bearing content. Prefer `minmax(0, 1fr)`, truncation for metadata, and
+scrolling for code or long JSON values.
+
+## Components
 
 ### Buttons
 
-**Primary (Warm Surface)**
-- Background: `#ebeae5` (Surface 300)
-- Text: `#26251e` (Cursor Dark)
-- Padding: 10px 12px 10px 14px
-- Radius: 8px
-- Outline: none
-- Hover: text shifts to `var(--color-error)` (`#cf2d56`)
-- Focus shadow: `rgba(0,0,0,0.1) 0px 4px 12px`
-- Use: Primary actions, main CTAs
+Buttons use mono uppercase labels, square corners, a visible focus outline, and a one-pixel active
+translation. The shared variants are:
 
-**Secondary Pill**
-- Background: `#e6e5e0` (Surface 400)
-- Text: `oklab(0.263 / 0.6)` (60% warm brown)
-- Padding: 3px 8px
-- Radius: full pill (33.5M px)
-- Hover: text shifts to `var(--color-error)`
-- Use: Tags, filters, secondary actions
+- `default`: transparent surface with a medium border;
+- `outline`: white/dark surface with subtle hover fill;
+- `ghost`: transparent chrome for secondary actions;
+- `secondary`: orange fill for active or primary emphasis.
 
-**Tertiary Pill**
-- Background: `#e1e0db` (Surface 500)
-- Text: `oklab(0.263 / 0.6)` (60% warm brown)
-- Radius: full pill
-- Use: Active filter state, selected tags
+Default height is 36px; compact height is 28px. Icon-only controls use `.uq-icon-button` and reach a
+minimum 44×44px hit area on coarse pointers.
 
-**Ghost (Transparent)**
-- Background: `rgba(38, 37, 30, 0.06)` (6% warm brown)
-- Text: `rgba(38, 37, 30, 0.55)` (55% warm brown)
-- Padding: 6px 12px
-- Use: Tertiary actions, dismiss buttons
+### Cards
 
-**Light Surface**
-- Background: `#f7f7f4` (Surface 100) or `#f2f1ed` (Surface 200)
-- Text: `#26251e` or `oklab(0.263 / 0.9)` (90%)
-- Padding: 0px 8px 1px 12px
-- Use: Dropdown triggers, subtle interactive elements
+Cards are the main structural container. They use `--radius-card`, `surface-100`, a default border,
+and a slightly stronger hover border. Headers use a bottom divider; content generally uses 16px
+horizontal and 10px vertical padding.
 
-### Cards & Containers
-- Background: `#e6e5e0` or `#f2f1ed`
-- Border: `1px solid oklab(0.263 / 0.1)` (warm brown at 10%)
-- Radius: 8px (standard), 4px (compact), 10px (featured)
-- Shadow: `rgba(0,0,0,0.14) 0px 28px 70px, rgba(0,0,0,0.1) 0px 14px 32px` for elevated cards
-- Hover: shadow intensification
+### Tabs and badges
 
-### Inputs & Forms
-- Background: transparent or surface
-- Text: `#26251e`
-- Padding: 8px 8px 6px (textarea)
-- Border: `1px solid oklab(0.263 / 0.1)`
-- Focus: border shifts to `oklab(0.263 / 0.2)` or accent orange
+Tabs are square, compact, mono, and grouped on `surface-200`. The active tab moves to
+`surface-100` and display text. Badges are 9px uppercase metadata; most are borderless, while danger
+badges retain an error border.
 
-### Navigation
-- Clean horizontal nav on warm cream background
-- Cursor logotype left-aligned (~96x24px)
-- Links: 14px CursorGothic or system-ui, weight 500
-- CTA button: warm surface with Cursor Dark text
-- Tab navigation: bottom border `1px solid oklab(0.263 / 0.1)` with active tab differentiation
+### Inputs and command surfaces
 
-### Image Treatment
-- Code editor screenshots with `1px solid oklab(0.263 / 0.1)` border
-- Rounded corners: 8px standard
-- AI chat/timeline screenshots dominate feature sections
-- Warm gradient or solid cream backgrounds behind hero images
+Inputs sit on transparent or raised neutral surfaces and use border changes for focus-within.
+Command surfaces use `--radius-overlay`, `surface-100`, a medium border, and overlay elevation.
+Every input needs an accessible label; placeholder text is supporting context, not a label.
 
-### Distinctive Components
+### JSON and record views
 
-**AI Timeline**
-- Vertical timeline showing AI operations: thinking (peach), grep (sage), read (blue), edit (lavender)
-- Each step uses its semantic color with matching text
-- Connected with vertical lines
-- Core visual metaphor for Cursor's AI-first coding experience
+JSON rows prioritize alignment and scanability. Keys and values use the syntax palette, paths use
+mono text, and selection combines structural styling with color. Large collections may virtualize,
+but virtual and non-virtual paths must remain visually equivalent.
 
-**Code Editor Previews**
-- Dark code editor screenshots with warm cream border frame
-- berkeleyMono for code text
-- Syntax highlighting using timeline colors
+## Icons
 
-**Pricing Cards**
-- Warm surface backgrounds with bordered containers
-- Feature lists using jjannon serif for readability
-- CTA buttons with accent orange or primary dark styling
+Use `lucide-react` only. Standard sizes are:
 
-## 5. Layout Principles
+- `size-3` for inline micro-actions;
+- `size-3.5` for most controls;
+- `size-4` for prominent actions.
 
-### Spacing System
-- Base unit: 8px
-- Fine scale: 1.5px, 2px, 2.5px, 3px, 4px, 5px, 6px (sub-8px for micro-adjustments)
-- Standard scale: 8px, 10px, 12px, 14px (derived from extraction)
-- Extended scale (inferred): 16px, 24px, 32px, 48px, 64px, 96px
-- Notable: fine-grained sub-8px increments for precise icon/text alignment
+Icons supplement labels and accessible names. Do not communicate a state through an icon alone.
 
-### Grid & Container
-- Max content width: approximately 1200px
-- Hero: centered single-column with generous top padding (80-120px)
-- Feature sections: 2-3 column grids for cards and features
-- Full-width sections with warm cream or slightly darker backgrounds
-- Sidebar layouts for documentation and settings pages
+## Motion
 
-### Whitespace Philosophy
-- **Warm negative space**: The cream background means whitespace has warmth and texture, unlike cold white minimalism. Large empty areas feel cozy rather than clinical.
-- **Compressed text, open layout**: Aggressive negative letter-spacing on CursorGothic headlines is balanced by generous surrounding margins. Text is dense; space around it breathes.
-- **Section variation**: Alternating surface tones (cream → lighter cream → cream) create subtle section differentiation without harsh boundaries.
+The default interactive transition is 150ms for color, background, border, and shadow. Component
+transitions may include transform when the movement communicates pressing or state change.
 
-### Border Radius Scale
-- Micro (1.5px): Fine detail elements
-- Small (2px): Inline elements, code spans
-- Medium (3px): Small containers, inline badges
-- Standard (4px): Cards, images, compact buttons
-- Comfortable (8px): Primary buttons, cards, menus
-- Featured (10px): Larger containers, featured cards
-- Full Pill (33.5M px / 9999px): Pill buttons, tags, badges
+Use `--ease: cubic-bezier(0.4, 0, 0.2, 1)` for branded ambient motion. The status LED pulses at
+2.4s; error attention may use a faster 1.6s pulse.
 
-## 6. Depth & Elevation
+Respect `prefers-reduced-motion: reduce`:
 
-| Level | Treatment | Use |
-|-------|-----------|-----|
-| Flat (Level 0) | No shadow | Page background, text blocks |
-| Border Ring (Level 1) | `oklab(0.263 / 0.1) 0px 0px 0px 1px` | Standard card/container border (warm oklab) |
-| Border Medium (Level 1b) | `oklab(0.263 / 0.2) 0px 0px 0px 1px` | Emphasized borders, active states |
-| Ambient (Level 2) | `rgba(0,0,0,0.02) 0px 0px 16px, rgba(0,0,0,0.008) 0px 0px 8px` | Floating elements, subtle glow |
-| Elevated Card (Level 3) | `rgba(0,0,0,0.14) 0px 28px 70px, rgba(0,0,0,0.1) 0px 14px 32px, oklab ring` | Modals, popovers, elevated cards |
-| Focus | `rgba(0,0,0,0.1) 0px 4px 12px` on button focus | Interactive focus feedback |
+- decorative pulses stop;
+- progress and transform transitions become immediate;
+- active button translation is removed.
 
-**Shadow Philosophy**: Cursor's depth system is built around two ideas. First, borders use perceptually uniform oklab color space rather than rgba, ensuring warm brown borders look consistent across different background tones. Second, elevation shadows use dramatically large blur values (28px, 70px) with moderate opacity (0.14, 0.1), creating a diffused, atmospheric lift rather than hard-edged drop shadows. Cards don't feel like they float above the page -- they feel like the page has gently opened a space for them.
+Do not animate layout continuously, animate large JSON collections, or add motion that delays
+search, parsing, selection, or navigation.
 
-### Decorative Depth
-- Warm cream surface variations create subtle tonal depth without shadows
-- oklab borders at 10% and 20% create a spectrum of edge definition
-- No harsh divider lines -- section separation through background tone shifts and spacing
+## Accessibility
 
-## 7. Interaction & Motion
+- Preserve visible `focus-visible` outlines using the accent token.
+- Maintain semantic roles and keyboard behavior provided by Base UI primitives.
+- Provide accessible names for icon-only controls.
+- Do not rely on color alone for errors, success, active selection, or syntax meaning.
+- Keep text and controls usable when remote fonts fail.
+- Preserve 44px touch targets for icon controls on coarse pointers.
+- Verify both themes and reduced-motion behavior for new interactive states.
 
-### Hover States
-- Buttons: text color shifts to `--color-error` (`#cf2d56`) on hover -- a distinctive warm crimson that signals interactivity
-- Links: color shift to accent orange (`#f54e00`) or underline decoration with `rgba(38, 37, 30, 0.4)`
-- Cards: shadow intensification on hover (ambient → elevated)
+## Governance checklist
 
-### Focus States
-- Shadow-based focus: `rgba(0,0,0,0.1) 0px 4px 12px` for depth-based focus indication
-- Border focus: `oklab(0.263 / 0.2)` (20% border) for input/form focus
-- Consistent warm tone in all focus states -- no cold blue focus rings
+Before merging a visual change:
 
-### Transitions
-- Color transitions: 150ms ease for text/background color changes
-- Shadow transitions: 200ms ease for elevation changes
-- Transform: subtle scale or translate for interactive feedback
+1. Reuse an existing semantic token or explain why a new role is required.
+2. Update `packages/ui/src/styles.css` and this document together when token intent changes.
+3. Use shared components and `lucide-react` rather than local replacements.
+4. Check light mode, dark mode, keyboard focus, coarse-pointer targets, and reduced motion.
+5. Run `pnpm check`; add focused UI tests when behavior or accessibility changes.
 
-## 8. Responsive Behavior
-
-### Breakpoints
-| Name | Width | Key Changes |
-|------|-------|-------------|
-| Mobile | <600px | Single column, reduced padding, stacked navigation |
-| Tablet Small | 600-768px | 2-column grids begin |
-| Tablet | 768-900px | Expanded card grids, sidebar appears |
-| Desktop Small | 900-1279px | Full layout forming |
-| Desktop | >1279px | Full layout, maximum content width |
-
-### Touch Targets
-- Buttons use comfortable padding (6px-14px vertical, 8px-14px horizontal)
-- Pill buttons maintain tap-friendly sizing with 3px-10px padding
-- Navigation links at 14px with adequate spacing for touch
-
-### Collapsing Strategy
-- Hero: 72px CursorGothic → 36px → 26px on smaller screens, maintaining proportional letter-spacing
-- Navigation: horizontal links → hamburger menu on mobile
-- Feature cards: 3-column → 2-column → single column stacked
-- Code editor screenshots: maintain aspect ratio, may shrink with border treatment preserved
-- Timeline visualization: horizontal → vertical stacking
-- Section spacing: 80px+ → 48px → 32px on mobile
-
-### Image Behavior
-- Editor screenshots maintain warm border treatment at all sizes
-- AI timeline adapts from horizontal to vertical layout
-- Product screenshots use responsive images with consistent border radius
-- Full-width hero images scale proportionally
-
-## 9. Agent Prompt Guide
-
-### Quick Color Reference
-- Primary CTA background: `#ebeae5` (warm cream button)
-- Page background: `#f2f1ed` (warm off-white)
-- Text color: `#26251e` (warm near-black)
-- Secondary text: `rgba(38, 37, 30, 0.55)` (55% warm brown)
-- Accent: `#f54e00` (orange)
-- Error/hover: `#cf2d56` (warm crimson)
-- Success: `#1f8a65` (muted teal)
-- Border: `oklab(0.263084 -0.00230259 0.0124794 / 0.1)` or `rgba(38, 37, 30, 0.1)` as fallback
-
-### Example Component Prompts
-- "Create a hero section on `#f2f1ed` warm cream background. Headline at 72px CursorGothic weight 400, line-height 1.10, letter-spacing -2.16px, color `#26251e`. Subtitle at 17.28px jjannon weight 400, line-height 1.35, color `rgba(38,37,30,0.55)`. Primary CTA button (`#ebeae5` bg, 8px radius, 10px 14px padding) with hover text shift to `#cf2d56`."
-- "Design a card: `#e6e5e0` background, border `1px solid rgba(38,37,30,0.1)`. Radius 8px. Title at 22px CursorGothic weight 400, letter-spacing -0.11px. Body at 17.28px jjannon weight 400, color `rgba(38,37,30,0.55)`. Use `#f54e00` for link accents."
-- "Build a pill tag: `#e6e5e0` background, `rgba(38,37,30,0.6)` text, full-pill radius (9999px), 3px 8px padding, 14px CursorGothic weight 400."
-- "Create navigation: sticky `#f2f1ed` background with backdrop-filter blur. 14px system-ui weight 500 for links, `#26251e` text. CTA button right-aligned with `#ebeae5` bg and 8px radius. Bottom border `1px solid rgba(38,37,30,0.1)`."
-- "Design an AI timeline showing four steps: Thinking (`#dfa88f`), Grep (`#9fc9a2`), Read (`#9fbbe0`), Edit (`#c0a8dd`). Each step: 14px system-ui label + 16px CursorGothic description + vertical connecting line in `rgba(38,37,30,0.1)`."
-
-### Iteration Guide
-1. Always use warm tones -- `#f2f1ed` background, `#26251e` text, never pure white/black for primary surfaces
-2. Letter-spacing scales with font size for CursorGothic: -2.16px at 72px, -0.72px at 36px, -0.325px at 26px, normal at 16px
-3. Use `rgba(38, 37, 30, alpha)` as a CSS-compatible fallback for oklab borders
-4. Three fonts, three voices: CursorGothic (display/UI), jjannon (editorial), berkeleyMono (code)
-5. Pill shapes (9999px radius) for tags and filters; 8px radius for primary buttons and cards
-6. Hover states use `#cf2d56` text color -- the warm crimson shift is a signature interaction
-7. Shadows use large blur values (28px, 70px) for diffused atmospheric depth
-8. The sub-8px spacing scale (1.5, 2, 2.5, 3, 4, 5, 6px) is critical for icon/text micro-alignment
+This document should describe shipped behavior. Aspirational redesigns belong in a proposal or
+issue until their migration is approved and implemented.
