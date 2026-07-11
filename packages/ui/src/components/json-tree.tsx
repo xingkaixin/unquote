@@ -326,7 +326,9 @@ export const JsonTree = ({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="nf-led is-green is-static" />
-              <Badge variant="success">ok</Badge>
+              <Badge variant="success" translate="no">
+                ok
+              </Badge>
             </span>
             <span className="min-w-0 truncate text-[13px] text-text-primary">
               {insight?.title ?? record.summary}

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { en } from "./en";
 import { zhCN } from "./zh-CN";
@@ -17,6 +17,19 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
+
+  useEffect(() => {
+    const previousLang = document.documentElement.getAttribute("lang");
+    document.documentElement.lang = locale;
+
+    return () => {
+      if (previousLang === null) {
+        document.documentElement.removeAttribute("lang");
+      } else {
+        document.documentElement.lang = previousLang;
+      }
+    };
+  }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => {
     const t = createTranslator(locales[locale]);

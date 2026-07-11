@@ -816,7 +816,9 @@ export const UnquoteApp = ({
           <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
             UNQUOTE
           </h1>
-          <span className="nf-mono-sub nf-dim hidden sm:inline">JSON · JSONL</span>
+          <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
+            JSON · JSONL
+          </span>
         </div>
         <div className="flex items-center gap-1">
           {chromeWebStoreUrl ? (
