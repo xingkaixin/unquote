@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
@@ -1030,6 +1031,45 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
     expect((await screen.findAllByText("Failed to read file")).length).toBeGreaterThan(0);
     await waitFor(() => expect(sourceInput).toHaveValue('{"old":true}'));
+  });
+
+  it("ignores a read failure after a newer file import succeeds", async () => {
+    const toastError = vi.spyOn(toast, "error");
+    const pendingReads = new Map<
+      string,
+      { resolve: (text: string) => void; reject: (error: Error) => void }
+    >();
+    const onReadFile = vi.fn(
+      (file: File) =>
+        new Promise<string>((resolve, reject) => {
+          pendingReads.set(file.name, { resolve, reject });
+        }),
+    );
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const pasteFile = (file: File) =>
+      fireEvent.paste(sourceInput, {
+        clipboardData: { files: [file], items: [], types: ["Files"] },
+      });
+
+    pasteFile(new File(["a"], "a.json", { type: "application/json" }));
+    pasteFile(new File(["b"], "b.json", { type: "application/json" }));
+    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(2));
+
+    await act(async () => pendingReads.get("b.json")?.resolve('{"current":true}'));
+    await waitFor(() => expect(sourceInput).toHaveValue('{"current":true}'));
+    await act(async () => pendingReads.get("a.json")?.reject(new Error("stale failure")));
+
+    expect(sourceInput).toHaveValue('{"current":true}');
+    expect(toastError).not.toHaveBeenCalled();
+    expect(screen.queryByText("Failed to read file")).not.toBeInTheDocument();
   });
 
   it("ends streamed file parsing and reports a worker read failure once", async () => {

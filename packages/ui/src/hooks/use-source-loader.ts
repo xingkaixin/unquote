@@ -94,11 +94,13 @@ export const useSourceLoader = ({
             }
           });
     } catch (error) {
-      if (fileImportIdRef.current === requestId) {
-        setSourceState((prev) =>
-          prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
-        );
+      if (fileImportIdRef.current !== requestId) {
+        return;
       }
+
+      setSourceState((prev) =>
+        prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
+      );
       onError(error);
       return;
     }
