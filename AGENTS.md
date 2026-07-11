@@ -15,7 +15,8 @@ apps/extension         WXT + React Chrome extension (MV3)
 
 | Layer | Tools |
 |---|---|
-| Package Manager | pnpm 10.33.0 (workspace protocol `workspace:*`) |
+| Runtime | Node.js 22 |
+| Package Manager | pnpm 11.11.0 (workspace protocol `workspace:*`) |
 | Build / Dev | Turbo, Vite, tsup |
 | Frontend | React 19, TypeScript 6, Tailwind CSS v4 |
 | Component Primitives | Radix UI (dropdown, scroll-area, tabs, tooltip, slot) |
@@ -211,7 +212,7 @@ Active match auto-scroll:
 | `pnpm lint` | oxlint all packages |
 | `pnpm format:check` | oxfmt check across all packages |
 | `pnpm test` | Run all Vitest suites |
-| `pnpm check` | typecheck + lint + test |
+| `pnpm check` | format check + typecheck + lint + test + production build |
 | `pnpm benchmark` | Build and run the release performance gate |
 | `pnpm benchmark:fixtures` | Generate ignored local JSONL benchmark fixtures |
 | `pnpm benchmark:case4-fixture` | Generate high-record-count JSONL release/stress fixtures |
