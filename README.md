@@ -35,10 +35,20 @@
 
 ## 开发
 
+需要 Node.js 22 和 pnpm 11.11.0。仓库通过 `.node-version` 固定 Node 主版本，pnpm 版本由 `packageManager` 固定。
+
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
+
+提交前运行与 CI 相同的生产质量门：
+
+```bash
+pnpm check
+```
+
+该命令依次检查格式、类型、lint、测试，并构建 Web 应用与 Chrome 扩展的生产产物。
 
 ## License
 

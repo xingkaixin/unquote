@@ -10,7 +10,7 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "test": "turbo run test",
-    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "benchmark": "turbo run build --force && node benchmark/perf-benchmark.mjs",
     "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs",
     "benchmark:fixtures": "node benchmark/generate-case2-fixtures.mjs",
@@ -33,6 +33,10 @@
     "turbo": "^2.10.4",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
+  },
+  "engines": {
+    "node": "22.x",
+    "pnpm": "11.11.0"
   },
   "packageManager": "pnpm@11.11.0"
 }
