@@ -1,6 +1,6 @@
 import { parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createFileOverview,
   createFileOverviewState,
@@ -136,6 +136,43 @@ describe("tree paths", () => {
     expect(searchJsonValue(JSON.parse(line), record.id, nullPattern!, options)).toEqual(
       searchRecord(record, nullPattern!, options),
     );
+  });
+
+  it("prefilters ordinary strings without skipping valid stringified JSON scalars", () => {
+    const values = [
+      "ordinary log message",
+      "truthy",
+      "false alarm",
+      "nullish",
+      "01",
+      "1.",
+      "1e",
+      "-",
+      "  true  ",
+      "\tfalse\n",
+      " null\r",
+      "0",
+      "-12.5e+2",
+      '"nested"',
+      '{"nested":true}',
+      "[1,2]",
+    ];
+    const pattern = buildSearchPattern("nested", {
+      regex: false,
+      caseSensitive: true,
+      jq: false,
+    })!;
+    const parse = vi.spyOn(JSON, "parse");
+
+    const matches = searchJsonValue(values, "record-1", pattern, {
+      regex: false,
+      caseSensitive: true,
+      jq: false,
+    });
+
+    expect(parse).toHaveBeenCalledTimes(8);
+    expect(matches.map((match) => match.pathText)).toEqual(["$[13]", "$[14].nested"]);
+    parse.mockRestore();
   });
 
   it("limits long string labels without changing the node value", () => {
