@@ -93,6 +93,7 @@ export const createSelectionHandoffClaimer = (
       } catch {
         // A later storage cleanup can reclaim the expired or consumed handoff.
       }
+      claimedHandoffIds.delete(handoffId);
     }
   };
 };

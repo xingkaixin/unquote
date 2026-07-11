@@ -62,6 +62,55 @@ describe("selection handoff", () => {
     expect(storage.values).toHaveLength(0);
   });
 
+  it("rejects a duplicate claim while the first claim is in flight", async () => {
+    let releaseGet: (() => void) | undefined;
+    const storage: HandoffSessionStorage = {
+      get: vi.fn(
+        (key: string) =>
+          new Promise<Record<string, unknown>>((resolve) => {
+            releaseGet = () => resolve({ [key]: { input: "first", expiresAt: 200 } });
+          }),
+      ),
+      remove: vi.fn(async () => {}),
+      set: vi.fn(async () => {}),
+    };
+    const claim = createSelectionHandoffClaimer(storage, () => 100);
+    const firstClaim = claim(claimMessage(firstHandoffId));
+
+    await vi.waitFor(() => expect(storage.get).toHaveBeenCalledOnce());
+    await expect(claim(claimMessage(firstHandoffId))).resolves.toBe("");
+    releaseGet?.();
+    await expect(firstClaim).resolves.toBe("first");
+    expect(storage.get).toHaveBeenCalledOnce();
+  });
+
+  it("releases completed claim IDs instead of retaining every consumed UUID", async () => {
+    const storage = new MemoryStorage();
+    const claim = createSelectionHandoffClaimer(storage, () => 100);
+    const handoffIds = Array.from(
+      { length: 500 },
+      (_, index) => `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+    );
+
+    for (const handoffId of handoffIds) {
+      await createSelectionHandoff(storage, `first-${handoffId}`, {
+        createId: () => handoffId,
+        now: () => 100,
+      });
+      await expect(claim(claimMessage(handoffId))).resolves.toBe(`first-${handoffId}`);
+    }
+
+    for (const handoffId of handoffIds) {
+      await createSelectionHandoff(storage, `second-${handoffId}`, {
+        createId: () => handoffId,
+        now: () => 100,
+      });
+      await expect(claim(claimMessage(handoffId))).resolves.toBe(`second-${handoffId}`);
+    }
+
+    expect(storage.values).toHaveLength(0);
+  });
+
   it("rejects malformed messages and reclaims expired handoffs", async () => {
     const storage = new MemoryStorage();
     await createSelectionHandoff(storage, "expired", {
