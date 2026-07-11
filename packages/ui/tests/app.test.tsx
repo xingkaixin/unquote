@@ -336,6 +336,37 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByRole("textbox", { name: "Search or jump" })).not.toHaveLength(0);
   });
 
+  it("exposes command options and restores focus when the palette closes", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Commands" })[0]!;
+    await user.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Find, jump, and commands" });
+    const commandInput = within(dialog).getByRole("combobox", { name: "Search or jump" });
+    const commandFilter = within(dialog).getByRole("textbox", { name: "Filter commands..." });
+    const actionList = within(dialog).getByRole("listbox", { name: "Record filters" });
+    const options = within(actionList).getAllByRole("option");
+
+    expect(commandInput).toHaveFocus();
+    expect(commandInput).toHaveAttribute("aria-activedescendant", options[0]!.id);
+
+    await user.keyboard("{ArrowDown}");
+    expect(commandInput).toHaveAttribute("aria-activedescendant", options[1]!.id);
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    await waitFor(() => expect(commandFilter).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("renders and parses input", async () => {
     const user = userEvent.setup();
     render(
@@ -653,7 +684,7 @@ describe("UnquoteApp", () => {
 
     await user.type(getToolbarInput(), "boom");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("button", { name: /Matches/ }));
+    await user.click(screen.getByRole("option", { name: /Matches/ }));
 
     await waitFor(() => expect(screen.queryAllByText("#1")).toHaveLength(0));
     expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
@@ -662,13 +693,13 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("1/3 records · 1 ok · 0 err").length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("button", { name: /Errors/ }));
+    await user.click(screen.getByRole("option", { name: /Errors/ }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("not-json").length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("button", { name: /Nested/ }));
+    await user.click(screen.getByRole("option", { name: /Nested/ }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("#2")).toHaveLength(0);
     expect(screen.queryByText("nested json")).not.toBeInTheDocument();
@@ -1407,7 +1438,7 @@ describe("UnquoteApp", () => {
 
     await user.type(getToolbarInput(), "target");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("button", { name: /Matches/ }));
+    await user.click(screen.getByRole("option", { name: /Matches/ }));
     await waitFor(() => expect(document.getElementById("record-2")).not.toBeInTheDocument());
 
     const collapseAll = screen
@@ -1418,7 +1449,7 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("button", { name: /^All$/ }));
+    await user.click(screen.getByRole("option", { name: /^All$/ }));
     await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
     expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument();
   });
