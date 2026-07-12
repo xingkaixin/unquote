@@ -35,7 +35,11 @@ export const LocaleToggle = () => {
           <DropdownMenuItem
             key={optionLocale}
             onClick={() => setLocale(optionLocale)}
-            className={optionLocale === locale ? "font-semibold" : ""}
+            className={
+              optionLocale === locale
+                ? "bg-[var(--primary-soft)] font-bold text-accent shadow-[inset_3px_0_0_var(--color-accent)]"
+                : ""
+            }
           >
             {t(label)}
           </DropdownMenuItem>

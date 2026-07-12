@@ -45,7 +45,7 @@ const fieldLabel = (field: string) => {
 };
 
 const EmptyList = ({ label }: { label: string }) => (
-  <div className="border border-dashed border-border px-3 py-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
+  <div className="rounded-md border-2 border-dashed border-border px-3 py-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
     {label}
   </div>
 );
@@ -98,9 +98,10 @@ export const FileOverview = ({
 
   return (
     <Card className="overflow-hidden">
+      <div className="h-2 rounded-t-[calc(var(--radius-card)-3px)] border-b-2 border-border bg-accent" />
       <button
         type="button"
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        className="uq-tap flex w-full items-center gap-3 px-4 py-3.5 text-left"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
       >
@@ -124,14 +125,14 @@ export const FileOverview = ({
         />
       </button>
       <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
-        <div className="grid overflow-hidden border border-border bg-surface-50 sm:grid-cols-5">
+        <div className="grid overflow-hidden rounded-md border-2 border-border bg-surface-50 shadow-[var(--shadow-sm)] sm:grid-cols-5">
           {metrics.map((metric, index) => {
             const Icon = metric.icon;
             return (
               <div
                 key={metric.label}
                 className={`min-w-0 px-3 py-2.5 ${
-                  index === 0 ? "" : "border-t border-border sm:border-l sm:border-t-0"
+                  index === 0 ? "" : "border-t-2 border-border sm:border-l-2 sm:border-t-0"
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">
@@ -149,7 +150,7 @@ export const FileOverview = ({
         {open ? (
           <div className="grid gap-4 xl:grid-cols-3">
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h4 className="mb-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-text-primary">
                 {t("overview.topNestedPaths")}
               </h4>
               {overview.topNestedPaths.length > 0 ? (
@@ -167,7 +168,7 @@ export const FileOverview = ({
                       <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                         {item.pathText}
                       </span>
-                      <span className="inline-flex shrink-0 border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] text-text-secondary">
+                      <span className="inline-flex shrink-0 rounded-sm border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] font-bold text-text-secondary">
                         {t("overview.count", { count: item.count })}
                       </span>
                     </Button>
@@ -179,7 +180,7 @@ export const FileOverview = ({
             </section>
 
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h4 className="mb-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-text-primary">
                 {t("overview.topFieldValues")}
               </h4>
               {overview.topFieldValues.length > 0 ? (
@@ -202,7 +203,7 @@ export const FileOverview = ({
                           {fieldLabel(item.field)} · {item.pathText}
                         </span>
                       </span>
-                      <span className="inline-flex shrink-0 border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] text-text-secondary">
+                      <span className="inline-flex shrink-0 rounded-sm border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] font-bold text-text-secondary">
                         {t("overview.count", { count: item.count })}
                       </span>
                     </Button>
@@ -214,7 +215,7 @@ export const FileOverview = ({
             </section>
 
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h4 className="mb-2 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-text-primary">
                 {t("overview.errors")}
               </h4>
               {previewErrors.length > 0 ? (

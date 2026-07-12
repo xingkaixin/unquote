@@ -25,7 +25,7 @@ const BlockText = ({ block }: { block: AgentContentBlock | undefined }) => {
   const codeLike = block.type === "tool_use" || block.toolCallId;
   return (
     <pre
-      className={`mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border px-3 py-2 text-[12px] leading-5 ${
+      className={`mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border-2 border-border px-3 py-2 text-[12px] leading-5 ${
         codeLike
           ? "bg-surface-50 font-mono text-text-primary"
           : "bg-transparent font-sans text-text-secondary"
@@ -58,10 +58,10 @@ const ConversationItem = ({
         type="button"
         aria-label={`${t("agent.conversation")}: ${config.label}`}
         aria-pressed={selected}
-        className={`min-w-0 max-w-[min(48rem,100%)] rounded-md border px-3 py-2 text-left shadow-sm transition-colors ${
+        className={`uq-press min-w-0 max-w-[min(48rem,100%)] rounded-md border-2 px-3 py-2 text-left ${
           selected
-            ? "border-accent bg-[rgba(229,112,62,0.08)]"
-            : "border-border bg-surface-100 hover:border-accent/50"
+            ? "border-accent bg-[var(--primary-soft)] shadow-[var(--shadow-md)]"
+            : "border-border bg-surface-100 shadow-[var(--shadow-sm)] hover:border-accent"
         }`}
         onClick={() => onSelect(item.id)}
       >
@@ -174,12 +174,13 @@ export const AgentConversationPane = ({
 
   return (
     <Card className="min-w-0 overflow-hidden">
+      <div className="h-2 rounded-t-[calc(var(--radius-card)-3px)] border-b-2 border-border bg-accent" />
       <CardHeader>
         <CardTitle>{t("agent.conversation")}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {items.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
+          <div className="rounded-md border-2 border-dashed border-border bg-surface-50 px-3 py-6 text-center text-[12px] text-text-muted">
             {t("agent.noConversation")}
           </div>
         ) : shouldVirtualize ? (

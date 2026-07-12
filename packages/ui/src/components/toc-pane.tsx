@@ -43,12 +43,12 @@ const TocRow = ({
     <div
       ref={measureRef}
       data-index={virtualized ? virtualIndex : undefined}
-      className={`flex items-stretch rounded-md border transition-colors ${
+      className={`flex items-stretch rounded-md border-2 uq-tap transition-colors ${
         virtualized ? "absolute left-0 top-0 w-full" : ""
       } ${
         active
-          ? "border-border-medium bg-surface-50 shadow-[inset_2px_0_0_var(--color-accent)]"
-          : "border-transparent hover:border-border hover:bg-surface-50"
+          ? "border-border bg-surface-50 shadow-[inset_3px_0_0_var(--color-accent)]"
+          : "border-transparent hover:border-border hover:bg-surface-200"
       }`}
       style={style}
     >
@@ -134,6 +134,7 @@ export const TocPane = ({
 
   return (
     <Card className="hidden min-h-0 flex-1 overflow-hidden lg:flex lg:flex-col">
+      <div className="h-2 rounded-t-[calc(var(--radius-card)-3px)] border-b-2 border-border bg-[var(--color-info)]" />
       <CardHeader className="px-4 py-[13px]">
         <div className="flex items-baseline justify-between gap-3">
           <CardTitle>{t("toc.title")}</CardTitle>

@@ -41,15 +41,36 @@ export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
         }
       />
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onChange("light")}>
+        <DropdownMenuItem
+          onClick={() => onChange("light")}
+          className={
+            theme === "light"
+              ? "bg-[var(--primary-soft)] font-bold text-accent shadow-[inset_3px_0_0_var(--color-accent)]"
+              : ""
+          }
+        >
           <Sun className="mr-2 size-3.5" />
           {t("theme.light")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onChange("dark")}>
+        <DropdownMenuItem
+          onClick={() => onChange("dark")}
+          className={
+            theme === "dark"
+              ? "bg-[var(--primary-soft)] font-bold text-accent shadow-[inset_3px_0_0_var(--color-accent)]"
+              : ""
+          }
+        >
           <Moon className="mr-2 size-3.5" />
           {t("theme.dark")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onChange("system")}>
+        <DropdownMenuItem
+          onClick={() => onChange("system")}
+          className={
+            theme === "system"
+              ? "bg-[var(--primary-soft)] font-bold text-accent shadow-[inset_3px_0_0_var(--color-accent)]"
+              : ""
+          }
+        >
           <Monitor className="mr-2 size-3.5" />
           {t("theme.system")}
         </DropdownMenuItem>

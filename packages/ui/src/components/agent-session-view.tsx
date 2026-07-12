@@ -99,8 +99,9 @@ const RawJsonlPanel = ({
     <section
       role="complementary"
       aria-label={t("agent.rawJsonl")}
-      className="uq-agent-raw-panel min-w-0 overflow-hidden border border-border bg-surface-100"
+      className="uq-agent-raw-panel min-w-0 overflow-hidden rounded-[var(--radius-card)] border-[3px] border-border bg-surface-100 shadow-[var(--shadow-md)]"
     >
+      <div className="h-2 rounded-t-[calc(var(--radius-card)-3px)] border-b-2 border-border bg-accent" />
       <CardHeader className="flex-row items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -154,7 +155,7 @@ const RawJsonlPanel = ({
             onClearFocus={onClearFocus}
           />
         ) : (
-          <pre className="max-h-[64vh] min-h-[12rem] overflow-auto border border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary">
+          <pre className="max-h-[64vh] min-h-[12rem] overflow-auto rounded-md border-2 border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary">
             {event.rawLine}
           </pre>
         )}
@@ -167,7 +168,7 @@ const RawJsonlRail = ({ onExpand }: { onExpand: () => void }) => {
   const { t } = useTranslation();
 
   return (
-    <div className="uq-agent-raw-rail min-w-0 border border-border bg-surface-100">
+    <div className="uq-agent-raw-rail min-w-0 rounded-[var(--radius-card)] border-[3px] border-border bg-surface-100 shadow-[var(--shadow-md)]">
       <Button
         variant="ghost"
         size="sm"
@@ -267,7 +268,7 @@ export const AgentSessionView = ({
       data-timeline-collapsed={timelineCollapsed ? "true" : "false"}
     >
       <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,32rem)]">
-        <div className="rounded-md border border-border bg-surface-100 px-4 py-3 shadow-sm">
+        <div className="rounded-[var(--radius-card)] border-[3px] border-border bg-surface-100 px-4 py-3 shadow-[var(--shadow-md)]">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge variant="success">{session.fileType}</Badge>
             {session.fileName ? <Badge>{session.fileName}</Badge> : null}
@@ -305,14 +306,14 @@ export const AgentSessionView = ({
           </dl>
         </div>
         <div
-          className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-4"
+          className="grid overflow-hidden rounded-[var(--radius-card)] border-[3px] border-border bg-surface-50 shadow-[var(--shadow-md)] sm:grid-cols-4"
           data-agent-metrics={metrics.length}
         >
           {metrics.map((item, index) => (
             <div
               key={item.label}
               className={`px-3 py-2.5 ${
-                index === 0 ? "" : "border-t border-border sm:border-l sm:border-t-0"
+                index === 0 ? "" : "border-t-2 border-border sm:border-l-2 sm:border-t-0"
               }`}
             >
               <div className="text-[10px] font-medium uppercase text-text-muted">{item.label}</div>

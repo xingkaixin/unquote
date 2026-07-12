@@ -42,12 +42,12 @@ const TimelineEvent = ({
       data-index={virtualized ? virtualIndex : undefined}
       aria-label={`${t("agent.timeline")}: ${event.label}`}
       aria-pressed={selected}
-      className={`flex w-full min-w-0 gap-2 rounded-md border px-2.5 py-2 text-left transition-colors ${
+      className={`uq-tap flex w-full min-w-0 gap-2 rounded-md border-2 px-2.5 py-2 text-left ${
         virtualized ? "absolute left-0 top-0" : ""
       } ${
         selected
-          ? "border-accent bg-[rgba(229,112,62,0.08)]"
-          : "border-transparent hover:border-border hover:bg-surface-100"
+          ? "border-accent bg-[var(--primary-soft)] shadow-[var(--shadow-sm)]"
+          : "border-transparent hover:border-border hover:bg-surface-200"
       }`}
       style={style}
       onClick={() => onSelect(event.id)}
@@ -106,6 +106,7 @@ export const AgentTimelinePane = ({
 
   return (
     <Card className="min-w-0 overflow-hidden">
+      <div className="h-2 rounded-t-[calc(var(--radius-card)-3px)] border-b-2 border-border bg-[var(--color-info)]" />
       <CardHeader className="uq-agent-timeline-header flex-row items-center justify-between gap-2">
         <CardTitle className="uq-agent-timeline-title">{t("agent.timeline")}</CardTitle>
         <Button
