@@ -721,7 +721,7 @@ const RowItem = ({
         {row.keyLabel ? (
           <>
             <span className="font-mono text-[11.5px] leading-[1.85] text-code-key">"</span>
-            <span className="break-all font-mono text-[11.5px] leading-[1.85] text-code-key">
+            <span className="font-mono text-[11.5px] leading-[1.85] text-code-key">
               {searchMatch?.keyRanges.length ? (
                 <HighlightText
                   text={row.keyLabel}
