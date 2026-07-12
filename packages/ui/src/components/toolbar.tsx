@@ -93,7 +93,7 @@ export const Toolbar = ({
             }
           }}
           placeholder={t("command.placeholder")}
-          className="uq-search min-w-0 flex-1 border-b border-transparent bg-transparent font-mono text-[11.5px] text-text-primary outline-none transition-colors focus:border-border-medium placeholder:text-text-muted"
+          className="uq-search min-w-0 flex-1 bg-transparent font-mono text-[11.5px] text-text-primary outline-none placeholder:text-text-muted"
         />
         {hasQuery ? (
           <button
