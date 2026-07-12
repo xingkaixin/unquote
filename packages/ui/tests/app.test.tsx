@@ -1458,7 +1458,7 @@ describe("UnquoteApp", () => {
     );
     await waitFor(() => expect(within(rawJsonPanel).getByText("cmd")).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole("tab", { name: "JSON" })[0]!);
+    await user.click(screen.getAllByRole("tab", { name: "JSONL" })[0]!);
     const jsonRecord = await waitFor(() => {
       const record = document.getElementById("record-4");
       expect(record).toBeInTheDocument();

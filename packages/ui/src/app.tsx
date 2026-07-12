@@ -620,8 +620,8 @@ export const UnquoteApp = ({
           <TabsTrigger value="agent" data-output-tab="agent">
             {t("app.tab.agent")}
           </TabsTrigger>
-          <TabsTrigger value="json" data-output-tab="json">
-            {t("app.tab.json")}
+          <TabsTrigger value="json" data-output-tab="json" translate="no">
+            {formatParseMode(result.format)}
           </TabsTrigger>
         </TabsList>
       </div>

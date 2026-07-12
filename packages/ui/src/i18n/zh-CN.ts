@@ -4,7 +4,6 @@ export const zhCN: Messages = {
   "app.tab.input": "输入",
   "app.tab.output": "输出",
   "app.tab.agent": "Agent",
-  "app.tab.json": "JSON",
   "app.expand": "展开",
   "app.chrome": "Chrome 插件",
   "theme.toggle": "切换主题",
