@@ -1,4 +1,4 @@
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { JsonlRecord } from "@unquote/core";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "../i18n/context";
@@ -163,24 +163,6 @@ const RawJsonlPanel = ({
   );
 };
 
-const RawJsonlRail = ({ onExpand }: { onExpand: () => void }) => {
-  const { t } = useTranslation();
-
-  return (
-    <div className="uq-agent-raw-rail min-w-0 border border-border bg-surface-100">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="uq-icon-button h-7 w-7 px-0"
-        onClick={onExpand}
-        aria-label={t("agent.expandRawData")}
-      >
-        <PanelRightOpen className="size-3.5" />
-      </Button>
-    </div>
-  );
-};
-
 export const AgentSessionView = ({
   session,
   recordsById,
@@ -233,7 +215,7 @@ export const AgentSessionView = ({
       : undefined);
   const selectedConversationId = detailItem?.id;
   const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
-  const showRawRail = !detailEvent && session.events.length > 0;
+  const rawCollapsed = !detailEvent && session.events.length > 0;
   const detailRecord = detailEvent ? recordsById.get(detailEvent.recordId) : undefined;
   const renderedDetailRecord = detailRecord
     ? resolveHydratedRecord(detailRecord, hydratedRecords)
@@ -259,6 +241,31 @@ export const AgentSessionView = ({
     );
     setDetailOpen(true);
   };
+
+  // Collapsing a side panel releases its grid column entirely; its expand
+  // control relocates into the always-present conversation header.
+  const timelineExpandControl = timelineCollapsed ? (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="uq-icon-button h-7 w-7 px-0"
+      onClick={() => setTimelineCollapsed(false)}
+      aria-label={t("agent.expandTimeline")}
+    >
+      <PanelLeftOpen className="size-3.5" />
+    </Button>
+  ) : null;
+  const rawExpandControl = rawCollapsed ? (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="uq-icon-button h-7 w-7 px-0"
+      onClick={() => setDetailOpen(true)}
+      aria-label={t("agent.expandRawData")}
+    >
+      <PanelRightOpen className="size-3.5" />
+    </Button>
+  ) : null;
 
   return (
     <div
@@ -305,7 +312,7 @@ export const AgentSessionView = ({
           </dl>
         </div>
         <div
-          className="grid overflow-hidden rounded-md border border-border bg-surface-50 sm:grid-cols-4"
+          className="grid overflow-hidden rounded-md border border-border bg-surface-100 sm:grid-cols-4"
           data-agent-metrics={metrics.length}
         >
           {metrics.map((item, index) => (
@@ -326,13 +333,15 @@ export const AgentSessionView = ({
 
       <div className="uq-agent-workspace grid gap-3">
         <div className="uq-agent-main grid gap-3">
-          <AgentTimelinePane
-            events={session.events}
-            highlightedRecordId={highlightedRecordId}
-            collapsed={timelineCollapsed}
-            onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
-            onSelectEvent={handleSelectTimelineEvent}
-          />
+          {timelineCollapsed ? null : (
+            <AgentTimelinePane
+              events={session.events}
+              highlightedRecordId={highlightedRecordId}
+              collapsed={timelineCollapsed}
+              onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
+              onSelectEvent={handleSelectTimelineEvent}
+            />
+          )}
 
           <AgentConversationPane
             items={session.conversationItems}
@@ -343,6 +352,8 @@ export const AgentSessionView = ({
               onDetailSelectionChange({ kind: "conversation", id: itemId, recordId });
               setDetailOpen(true);
             }}
+            headerStart={timelineExpandControl}
+            headerEnd={rawExpandControl}
           />
         </div>
 
@@ -367,8 +378,6 @@ export const AgentSessionView = ({
             onHydrateRecord={onHydrateRecord}
             onClearFocus={onClearFocus}
           />
-        ) : showRawRail ? (
-          <RawJsonlRail onExpand={() => setDetailOpen(true)} />
         ) : null}
       </div>
     </div>
