@@ -370,7 +370,7 @@ export const JsonTree = ({
       </div>
       <div
         ref={parentRef}
-        className="max-h-[560px] overflow-auto bg-surface-100 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        className="group/tree max-h-[560px] overflow-auto bg-surface-100 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         role="tree"
         aria-label={record.summary}
         aria-activedescendant={activeRowId}
@@ -676,7 +676,7 @@ const RowItem = ({
         : "hover:bg-surface-200";
   const anchorTone = isSelectedAnchor ? "shadow-[inset_2px_0_0_var(--color-accent)]" : "";
   const activeDescendantTone = isActiveDescendant
-    ? "outline outline-1 -outline-offset-1 outline-accent"
+    ? "group-focus-visible/tree:outline group-focus-visible/tree:outline-1 group-focus-visible/tree:-outline-offset-1 group-focus-visible/tree:outline-accent"
     : "";
 
   return (
