@@ -12,20 +12,20 @@
    ============================================================ */
 
 @theme {
-  /* --- Surface Scale (light: cream + paper) --- */
-  --color-surface-50: #fbf7ec;
+  /* --- Surface Scale (light: neutral off-white + paper) --- */
+  --color-surface-50: #f5f5f4;
   --color-surface-100: #ffffff;
-  --color-surface-200: #f4efe2;
-  --color-surface-300: #ebe5d4;
-  --color-surface-400: #ded6c2;
-  --color-surface-500: #c7bea8;
+  --color-surface-200: #efefee;
+  --color-surface-300: #e3e3e2;
+  --color-surface-400: #d2d2d1;
+  --color-surface-500: #b6b6b4;
 
-  /* --- Text (ink) --- */
+  /* --- Text (neutral ink) --- */
   --color-text-display: #000000;
   --color-text-primary: #1a1a1a;
-  --color-text-secondary: #57534b;
-  --color-text-tertiary: #857f73;
-  --color-text-muted: #a6a29a;
+  --color-text-secondary: #59595a;
+  --color-text-tertiary: #848487;
+  --color-text-muted: #a5a5a6;
 
   /* --- Semantic (BRUT accents — identical across themes) --- */
   --color-accent: #9b5cff;
@@ -50,10 +50,10 @@
   --color-border: #1a1a1a;
   --color-border-medium: #1a1a1a;
   --color-border-strong: #000000;
-  --color-border-soft: #d8d0be;
+  --color-border-soft: #dededd;
 
   /* --- Background / Foreground --- */
-  --background: #fffcf2;
+  --background: #fbfbfa;
   --foreground: #1a1a1a;
 
   /* --- Radius (softened brutalism) --- */
@@ -73,12 +73,12 @@
 }
 
 :root {
-  --canvas: #fffcf2;
+  --canvas: #fbfbfa;
   --surface: #ffffff;
-  --surface-raised: #fbf7ec;
+  --surface-raised: #f5f5f4;
   --border-visible: #1a1a1a;
-  --ring-track: #e0d9c6;
-  --text-disabled: #a6a29a;
+  --ring-track: #e3e3e2;
+  --text-disabled: #a5a5a6;
   --text-display: #000000;
   --utility-orange: #f26a1b;
   --accent-red: #e5322b;
@@ -87,7 +87,6 @@
   --syn-number: #9a6a33;
   --syn-bool: #46689e;
   --syn-null: #a8a8a2;
-  --dot: rgba(26, 26, 26, 0.05);
   --radius-card: 14px;
   --radius-overlay: 10px;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -126,20 +125,20 @@
   --info-soft: #d6e1ff;
 }
 
-/* --- Dark Mode (warm charcoal + off-white ink) --- */
+/* --- Dark Mode (neutral charcoal + off-white ink) --- */
 .dark {
-  --color-surface-50: #2b2824;
-  --color-surface-100: #302d29;
-  --color-surface-200: #3b3833;
-  --color-surface-300: #47433d;
-  --color-surface-400: #565149;
-  --color-surface-500: #6e685d;
+  --color-surface-50: #262626;
+  --color-surface-100: #2d2d2d;
+  --color-surface-200: #383838;
+  --color-surface-300: #454545;
+  --color-surface-400: #545454;
+  --color-surface-500: #6c6c6c;
 
   --color-text-display: #ffffff;
-  --color-text-primary: #f5f1e8;
-  --color-text-secondary: #b8b2a6;
-  --color-text-tertiary: #847f75;
-  --color-text-muted: #6e685d;
+  --color-text-primary: #f4f4f4;
+  --color-text-secondary: #b4b4b4;
+  --color-text-tertiary: #828282;
+  --color-text-muted: #6c6c6c;
 
   --color-accent: #9b5cff;
   --color-accent-hover: #b689ff;
@@ -158,19 +157,19 @@
   --color-code-null: #5f5f5a;
   --color-code-key: #9b9b95;
 
-  --color-border: #f2ede3;
-  --color-border-medium: #f2ede3;
+  --color-border: #f2f2f2;
+  --color-border-medium: #f2f2f2;
   --color-border-strong: #ffffff;
-  --color-border-soft: #514c44;
+  --color-border-soft: #505050;
 
-  --background: #242220;
-  --foreground: #f5f1e8;
-  --canvas: #242220;
-  --surface: #302d29;
-  --surface-raised: #2b2824;
-  --border-visible: #f2ede3;
-  --ring-track: #47433d;
-  --text-disabled: #6e685d;
+  --background: #222222;
+  --foreground: #f4f4f4;
+  --canvas: #222222;
+  --surface: #2d2d2d;
+  --surface-raised: #262626;
+  --border-visible: #f2f2f2;
+  --ring-track: #454545;
+  --text-disabled: #6c6c6c;
   --text-display: #ffffff;
   --utility-orange: #ff8a3d;
   --accent-red: #ff6b6b;
@@ -179,7 +178,6 @@
   --syn-number: #d6a76a;
   --syn-bool: #88a6d2;
   --syn-null: #5f5f5a;
-  --dot: rgba(242, 237, 227, 0.06);
 
   /* Shadows stay pure black so the hard drop reads on charcoal. */
   --shadow-color: #000000;
@@ -320,17 +318,10 @@ a,
   }
 }
 
-/* Cream canvas with a faint 45° ink hatch — BRUT's utilitarian texture. */
+/* Flat neutral canvas — brutalism prefers defined surfaces over texture. */
 .uq-shell {
   min-height: 100vh;
   background-color: var(--canvas);
-  background-image: repeating-linear-gradient(
-    45deg,
-    var(--dot) 0,
-    var(--dot) 1px,
-    transparent 1px,
-    transparent 9px
-  );
   color: var(--foreground);
 }
 
