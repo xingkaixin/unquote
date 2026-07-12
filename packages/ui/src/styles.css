@@ -14,9 +14,9 @@
   /* --- Text --- */
   --color-text-display: #000000;
   --color-text-primary: #1a1a18;
-  --color-text-secondary: #6c6c66;
-  --color-text-tertiary: #8a8a84;
-  --color-text-muted: #b2b2ac;
+  --color-text-secondary: #5c5c55;
+  --color-text-tertiary: #6c6c65;
+  --color-text-muted: #97978f;
 
   /* --- Semantic --- */
   --color-accent: #f26522;
@@ -92,9 +92,9 @@
 
   --color-text-display: #ffffff;
   --color-text-primary: #e8e8e8;
-  --color-text-secondary: #999999;
-  --color-text-tertiary: #777777;
-  --color-text-muted: #666666;
+  --color-text-secondary: #a6a6a6;
+  --color-text-tertiary: #8f8f8f;
+  --color-text-muted: #7d7d7d;
 
   --color-accent: #f26522;
   --color-accent-hover: #ff7a36;
@@ -220,63 +220,8 @@ a,
 }
 
 .uq-glass {
-  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   backdrop-filter: blur(14px);
-}
-
-.uq-agent-shell {
-  container-type: inline-size;
-}
-
-.uq-agent-raw-rail {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 0.5rem;
-}
-
-.uq-agent-timeline-toggle {
-  display: none;
-}
-
-@container (min-width: 44rem) {
-  .uq-agent-main {
-    grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
-  }
-
-  .uq-agent-timeline-toggle {
-    display: inline-flex;
-  }
-
-  .uq-agent-shell[data-timeline-collapsed="true"] .uq-agent-main {
-    grid-template-columns: 3rem minmax(0, 1fr);
-  }
-
-  .uq-agent-shell[data-timeline-collapsed="true"] .uq-agent-timeline-header {
-    padding-right: 0.5rem;
-    padding-left: 0.5rem;
-  }
-
-  .uq-agent-shell[data-timeline-collapsed="true"] .uq-agent-timeline-title,
-  .uq-agent-shell[data-timeline-collapsed="true"] .uq-agent-timeline-content {
-    display: none;
-  }
-}
-
-@container (min-width: 64rem) {
-  .uq-agent-shell[data-raw-open="true"] .uq-agent-workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
-  }
-
-  .uq-agent-shell[data-raw-open="false"] .uq-agent-workspace {
-    grid-template-columns: minmax(0, 1fr) 3rem;
-  }
-
-  .uq-agent-raw-panel {
-    position: sticky;
-    top: 66px;
-    max-height: calc(100vh - 88px);
-  }
 }
 
 .nf-led {
@@ -302,11 +247,6 @@ a,
 
 .nf-led.is-static {
   animation: none;
-}
-
-.uq-logo-led {
-  width: 8px;
-  height: 8px;
 }
 
 .nf-title {

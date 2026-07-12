@@ -286,7 +286,7 @@ export const InputPane = ({
               aria-label={t("input.modeLabel")}
               value={mode}
               onChange={(event) => onModeChange(event.target.value as "auto" | "json" | "jsonl")}
-              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-100 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <option value="auto">{t("input.mode.auto")}</option>
               <option value="json" translate="no">
@@ -311,9 +311,9 @@ export const InputPane = ({
       </div>
       <CardContent
         className={cn(
-          "bg-surface-50 px-3 py-3 transition-colors",
+          "bg-surface-100 px-3 py-3 transition-colors",
           isDraggingFile &&
-            "bg-[color-mix(in_oklab,var(--color-accent)_6%,var(--color-surface-50))]",
+            "bg-[color-mix(in_oklab,var(--color-accent)_6%,var(--color-surface-100))]",
         )}
       >
         {sourceStatus ? (

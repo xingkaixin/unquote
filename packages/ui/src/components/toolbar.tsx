@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
 import {
@@ -23,6 +23,7 @@ import {
 } from "./dropdown-menu";
 
 interface ToolbarProps {
+  leading?: ReactNode;
   summary: string;
   query: string;
   matchCount: number;
@@ -43,6 +44,7 @@ interface ToolbarProps {
 }
 
 export const Toolbar = ({
+  leading,
   summary,
   query,
   matchCount,
@@ -68,9 +70,10 @@ export const Toolbar = ({
   const hasMatches = hasQuery && matchCount > 0;
 
   return (
-    <div className="uq-glass sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border px-4 py-3">
+    <div className="uq-glass sticky top-[52px] z-20 flex items-center gap-2 border-b border-border px-4 py-2">
+      {leading}
       <form
-        className="flex h-[34px] min-w-[200px] flex-1 items-center gap-2 overflow-hidden border border-transparent bg-surface-50 px-3 focus-within:border-border-medium"
+        className="flex h-[34px] min-w-0 flex-1 items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmitQuery(inputRef.current?.value ?? query);
@@ -108,7 +111,7 @@ export const Toolbar = ({
         <span className="max-w-[42vw] shrink-0 truncate font-mono text-[10px] text-text-muted sm:max-w-64">
           {hasMatches ? `${currentMatchIndex + 1}/${matchCount}` : summary}
         </span>
-        <div className="flex shrink-0 items-center gap-0.5 border-l border-border pl-1.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
@@ -133,7 +136,7 @@ export const Toolbar = ({
           </Button>
         </div>
       </form>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
         <Button
           variant="ghost"
           size="sm"
@@ -169,7 +172,7 @@ export const Toolbar = ({
                 className="uq-icon-button size-[34px] px-0"
                 aria-label={t("toolbar.more")}
               >
-                <MoreHorizontal className="size-4" />
+                <MoreHorizontal className="size-3.5" />
               </Button>
             }
           />

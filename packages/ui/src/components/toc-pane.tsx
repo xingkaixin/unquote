@@ -47,8 +47,8 @@ const TocRow = ({
         virtualized ? "absolute left-0 top-0 w-full" : ""
       } ${
         active
-          ? "border-border-medium bg-surface-50 shadow-[inset_2px_0_0_var(--color-accent)]"
-          : "border-transparent hover:border-border hover:bg-surface-50"
+          ? "border-border-medium bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] shadow-[inset_2px_0_0_var(--color-accent)]"
+          : "border-transparent hover:border-border hover:bg-surface-200"
       }`}
       style={style}
     >

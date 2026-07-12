@@ -2,7 +2,6 @@ export const en = {
   "app.tab.input": "Input",
   "app.tab.output": "Output",
   "app.tab.agent": "Agent",
-  "app.tab.json": "JSON",
   "app.expand": "Expand",
   "app.chrome": "Chrome Extension",
   "theme.toggle": "Switch theme",
