@@ -105,13 +105,13 @@ export const AgentTimelinePane = ({
   });
 
   return (
-    <Card className="min-w-0 overflow-hidden">
-      <CardHeader className="uq-agent-timeline-header flex-row items-center justify-between gap-2">
-        <CardTitle className="uq-agent-timeline-title">{t("agent.timeline")}</CardTitle>
+    <Card className="flex h-full min-w-0 flex-col overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between gap-2">
+        <CardTitle>{t("agent.timeline")}</CardTitle>
         <Button
           variant="ghost"
           size="sm"
-          className="uq-agent-timeline-toggle uq-icon-button h-7 w-7 px-0"
+          className="uq-icon-button h-7 w-7 px-0"
           onClick={onToggleCollapsed}
           aria-label={t(collapsed ? "agent.expandTimeline" : "agent.collapseTimeline")}
         >
@@ -122,8 +122,8 @@ export const AgentTimelinePane = ({
           )}
         </Button>
       </CardHeader>
-      <CardContent className="uq-agent-timeline-content p-0">
-        <div ref={scrollRef} className="max-h-[72vh] overflow-auto p-2">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto p-2">
           {shouldVirtualize ? (
             <div
               className="relative w-full"

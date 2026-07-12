@@ -1,6 +1,6 @@
 import { PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { JsonlRecord } from "@unquote/core";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
 import {
@@ -17,6 +17,7 @@ import { Badge } from "./badge";
 import { Button } from "./button";
 import { CardHeader, CardTitle } from "./card";
 import { JsonTree } from "./json-tree";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./resizable";
 
 interface AgentSessionViewProps {
   session: AgentSession;
@@ -99,7 +100,7 @@ const RawJsonlPanel = ({
     <section
       role="complementary"
       aria-label={t("agent.rawJsonl")}
-      className="uq-agent-raw-panel min-w-0 overflow-hidden border border-border bg-surface-100"
+      className="flex h-full min-w-0 flex-col overflow-hidden border border-border bg-surface-100"
     >
       <CardHeader className="flex-row items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -133,7 +134,7 @@ const RawJsonlPanel = ({
         </Button>
       </CardHeader>
 
-      <div className="min-h-0 overflow-auto p-2">
+      <div className="min-h-0 flex-1 overflow-auto p-2">
         {record ? (
           <JsonTree
             record={record}
@@ -197,6 +198,8 @@ export const AgentSessionView = ({
   const metrics = useMemo(() => metricItems(session, t), [session, t]);
   const [detailOpen, setDetailOpen] = useState(true);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [shellWidth, setShellWidth] = useState(0);
   const selectedItem =
     detailSelection?.kind === "conversation" ? conversationById.get(detailSelection.id) : undefined;
   const selectedEvent =
@@ -226,6 +229,20 @@ export const AgentSessionView = ({
       setDetailOpen(true);
     }
   }, [detailSelection]);
+
+  // The three panels resize side by side only when the shell is wide enough;
+  // narrower shells (mobile, split source view) fall back to a stacked layout.
+  useLayoutEffect(() => {
+    const element = shellRef.current;
+    if (!element || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      setShellWidth(entries[0]?.contentRect.width ?? 0);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const handleSelectTimelineEvent = (eventId: string) => {
     const event = eventById.get(eventId);
@@ -267,8 +284,56 @@ export const AgentSessionView = ({
     </Button>
   ) : null;
 
+  const horizontal = shellWidth >= 832;
+  const timelinePane = (
+    <AgentTimelinePane
+      events={session.events}
+      highlightedRecordId={highlightedRecordId}
+      collapsed={timelineCollapsed}
+      onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
+      onSelectEvent={handleSelectTimelineEvent}
+    />
+  );
+  const conversationPane = (
+    <AgentConversationPane
+      items={session.conversationItems}
+      eventById={eventById}
+      selectedConversationId={selectedConversationId}
+      detailSelection={detailSelection}
+      onSelectItem={(itemId, recordId) => {
+        onDetailSelectionChange({ kind: "conversation", id: itemId, recordId });
+        setDetailOpen(true);
+      }}
+      headerStart={timelineExpandControl}
+      headerEnd={rawExpandControl}
+    />
+  );
+  const rawPane = detailEvent ? (
+    <RawJsonlPanel
+      event={detailEvent}
+      item={detailItem}
+      record={renderedDetailRecord}
+      insight={recordInsights.get(detailEvent.recordId)}
+      expandedStringifiedPaths={getExpandedStringifiedPaths(
+        expandedStringifiedPathsByRecord,
+        detailEvent.recordId,
+      )}
+      selectedPath={selectedPath}
+      focusedPath={focusedPath}
+      onCollapse={() => setDetailOpen(false)}
+      onTogglePath={onTogglePath}
+      onCopyRecord={onCopyRecord}
+      onCopyRawLine={onCopyRawLine}
+      onCopyError={onCopyError}
+      onSelectNode={onSelectNode}
+      onHydrateRecord={onHydrateRecord}
+      onClearFocus={onClearFocus}
+    />
+  ) : null;
+
   return (
     <div
+      ref={shellRef}
       className="uq-agent-shell flex flex-col gap-3"
       data-raw-open={detailEvent ? "true" : "false"}
       data-timeline-collapsed={timelineCollapsed ? "true" : "false"}
@@ -331,55 +396,55 @@ export const AgentSessionView = ({
         </div>
       </section>
 
-      <div className="uq-agent-workspace grid gap-3">
-        <div className="uq-agent-main grid gap-3">
-          {timelineCollapsed ? null : (
-            <AgentTimelinePane
-              events={session.events}
-              highlightedRecordId={highlightedRecordId}
-              collapsed={timelineCollapsed}
-              onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
-              onSelectEvent={handleSelectTimelineEvent}
-            />
-          )}
-
-          <AgentConversationPane
-            items={session.conversationItems}
-            eventById={eventById}
-            selectedConversationId={selectedConversationId}
-            detailSelection={detailSelection}
-            onSelectItem={(itemId, recordId) => {
-              onDetailSelectionChange({ kind: "conversation", id: itemId, recordId });
-              setDetailOpen(true);
-            }}
-            headerStart={timelineExpandControl}
-            headerEnd={rawExpandControl}
-          />
-        </div>
-
-        {detailEvent ? (
-          <RawJsonlPanel
-            event={detailEvent}
-            item={detailItem}
-            record={renderedDetailRecord}
-            insight={recordInsights.get(detailEvent.recordId)}
-            expandedStringifiedPaths={getExpandedStringifiedPaths(
-              expandedStringifiedPathsByRecord,
-              detailEvent.recordId,
+      {horizontal ? (
+        <div className="h-[calc(100vh-12rem)] min-h-[26rem]">
+          <ResizablePanelGroup direction="horizontal" autoSaveId="uq-agent-workspace">
+            {timelineCollapsed ? null : (
+              <>
+                <ResizablePanel
+                  id="timeline"
+                  order={1}
+                  defaultSize={22}
+                  minSize={14}
+                  className="min-w-0"
+                >
+                  {timelinePane}
+                </ResizablePanel>
+                <ResizableHandle />
+              </>
             )}
-            selectedPath={selectedPath}
-            focusedPath={focusedPath}
-            onCollapse={() => setDetailOpen(false)}
-            onTogglePath={onTogglePath}
-            onCopyRecord={onCopyRecord}
-            onCopyRawLine={onCopyRawLine}
-            onCopyError={onCopyError}
-            onSelectNode={onSelectNode}
-            onHydrateRecord={onHydrateRecord}
-            onClearFocus={onClearFocus}
-          />
-        ) : null}
-      </div>
+            <ResizablePanel
+              id="conversation"
+              order={2}
+              defaultSize={detailEvent ? 52 : 78}
+              minSize={28}
+              className="min-w-0"
+            >
+              {conversationPane}
+            </ResizablePanel>
+            {detailEvent ? (
+              <>
+                <ResizableHandle />
+                <ResizablePanel
+                  id="raw"
+                  order={3}
+                  defaultSize={26}
+                  minSize={16}
+                  className="min-w-0"
+                >
+                  {rawPane}
+                </ResizablePanel>
+              </>
+            ) : null}
+          </ResizablePanelGroup>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {timelineCollapsed ? null : <div className="h-[45vh]">{timelinePane}</div>}
+          <div className="h-[62vh]">{conversationPane}</div>
+          {detailEvent ? <div className="h-[62vh]">{rawPane}</div> : null}
+        </div>
+      )}
     </div>
   );
 };

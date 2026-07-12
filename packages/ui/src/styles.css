@@ -224,44 +224,6 @@ a,
   backdrop-filter: blur(14px);
 }
 
-.uq-agent-shell {
-  container-type: inline-size;
-}
-
-.uq-agent-timeline-toggle {
-  display: none;
-}
-
-@container (min-width: 44rem) {
-  .uq-agent-main {
-    grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
-  }
-
-  .uq-agent-timeline-toggle {
-    display: inline-flex;
-  }
-
-  .uq-agent-shell[data-timeline-collapsed="true"] .uq-agent-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@container (min-width: 64rem) {
-  .uq-agent-shell[data-raw-open="true"] .uq-agent-workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
-  }
-
-  .uq-agent-shell[data-raw-open="false"] .uq-agent-workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .uq-agent-raw-panel {
-    position: sticky;
-    top: 66px;
-    max-height: calc(100vh - 88px);
-  }
-}
-
 .nf-led {
   display: inline-block;
   width: 10px;
@@ -285,11 +247,6 @@ a,
 
 .nf-led.is-static {
   animation: none;
-}
-
-.uq-logo-led {
-  width: 8px;
-  height: 8px;
 }
 
 .nf-title {
