@@ -337,7 +337,7 @@ export const JsonTree = ({
               {t("tree.nodes", { count: rows.length })}
             </span>
             {focusedPathText ? (
-              <span className="inline-flex min-w-0 items-center gap-1 border border-accent bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] text-accent">
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-sm border-2 border-border bg-[var(--primary-soft)] px-1.5 py-0.5 font-mono text-[10px] text-accent">
                 <Focus className="size-3 shrink-0" />
                 <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
               </span>
@@ -709,7 +709,7 @@ const RowItem = ({
           <span
             data-tree-toggle
             aria-hidden="true"
-            className="mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center border border-accent bg-accent/10 text-accent"
+            className="uq-tap mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center rounded-sm border border-border bg-[var(--primary-soft)] text-accent"
           >
             <ChevronRight
               className={`uq-motion-transform size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}

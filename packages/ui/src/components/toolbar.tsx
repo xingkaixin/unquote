@@ -68,9 +68,9 @@ export const Toolbar = ({
   const hasMatches = hasQuery && matchCount > 0;
 
   return (
-    <div className="uq-glass sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border px-4 py-3">
+    <div className="sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border-[3px] border-border bg-surface-100 px-4 py-3 shadow-[var(--shadow-md)]">
       <form
-        className="flex h-[34px] min-w-[200px] flex-1 items-center gap-2 overflow-hidden border border-transparent bg-surface-50 px-3 focus-within:border-border-medium"
+        className="flex h-[34px] min-w-[200px] flex-1 items-center gap-2 overflow-hidden rounded-md border-2 border-border bg-surface-50 px-3 focus-within:border-accent"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmitQuery(inputRef.current?.value ?? query);
@@ -95,7 +95,7 @@ export const Toolbar = ({
         {hasQuery ? (
           <button
             type="button"
-            className="uq-icon-button inline-flex size-5 shrink-0 items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="uq-tap uq-icon-button inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-muted hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => {
               onClearQuery();
               inputRef.current?.focus();
@@ -108,7 +108,7 @@ export const Toolbar = ({
         <span className="max-w-[42vw] shrink-0 truncate font-mono text-[10px] text-text-muted sm:max-w-64">
           {hasMatches ? `${currentMatchIndex + 1}/${matchCount}` : summary}
         </span>
-        <div className="flex shrink-0 items-center gap-0.5 border-l border-border pl-1.5">
+        <div className="flex shrink-0 items-center gap-0.5 border-l-2 border-border pl-1.5">
           <Button
             type="button"
             variant="ghost"

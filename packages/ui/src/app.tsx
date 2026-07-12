@@ -643,12 +643,10 @@ export const UnquoteApp = ({
       data-search-query={searchQuery}
       data-search-state={searchStatus}
     >
-      <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--canvas)_82%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
+      <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b-[3px] border-border bg-surface-100 px-4 sm:px-6">
         <div className="flex items-center gap-3.5">
           <span className="nf-led uq-logo-led" />
-          <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
-            UNQUOTE
-          </h1>
+          <h1 className="font-display m-0 text-[18px] uppercase text-text-display">UNQUOTE</h1>
           <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
             JSON · JSONL
           </span>
@@ -659,7 +657,7 @@ export const UnquoteApp = ({
               href={chromeWebStoreUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
+              className="uq-tap inline-flex h-8 items-center justify-center gap-2 rounded-md border-2 border-transparent px-3 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-text-secondary hover:border-border hover:bg-surface-200 hover:text-text-display"
             >
               <Chrome className="size-3.5" />
               <span className="hidden sm:inline">{t("app.chrome")}</span>
@@ -704,7 +702,7 @@ export const UnquoteApp = ({
             {sourceCollapsed ? (
               <button
                 type="button"
-                className="uq-icon-button flex size-[42px] items-center justify-center rounded-none border border-border bg-surface-100 text-text-secondary hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="uq-press uq-icon-button flex size-[42px] items-center justify-center rounded-md border-2 border-border bg-surface-100 text-text-secondary shadow-[var(--shadow-sm)] hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 onClick={() => setSourceCollapsed(false)}
                 aria-label={t("input.expandSource")}
               >

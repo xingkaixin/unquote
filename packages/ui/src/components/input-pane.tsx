@@ -245,11 +245,11 @@ export const InputPane = ({
     <Card
       className={cn(
         "flex shrink-0 flex-col overflow-hidden transition-[background-color,border-color,box-shadow]",
-        isDraggingFile && "border-accent shadow-md",
+        isDraggingFile && "border-accent shadow-[var(--shadow-lg)]",
       )}
       {...dropTargetProps}
     >
-      <div className="flex items-center justify-between border-b border-border px-4 py-[11px]">
+      <div className="flex items-center justify-between border-b-2 border-border px-4 py-[11px]">
         <div className="flex items-center gap-2">
           <FileJson2 className="size-3.5 text-text-secondary" />
           <span className="nf-title">{t("input.title")}</span>
@@ -286,7 +286,7 @@ export const InputPane = ({
               aria-label={t("input.modeLabel")}
               value={mode}
               onChange={(event) => onModeChange(event.target.value as "auto" | "json" | "jsonl")}
-              className="h-7 cursor-pointer appearance-none rounded-none border border-border bg-surface-50 pl-3 pr-8 font-mono text-[11px] uppercase tracking-[0.06em] text-text-primary outline-none hover:bg-surface-200 focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="h-7 cursor-pointer appearance-none rounded-md border-2 border-border bg-surface-100 pl-3 pr-8 font-mono text-[11px] font-bold uppercase tracking-[0.06em] text-text-primary shadow-[var(--shadow-xs)] outline-none hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <option value="auto">{t("input.mode.auto")}</option>
               <option value="json" translate="no">
@@ -318,12 +318,12 @@ export const InputPane = ({
       >
         {sourceStatus ? (
           <div
-            className="mb-3 flex min-h-7 items-center justify-between gap-3 border border-border bg-surface-100 px-3 py-1.5 text-[11px] text-text-secondary"
+            className="mb-3 flex min-h-7 items-center justify-between gap-3 rounded-md border-2 border-border bg-surface-100 px-3 py-1.5 text-[11px] text-text-secondary"
             aria-live="polite"
           >
             <span className="min-w-0 truncate">{sourceStatus}</span>
             {sourceBusy ? (
-              <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-300">
+              <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full border border-border bg-surface-300">
                 <span
                   className={cn(
                     "uq-motion-progress block h-full rounded-full bg-accent transition-[width] duration-150",
@@ -337,11 +337,13 @@ export const InputPane = ({
         ) : null}
         {sourceError ? (
           <div
-            className="mb-2 flex flex-col gap-2 rounded-md border border-error/30 bg-[rgba(207,45,86,0.06)] px-3 py-2 text-[11px]"
+            className="mb-2 flex flex-col gap-2 rounded-md border-2 border-[var(--color-error)] bg-[var(--danger-soft)] px-3 py-2 text-[11px]"
             aria-live="polite"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-error">{t("input.parseErrorTitle")}</span>
+              <span className="font-bold uppercase tracking-[0.06em] text-error">
+                {t("input.parseErrorTitle")}
+              </span>
               <span className="font-mono text-[11px] text-text-secondary">
                 {t("input.parseErrorMode", { format: sourceError.format })}
               </span>
@@ -352,7 +354,7 @@ export const InputPane = ({
             <div className="min-w-0 break-words font-mono text-[11px] text-text-secondary">
               {t("error.message", { message: sourceError.message })}
             </div>
-            <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
+            <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md border-2 border-border bg-surface-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-text-secondary">
               {sourceError.context}
             </pre>
           </div>
@@ -368,9 +370,9 @@ export const InputPane = ({
               <Button
                 key={sample.id}
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 border border-border bg-surface-100 px-2.5 text-[10px]"
+                className="h-7 px-2.5 text-[10px]"
                 onClick={() => onSampleSelect?.(sample)}
               >
                 <FileJson2 className="size-3" />
@@ -387,20 +389,22 @@ export const InputPane = ({
             onPaste={handlePaste}
             spellCheck={false}
             className={cn(
-              "uq-area h-[min(40vh,440px)] min-h-[280px] w-full resize-none rounded-none border-0 bg-transparent p-0.5 font-mono text-[12px] leading-[1.6] text-text-primary outline-none transition-[background-color,border-color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "uq-area h-[min(40vh,440px)] min-h-[280px] w-full resize-none border-0 bg-transparent p-0.5 font-mono text-[12px] leading-[1.6] text-text-primary outline-none transition-[background-color,border-color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               isDraggingFile &&
                 "bg-surface-100 shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent)_18%,transparent)]",
             )}
             placeholder={t("input.placeholder")}
           />
           {isDraggingFile ? (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-none border border-accent bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-surface-50))] text-accent shadow-sm">
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-accent bg-[color-mix(in_oklab,var(--color-accent)_10%,var(--color-surface-50))] text-accent">
               <Upload className="size-5" />
-              <div className="text-[12px] font-semibold">{t("input.dropActive")}</div>
+              <div className="text-[12px] font-bold uppercase tracking-[0.06em]">
+                {t("input.dropActive")}
+              </div>
               <div className="text-[11px] text-text-secondary">{t("input.dropHint")}</div>
             </div>
           ) : showSourcePreview ? (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-none border border-border bg-surface-50 px-6 text-center">
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-border bg-surface-50 px-6 text-center">
               <FileJson2 className="size-5 text-accent" />
               <div className="max-w-full truncate text-[12px] font-semibold text-text-primary">
                 {sourceStatus}
