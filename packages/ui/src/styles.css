@@ -220,7 +220,7 @@ a,
 }
 
 .uq-glass {
-  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   backdrop-filter: blur(14px);
 }
 
