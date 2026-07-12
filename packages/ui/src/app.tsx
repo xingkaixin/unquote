@@ -663,7 +663,6 @@ export const UnquoteApp = ({
     >
       <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
         <div className="flex items-center gap-3.5">
-          <span className="nf-led uq-logo-led" />
           <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
             UNQUOTE
           </h1>
