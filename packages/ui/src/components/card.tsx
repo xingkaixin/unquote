@@ -6,7 +6,7 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        "rounded-[var(--radius-card)] border border-border bg-surface-100 text-text-primary shadow-none transition-colors duration-200 hover:border-border-medium",
+        "rounded-[var(--radius-card)] border-[3px] border-border bg-surface-100 text-text-primary shadow-[var(--shadow-md)]",
         className,
       )}
       {...props}
@@ -18,14 +18,14 @@ Card.displayName = "Card";
 
 export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col gap-1 border-b border-border px-4 py-2.5", className)}
+    className={cn("flex flex-col gap-1 border-b-2 border-border px-4 py-2.5", className)}
     {...props}
   />
 );
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
-    className={cn("text-[13px] font-medium tracking-[-0.01em] text-text-display", className)}
+    className={cn("text-[13px] font-bold tracking-[-0.01em] text-text-display", className)}
     {...props}
   />
 );

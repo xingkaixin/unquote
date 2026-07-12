@@ -1306,13 +1306,14 @@ describe("UnquoteApp", () => {
     // Enable regex, then jq — jq must turn regex off.
     const regexButton = screen.getByRole("button", { name: /^Regex$/i });
     await user.click(regexButton);
-    expect(regexButton.className).toContain("bg-accent");
+    // Active toggles adopt the secondary (yellow) fill; inactive ones stay ghost.
+    expect(regexButton.className).toContain("var(--color-secondary)");
 
     const jqButton = screen.getByRole("button", { name: /jq syntax/i });
     await user.click(jqButton);
     // jq is now active, regex is not — the mutex held.
-    expect(jqButton.className).toContain("bg-accent");
-    expect(regexButton.className).not.toContain("bg-accent");
+    expect(jqButton.className).toContain("var(--color-secondary)");
+    expect(regexButton.className).not.toContain("var(--color-secondary)");
   });
 
   it("clears matches and resets to the all-records summary", async () => {

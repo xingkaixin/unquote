@@ -3,17 +3,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-none border font-mono text-ui-11 font-normal uppercase tracking-[0.08em] transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex items-center justify-center gap-2 rounded-md border-2 font-mono text-ui-11 font-bold uppercase tracking-[0.08em] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none",
   {
     variants: {
       variant: {
         default:
-          "border-border-medium bg-transparent text-text-primary hover:border-border-strong hover:text-text-display",
+          "uq-press border-border bg-surface-100 text-text-primary shadow-[var(--shadow-sm)] hover:bg-surface-200 hover:text-text-display",
         outline:
-          "border-border bg-surface-100 text-text-primary hover:border-border-medium hover:bg-surface-200 hover:text-text-display",
+          "uq-press border-border bg-transparent text-text-primary shadow-[var(--shadow-sm)] hover:bg-surface-200 hover:text-text-display",
         ghost:
-          "border-transparent bg-transparent text-text-secondary hover:bg-surface-200 hover:text-text-display",
-        secondary: "border-accent bg-accent text-white hover:brightness-110 hover:text-white",
+          "uq-tap border-transparent bg-transparent text-text-secondary shadow-none hover:bg-surface-200 hover:text-text-display",
+        primary:
+          "uq-press border-border bg-[var(--color-primary)] text-[var(--color-primary-ink)] shadow-[var(--shadow-md)] hover:bg-[var(--color-accent-hover)] hover:text-[var(--color-primary-ink)]",
+        secondary:
+          "uq-press border-border bg-[var(--color-secondary)] text-[var(--color-secondary-ink)] shadow-[var(--shadow-md)] hover:brightness-105 hover:text-[var(--color-secondary-ink)]",
+        danger:
+          "uq-press border-border bg-[var(--color-error)] text-white shadow-[var(--shadow-md)] hover:brightness-105 hover:text-white",
       },
       size: {
         default: "h-9 px-3",

@@ -16,7 +16,7 @@ export const TooltipContent = React.forwardRef<
       <TooltipPrimitive.Popup
         ref={ref}
         className={cn(
-          "rounded-md bg-surface-500 px-2 py-1 text-[12px] text-text-primary shadow-md",
+          "rounded-md border-2 border-border bg-surface-100 px-2 py-1 font-mono text-[11px] text-text-primary shadow-[var(--shadow-md)]",
           className,
         )}
         {...props}

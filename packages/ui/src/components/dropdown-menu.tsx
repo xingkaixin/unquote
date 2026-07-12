@@ -13,7 +13,7 @@ export const DropdownMenuContent = ({
     <Menu.Positioner align={align} sideOffset={8} className="z-50 outline-none">
       <Menu.Popup
         className={cn(
-          "min-w-40 rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 p-1 shadow-lg",
+          "min-w-40 rounded-[var(--radius-overlay)] border-2 border-border bg-surface-100 p-1 shadow-[var(--shadow-md)]",
           className,
         )}
         {...props}
@@ -27,7 +27,7 @@ export const DropdownMenuItem = ({
 }: React.ComponentProps<typeof Menu.Item>) => (
   <Menu.Item
     className={cn(
-      "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono text-ui-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-display",
+      "uq-tap flex cursor-pointer select-none items-center rounded-sm px-3 py-2 font-mono text-ui-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-display",
       className,
     )}
     {...props}

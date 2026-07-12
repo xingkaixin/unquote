@@ -12,8 +12,15 @@ export const Toaster = ({ ...props }: ToasterProps) => (
         "--normal-bg": "var(--color-surface-100)",
         "--normal-text": "var(--color-text-primary)",
         "--normal-border": "var(--color-border)",
+        "--border-radius": "var(--radius-md)",
       } as CSSProperties
     }
+    toastOptions={{
+      style: {
+        border: "2px solid var(--color-border)",
+        boxShadow: "var(--shadow-md)",
+      },
+    }}
     {...props}
   />
 );
