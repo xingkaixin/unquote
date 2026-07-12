@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
 import {
@@ -23,6 +23,7 @@ import {
 } from "./dropdown-menu";
 
 interface ToolbarProps {
+  leading?: ReactNode;
   summary: string;
   query: string;
   matchCount: number;
@@ -43,6 +44,7 @@ interface ToolbarProps {
 }
 
 export const Toolbar = ({
+  leading,
   summary,
   query,
   matchCount,
@@ -69,6 +71,7 @@ export const Toolbar = ({
 
   return (
     <div className="uq-glass sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border px-4 py-3">
+      {leading}
       <form
         className="flex h-[34px] min-w-[200px] flex-1 items-center gap-2 overflow-hidden border border-transparent bg-surface-50 px-3 focus-within:border-border-medium"
         onSubmit={(event) => {

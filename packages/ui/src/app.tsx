@@ -541,9 +541,24 @@ export const UnquoteApp = ({
   const toolbarInPathMode = queryMode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
+  // When the source pane is collapsed, its expand affordance relocates into the
+  // output's top row instead of reserving a full-height column. Desktop-only:
+  // the mobile layout never uses the collapse.
+  const expandSourceControl = sourceCollapsed ? (
+    <button
+      type="button"
+      className="uq-icon-button hidden size-[34px] shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
+      onClick={() => setSourceCollapsed(false)}
+      aria-label={t("input.expandSource")}
+      title={t("input.expandSource")}
+    >
+      <PanelLeftOpen className="size-4" />
+    </button>
+  ) : null;
   const jsonOutput = (
     <div ref={outputRef} className="flex flex-col gap-3">
       <Toolbar
+        leading={agentSession ? null : expandSourceControl}
         summary={toolbarSummary}
         query={toolbarQuery}
         matchCount={toolbarMatchCount}
@@ -599,14 +614,17 @@ export const UnquoteApp = ({
       value={outputView}
       onValueChange={(value) => setOutputView(value === "agent" ? "agent" : "json")}
     >
-      <TabsList className="mb-3">
-        <TabsTrigger value="agent" data-output-tab="agent">
-          {t("app.tab.agent")}
-        </TabsTrigger>
-        <TabsTrigger value="json" data-output-tab="json">
-          {t("app.tab.json")}
-        </TabsTrigger>
-      </TabsList>
+      <div className="mb-3 flex items-center gap-2">
+        {expandSourceControl}
+        <TabsList>
+          <TabsTrigger value="agent" data-output-tab="agent">
+            {t("app.tab.agent")}
+          </TabsTrigger>
+          <TabsTrigger value="json" data-output-tab="json">
+            {t("app.tab.json")}
+          </TabsTrigger>
+        </TabsList>
+      </div>
       <TabsContent value="agent">
         <AgentSessionView
           session={agentSession}
@@ -697,54 +715,43 @@ export const UnquoteApp = ({
           <TabsContent value="output">{output}</TabsContent>
         </Tabs>
 
-        <div
-          className={`hidden items-start lg:grid ${sourceCollapsed ? "gap-3.5 lg:grid-cols-[46px_minmax(0,1fr)]" : "gap-3.5 lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]"}`}
-        >
-          <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
-            {sourceCollapsed ? (
-              <button
-                type="button"
-                className="uq-icon-button flex size-[42px] items-center justify-center rounded-none border border-border bg-surface-100 text-text-secondary hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onClick={() => setSourceCollapsed(false)}
-                aria-label={t("input.expandSource")}
-              >
-                <PanelLeftOpen className="size-4" />
-              </button>
-            ) : (
-              <>
-                <InputPane
-                  value={sourceText}
-                  mode={mode}
-                  onChange={handleSourceChange}
-                  onModeChange={setMode}
-                  sampleOptions={sampleOptions}
-                  onSampleSelect={handleSampleSelect}
-                  onOpenFile={handleOpenFile}
-                  onFileDrop={handleFileDrop}
-                  onClear={() => handleSourceChange("")}
-                  onToggleCollapse={() => setSourceCollapsed((current) => !current)}
-                  sourceStatus={sourceFileStatus}
-                  sourceBusy={sourceFileBusy}
-                  sourceProgress={readingFile ? readProgress : null}
-                  sourceError={sourceParseError}
+        {sourceCollapsed ? (
+          <div className="hidden min-w-0 lg:block">{output}</div>
+        ) : (
+          <div className="hidden items-start gap-3.5 lg:grid lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]">
+            <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
+              <InputPane
+                value={sourceText}
+                mode={mode}
+                onChange={handleSourceChange}
+                onModeChange={setMode}
+                sampleOptions={sampleOptions}
+                onSampleSelect={handleSampleSelect}
+                onOpenFile={handleOpenFile}
+                onFileDrop={handleFileDrop}
+                onClear={() => handleSourceChange("")}
+                onToggleCollapse={() => setSourceCollapsed((current) => !current)}
+                sourceStatus={sourceFileStatus}
+                sourceBusy={sourceFileBusy}
+                sourceProgress={readingFile ? readProgress : null}
+                sourceError={sourceParseError}
+              />
+              {hasJsonlRecords(result) ? (
+                <TocPane
+                  records={visibleRecords}
+                  recordInsights={recordInsights}
+                  stats={visibleStats}
+                  totalCount={result.stats.total}
+                  activeRecordId={activeRecordId}
+                  selectedRecordId={selectedRecordId}
+                  onSelect={handleSelectRecord}
+                  onCopyRawLine={handleCopyRawLine}
                 />
-                {hasJsonlRecords(result) ? (
-                  <TocPane
-                    records={visibleRecords}
-                    recordInsights={recordInsights}
-                    stats={visibleStats}
-                    totalCount={result.stats.total}
-                    activeRecordId={activeRecordId}
-                    selectedRecordId={selectedRecordId}
-                    onSelect={handleSelectRecord}
-                    onCopyRawLine={handleCopyRawLine}
-                  />
-                ) : null}
-              </>
-            )}
+              ) : null}
+            </div>
+            <div className="min-w-0">{output}</div>
           </div>
-          <div className="min-w-0">{output}</div>
-        </div>
+        )}
       </main>
       <CommandPalette
         open={commandPaletteOpen}
