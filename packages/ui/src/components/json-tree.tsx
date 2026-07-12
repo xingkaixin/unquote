@@ -276,7 +276,7 @@ export const JsonTree = ({
             </Button>
           </div>
         </div>
-        <CardContent className="flex flex-col gap-2 bg-surface-50 py-3">
+        <CardContent className="flex flex-col gap-2 bg-surface-100 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="danger">
               <FileWarning className="mr-1 size-3" />
@@ -370,7 +370,7 @@ export const JsonTree = ({
       </div>
       <div
         ref={parentRef}
-        className="max-h-[560px] overflow-auto bg-surface-50 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        className="max-h-[560px] overflow-auto bg-surface-100 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         role="tree"
         aria-label={record.summary}
         aria-activedescendant={activeRowId}
@@ -673,7 +673,7 @@ const RowItem = ({
       ? "bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] shadow-[inset_2px_0_0_var(--color-accent)]"
       : searchMatch
         ? "bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]"
-        : "hover:bg-surface-100";
+        : "hover:bg-surface-200";
   const anchorTone = isSelectedAnchor ? "shadow-[inset_2px_0_0_var(--color-accent)]" : "";
   const activeDescendantTone = isActiveDescendant
     ? "outline outline-1 -outline-offset-1 outline-accent"

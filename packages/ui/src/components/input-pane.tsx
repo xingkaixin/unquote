@@ -311,9 +311,9 @@ export const InputPane = ({
       </div>
       <CardContent
         className={cn(
-          "bg-surface-50 px-3 py-3 transition-colors",
+          "bg-surface-100 px-3 py-3 transition-colors",
           isDraggingFile &&
-            "bg-[color-mix(in_oklab,var(--color-accent)_6%,var(--color-surface-50))]",
+            "bg-[color-mix(in_oklab,var(--color-accent)_6%,var(--color-surface-100))]",
         )}
       >
         {sourceStatus ? (

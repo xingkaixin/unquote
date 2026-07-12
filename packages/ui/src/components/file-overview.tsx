@@ -124,7 +124,7 @@ export const FileOverview = ({
         />
       </button>
       <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
-        <div className="grid overflow-hidden border border-border bg-surface-50 sm:grid-cols-5">
+        <div className="grid overflow-hidden border border-border bg-surface-100 sm:grid-cols-5">
           {metrics.map((metric, index) => {
             const Icon = metric.icon;
             return (
