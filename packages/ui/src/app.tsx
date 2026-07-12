@@ -552,7 +552,7 @@ export const UnquoteApp = ({
       aria-label={t("input.expandSource")}
       title={t("input.expandSource")}
     >
-      <PanelLeftOpen className="size-4" />
+      <PanelLeftOpen className="size-3.5" />
     </button>
   ) : null;
   const jsonOutput = (

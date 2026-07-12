@@ -172,7 +172,7 @@ export const Toolbar = ({
                 className="uq-icon-button size-[34px] px-0"
                 aria-label={t("toolbar.more")}
               >
-                <MoreHorizontal className="size-4" />
+                <MoreHorizontal className="size-3.5" />
               </Button>
             }
           />
