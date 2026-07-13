@@ -598,6 +598,31 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("Tool call").length).toBeGreaterThan(0);
   });
 
+  it("updates Agent timestamps across every surface when locale changes", async () => {
+    const user = await renderCodexAgentView();
+    const timestamp = Date.parse("2026-06-06T13:44:08.000Z");
+    const formatTimestamp = (locale: "en" | "zh-CN") =>
+      new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeStyle: "medium",
+      }).format(timestamp);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: /^Timeline: tool_use exec_command/ }))[0]!,
+    );
+
+    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
+    expect(screen.getAllByText(formatTimestamp("en"))).toHaveLength(2);
+    expect(rawJsonPanel).toHaveTextContent(formatTimestamp("en"));
+
+    await user.click(screen.getByRole("button", { name: "Change language" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Chinese (Simplified)" }));
+
+    expect(screen.getAllByText(formatTimestamp("zh-CN"))).toHaveLength(2);
+    expect(rawJsonPanel).toHaveTextContent(formatTimestamp("zh-CN"));
+    expect(screen.queryByText(formatTimestamp("en"))).not.toBeInTheDocument();
+  });
+
   it("hydrates Raw JSONL records for streamed Agent files", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

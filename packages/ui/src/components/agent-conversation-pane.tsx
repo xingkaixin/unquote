@@ -47,10 +47,10 @@ const ConversationItem = ({
   selected: boolean;
   onSelect: (itemId: string) => void;
 }) => {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const config = roleConfig(item.role, t);
   const Icon = config.icon;
-  const timestamp = formatTimestamp(event?.timestamp, event?.timestampLabel);
+  const timestamp = formatTimestamp(event?.timestamp, event?.timestampLabel, locale);
 
   return (
     <article className={`flex ${config.align === "end" ? "justify-end" : "justify-start"}`}>
