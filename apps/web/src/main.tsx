@@ -3,9 +3,12 @@ import ReactDOM from "react-dom/client";
 import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
 import { createSourceHash, getInitialInputFromHash } from "./hash";
+import { initializeThemePreference } from "@unquote/ui/theme-preference";
 
 const CHROME_WEB_STORE_URL =
   "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
+
+initializeThemePreference();
 
 const getInitialInput = () => getInitialInputFromHash(window.location.hash);
 
