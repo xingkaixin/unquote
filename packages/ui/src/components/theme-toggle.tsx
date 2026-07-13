@@ -3,7 +3,8 @@ import { useTranslation } from "../i18n/context";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Button } from "./button";
@@ -41,18 +42,20 @@ export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
         }
       />
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onChange("light")}>
-          <Sun className="mr-2 size-3.5" />
-          {t("theme.light")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onChange("dark")}>
-          <Moon className="mr-2 size-3.5" />
-          {t("theme.dark")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onChange("system")}>
-          <Monitor className="mr-2 size-3.5" />
-          {t("theme.system")}
-        </DropdownMenuItem>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => onChange(value)}>
+          <DropdownMenuRadioItem value="light">
+            <Sun className="mr-2 size-3.5" />
+            {t("theme.light")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <Moon className="mr-2 size-3.5" />
+            {t("theme.dark")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system">
+            <Monitor className="mr-2 size-3.5" />
+            {t("theme.system")}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
