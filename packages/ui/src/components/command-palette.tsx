@@ -161,7 +161,7 @@ export const CommandPalette = ({
             className="mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Dialog.Title className="sr-only">{t("command.palette")}</Dialog.Title>
-            <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4">
+            <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4 focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-accent">
               <Search className="size-4 shrink-0 text-text-muted" />
               <input
                 ref={inputRef}
@@ -226,6 +226,7 @@ export const CommandPalette = ({
               </span>
               <Button
                 variant={jq ? "secondary" : "ghost"}
+                aria-pressed={jq}
                 size="sm"
                 className="h-7 gap-1.5"
                 onClick={() => onJqChange(!jq)}
@@ -235,6 +236,7 @@ export const CommandPalette = ({
               </Button>
               <Button
                 variant={regex ? "secondary" : "ghost"}
+                aria-pressed={regex}
                 size="sm"
                 className="h-7 gap-1.5"
                 onClick={() => onRegexChange(!regex)}
@@ -244,6 +246,7 @@ export const CommandPalette = ({
               </Button>
               <Button
                 variant={caseSensitive ? "secondary" : "ghost"}
+                aria-pressed={caseSensitive}
                 size="sm"
                 className="h-7 gap-1.5"
                 onClick={() => onCaseSensitiveChange(!caseSensitive)}
@@ -264,7 +267,7 @@ export const CommandPalette = ({
                 value={commandQuery}
                 onChange={(event) => setCommandQuery(event.target.value)}
                 placeholder={t("command.filterCommands")}
-                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted"
+                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               />
             </div>
             <div

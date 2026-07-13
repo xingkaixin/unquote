@@ -73,7 +73,7 @@ export const Toolbar = ({
     <div className="uq-glass sticky top-[52px] z-20 flex items-center gap-2 border-b border-border px-4 py-2">
       {leading}
       <form
-        className="flex h-[34px] min-w-0 flex-1 items-center gap-2"
+        className="flex h-[34px] min-w-0 flex-1 items-center gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmitQuery(inputRef.current?.value ?? query);

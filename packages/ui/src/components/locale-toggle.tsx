@@ -3,7 +3,8 @@ import { useTranslation } from "../i18n/context";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Button } from "./button";
@@ -31,15 +32,13 @@ export const LocaleToggle = () => {
         }
       />
       <DropdownMenuContent align="end">
-        {localeOptions.map(({ locale: optionLocale, label }) => (
-          <DropdownMenuItem
-            key={optionLocale}
-            onClick={() => setLocale(optionLocale)}
-            className={optionLocale === locale ? "font-semibold" : ""}
-          >
-            {t(label)}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup value={locale} onValueChange={setLocale}>
+          {localeOptions.map(({ locale: optionLocale, label }) => (
+            <DropdownMenuRadioItem key={optionLocale} value={optionLocale}>
+              {t(label)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

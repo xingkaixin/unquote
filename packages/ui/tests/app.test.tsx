@@ -390,6 +390,7 @@ describe("UnquoteApp", () => {
     );
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
+    expect(getToolbarInput().closest("form")).toHaveClass("focus-within:outline-2");
     const trigger = screen.getAllByRole("button", { name: "Commands" })[0]!;
     await user.click(trigger);
 
@@ -398,6 +399,13 @@ describe("UnquoteApp", () => {
     const commandFilter = within(dialog).getByRole("textbox", { name: "Filter commands..." });
     const actionList = within(dialog).getByRole("listbox", { name: "Record filters" });
     const options = within(actionList).getAllByRole("option");
+
+    expect(commandInput.parentElement).toHaveClass("focus-within:outline-2");
+    expect(commandFilter).toHaveClass("focus-visible:outline-2");
+    expect(within(dialog).getByRole("button", { name: /jq syntax/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
 
     await waitFor(() => expect(commandInput).toHaveFocus());
     expect(commandInput).toHaveAttribute("aria-activedescendant", options[0]!.id);
@@ -411,6 +419,36 @@ describe("UnquoteApp", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("exposes theme and locale choices as checked menu radio items", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Switch theme" }));
+    expect(await screen.findByRole("menuitemradio", { name: "System" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("menuitemradio", { name: "Light" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Change language" }));
+    expect(await screen.findByRole("menuitemradio", { name: "English" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("menuitemradio", { name: "Chinese (Simplified)" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
   it("renders and parses input", async () => {
@@ -1466,14 +1504,15 @@ describe("UnquoteApp", () => {
     await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
     // Enable regex, then jq — jq must turn regex off.
     const regexButton = screen.getByRole("button", { name: /^Regex$/i });
+    expect(regexButton).toHaveAttribute("aria-pressed", "false");
     await user.click(regexButton);
-    expect(regexButton.className).toContain("bg-accent");
+    expect(regexButton).toHaveAttribute("aria-pressed", "true");
 
     const jqButton = screen.getByRole("button", { name: /jq syntax/i });
     await user.click(jqButton);
     // jq is now active, regex is not — the mutex held.
-    expect(jqButton.className).toContain("bg-accent");
-    expect(regexButton.className).not.toContain("bg-accent");
+    expect(jqButton).toHaveAttribute("aria-pressed", "true");
+    expect(regexButton).toHaveAttribute("aria-pressed", "false");
   });
 
   it("clears matches and resets to the all-records summary", async () => {
