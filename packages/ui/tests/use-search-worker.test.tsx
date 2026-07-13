@@ -97,22 +97,40 @@ describe("useSearchWorker", () => {
     });
 
     act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("A")] }));
+    expect(worker.terminated).toBe(true);
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("A");
   });
 
-  it("ignores a stale response once a newer query has been sent", () => {
+  it("terminates a superseded worker and applies only the new query", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
+    const staleWorker = MockWorker.instances[0]!;
     rerender(<Probe query="b" text="text" />);
 
-    const worker = MockWorker.instances[0]!;
-    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+    expect(staleWorker.terminated).toBe(true);
+    expect(MockWorker.instances).toHaveLength(2);
+    const currentWorker = MockWorker.instances[1]!;
+    expect(currentWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "b", requestId: 2 }),
+    );
 
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("stale")] }));
+    act(() => staleWorker.respond({ type: "result", requestId: 1, matches: [matchStub("stale")] }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("");
 
-    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("fresh")] }));
+    act(() =>
+      currentWorker.respond({ type: "result", requestId: 2, matches: [matchStub("fresh")] }),
+    );
     expect(screen.getByTestId("record-id")).toHaveTextContent("fresh");
+  });
+
+  it("terminates the active worker when the query is cleared", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+
+    rerender(<Probe query="" text="text" />);
+
+    expect(worker.terminated).toBe(true);
+    expect(screen.getByTestId("status")).toHaveTextContent("idle");
   });
 
   it("terminates the worker and reports a timeout when no response arrives", async () => {
@@ -158,6 +176,7 @@ describe("useSearchWorker", () => {
     const worker = MockWorker.instances[0]!;
 
     act(() => worker.respond({ type: "error", requestId: 1, message: "TypeError" }));
+    expect(worker.terminated).toBe(true);
     expect(screen.getByTestId("status")).toHaveTextContent("error");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
   });
@@ -199,12 +218,12 @@ describe("useSearchWorker", () => {
     );
   });
 
-  it("posts a search-file request for a source file and ignores its stale response", () => {
+  it("terminates a superseded search-file worker", () => {
     const file = new File(["{}"], "payload.jsonl");
     const { rerender } = render(<Probe query="a" text="" sourceFile={file} />);
 
-    const worker = MockWorker.instances[0]!;
-    expect(worker.postMessage).toHaveBeenCalledWith({
+    const staleWorker = MockWorker.instances[0]!;
+    expect(staleWorker.postMessage).toHaveBeenCalledWith({
       type: "search-file",
       requestId: 1,
       file,
@@ -213,12 +232,34 @@ describe("useSearchWorker", () => {
     });
 
     rerender(<Probe query="b" text="" sourceFile={file} />);
-    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+    expect(staleWorker.terminated).toBe(true);
+    const currentWorker = MockWorker.instances[1]!;
 
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("stale-file")] }));
+    act(() =>
+      staleWorker.respond({
+        type: "result",
+        requestId: 1,
+        matches: [matchStub("stale-file")],
+      }),
+    );
     expect(screen.getByTestId("record-id")).toHaveTextContent("");
 
-    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("fresh-file")] }));
+    act(() =>
+      currentWorker.respond({
+        type: "result",
+        requestId: 2,
+        matches: [matchStub("fresh-file")],
+      }),
+    );
     expect(screen.getByTestId("record-id")).toHaveTextContent("fresh-file");
+  });
+
+  it("terminates the active worker when the hook unmounts", () => {
+    const { unmount } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+
+    unmount();
+
+    expect(worker.terminated).toBe(true);
   });
 });

@@ -56,7 +56,6 @@ export const useSearchWorker = (params: {
 }): SearchWorkerResult => {
   const { text, forcedFormat, sourceFile, query, options, debounceMs = 0 } = params;
   const [state, setState] = useState<SearchWorkerResult>(idleResult);
-  const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -105,22 +104,11 @@ export const useSearchWorker = (params: {
         return;
       }
 
-      workerRef.current ??= new Worker(new URL("../worker/search-worker.ts", import.meta.url), {
+      const currentWorker = new Worker(new URL("../worker/search-worker.ts", import.meta.url), {
         type: "module",
       });
-      const currentWorker = workerRef.current;
-      currentWorker.postMessage(
-        buildSearchRequest(requestId, text, forcedFormat, sourceFile, query, options),
-      );
-
-      const timeoutId = window.setTimeout(() => {
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-        currentWorker.terminate();
-        workerRef.current = null;
-        setState({ matches: null, status: "error", errorKind: "timeout" });
-      }, getSearchWorkerTimeoutMs(sourceFile));
+      let timeoutId: number | undefined;
+      let disposed = false;
 
       const onMessage = (event: MessageEvent<SearchWorkerResponse>) => {
         const response = event.data;
@@ -128,7 +116,7 @@ export const useSearchWorker = (params: {
           return;
         }
 
-        window.clearTimeout(timeoutId);
+        disposeWorker();
         if (response.type === "error") {
           setState({ matches: null, status: "error", errorKind: "worker-error" });
           return;
@@ -136,11 +124,32 @@ export const useSearchWorker = (params: {
         setState({ matches: response.matches, status: "complete", errorKind: null });
       };
 
-      currentWorker.addEventListener("message", onMessage);
-      dispatchCleanup = () => {
-        window.clearTimeout(timeoutId);
+      const disposeWorker = () => {
+        if (disposed) {
+          return;
+        }
+        disposed = true;
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId);
+        }
         currentWorker.removeEventListener("message", onMessage);
+        currentWorker.terminate();
       };
+
+      currentWorker.addEventListener("message", onMessage);
+      currentWorker.postMessage(
+        buildSearchRequest(requestId, text, forcedFormat, sourceFile, query, options),
+      );
+
+      timeoutId = window.setTimeout(() => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+        disposeWorker();
+        setState({ matches: null, status: "error", errorKind: "timeout" });
+      }, getSearchWorkerTimeoutMs(sourceFile));
+
+      dispatchCleanup = disposeWorker;
     };
 
     if (debounceMs > 0) {
@@ -154,16 +163,6 @@ export const useSearchWorker = (params: {
     dispatch();
     return () => dispatchCleanup?.();
   }, [text, forcedFormat, sourceFile, query, options, debounceMs]);
-
-  // Terminate the worker thread when the hook's owner unmounts; the per-request
-  // cleanup above only detaches listeners and timers.
-  useEffect(
-    () => () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    },
-    [],
-  );
 
   return state;
 };
