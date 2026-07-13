@@ -335,13 +335,7 @@ export const formatResult = (result: ParseResult, options: { indent?: number } =
   }
 
   return result.records
-    .map((record) => {
-      if (!record.node) {
-        return `/* line ${record.lineNumber}: ${record.error ?? "Parse error"} */`;
-      }
-
-      return JSON.stringify(materializeNode(record.node), null, indent);
-    })
+    .map((record) => JSON.stringify(record.node ? materializeNode(record.node) : null) ?? "null")
     .join("\n");
 };
 
