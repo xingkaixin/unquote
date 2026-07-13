@@ -111,8 +111,8 @@ export const RecordList = ({
       }
 
       const frame = requestAnimationFrame(() => {
-        document
-          .getElementById(recordId)
+        listRef.current
+          ?.querySelector<HTMLElement>(`[id="${recordId}"]`)
           ?.scrollIntoView({ block: "start", behavior: preferredScrollBehavior() });
       });
 
@@ -175,7 +175,7 @@ export const RecordList = ({
     );
 
     for (const record of records) {
-      const element = document.getElementById(record.id);
+      const element = listRef.current?.querySelector<HTMLElement>(`[id="${record.id}"]`);
       if (element) {
         observer.observe(element);
       }
