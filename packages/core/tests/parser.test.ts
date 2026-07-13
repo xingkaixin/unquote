@@ -3,6 +3,7 @@ import {
   detectFormat,
   extractSummary,
   formatResult,
+  materializeNode,
   parseInput,
   parseJsonlRecordLine,
   probeJsonl,
@@ -180,6 +181,66 @@ describe("parseInput", () => {
   it("formats back to json", () => {
     const result = parseInput('{"payload":"{\\"ok\\":true}"}');
     expect(formatResult(result)).toContain('"ok": true');
+  });
+
+  it("truncates deep native containers without reporting a parse failure", () => {
+    const input = `${'{"value":'.repeat(3_000)}null${"}".repeat(3_000)}`;
+    const result = parseInput(input, { maxDepth: 10 });
+
+    expect(result.stats).toEqual({ total: 1, success: 1, failed: 0 });
+    let node = result.records[0]?.node;
+    for (let depth = 0; depth < 10; depth += 1) {
+      expect(node?.meta.depth).toBe(depth);
+      if (!node?.children || Array.isArray(node.children)) {
+        throw new Error(`Expected object children at depth ${depth}`);
+      }
+      node = node.children.value;
+    }
+    expect(node).toMatchObject({
+      kind: "object",
+      meta: { depth: 10, expandable: true, truncated: true },
+    });
+    expect(node?.children).toBeUndefined();
+  });
+
+  it("protects deep native containers with the default depth budget", () => {
+    const input = `${'{"value":'.repeat(3_000)}null${"}".repeat(3_000)}`;
+
+    expect(parseInput(input).stats).toEqual({ total: 1, success: 1, failed: 0 });
+  });
+
+  it("preserves truncated container values for materialization", () => {
+    const result = parseInput('{"items":[[{"value":1}]]}', { maxDepth: 1 });
+    const root = result.records[0]?.node;
+    if (!root) {
+      throw new Error("Expected a root node");
+    }
+
+    expect(materializeNode(root)).toEqual({ items: [[{ value: 1 }]] });
+    expect(JSON.parse(formatResult(result))).toEqual({ items: [[{ value: 1 }]] });
+  });
+
+  it("applies the depth budget to stringified JSON", () => {
+    const result = parseInput('{"payload":"{\\"nested\\":{\\"value\\":1}}"}', { maxDepth: 1 });
+    const root = result.records[0]?.node;
+    if (!root?.children || Array.isArray(root.children)) {
+      throw new Error("Expected object children");
+    }
+
+    expect(root.children.payload).toMatchObject({
+      kind: "object",
+      wasStringified: true,
+      meta: { depth: 1, truncated: true },
+    });
+    expect(materializeNode(root)).toEqual({ payload: { nested: { value: 1 } } });
+  });
+
+  it("protects deep native containers in JSONL records", () => {
+    const deepRecord = `${"[".repeat(3_000)}null${"]".repeat(3_000)}`;
+    const result = parseInput(deepRecord, { forcedFormat: "jsonl", maxDepth: 8 });
+
+    expect(result.stats).toEqual({ total: 1, success: 1, failed: 0 });
+    expect(result.records[0]?.node?.kind).toBe("array");
   });
 });
 
