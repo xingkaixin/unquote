@@ -194,7 +194,6 @@ export const InputPane = ({
       return;
     }
 
-    event.preventDefault();
     void readClipboardFile(pastedFileName ?? "clipboard.json")
       .then((clipboardFile) => {
         if (clipboardFile) {
