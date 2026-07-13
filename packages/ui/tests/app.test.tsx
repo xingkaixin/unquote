@@ -1294,6 +1294,49 @@ describe("UnquoteApp", () => {
     );
   });
 
+  it("switches a large file between streamed JSONL and loaded JSON semantics", async () => {
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+    const file = new File(
+      [`${JSON.stringify({ value: 1 })}\n${" ".repeat(1_000_000)}`],
+      "large.jsonl",
+    );
+
+    fireEvent.paste(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      {
+        clipboardData: { files: [file], items: [], types: ["Files"] },
+      },
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".uq-shell")).toHaveAttribute(
+        "data-source-file",
+        "large.jsonl",
+      ),
+    );
+
+    fireEvent.change(screen.getByLabelText(inputFormatLabel), { target: { value: "json" } });
+
+    await waitFor(() =>
+      expect(container.querySelector(".uq-shell")).toHaveAttribute("data-source-file", ""),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Input" }));
+    fireEvent.change(screen.getByLabelText(inputFormatLabel), { target: { value: "jsonl" } });
+
+    await waitFor(() =>
+      expect(container.querySelector(".uq-shell")).toHaveAttribute(
+        "data-source-file",
+        "large.jsonl",
+      ),
+    );
+  });
+
   it("counts and cycles search matches in the toolbar", async () => {
     const user = userEvent.setup();
     const input = ['{"msg":"alpha"}', '{"msg":"alpha"}', '{"msg":"beta"}'].join("\n");
