@@ -183,6 +183,40 @@ describe("parseInput", () => {
     expect(formatResult(result)).toContain('"ok": true');
   });
 
+  it("formats each JSONL record as one parseable physical line", () => {
+    const result = parseInput('{"a":1}\n[1,2]\ntrue\n"text"', { forcedFormat: "jsonl" });
+    const lines = formatResult(result).split("\n");
+
+    expect(lines).toHaveLength(4);
+    expect(lines.map((line) => JSON.parse(line))).toEqual([{ a: 1 }, [1, 2], true, "text"]);
+  });
+
+  it("ignores indentation for JSONL output", () => {
+    const result = parseInput('{"a":{"b":1}}\n{"c":2}', { forcedFormat: "jsonl" });
+
+    expect(formatResult(result, { indent: 8 })).toBe('{"a":{"b":1}}\n{"c":2}');
+  });
+
+  it("serializes failed JSONL records as parseable null placeholders", () => {
+    const result = parseInput('{"ok":1}\n{bad}', { forcedFormat: "jsonl" });
+    const lines = formatResult(result).split("\n");
+
+    expect(lines.map((line) => JSON.parse(line))).toEqual([{ ok: 1 }, null]);
+  });
+
+  it("round-trips successful JSONL record values", () => {
+    const source = '{"a":1}\n[1,2]\nfalse';
+    const formatted = formatResult(parseInput(source, { forcedFormat: "jsonl" }));
+    const reparsed = parseInput(formatted, { forcedFormat: "jsonl" });
+
+    expect(reparsed.stats).toEqual({ total: 3, success: 3, failed: 0 });
+    expect(reparsed.records.map((record) => materializeNode(record.node!))).toEqual([
+      { a: 1 },
+      [1, 2],
+      false,
+    ]);
+  });
+
   it("truncates deep native containers without reporting a parse failure", () => {
     const input = `${'{"value":'.repeat(3_000)}null${"}".repeat(3_000)}`;
     const result = parseInput(input, { maxDepth: 10 });
