@@ -6,6 +6,8 @@ import { getCopyValue } from "../lib/record-export";
 
 const largeSourceCollapseBytes = 1_000_000;
 
+type SourceMode = "auto" | "json" | "jsonl";
+
 type SourceState =
   | { kind: "text"; text: string }
   | { kind: "reading"; file: File; progress: number | null; prevText: string }
@@ -41,7 +43,8 @@ export const useSourceLoader = ({
   onCopyError,
 }: UseSourceLoaderParams) => {
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
-  const [mode, setMode] = useState<"auto" | "json" | "jsonl">("auto");
+  const [mode, setMode] = useState<SourceMode>("auto");
+  const modeRef = useRef<SourceMode>(mode);
   const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
   const fileImportIdRef = useRef(0);
 
@@ -55,6 +58,27 @@ export const useSourceLoader = ({
   const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
+
+  const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
+    file.size > largeSourceCollapseBytes &&
+    (sourceMode === "jsonl" ||
+      (sourceMode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
+
+  const publishStreamingFile = (file: File) => {
+    setSourceState({ kind: "streaming", file });
+    onReset();
+    incrementSourceRevision();
+    onCollapseSource();
+  };
+
+  const publishImportedFile = (file: File, text: string) => {
+    setSourceState({ kind: "imported", file, text });
+    onReset();
+    incrementSourceRevision();
+    if (text.length > largeSourceCollapseBytes) {
+      onCollapseSource();
+    }
+  };
 
   const onSourceChange = (value: string) => {
     fileImportIdRef.current += 1;
@@ -72,15 +96,8 @@ export const useSourceLoader = ({
     const prevText = sourceText;
     setSourceState({ kind: "reading", file, progress: onReadFile ? null : 0, prevText });
 
-    const streamAsJsonl =
-      file.size > largeSourceCollapseBytes &&
-      (mode === "jsonl" || (mode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
-
-    if (streamAsJsonl) {
-      setSourceState({ kind: "streaming", file });
-      onReset();
-      incrementSourceRevision();
-      onCollapseSource();
+    if (shouldStreamFile(file, modeRef.current)) {
+      publishStreamingFile(file);
       return;
     }
 
@@ -111,8 +128,27 @@ export const useSourceLoader = ({
       return;
     }
 
-    onSourceChange(text);
-    setSourceState({ kind: "imported", file, text });
+    if (shouldStreamFile(file, modeRef.current)) {
+      publishStreamingFile(file);
+      return;
+    }
+
+    publishImportedFile(file, text);
+  };
+
+  const setSourceMode = (nextMode: SourceMode) => {
+    modeRef.current = nextMode;
+    setMode(nextMode);
+
+    if (sourceState.kind === "streaming" && !shouldStreamFile(sourceState.file, nextMode)) {
+      void onFileDrop(sourceState.file);
+      return;
+    }
+
+    if (sourceState.kind === "imported" && shouldStreamFile(sourceState.file, nextMode)) {
+      fileImportIdRef.current += 1;
+      publishStreamingFile(sourceState.file);
+    }
   };
 
   const onOpenFile = async () => {
@@ -153,7 +189,7 @@ export const useSourceLoader = ({
 
   return {
     mode,
-    setMode,
+    setMode: setSourceMode,
     sourceText,
     sourceFile,
     readingFile,
