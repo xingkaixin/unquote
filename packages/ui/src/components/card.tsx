@@ -23,8 +23,12 @@ export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDiv
   />
 );
 
-export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3
+export const CardTitle = ({
+  as: Heading = "h2",
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement> & { as?: "h2" | "h3" }) => (
+  <Heading
     className={cn("text-[13px] font-medium tracking-[-0.01em] text-text-display", className)}
     {...props}
   />

@@ -348,6 +348,13 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput='{"ok":true}' />
       </I18nProvider>,
     );
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
+    const main = screen.getByRole("main");
+    expect(skipLink).toHaveAttribute("href", "#main-content");
+    expect(skipLink).toHaveClass("focus:not-sr-only");
+    expect(main).toHaveAttribute("id", "main-content");
+    expect(main).toHaveAttribute("tabindex", "-1");
+    expect(main).toHaveClass("scroll-mt-[52px]");
 
     expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Collapse source" })).not.toBeInTheDocument();
@@ -462,6 +469,27 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
     expect(screen.getAllByPlaceholderText(commandInputPlaceholder)[0]).toBeInTheDocument();
+  });
+
+  it("renders a continuous heading hierarchy", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput='{"value":1}' />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
+
+    const levels = screen
+      .getAllByRole("heading")
+      .map((heading) => Number(heading.tagName.slice(1)));
+    expect(levels[0]).toBe(1);
+    expect(levels).toContain(2);
+    levels.slice(1).forEach((level, index) => {
+      expect(level).toBeLessThanOrEqual(levels[index]! + 1);
+    });
   });
 
   it("shows localized sample chips for empty input", () => {

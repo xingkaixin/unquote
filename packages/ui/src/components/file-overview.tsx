@@ -149,9 +149,9 @@ export const FileOverview = ({
         {open ? (
           <div className="grid gap-4 xl:grid-cols-3">
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h3 className="mb-2 text-[11px] font-medium text-text-primary">
                 {t("overview.topNestedPaths")}
-              </h4>
+              </h3>
               {overview.topNestedPaths.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
                   {overview.topNestedPaths.map((item) => (
@@ -179,9 +179,9 @@ export const FileOverview = ({
             </section>
 
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h3 className="mb-2 text-[11px] font-medium text-text-primary">
                 {t("overview.topFieldValues")}
-              </h4>
+              </h3>
               {overview.topFieldValues.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
                   {overview.topFieldValues.map((item) => (
@@ -214,9 +214,9 @@ export const FileOverview = ({
             </section>
 
             <section className="min-w-0">
-              <h4 className="mb-2 text-[11px] font-medium text-text-primary">
+              <h3 className="mb-2 text-[11px] font-medium text-text-primary">
                 {t("overview.errors")}
-              </h4>
+              </h3>
               {previewErrors.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
                   {previewErrors.map((error) => (
