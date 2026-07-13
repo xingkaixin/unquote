@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import type { useTranslation } from "../i18n/context";
+import type { Locale } from "../i18n/i18n";
 import type { AgentConversationRole, AgentEventCategory } from "../lib/agent-session";
+
+const timestampFormatters: Record<Locale, Intl.DateTimeFormat> = {
+  en: new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "medium" }),
+  "zh-CN": new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium" }),
+};
 
 export interface RoleConfig {
   label: string;
@@ -69,12 +75,11 @@ export const categoryConfig = (
 export const formatTimestamp = (
   timestamp: number | undefined,
   timestampLabel: string | undefined,
+  locale: Locale,
 ) => {
-  if (timestampLabel) {
-    return timestampLabel;
+  const date = new Date(timestamp ?? timestampLabel ?? Number.NaN);
+  if (Number.isNaN(date.getTime())) {
+    return timestampLabel ?? "";
   }
-  if (timestamp === undefined) {
-    return "";
-  }
-  return new Date(timestamp).toLocaleString();
+  return timestampFormatters[locale].format(date);
 };

@@ -88,13 +88,13 @@ const RawJsonlPanel = ({
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
 }) => {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const role = item ? roleConfig(item.role, t) : null;
   const category = categoryConfig(event.category, t);
   const RoleIcon = role?.icon;
   const CategoryIcon = category.icon;
   const recordId = event.recordId;
-  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel);
+  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel, locale);
 
   return (
     <section

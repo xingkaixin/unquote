@@ -30,10 +30,10 @@ const TimelineEvent = ({
   style?: CSSProperties;
   measureRef?: (node: HTMLButtonElement | null) => void;
 }) => {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const config = categoryConfig(event.category, t);
   const Icon = config.icon;
-  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel);
+  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel, locale);
 
   return (
     <button
