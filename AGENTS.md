@@ -19,7 +19,7 @@ apps/extension         WXT + React Chrome extension (MV3)
 | Package Manager | pnpm 11.11.0 (workspace protocol `workspace:*`) |
 | Build / Dev | Turbo, Vite, tsup |
 | Frontend | React 19, TypeScript 6, Tailwind CSS v4 |
-| Component Primitives | Radix UI (dropdown, scroll-area, tabs, tooltip, slot) |
+| Component Primitives | Base UI (dropdown, scroll-area, tabs, tooltip, separator) |
 | Virtualization | `@tanstack/react-virtual` |
 | Icons | `lucide-react` |
 | Testing | Vitest, `@testing-library/react`, jsdom |
@@ -109,9 +109,11 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
 | `hooks/use-local-file-source.ts` | Stateful access layer for local JSONL files: deferred full-record hydration, search, copy/export resolution, cache eviction, and abort handling. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
+| `hooks/use-search-worker.ts` | Runs regex search off the main thread with cancellation and a time budget for superseded queries. |
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
 | `hooks/use-record-pipeline.ts` | Combines parser output, local-file hydration, agent session detection, search, filters, expansion helpers, and visible record derivation. |
+| `hooks/use-workspace-session.ts` | Owns workspace-level source, output, selection, focus, and agent-session view state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
 ### Tree Utilities (`lib/tree.ts`)

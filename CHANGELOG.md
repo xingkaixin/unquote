@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.0] - 2026-07-13
+
+### Changed
+
+- Large JSONL workflows now keep high-record-count navigation, Agent timelines and conversations, search, overview updates, and deferred hydration responsive with virtualization, worker-based processing, incremental indexing, and lower retained memory.
+- Workspace layout and controls now provide a more consistent responsive structure, semantic page navigation, accessible control states, reduced-motion support, and system-theme application before the first render.
+- Agent session details and interface copy now stay localized consistently, including timestamps.
+- Web and extension app versions bumped to `0.9.0`.
+
+### Fixed
+
+- JSONL record-scoped expansion and Agent raw-record hydration now resolve the selected record instead of leaking state across records.
+- JSONL formatting now emits valid line-delimited output, and restore-path matching no longer confuses path segments with substrings.
+- Deep native JSON containers are bounded during parsing to avoid unbounded recursion.
+- Stale file reads, superseded search workers, extension selection handoffs, and oversized inbound URL hashes no longer overwrite current state or leave work running unnecessarily.
+- Pasted filenames, localized labels, theme preference persistence, and keyboard / screen-reader interactions now retain the expected state.
+
 ## [0.8.0] - 2026-07-03
 
 ### Changed
