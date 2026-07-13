@@ -21,6 +21,17 @@ const toNode = (
   };
 
   if (kind === "object") {
+    if (depth >= maxDepth) {
+      return {
+        kind,
+        value,
+        path,
+        wasStringified,
+        ...(rawString ? { rawString } : {}),
+        meta: { ...meta, expandable: true, truncated: true },
+      };
+    }
+
     const objectValue = value as Record<string, unknown>;
     const children = Object.fromEntries(
       Object.entries(objectValue).map(([key, childValue]) => [
@@ -41,6 +52,17 @@ const toNode = (
   }
 
   if (kind === "array") {
+    if (depth >= maxDepth) {
+      return {
+        kind,
+        value,
+        path,
+        wasStringified,
+        ...(rawString ? { rawString } : {}),
+        meta: { ...meta, expandable: true, truncated: true },
+      };
+    }
+
     const arrayValue = value as unknown[];
     const children = arrayValue.map((childValue, index) =>
       buildNode(childValue, [...path, String(index)], depth + 1, maxDepth, recordId, sourceLine),

@@ -1,6 +1,6 @@
 import type { JsonKind } from "./types";
 
-export const DEFAULT_MAX_DEPTH = 10;
+export const DEFAULT_MAX_DEPTH = 100;
 
 const SUMMARY_KEYS = ["timestamp", "type", "action", "event", "name", "message"] as const;
 
