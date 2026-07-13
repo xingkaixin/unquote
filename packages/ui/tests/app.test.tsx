@@ -320,6 +320,10 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.mocked(window.matchMedia).mockImplementation(defaultMatchMedia);
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: vi.fn() },
+  });
   localStorage.clear();
 });
 
@@ -1030,6 +1034,84 @@ describe("UnquoteApp", () => {
 
     await waitFor(() => expect(sourceInput).toHaveValue('{"pasted":true}'));
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
+  });
+
+  it("preserves filename text when clipboard read is unavailable", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const dispatched = fireEvent.paste(sourceInput, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ["text/plain"],
+        getData: () => "payload.json",
+      },
+    });
+
+    expect(dispatched).toBe(true);
+  });
+
+  it("preserves filename text when clipboard read finds no file", async () => {
+    const read = vi.fn().mockResolvedValue([]);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { read, writeText: vi.fn() },
+    });
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const dispatched = fireEvent.paste(sourceInput, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ["text/plain"],
+        getData: () => "payload.json",
+      },
+    });
+
+    expect(dispatched).toBe(true);
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  });
+
+  it("preserves filename text when clipboard permission is denied", async () => {
+    const read = vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { read, writeText: vi.fn() },
+    });
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    const sourceInput = screen.getAllByPlaceholderText(
+      "Paste JSON / JSONL, or drop a file here.",
+    )[0]!;
+    const dispatched = fireEvent.paste(sourceInput, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ["text/plain"],
+        getData: () => "payload.json",
+      },
+    });
+
+    expect(dispatched).toBe(true);
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
   });
 
   it("keeps the previous source text visible while a dropped file is being read", async () => {
