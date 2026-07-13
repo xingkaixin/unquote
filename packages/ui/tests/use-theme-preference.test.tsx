@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useThemePreference } from "../src/hooks/use-theme-preference";
+import { initializeThemePreference } from "../src/lib/theme-preference";
 
 describe("useThemePreference", () => {
   let systemMatches = false;
@@ -18,12 +19,36 @@ describe("useThemePreference", () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.classList.remove("dark");
+    document.documentElement.style.colorScheme = "";
+    document.head.innerHTML = '<meta name="theme-color" content="#f2f2ef" />';
     systemMatches = false;
     changeListener = null;
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: vi.fn(() => mediaQuery),
     });
+  });
+
+  it("applies the stored theme before React renders", () => {
+    localStorage.setItem("unquote-theme", "dark");
+
+    initializeThemePreference();
+
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      "#000000",
+    );
+  });
+
+  it("applies the system theme before React renders", () => {
+    systemMatches = true;
+
+    initializeThemePreference();
+
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });
   });
 
   afterEach(() => {
@@ -59,6 +84,11 @@ describe("useThemePreference", () => {
     expect(result.current.theme).toBe("light");
     expect(localStorage.getItem("unquote-theme")).toBe("light");
     expect(document.documentElement).not.toHaveClass("dark");
+    expect(document.documentElement).toHaveStyle({ colorScheme: "light" });
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      "#f2f2ef",
+    );
   });
 
   it("falls back to system when storage contains an invalid theme", () => {
@@ -105,6 +135,11 @@ describe("useThemePreference", () => {
     expect(document.documentElement).not.toHaveClass("dark");
     act(() => listener?.({ matches: true } as MediaQueryListEvent));
     expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      "#000000",
+    );
 
     unmount();
     expect(vi.mocked(mediaQuery.removeEventListener)).toHaveBeenCalledWith("change", listener);

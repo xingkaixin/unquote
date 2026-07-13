@@ -58,6 +58,7 @@
 }
 
 :root {
+  color-scheme: light;
   --canvas: #f2f2ef;
   --surface: #ffffff;
   --surface-raised: #f7f7f4;
@@ -83,6 +84,7 @@
 
 /* --- Dark Mode --- */
 .dark {
+  color-scheme: dark;
   --color-surface-50: #1a1a1a;
   --color-surface-100: #111111;
   --color-surface-200: #1a1a1a;
