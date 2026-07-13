@@ -65,6 +65,21 @@ const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
+const desktopWorkspaceQuery = "(min-width: 64rem)";
+
+const useDesktopWorkspace = () => {
+  const mediaQuery = useMemo(() => window.matchMedia(desktopWorkspaceQuery), []);
+  const [isDesktop, setIsDesktop] = useState(mediaQuery.matches);
+
+  useEffect(() => {
+    const syncViewport = () => setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener("change", syncViewport);
+    return () => mediaQuery.removeEventListener("change", syncViewport);
+  }, [mediaQuery]);
+
+  return isDesktop;
+};
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -81,6 +96,7 @@ export const UnquoteApp = ({
   onReadFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
+  const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const workspace = useWorkspaceSession();
   const {
@@ -650,6 +666,26 @@ export const UnquoteApp = ({
   ) : (
     jsonOutput
   );
+  const inputPane = (
+    <InputPane
+      value={sourceText}
+      mode={mode}
+      onChange={handleSourceChange}
+      onModeChange={setMode}
+      sampleOptions={sampleOptions}
+      onSampleSelect={handleSampleSelect}
+      onOpenFile={handleOpenFile}
+      onFileDrop={handleFileDrop}
+      onClear={() => handleSourceChange("")}
+      {...(isDesktopWorkspace
+        ? { onToggleCollapse: () => setSourceCollapsed((current) => !current) }
+        : {})}
+      sourceStatus={sourceFileStatus}
+      sourceBusy={sourceFileBusy}
+      sourceProgress={readingFile ? readProgress : null}
+      sourceError={sourceParseError}
+    />
+  );
 
   return (
     <div
@@ -688,68 +724,38 @@ export const UnquoteApp = ({
       </header>
 
       <main className="mx-auto flex w-full max-w-[1760px] flex-col gap-3 px-4 pb-6 pt-3.5 sm:px-6">
-        <Tabs defaultValue="workspace" className="flex flex-col gap-3 lg:hidden">
-          <TabsList>
-            <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
-            <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="workspace">
-            <InputPane
-              value={sourceText}
-              mode={mode}
-              onChange={handleSourceChange}
-              onModeChange={setMode}
-              sampleOptions={sampleOptions}
-              onSampleSelect={handleSampleSelect}
-              onOpenFile={handleOpenFile}
-              onFileDrop={handleFileDrop}
-              onClear={() => handleSourceChange("")}
-              onToggleCollapse={() => setSourceCollapsed((current) => !current)}
-              sourceStatus={sourceFileStatus}
-              sourceBusy={sourceFileBusy}
-              sourceProgress={readingFile ? readProgress : null}
-              sourceError={sourceParseError}
-            />
-          </TabsContent>
-          <TabsContent value="output">{output}</TabsContent>
-        </Tabs>
-
-        {sourceCollapsed ? (
-          <div className="hidden min-w-0 lg:block">{output}</div>
-        ) : (
-          <div className="hidden items-start gap-3.5 lg:grid lg:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]">
-            <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
-              <InputPane
-                value={sourceText}
-                mode={mode}
-                onChange={handleSourceChange}
-                onModeChange={setMode}
-                sampleOptions={sampleOptions}
-                onSampleSelect={handleSampleSelect}
-                onOpenFile={handleOpenFile}
-                onFileDrop={handleFileDrop}
-                onClear={() => handleSourceChange("")}
-                onToggleCollapse={() => setSourceCollapsed((current) => !current)}
-                sourceStatus={sourceFileStatus}
-                sourceBusy={sourceFileBusy}
-                sourceProgress={readingFile ? readProgress : null}
-                sourceError={sourceParseError}
-              />
-              {hasJsonlRecords(result) ? (
-                <TocPane
-                  records={visibleRecords}
-                  recordInsights={recordInsights}
-                  stats={visibleStats}
-                  totalCount={result.stats.total}
-                  activeRecordId={activeRecordId}
-                  selectedRecordId={selectedRecordId}
-                  onSelect={handleSelectRecord}
-                  onCopyRawLine={handleCopyRawLine}
-                />
-              ) : null}
-            </div>
+        {isDesktopWorkspace ? (
+          sourceCollapsed ? (
             <div className="min-w-0">{output}</div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
+              <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
+                {inputPane}
+                {hasJsonlRecords(result) ? (
+                  <TocPane
+                    records={visibleRecords}
+                    recordInsights={recordInsights}
+                    stats={visibleStats}
+                    totalCount={result.stats.total}
+                    activeRecordId={activeRecordId}
+                    selectedRecordId={selectedRecordId}
+                    onSelect={handleSelectRecord}
+                    onCopyRawLine={handleCopyRawLine}
+                  />
+                ) : null}
+              </div>
+              <div className="min-w-0">{output}</div>
+            </div>
+          )
+        ) : (
+          <Tabs defaultValue="workspace" className="flex flex-col gap-3">
+            <TabsList>
+              <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
+              <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="workspace">{inputPane}</TabsContent>
+            <TabsContent value="output">{output}</TabsContent>
+          </Tabs>
         )}
       </main>
       <CommandPalette

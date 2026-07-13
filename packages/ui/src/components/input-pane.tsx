@@ -298,15 +298,17 @@ export const InputPane = ({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-text-muted" />
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="uq-icon-button h-7 w-7 px-0"
-            onClick={onToggleCollapse}
-            aria-label={t("input.collapseSource")}
-          >
-            <PanelLeftClose className="size-3.5" />
-          </Button>
+          {onToggleCollapse ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="uq-icon-button h-7 w-7 px-0"
+              onClick={onToggleCollapse}
+              aria-label={t("input.collapseSource")}
+            >
+              <PanelLeftClose className="size-3.5" />
+            </Button>
+          ) : null}
         </div>
       </div>
       <CardContent

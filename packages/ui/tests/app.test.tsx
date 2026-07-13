@@ -12,6 +12,14 @@ const maxTransferStringLength = 4096;
 const maxDeferredStringLength = 160;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 const inputFormatLabel = "Input format";
+const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
+
+const useDesktopViewport = () => {
+  vi.mocked(window.matchMedia).mockImplementation((query) => {
+    const result = defaultMatchMedia(query);
+    return { ...result, matches: query === "(min-width: 64rem)" || result.matches };
+  });
+};
 
 const LocaleProbe = () => {
   const { setLocale, t } = useTranslation();
@@ -311,35 +319,62 @@ Object.assign(globalThis, {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.mocked(window.matchMedia).mockImplementation(defaultMatchMedia);
   localStorage.clear();
 });
 
 const renderCodexAgentView = async () => {
   const user = userEvent.setup();
+  useDesktopViewport();
   render(
     <I18nProvider>
       <UnquoteApp initialInput={codexRolloutSource} />
     </I18nProvider>,
   );
 
-  await user.click(screen.getByRole("tab", { name: "Output" }));
   await screen.findAllByRole("tab", { name: "Agent" });
   return user;
 };
 
 describe("UnquoteApp", () => {
-  it("names the primary source and search controls", () => {
+  it("mounts one mobile workspace pane at a time", async () => {
+    const user = userEvent.setup();
     render(
       <I18nProvider>
-        <UnquoteApp />
+        <UnquoteApp initialInput='{"ok":true}' />
       </I18nProvider>,
     );
 
-    expect(screen.getAllByRole("button", { name: "Open file" })).not.toHaveLength(0);
-    expect(screen.getAllByRole("button", { name: "Clear source" })).not.toHaveLength(0);
-    expect(screen.getAllByRole("button", { name: "Collapse source" })).not.toHaveLength(0);
-    expect(screen.getAllByRole("textbox", { name: "Source input" })).not.toHaveLength(0);
-    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Collapse source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Search or jump" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+
+    await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
+    expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
+  });
+
+  it("mounts one desktop source and output tree", async () => {
+    const user = userEvent.setup();
+    useDesktopViewport();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput='{"ok":true}' />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
+    expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
+    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
+    expect(screen.queryByRole("tab", { name: "Output" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Collapse source" }));
+
+    expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
+    expect(document.querySelectorAll("#record-1")).toHaveLength(1);
   });
 
   it("exposes command options and restores focus when the palette closes", async () => {
@@ -350,6 +385,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
+    await user.click(screen.getByRole("tab", { name: "Output" }));
     const trigger = screen.getAllByRole("button", { name: "Commands" })[0]!;
     await user.click(trigger);
 
@@ -359,7 +395,7 @@ describe("UnquoteApp", () => {
     const actionList = within(dialog).getByRole("listbox", { name: "Record filters" });
     const options = within(actionList).getAllByRole("option");
 
-    expect(commandInput).toHaveFocus();
+    await waitFor(() => expect(commandInput).toHaveFocus());
     expect(commandInput).toHaveAttribute("aria-activedescendant", options[0]!.id);
 
     await user.keyboard("{ArrowDown}");
@@ -670,6 +706,7 @@ describe("UnquoteApp", () => {
 
   it("filters JSONL records across list, toc, search, and copy output", async () => {
     const user = userEvent.setup();
+    useDesktopViewport();
     const writeText = vi.fn();
     const exportedBlobs: Blob[] = [];
     Object.defineProperty(URL, "createObjectURL", {
@@ -703,7 +740,6 @@ describe("UnquoteApp", () => {
     fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
       target: { value: "jsonl" },
     });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
 
     await user.type(getToolbarInput(), "boom");
@@ -1540,7 +1576,9 @@ describe("UnquoteApp", () => {
         .getByRole("treeitem", { name: /payload/ })
         .querySelector("[data-tree-toggle]")!,
     );
-    await waitFor(() => expect(screen.getAllByText("first")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText("first")).toHaveLength(1));
+
+    await user.click(screen.getByRole("tab", { name: "Input" }));
 
     fireEvent.change(
       screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
@@ -1549,7 +1587,8 @@ describe("UnquoteApp", () => {
       },
     );
 
-    await waitFor(() => expect(screen.getAllByText("payload")).toHaveLength(2));
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload")).toHaveLength(1));
     expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
 
@@ -1561,6 +1600,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
+    await user.click(screen.getByRole("tab", { name: "Output" }));
     await user.type(getToolbarInput(), "first");
     await waitFor(() =>
       expect(container.querySelector("[data-search-query]")).toHaveAttribute(
@@ -1569,11 +1609,13 @@ describe("UnquoteApp", () => {
       ),
     );
 
+    await user.click(screen.getByRole("tab", { name: "Input" }));
     fireEvent.change(
       screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
       { target: { value: '{"message":"second"}' } },
     );
 
+    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(getToolbarInput()).toHaveValue(""));
     expect(container.querySelector("[data-search-query]")).toHaveAttribute("data-search-query", "");
   });
@@ -1607,7 +1649,7 @@ describe("UnquoteApp", () => {
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
     );
 
-    expect(performance.getEntriesByName("unquote:recordRows:build")).toHaveLength(2);
+    expect(performance.getEntriesByName("unquote:recordRows:build")).toHaveLength(1);
   });
 
   it("disables Copy above the large-source threshold and points to Export", () => {
@@ -1621,6 +1663,7 @@ describe("UnquoteApp", () => {
 
   it("keeps the clicked TOC record highlighted while scroll-spy reports another", async () => {
     const user = userEvent.setup();
+    useDesktopViewport();
     const originalObserver = globalThis.IntersectionObserver;
     let observerCallback: IntersectionObserverCallback | null = null;
     Object.assign(globalThis, {
@@ -1651,7 +1694,6 @@ describe("UnquoteApp", () => {
       fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
         target: { value: "jsonl" },
       });
-      await user.click(screen.getByRole("tab", { name: "Output" }));
       await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
 
       // Click the #3 entry in the TOC. TOC entries are wrapped in a div with
