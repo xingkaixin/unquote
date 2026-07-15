@@ -98,7 +98,7 @@ export const Toolbar = ({
         {hasQuery ? (
           <button
             type="button"
-            className="uq-icon-button inline-flex size-5 shrink-0 items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="uq-icon-button inline-flex size-7 shrink-0 items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => {
               onClearQuery();
               inputRef.current?.focus();
@@ -116,7 +116,7 @@ export const Toolbar = ({
             type="button"
             variant="ghost"
             size="sm"
-            className="uq-icon-button h-5 w-5 px-0"
+            className="uq-icon-button h-7 w-7 px-0"
             onClick={onPrevMatch}
             disabled={!hasMatches}
             aria-label={t("search.prev")}
@@ -127,7 +127,7 @@ export const Toolbar = ({
             type="button"
             variant="ghost"
             size="sm"
-            className="uq-icon-button h-5 w-5 px-0"
+            className="uq-icon-button h-7 w-7 px-0"
             onClick={onNextMatch}
             disabled={!hasMatches}
             aria-label={t("search.next")}
@@ -140,7 +140,7 @@ export const Toolbar = ({
         <Button
           variant="ghost"
           size="sm"
-          className="h-[34px] gap-1.5 px-3"
+          className="gap-1.5 px-3"
           onClick={onOpenCommandPalette}
           title={`${t("command.open")} · ${shortcut}`}
         >
@@ -150,7 +150,7 @@ export const Toolbar = ({
         <Button
           variant={hasExpandedStringified ? "secondary" : "default"}
           size="sm"
-          className="h-[34px] gap-1.5 px-3"
+          className="gap-1.5 px-3"
           onClick={hasExpandedStringified ? onCollapseAll : onExpandAll}
           aria-pressed={hasExpandedStringified}
         >
@@ -169,7 +169,7 @@ export const Toolbar = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="uq-icon-button size-[34px] px-0"
+                className="uq-icon-button h-7 w-7 px-0"
                 aria-label={t("toolbar.more")}
               >
                 <MoreHorizontal className="size-3.5" />

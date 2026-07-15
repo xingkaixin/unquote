@@ -563,7 +563,7 @@ export const UnquoteApp = ({
   const expandSourceControl = sourceCollapsed ? (
     <button
       type="button"
-      className="uq-icon-button hidden size-[34px] shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
+      className="uq-icon-button hidden size-7 shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
       onClick={() => setSourceCollapsed(false)}
       aria-label={t("input.expandSource")}
       title={t("input.expandSource")}

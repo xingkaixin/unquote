@@ -381,11 +381,21 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
     expect(screen.queryByRole("tab", { name: "Output" })).not.toBeInTheDocument();
 
+    await user.type(getToolbarInput(), "x");
+    expect(getToolbarInput().closest("form")).toHaveClass("h-[34px]");
+    expect(screen.getByRole("button", { name: "Clear search" })).toHaveClass("size-7");
+    expect(screen.getByRole("button", { name: "Previous match" })).toHaveClass("h-7", "w-7");
+    expect(screen.getByRole("button", { name: "Next match" })).toHaveClass("h-7", "w-7");
+    expect(screen.getByRole("button", { name: "Commands" })).toHaveClass("h-7");
+    expect(screen.getByRole("button", { name: "Expand All" })).toHaveClass("h-7");
+    expect(screen.getByRole("button", { name: "More actions" })).toHaveClass("h-7", "w-7");
+
     await user.click(screen.getByRole("button", { name: "Collapse source" }));
 
     expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
     expect(document.querySelectorAll("#record-1")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Expand source" })).toHaveClass("size-7");
   });
 
   it("exposes command options and restores focus when the palette closes", async () => {
