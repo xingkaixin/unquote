@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JsonlRecord } from "@unquote/core";
 import { createStreamPublisher } from "../src/lib/stream-publisher";
 
@@ -12,6 +12,8 @@ const makeRecord = (lineNumber: number): JsonlRecord => ({
   node: null,
   summary: `line ${lineNumber}`,
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 // Manual scheduler standing in for requestAnimationFrame.
 const makeScheduler = () => {
@@ -39,6 +41,23 @@ const makeScheduler = () => {
 };
 
 describe("createStreamPublisher", () => {
+  it("uses animation frames when no scheduler is provided", () => {
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(42);
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const emit = vi.fn();
+    const publisher = createStreamPublisher<number, TestProgress>(emit);
+
+    publisher.pushBatch([makeRecord(1)], 1, { done: false });
+    publisher.pushBatch([makeRecord(2)], 2, { done: false });
+
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+
+    publisher.pushBatch([makeRecord(3)], 3, { done: true });
+
+    expect(cancelFrame).toHaveBeenCalledWith(42);
+    expect(emit).toHaveBeenCalledTimes(2);
+  });
+
   it("publishes the first batch synchronously and coalesces later ones per frame", () => {
     const scheduler = makeScheduler();
     const emit = vi.fn();
