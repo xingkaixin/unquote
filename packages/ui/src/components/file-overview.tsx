@@ -90,7 +90,7 @@ export const FileOverview = ({
       label: t("overview.maxDepth"),
       value: overview.maxDepth,
       icon: Layers,
-      tone: "text-code-boolean",
+      tone: "text-text-secondary",
     },
   ];
   const previewErrors = overview.errors.slice(0, errorPreviewLimit);

@@ -40,7 +40,7 @@ const kindConfig: Record<
 > = {
   error: { label: "insight.kind.error", icon: CircleAlert, variant: "danger" },
   tool: { label: "insight.kind.tool", icon: Wrench, variant: "warning" },
-  message: { label: "insight.kind.message", icon: MessageSquareText, variant: "success" },
+  message: { label: "insight.kind.message", icon: MessageSquareText, variant: "default" },
   event: { label: "insight.kind.event", icon: Activity, variant: "default" },
 };
 

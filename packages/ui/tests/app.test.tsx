@@ -789,6 +789,9 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText("File Overview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Nested records").length).toBeGreaterThan(0);
+    const maxDepthIcon = screen.getAllByText("Max depth")[0]?.parentElement?.querySelector("svg");
+    expect(maxDepthIcon).toHaveClass("text-text-secondary");
+    expect(maxDepthIcon).not.toHaveClass("text-code-boolean");
     await user.click(screen.getAllByRole("button", { name: /File Overview/ })[0]!);
     expect(screen.getAllByText("webhook.received").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
