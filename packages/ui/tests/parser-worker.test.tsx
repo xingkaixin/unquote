@@ -115,6 +115,136 @@ describe("parser worker file dispatch", () => {
     expect(record.node?.children).toBeUndefined();
   });
 
+  it("compacts container, nested, truncated, scalar, and invalid file records", async () => {
+    const longString = "x".repeat(200);
+    const chunk = [
+      "{}",
+      "[]",
+      JSON.stringify({ object: {}, array: [] }),
+      JSON.stringify({ first: "{}", second: "[]", long: longString }),
+      JSON.stringify(longString),
+      "null",
+      "{bad}",
+    ].join("\n");
+    const reader = {
+      read: vi
+        .fn()
+        .mockResolvedValueOnce({ value: `${chunk}\n`, done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+      cancel: vi.fn().mockResolvedValue(undefined),
+    };
+    const file = {
+      name: "variants.jsonl",
+      stream: () => ({
+        pipeThrough: () => ({ getReader: () => reader }),
+      }),
+    } as unknown as File;
+
+    const workerScope = await loadWorker();
+    dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
+    await vi.waitFor(() =>
+      expect(workerScope.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "complete", requestId: 1 }),
+      ),
+    );
+
+    const records = workerScope.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "batch")
+      .flatMap((message) => message.records);
+    expect(records).toHaveLength(7);
+    expect(records[0]).not.toHaveProperty("preview");
+    expect(records[0]?.node).toMatchObject({ kind: "object", value: null });
+    expect(records[1]?.node).toMatchObject({ kind: "array", value: null });
+    expect(records[2]?.preview).toEqual({
+      fields: {},
+      containers: { object: "object", array: "array" },
+    });
+    expect(records[3]?.preview).toMatchObject({
+      nestedFieldKeys: ["first", "second"],
+      fields: { first: "{}", second: "[]", long: "x".repeat(160) },
+    });
+    expect(records[4]?.node).toMatchObject({
+      value: "x".repeat(160),
+      meta: { truncated: true, valueLength: 200 },
+    });
+    expect(records[5]).not.toHaveProperty("preview");
+    expect(records[6]?.node).toBeNull();
+    expect(records[6]?.deferred).toBeUndefined();
+  });
+
+  it("streams JSONL chunks, skips blank lines, and completes with failure stats", async () => {
+    const workerScope = await loadWorker();
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 1,
+      chunk: '{"ignored":true}\n',
+      done: false,
+    });
+    expect(workerScope.postMessage).not.toHaveBeenCalled();
+
+    dispatch(workerScope, { type: "start-jsonl", requestId: 2 });
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 1,
+      chunk: '{"stale":true}\n',
+      done: false,
+    });
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 2,
+      chunk: '\n{"ok":true}\n{bad}\n',
+      done: true,
+    });
+
+    expect(workerScope.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "complete",
+        requestId: 2,
+        stats: { total: 2, success: 1, failed: 1 },
+      }),
+    );
+
+    workerScope.postMessage.mockClear();
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 2,
+      chunk: '{"after":true}\n',
+      done: true,
+    });
+    expect(workerScope.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("cancels a reader superseded after a successful read", async () => {
+    let resolveRead: ((result: ReadableStreamReadResult<string>) => void) | undefined;
+    const reader = {
+      read: vi.fn(
+        () =>
+          new Promise<ReadableStreamReadResult<string>>((resolve) => {
+            resolveRead = resolve;
+          }),
+      ),
+      cancel: vi.fn().mockResolvedValue(undefined),
+    };
+    const file = {
+      name: "old.jsonl",
+      stream: () => ({
+        pipeThrough: () => ({ getReader: () => reader }),
+      }),
+    } as unknown as File;
+
+    const workerScope = await loadWorker();
+    dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
+    await vi.waitFor(() => expect(reader.read).toHaveBeenCalledOnce());
+    dispatch(workerScope, { type: "parse", requestId: 2, input: "{}" });
+    resolveRead?.({ value: '{"stale":true}\n', done: false });
+
+    await vi.waitFor(() => expect(reader.cancel).toHaveBeenCalledOnce());
+    expect(workerScope.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "batch", requestId: 1 }),
+    );
+  });
+
   it("cancels a stale reader without posting its rejection", async () => {
     let rejectRead: ((error: unknown) => void) | undefined;
     const reader = {
