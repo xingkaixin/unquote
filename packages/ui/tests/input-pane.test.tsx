@@ -73,6 +73,23 @@ describe("InputPane source progress", () => {
   });
 });
 
+describe("InputPane error styling", () => {
+  it("derives the parse error background from the error token", () => {
+    renderPane({
+      sourceError: {
+        message: "Unexpected end of JSON input",
+        line: 1,
+        column: 2,
+        context: "{",
+        format: "JSON",
+      },
+    });
+
+    const parseError = screen.getByText("JSON parse failed").closest("div[aria-live='polite']");
+    expect(parseError).toHaveClass("bg-[color-mix(in_srgb,var(--color-error)_6%,transparent)]");
+  });
+});
+
 describe("InputPane file interactions", () => {
   it("opens the native picker and forwards selected files", () => {
     const onFileDrop = vi.fn();

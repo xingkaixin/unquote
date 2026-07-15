@@ -80,6 +80,7 @@ describe("AgentTimelinePane", () => {
     const buttons = timelineButtons();
     expect(buttons).toHaveLength(5);
     expect(buttons[2]).toHaveAttribute("aria-pressed", "true");
+    expect(buttons[2]).toHaveClass("bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(buttons[0]!);
