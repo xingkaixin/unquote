@@ -46,7 +46,7 @@ const TimelineEvent = ({
         virtualized ? "absolute left-0 top-0" : ""
       } ${
         selected
-          ? "border-accent bg-[rgba(229,112,62,0.08)]"
+          ? "border-accent bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]"
           : "border-transparent hover:border-border hover:bg-surface-100"
       }`}
       style={style}

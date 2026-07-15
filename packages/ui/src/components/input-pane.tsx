@@ -344,7 +344,7 @@ export const InputPane = ({
         ) : null}
         {sourceError ? (
           <div
-            className="mb-2 flex flex-col gap-2 rounded-md border border-error/30 bg-[rgba(207,45,86,0.06)] px-3 py-2 text-[11px]"
+            className="mb-2 flex flex-col gap-2 rounded-md border border-error/30 bg-[color-mix(in_srgb,var(--color-error)_6%,transparent)] px-3 py-2 text-[11px]"
             aria-live="polite"
           >
             <div className="flex flex-wrap items-center gap-2">
