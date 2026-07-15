@@ -223,6 +223,10 @@ transitions may include transform when the movement communicates pressing or sta
 Use `--ease: cubic-bezier(0.4, 0, 0.2, 1)` for branded ambient motion. The status LED pulses at
 2.4s; error attention may use a faster 1.6s pulse.
 
+Use `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` for short UI entrances, exits, and determinate
+progress. Anchored dropdowns transition transform and opacity for 180ms from their trigger origin;
+determinate progress transitions transform for 150ms without animating layout.
+
 Respect `prefers-reduced-motion: reduce`:
 
 - decorative pulses stop;

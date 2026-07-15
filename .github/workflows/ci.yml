@@ -13,8 +13,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          # Vite 8 and .ts config loading expect Node 20.19+/22.12+; use 22 LTS.
-          node-version: 22
+          # Keep CI aligned with the Node.js version declared in package.json.
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check

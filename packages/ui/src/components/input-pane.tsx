@@ -327,10 +327,16 @@ export const InputPane = ({
               <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-surface-300">
                 <span
                   className={cn(
-                    "uq-motion-progress block h-full rounded-full bg-accent transition-[width] duration-150",
-                    progressPercent === null && "uq-motion-pulse w-1/2 animate-pulse",
+                    "uq-motion-progress block h-full rounded-full bg-accent",
+                    progressPercent === null
+                      ? "uq-motion-pulse w-1/2 animate-pulse"
+                      : "w-full origin-left transition-transform duration-150 ease-[var(--ease-out)]",
                   )}
-                  style={progressPercent === null ? undefined : { width: `${progressPercent}%` }}
+                  style={
+                    progressPercent === null
+                      ? undefined
+                      : { transform: `scaleX(${progressPercent / 100})` }
+                  }
                 />
               </span>
             ) : null}

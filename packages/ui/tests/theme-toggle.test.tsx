@@ -35,6 +35,7 @@ describe("ThemeToggle", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Switch theme" }));
+    expect(await screen.findByRole("menu")).toHaveClass("uq-dropdown-popup");
     await user.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
     expect(onChange).toHaveBeenCalledWith("dark");

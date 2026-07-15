@@ -42,6 +42,37 @@ const transfer = ({
   types?: string[];
 } = {}) => ({ files, items, types, dropEffect: "none" }) as unknown as DataTransfer;
 
+describe("InputPane source progress", () => {
+  it.each([
+    { progress: -1, scale: 0 },
+    { progress: 0.42, scale: 0.42 },
+    { progress: 2, scale: 1 },
+  ])("renders determinate progress $progress as scaleX($scale)", ({ progress, scale }) => {
+    const { container } = renderPane({
+      sourceStatus: "Reading payload.json",
+      sourceBusy: true,
+      sourceProgress: progress,
+    });
+    const indicator = container.querySelector<HTMLElement>(".uq-motion-progress");
+
+    expect(indicator).toHaveClass("w-full", "origin-left", "transition-transform");
+    expect(indicator).toHaveStyle({ transform: `scaleX(${scale})` });
+    expect(indicator?.style.width).toBe("");
+  });
+
+  it("preserves the indeterminate pulse without a determinate transform", () => {
+    const { container } = renderPane({
+      sourceStatus: "Reading payload.json",
+      sourceBusy: true,
+      sourceProgress: null,
+    });
+    const indicator = container.querySelector<HTMLElement>(".uq-motion-progress");
+
+    expect(indicator).toHaveClass("uq-motion-pulse", "w-1/2", "animate-pulse");
+    expect(indicator?.style.transform).toBe("");
+  });
+});
+
 describe("InputPane file interactions", () => {
   it("opens the native picker and forwards selected files", () => {
     const onFileDrop = vi.fn();
