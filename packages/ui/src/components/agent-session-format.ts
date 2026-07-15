@@ -33,7 +33,7 @@ export const roleConfig = (
     case "user":
       return { label: t("agent.role.user"), icon: UserRound, variant: "default", align: "end" };
     case "assistant":
-      return { label: t("agent.role.assistant"), icon: Bot, variant: "success", align: "start" };
+      return { label: t("agent.role.assistant"), icon: Bot, variant: "default", align: "start" };
     case "thinking":
       return { label: t("agent.role.thinking"), icon: Brain, variant: "default", align: "start" };
     case "tool_call":
@@ -58,9 +58,9 @@ export const categoryConfig = (
     case "user":
       return { label: t("agent.category.user"), icon: UserRound, tone: "text-text-secondary" };
     case "assistant":
-      return { label: t("agent.category.assistant"), icon: Bot, tone: "text-success" };
+      return { label: t("agent.category.assistant"), icon: Bot, tone: "text-text-secondary" };
     case "thinking":
-      return { label: t("agent.category.thinking"), icon: Brain, tone: "text-code-boolean" };
+      return { label: t("agent.category.thinking"), icon: Brain, tone: "text-text-secondary" };
     case "tool":
       return { label: t("agent.category.tool"), icon: Wrench, tone: "text-warning" };
     case "system":
