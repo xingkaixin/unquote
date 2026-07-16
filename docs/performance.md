@@ -21,6 +21,10 @@ Pull requests that can affect parser or rendering performance run the Benchmark
 workflow on GitHub's Ubuntu runner. The JSON report is retained as the
 `benchmark-results` artifact for 14 days.
 
+The workflow generates deterministic case 2 and case 4 fixtures on the runner
+and writes the report outside the checkout. This keeps workstation-only inputs
+out of CI and prevents a tracked local baseline from being uploaded as a new run.
+
 Budget failures are non-blocking during this evaluation phase, but setup errors
 and missing reports still fail the workflow. Promote the benchmark to a required
 check only after enough runner samples establish stable, Ubuntu-specific budgets.

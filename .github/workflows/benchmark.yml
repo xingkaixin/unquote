@@ -32,14 +32,25 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generate benchmark fixtures
+        run: |
+          pnpm benchmark:fixtures
+          pnpm benchmark:case4-fixture
       - name: Run benchmark
         continue-on-error: true
-        run: pnpm benchmark
+        env:
+          UNQUOTE_BENCH_OUTPUT: ${{ runner.temp }}/unquote-benchmark/latest.json
+        run: >-
+          pnpm benchmark
+          benchmark/case2-1MB.jsonl
+          benchmark/case2-5MB.jsonl
+          benchmark/case2-10MB.jsonl
+          benchmark/case4-5K-rows.jsonl
       - name: Upload benchmark report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: benchmark/results/latest.json
+          path: ${{ runner.temp }}/unquote-benchmark/latest.json
           if-no-files-found: error
           retention-days: 14
