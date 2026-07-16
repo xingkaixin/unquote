@@ -167,34 +167,44 @@ export const parseJsonlRecordLine = (
   }
 };
 
-// Strict pass: every non-empty line must parse, otherwise the whole input is
-// not (clean) JSONL. Returns a full result only for >1 records, mirroring the
-// auto-detection rule that a single line is treated as plain JSON.
-const parseStrictJsonlResult = (input: string, maxDepth: number): ParseResult | null => {
+type StrictJsonlAttempt =
+  | { kind: "complete"; records: JsonlRecord[]; nextLineIndex: number }
+  | { kind: "failed"; records: JsonlRecord[]; nextLineIndex: number };
+
+// Strict pass: every non-empty line must parse, otherwise the input is not
+// clean JSONL. Preserve the parsed prefix so loose fallback can resume without
+// rebuilding records.
+const parseStrictJsonlRecords = (lines: string[], maxDepth: number): StrictJsonlAttempt => {
   const records: JsonlRecord[] = [];
 
-  for (const [index, line] of input.split(/\r?\n/).entries()) {
+  for (const [index, line] of lines.entries()) {
     if (!line.trim()) {
       continue;
     }
 
     const record = parseJsonlRecordLine(line, index + 1, { maxDepth });
-    if (!record.node) {
-      return null;
-    }
-
     records.push(record);
+
+    if (!record.node) {
+      return { kind: "failed", records, nextLineIndex: index + 1 };
+    }
   }
 
-  return records.length > 1 ? buildJsonlResult(records) : null;
+  return { kind: "complete", records, nextLineIndex: lines.length };
 };
 
 // Loose pass: keep every line, failed ones become error records.
-const parseLooseJsonlRecords = (input: string, maxDepth: number): JsonlRecord[] => {
-  const records: JsonlRecord[] = [];
+const parseLooseJsonlRecords = (
+  lines: string[],
+  maxDepth: number,
+  progress?: StrictJsonlAttempt,
+): JsonlRecord[] => {
+  const records = progress?.records ?? [];
+  const startIndex = progress?.nextLineIndex ?? 0;
 
-  for (const [index, line] of input.split(/\r?\n/).entries()) {
-    if (!line.trim()) {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line?.trim()) {
       continue;
     }
 
@@ -264,13 +274,14 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
   }
 
   if (options.forcedFormat === "jsonl") {
-    return buildJsonlResult(parseLooseJsonlRecords(input, maxDepth));
+    return buildJsonlResult(parseLooseJsonlRecords(input.split(/\r?\n/), maxDepth));
   }
 
   // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
-  const strict = parseStrictJsonlResult(input, maxDepth);
-  if (strict) {
-    return strict;
+  const lines = input.split(/\r?\n/);
+  const strict = parseStrictJsonlRecords(lines, maxDepth);
+  if (strict.kind === "complete" && strict.records.length > 1) {
+    return buildJsonlResult(strict.records);
   }
 
   const single = parseSingleJsonResult(input, maxDepth);
@@ -278,7 +289,7 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
     return single;
   }
 
-  const loose = parseLooseJsonlRecords(input, maxDepth);
+  const loose = parseLooseJsonlRecords(lines, maxDepth, strict);
   if (loose.length > 1 && loose.some((record) => record.node)) {
     return buildJsonlResult(loose);
   }
