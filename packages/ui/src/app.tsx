@@ -84,7 +84,6 @@ const useDesktopWorkspace = () => {
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
-  onSourceChange?: (value: string) => void;
   onOpenFile?: () => Promise<File | string | null> | File | string | null | void;
   onReadFile?: (file: File) => Promise<string>;
 }
@@ -92,7 +91,6 @@ export interface UnquoteAppProps {
 export const UnquoteApp = ({
   initialInput = "",
   chromeWebStoreUrl,
-  onSourceChange,
   onOpenFile,
   onReadFile,
 }: UnquoteAppProps) => {
@@ -361,10 +359,6 @@ export const UnquoteApp = ({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleOpenCommandPalette]);
-
-  useEffect(() => {
-    onSourceChange?.(sourceText);
-  }, [onSourceChange, sourceText]);
 
   useEffect(() => {
     workspace.reconcileVisibleRecords(visibleRecords);
