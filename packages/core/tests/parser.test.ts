@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   detectFormat,
   extractSummary,
@@ -9,6 +9,8 @@ import {
   probeJsonl,
   restoreNode,
 } from "../src";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("parseInput", () => {
   it("parses json and expands stringified nodes", () => {
@@ -68,6 +70,22 @@ describe("parseInput", () => {
     });
     expect(failed?.rawLine).toBe("{bad}");
     expect(failed?.errorMeta?.context).toContain("2 | {bad}");
+  });
+
+  it("parses each physical line once when auto mode falls back to loose jsonl", () => {
+    const lines = Array.from({ length: 5 }, (_, index) => `{"index":${index}}`);
+    const invalidLine = "{bad}";
+    const physicalLines = [...lines, invalidLine];
+    const input = physicalLines.join("\n");
+    const expected = parseInput(input, { forcedFormat: "jsonl" });
+    const parseSpy = vi.spyOn(JSON, "parse");
+
+    const result = parseInput(input);
+
+    expect(result).toEqual(expected);
+    for (const line of physicalLines) {
+      expect(parseSpy.mock.calls.filter(([input]) => input === line)).toHaveLength(1);
+    }
   });
 
   it("parses a jsonl line with source line metadata", () => {
