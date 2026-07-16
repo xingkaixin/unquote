@@ -310,9 +310,14 @@ export const searchJsonlFile = async (
 
       if (line.trim()) {
         try {
-          matches.push(
-            ...searchJsonValue(parseJson(line), `record-${lineNumber}`, pattern, options),
-          );
+          for (const match of searchJsonValue(
+            parseJson(line),
+            `record-${lineNumber}`,
+            pattern,
+            options,
+          )) {
+            matches.push(match);
+          }
         } catch {
           // Invalid JSONL lines are excluded from search, matching the record-tree path.
         }

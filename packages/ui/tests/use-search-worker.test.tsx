@@ -55,13 +55,15 @@ const Probe = ({
   text,
   sourceFile = null,
   debounceMs = 0,
+  options = defaultOptions,
 }: {
   query: string;
   text: string;
   sourceFile?: File | null;
   debounceMs?: number;
+  options?: typeof defaultOptions;
 }) => {
-  const result = useSearchWorker({ text, sourceFile, query, options: defaultOptions, debounceMs });
+  const result = useSearchWorker({ text, sourceFile, query, options, debounceMs });
   return (
     <div>
       <div data-testid="status">{result.status}</div>
@@ -209,6 +211,16 @@ describe("useSearchWorker", () => {
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("rejects regex search when Worker is unavailable", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    render(
+      <Probe query="hello" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />,
+    );
+
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
   });
 
   it("debounces consecutive queries, dispatching only the last one after the window elapses", () => {

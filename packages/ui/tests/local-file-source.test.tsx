@@ -50,6 +50,8 @@ const makeMeasuredFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY
   return { file: makeFile(new TextEncoder().encode(contents), 0), sliceStarts };
 };
 
+const oversizedMatchCount = 130_000;
+
 describe("local-file-source", () => {
   it("reads full records for the requested line numbers", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n{"c":3}\n');
@@ -157,6 +159,21 @@ describe("local-file-source", () => {
     expect(matches).not.toBeNull();
     expect(matches?.length).toBe(1);
     expect(matches?.[0]?.recordId).toBe("record-1");
+  });
+
+  it("aggregates a file line with more matches than the function argument limit", async () => {
+    const contents = JSON.stringify(Array.from({ length: oversizedMatchCount }, () => "needle"));
+    const file = makeStreamedFile(contents);
+    const controller = new AbortController();
+
+    const matches = await searchJsonlFile(
+      file,
+      "needle",
+      { regex: false, caseSensitive: true, jq: false },
+      controller.signal,
+    );
+
+    expect(matches).toHaveLength(oversizedMatchCount);
   });
 
   it("returns null when aborted mid-scan", async () => {
