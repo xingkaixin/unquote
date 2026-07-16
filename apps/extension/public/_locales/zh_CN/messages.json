@@ -1,6 +1,6 @@
 {
   "appName": {
-    "message": "Unquote - Escaped JSON Expander & JSONL Viewer"
+    "message": "Unquote - 转义 JSON 展开与 JSONL 查看器"
   },
   "appDescription": {
     "message": "在本地展开字符串化的 JSON 并浏览 JSONL。"
