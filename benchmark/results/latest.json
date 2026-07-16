@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-10T09:52:21.672Z",
+  "generatedAt": "2026-07-16T06:33:36.290Z",
   "environment": {
     "platform": "darwin",
     "arch": "arm64",
@@ -45,64 +45,64 @@
   "core": {
     "benchmark/case1.jsonl": {
       "forcedJsonlMs": {
-        "avg": 26.37,
-        "min": 24.78,
-        "p95": 28.77,
-        "max": 28.77
+        "avg": 28.36,
+        "min": 26.1,
+        "p95": 30.26,
+        "max": 30.26
       }
     },
     "benchmark/case2-1MB.jsonl": {
       "forcedJsonlMs": {
-        "avg": 26.78,
-        "min": 26.27,
-        "p95": 27.67,
-        "max": 27.67
+        "avg": 27.2,
+        "min": 26.66,
+        "p95": 28.12,
+        "max": 28.12
       }
     },
     "benchmark/case2-5MB.jsonl": {
       "forcedJsonlMs": {
-        "avg": 8.51,
-        "min": 8.28,
-        "p95": 8.82,
-        "max": 8.82
+        "avg": 8.18,
+        "min": 8.01,
+        "p95": 8.27,
+        "max": 8.27
       }
     },
     "benchmark/case2-10MB.jsonl": {
       "forcedJsonlMs": {
-        "avg": 33.37,
-        "min": 32.64,
-        "p95": 34.66,
-        "max": 34.66
+        "avg": 33.42,
+        "min": 32.69,
+        "p95": 34.26,
+        "max": 34.26
       }
     },
     "benchmark/case4-5K-rows.jsonl": {
       "forcedJsonlMs": {
-        "avg": 363.52,
-        "min": 357.37,
-        "p95": 372.3,
-        "max": 372.3
+        "avg": 370.99,
+        "min": 368.3,
+        "p95": 375.73,
+        "max": 375.73
       }
     }
   },
   "render": {
     "benchmark/case1.jsonl": {
       "firstRecordReadyMs": {
-        "avg": 176.63,
-        "min": 174,
-        "p95": 178.4,
-        "max": 178.4
+        "avg": 177.53,
+        "min": 157.7,
+        "p95": 204.3,
+        "max": 204.3
       },
       "completeReadyMs": {
-        "avg": 193.87,
-        "min": 191.2,
-        "p95": 195.7,
-        "max": 195.7
+        "avg": 244.73,
+        "min": 235.7,
+        "p95": 255.5,
+        "max": 255.5
       },
       "searchReadyMs": {
-        "avg": 297.4,
-        "min": 291.9,
-        "p95": 300.4,
-        "max": 300.4
+        "avg": 298.87,
+        "min": 296.7,
+        "p95": 302.7,
+        "max": 302.7
       },
       "expandPathReadyMs": {
         "avg": null,
@@ -111,66 +111,66 @@
         "max": null
       },
       "tocReadyMs": {
-        "avg": 30.37,
-        "min": 24.7,
-        "p95": 33.4,
-        "max": 33.4
+        "avg": 53.83,
+        "min": 46.5,
+        "p95": 65.8,
+        "max": 65.8
       },
       "domNodes": {
-        "avg": 2563,
-        "min": 2563,
-        "p95": 2563,
-        "max": 2563
+        "avg": 2475,
+        "min": 2441,
+        "p95": 2492,
+        "max": 2492
       },
       "recordCards": {
-        "avg": 6,
-        "min": 6,
-        "p95": 6,
-        "max": 6
+        "avg": 13,
+        "min": 11,
+        "p95": 14,
+        "max": 14
       },
       "layoutCount": {
-        "avg": 26,
-        "min": 26,
-        "p95": 26,
-        "max": 26
+        "avg": 48,
+        "min": 45,
+        "p95": 51,
+        "max": 51
       },
       "recalcStyleCount": {
-        "avg": 97.67,
-        "min": 93,
-        "p95": 105,
-        "max": 105
+        "avg": 66.67,
+        "min": 61,
+        "p95": 74,
+        "max": 74
       },
       "taskDurationMs": {
-        "avg": 237.87,
-        "min": 230.06,
-        "p95": 252.46,
-        "max": 252.46
+        "avg": 339.91,
+        "min": 336.62,
+        "p95": 342.17,
+        "max": 342.17
       },
       "jsHeapUsedSizeMB": {
-        "avg": 9.11,
-        "min": 9.09,
-        "p95": 9.13,
-        "max": 9.13
+        "avg": 10.15,
+        "min": 10.1,
+        "p95": 10.17,
+        "max": 10.17
       }
     },
     "benchmark/case2-1MB.jsonl": {
       "firstRecordReadyMs": {
-        "avg": 163.7,
-        "min": 154.9,
-        "p95": 179.8,
-        "max": 179.8
+        "avg": 198.2,
+        "min": 193.6,
+        "p95": 204.2,
+        "max": 204.2
       },
       "completeReadyMs": {
-        "avg": 207.93,
-        "min": 197.1,
-        "p95": 213.6,
-        "max": 213.6
+        "avg": 236.23,
+        "min": 230,
+        "p95": 240.9,
+        "max": 240.9
       },
       "searchReadyMs": {
-        "avg": 299.6,
-        "min": 298.4,
-        "p95": 300.3,
-        "max": 300.3
+        "avg": 300.63,
+        "min": 291.9,
+        "p95": 307.9,
+        "max": 307.9
       },
       "expandPathReadyMs": {
         "avg": null,
@@ -179,66 +179,66 @@
         "max": null
       },
       "tocReadyMs": {
-        "avg": 33.37,
-        "min": 33.3,
-        "p95": 33.4,
-        "max": 33.4
+        "avg": 55.53,
+        "min": 52.1,
+        "p95": 60.2,
+        "max": 60.2
       },
       "domNodes": {
-        "avg": 2765,
-        "min": 2765,
-        "p95": 2765,
-        "max": 2765
+        "avg": 2457.33,
+        "min": 2377,
+        "p95": 2506,
+        "max": 2506
       },
       "recordCards": {
-        "avg": 6,
-        "min": 6,
-        "p95": 6,
-        "max": 6
+        "avg": 12,
+        "min": 11,
+        "p95": 14,
+        "max": 14
       },
       "layoutCount": {
-        "avg": 27.67,
-        "min": 27,
-        "p95": 28,
-        "max": 28
+        "avg": 45.67,
+        "min": 45,
+        "p95": 46,
+        "max": 46
       },
       "recalcStyleCount": {
-        "avg": 97.67,
-        "min": 95,
-        "p95": 99,
-        "max": 99
+        "avg": 63.67,
+        "min": 62,
+        "p95": 67,
+        "max": 67
       },
       "taskDurationMs": {
-        "avg": 243.96,
-        "min": 234.47,
-        "p95": 250,
-        "max": 250
+        "avg": 340.32,
+        "min": 337.22,
+        "p95": 346.09,
+        "max": 346.09
       },
       "jsHeapUsedSizeMB": {
-        "avg": 9.59,
-        "min": 9.57,
-        "p95": 9.6,
-        "max": 9.6
+        "avg": 10.48,
+        "min": 10.46,
+        "p95": 10.49,
+        "max": 10.49
       }
     },
     "benchmark/case2-5MB.jsonl": {
       "firstRecordReadyMs": {
-        "avg": 170.3,
-        "min": 155.1,
-        "p95": 199,
-        "max": 199
+        "avg": 189.4,
+        "min": 169.8,
+        "p95": 201.3,
+        "max": 201.3
       },
       "completeReadyMs": {
-        "avg": 216.17,
-        "min": 212.2,
-        "p95": 223.7,
-        "max": 223.7
+        "avg": 260.1,
+        "min": 248,
+        "p95": 270.5,
+        "max": 270.5
       },
       "searchReadyMs": {
-        "avg": 299.83,
-        "min": 299.1,
-        "p95": 300.5,
-        "max": 300.5
+        "avg": 297.4,
+        "min": 296.9,
+        "p95": 297.9,
+        "max": 297.9
       },
       "expandPathReadyMs": {
         "avg": null,
@@ -247,16 +247,16 @@
         "max": null
       },
       "tocReadyMs": {
-        "avg": 32.97,
-        "min": 32.8,
-        "p95": 33.2,
-        "max": 33.2
+        "avg": 50.83,
+        "min": 49.8,
+        "p95": 52.4,
+        "max": 52.4
       },
       "domNodes": {
-        "avg": 5051,
-        "min": 5051,
-        "p95": 5051,
-        "max": 5051
+        "avg": 5000,
+        "min": 5000,
+        "p95": 5000,
+        "max": 5000
       },
       "recordCards": {
         "avg": 43,
@@ -265,48 +265,48 @@
         "max": 43
       },
       "layoutCount": {
-        "avg": 15.33,
-        "min": 14,
-        "p95": 16,
-        "max": 16
+        "avg": 19,
+        "min": 18,
+        "p95": 21,
+        "max": 21
       },
       "recalcStyleCount": {
-        "avg": 83.67,
-        "min": 83,
-        "p95": 84,
-        "max": 84
+        "avg": 40,
+        "min": 39,
+        "p95": 41,
+        "max": 41
       },
       "taskDurationMs": {
-        "avg": 263.21,
-        "min": 258.26,
-        "p95": 272.9,
-        "max": 272.9
+        "avg": 350.12,
+        "min": 343.84,
+        "p95": 353.79,
+        "max": 353.79
       },
       "jsHeapUsedSizeMB": {
-        "avg": 18.08,
-        "min": 18.07,
-        "p95": 18.09,
-        "max": 18.09
+        "avg": 17.71,
+        "min": 17.69,
+        "p95": 17.76,
+        "max": 17.76
       }
     },
     "benchmark/case2-10MB.jsonl": {
       "firstRecordReadyMs": {
-        "avg": 164.8,
-        "min": 150.2,
-        "p95": 173.3,
-        "max": 173.3
+        "avg": 188.5,
+        "min": 186.2,
+        "p95": 189.7,
+        "max": 189.7
       },
       "completeReadyMs": {
-        "avg": 235.27,
-        "min": 230,
-        "p95": 238.3,
-        "max": 238.3
+        "avg": 271.43,
+        "min": 269.4,
+        "p95": 274.4,
+        "max": 274.4
       },
       "searchReadyMs": {
-        "avg": 324.8,
-        "min": 324.3,
-        "p95": 325.2,
-        "max": 325.2
+        "avg": 330.77,
+        "min": 328.1,
+        "p95": 333.6,
+        "max": 333.6
       },
       "expandPathReadyMs": {
         "avg": null,
@@ -315,117 +315,117 @@
         "max": null
       },
       "tocReadyMs": {
-        "avg": 33.47,
-        "min": 33.2,
-        "p95": 33.9,
-        "max": 33.9
+        "avg": 53.4,
+        "min": 50.9,
+        "p95": 56.6,
+        "max": 56.6
       },
       "domNodes": {
-        "avg": 2765,
-        "min": 2765,
-        "p95": 2765,
-        "max": 2765
+        "avg": 2403,
+        "min": 2377,
+        "p95": 2455,
+        "max": 2455
       },
       "recordCards": {
-        "avg": 6,
-        "min": 6,
-        "p95": 6,
-        "max": 6
+        "avg": 11,
+        "min": 11,
+        "p95": 11,
+        "max": 11
       },
       "layoutCount": {
-        "avg": 32,
-        "min": 32,
-        "p95": 32,
-        "max": 32
-      },
-      "recalcStyleCount": {
-        "avg": 106.33,
-        "min": 106,
-        "p95": 107,
-        "max": 107
-      },
-      "taskDurationMs": {
-        "avg": 272.3,
-        "min": 271.99,
-        "p95": 272.64,
-        "max": 272.64
-      },
-      "jsHeapUsedSizeMB": {
-        "avg": 27.93,
-        "min": 27.93,
-        "p95": 27.93,
-        "max": 27.93
-      }
-    },
-    "benchmark/case4-5K-rows.jsonl": {
-      "firstRecordReadyMs": {
-        "avg": 157.37,
-        "min": 156.7,
-        "p95": 158.3,
-        "max": 158.3
-      },
-      "completeReadyMs": {
-        "avg": 613.1,
-        "min": 596.1,
-        "p95": 621.7,
-        "max": 621.7
-      },
-      "searchReadyMs": {
-        "avg": 661.37,
-        "min": 658.7,
-        "p95": 666.6,
-        "max": 666.6
-      },
-      "expandPathReadyMs": {
-        "avg": null,
-        "min": null,
-        "p95": null,
-        "max": null
-      },
-      "tocReadyMs": {
-        "avg": 24.7,
-        "min": 24.5,
-        "p95": 24.9,
-        "max": 24.9
-      },
-      "domNodes": {
-        "avg": 2775,
-        "min": 2775,
-        "p95": 2775,
-        "max": 2775
-      },
-      "recordCards": {
-        "avg": 6,
-        "min": 6,
-        "p95": 6,
-        "max": 6
-      },
-      "layoutCount": {
-        "avg": 50.67,
+        "avg": 50.33,
         "min": 50,
         "p95": 51,
         "max": 51
       },
       "recalcStyleCount": {
-        "avg": 206,
-        "min": 205,
-        "p95": 208,
-        "max": 208
+        "avg": 65,
+        "min": 64,
+        "p95": 66,
+        "max": 66
       },
       "taskDurationMs": {
-        "avg": 465.04,
-        "min": 457.51,
-        "p95": 473.16,
-        "max": 473.16
+        "avg": 359.76,
+        "min": 353.89,
+        "p95": 367.29,
+        "max": 367.29
       },
       "jsHeapUsedSizeMB": {
-        "avg": 184.79,
-        "min": 184.78,
-        "p95": 184.8,
-        "max": 184.8
+        "avg": 28.8,
+        "min": 28.75,
+        "p95": 28.83,
+        "max": 28.83
+      }
+    },
+    "benchmark/case4-5K-rows.jsonl": {
+      "firstRecordReadyMs": {
+        "avg": 171.93,
+        "min": 170.3,
+        "p95": 175.2,
+        "max": 175.2
+      },
+      "completeReadyMs": {
+        "avg": 649.3,
+        "min": 626.3,
+        "p95": 665.6,
+        "max": 665.6
+      },
+      "searchReadyMs": {
+        "avg": 582.47,
+        "min": 576.3,
+        "p95": 586.6,
+        "max": 586.6
+      },
+      "expandPathReadyMs": {
+        "avg": null,
+        "min": null,
+        "p95": null,
+        "max": null
+      },
+      "tocReadyMs": {
+        "avg": 60.7,
+        "min": 58.8,
+        "p95": 63.3,
+        "max": 63.3
+      },
+      "domNodes": {
+        "avg": 2474.67,
+        "min": 2387,
+        "p95": 2521,
+        "max": 2521
+      },
+      "recordCards": {
+        "avg": 13,
+        "min": 11,
+        "p95": 14,
+        "max": 14
+      },
+      "layoutCount": {
+        "avg": 75.33,
+        "min": 75,
+        "p95": 76,
+        "max": 76
+      },
+      "recalcStyleCount": {
+        "avg": 95.33,
+        "min": 94,
+        "p95": 97,
+        "max": 97
+      },
+      "taskDurationMs": {
+        "avg": 558.61,
+        "min": 552.78,
+        "p95": 569.68,
+        "max": 569.68
+      },
+      "jsHeapUsedSizeMB": {
+        "avg": 185.14,
+        "min": 185.1,
+        "p95": 185.21,
+        "max": 185.21
       }
     }
   },
   "budgetFailures": [],
-  "totalMs": 23409.01
+  "totalMs": 25066.6
 }
