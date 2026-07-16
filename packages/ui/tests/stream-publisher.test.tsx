@@ -66,6 +66,8 @@ describe("createStreamPublisher", () => {
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
     expect(emit).toHaveBeenCalledTimes(1);
     expect(publisher.hasPublished()).toBe(true);
+    const firstRecords = emit.mock.calls[0]![0] as JsonlRecord[];
+    expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
 
     publisher.pushBatch([makeRecord(2)], 2, { done: false });
     publisher.pushBatch([makeRecord(3)], 3, { done: false });
@@ -76,6 +78,8 @@ describe("createStreamPublisher", () => {
     expect(emit).toHaveBeenCalledTimes(2);
     // Records accumulate across batches; the snapshot is the latest one.
     const [records, stats] = emit.mock.calls[1]!;
+    expect(records).not.toBe(firstRecords);
+    expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
     expect((records as JsonlRecord[]).map((record) => record.lineNumber)).toEqual([1, 2, 3]);
     expect(stats).toBe(3);
   });

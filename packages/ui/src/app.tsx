@@ -138,11 +138,8 @@ export const UnquoteApp = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const outputViewSessionKeyRef = useRef<string | null>(null);
   const forcedFormat = mode === "auto" ? undefined : mode;
-  const { result, progress, recordsVersion, agentSession } = useParser(
-    sourceText,
-    forcedFormat,
-    sourceFile,
-    () => toast.error(t("input.readFailed")),
+  const { result, progress, agentSession } = useParser(sourceText, forcedFormat, sourceFile, () =>
+    toast.error(t("input.readFailed")),
   );
 
   const translateError = useCallback(
@@ -151,7 +148,6 @@ export const UnquoteApp = ({
   );
   const query = useQueryInteraction({
     result,
-    recordsVersion,
     sourceText,
     sourceFile,
     forcedFormat,
@@ -371,7 +367,7 @@ export const UnquoteApp = ({
 
   useEffect(() => {
     workspace.reconcileVisibleRecords(visibleRecords);
-  }, [recordsVersion, visibleRecords, workspace.reconcileVisibleRecords]);
+  }, [visibleRecords, workspace.reconcileVisibleRecords]);
 
   const handleSampleSelect = (sample: {
     value: string;

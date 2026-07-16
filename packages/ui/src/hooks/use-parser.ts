@@ -81,7 +81,6 @@ export const useParser = (
   const [parserState, setParserState] = useState(() => ({
     result: parseInput(input, withForcedFormat(forcedFormat)),
     agentSession: forcedFormat === "json" ? null : createAgentSessionFromText(input),
-    recordsVersion: 0,
   }));
   const [progress, setProgress] = useState<ParserProgress>(idleProgress);
   const workerRef = useRef<Worker | null>(null);
@@ -95,11 +94,10 @@ export const useParser = (
 
     if (typeof Worker === "undefined") {
       const applyMainThreadParse = ({ result, agentSession, progress }: MainThreadParse) => {
-        setParserState((current) => ({
+        setParserState({
           result,
           agentSession,
-          recordsVersion: current.recordsVersion + 1,
-        }));
+        });
         setProgress(progress);
       };
 
@@ -128,11 +126,10 @@ export const useParser = (
     });
 
     const currentWorker = workerRef.current;
-    setParserState((current) => ({
+    setParserState({
       result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
       agentSession: null,
-      recordsVersion: current.recordsVersion + 1,
-    }));
+    });
     setProgress({ ...idleProgress, done: false });
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
@@ -143,7 +140,6 @@ export const useParser = (
         setParserState((current) => ({
           result: { format: "jsonl", records, stats },
           agentSession: current.agentSession,
-          recordsVersion: current.recordsVersion + 1,
         }));
       },
     );
@@ -218,7 +214,6 @@ export const useParser = (
         setParserState((current) => ({
           result: { ...current.result, format: "jsonl", stats: message.stats },
           agentSession: null,
-          recordsVersion: current.recordsVersion + 1,
         }));
         onFileReadErrorRef.current?.();
         return;
@@ -228,18 +223,16 @@ export const useParser = (
       measurePerf("parse:complete", "parse:start", "parse:complete");
       setProgress(message.progress);
       if (message.result) {
-        setParserState((current) => ({
+        setParserState({
           result: message.result!,
           agentSession: message.agentSession ?? null,
-          recordsVersion: current.recordsVersion + 1,
-        }));
+        });
         return;
       }
       if (message.stats) {
         setParserState((current) => ({
           result: { ...current.result, format: "jsonl", stats: message.stats! },
           agentSession: message.agentSession ?? null,
-          recordsVersion: current.recordsVersion + 1,
         }));
       }
     };
@@ -268,7 +261,6 @@ export const useParser = (
   return {
     result: parserState.result,
     progress,
-    recordsVersion: parserState.recordsVersion,
     agentSession: parserState.agentSession,
   };
 };

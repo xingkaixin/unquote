@@ -40,17 +40,51 @@ describe("partial-record-cache", () => {
     expect(processed.map((p) => p.record.id)).toEqual(["b"]);
   });
 
-  it("reuses cached values for unchanged record objects on rebuild", () => {
+  it("processes only the appended tail when an immutable snapshot grows", () => {
+    const state = createPartialRecordCache<string>();
+    const a = rec("a");
+    updatePartialRecordCache([a], state, (record) => record.id);
+
+    const calls: string[] = [];
+    const { rebuilt, processed } = updatePartialRecordCache([a, rec("b")], state, (record) => {
+      calls.push(record.id);
+      return record.id;
+    });
+
+    expect(rebuilt).toBe(false);
+    expect(calls).toEqual(["b"]);
+    expect(processed.map(({ record }) => record.id)).toEqual(["b"]);
+  });
+
+  it("does not reprocess an unchanged immutable snapshot", () => {
     const state = createPartialRecordCache<string>();
     const a = rec("a");
     updatePartialRecordCache([a], state, (r) => r.id);
     const calls: string[] = [];
-    // new array ref (→ rebuilt) but the same record object
-    updatePartialRecordCache([a], state, (r) => {
+    const { rebuilt } = updatePartialRecordCache([a], state, (r) => {
       calls.push(r.id);
       return r.id;
     });
+    expect(rebuilt).toBe(false);
     expect(calls).toEqual([]);
+  });
+
+  it("rebuilds when an immutable snapshot changes the processed prefix", () => {
+    const state = createPartialRecordCache<string>();
+    const a = rec("a");
+    const b = rec("b");
+    updatePartialRecordCache([a, b], state, (record) => record.id);
+
+    const replacement = rec("a");
+    const calls: string[] = [];
+    const { rebuilt, processed } = updatePartialRecordCache([replacement, b], state, (record) => {
+      calls.push(record.id);
+      return record.id;
+    });
+
+    expect(rebuilt).toBe(true);
+    expect(calls).toEqual(["a"]);
+    expect(processed.map(({ record }) => record.id)).toEqual(["a", "b"]);
   });
 
   it("evicts records absent from the rebuilt list", () => {

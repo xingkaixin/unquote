@@ -185,7 +185,7 @@ const Probe = ({
   sourceFile?: File;
   onFileReadError?: () => void;
 }) => {
-  const { result, progress, recordsVersion, agentSession } = useParser(
+  const { result, progress, agentSession } = useParser(
     input,
     forcedFormat,
     sourceFile,
@@ -197,7 +197,6 @@ const Probe = ({
       <div data-testid="stats">{result.stats.total}</div>
       <div data-testid="progress">{progress.done ? "done" : "pending"}</div>
       <div data-testid="format">{result.format}</div>
-      <div data-testid="records-version">{recordsVersion}</div>
       <div data-testid="agent-session">{agentSession ? "present" : "absent"}</div>
     </div>
   );
@@ -278,7 +277,6 @@ describe("useParser", () => {
     expect(screen.getByTestId("format")).toHaveTextContent("json");
     expect(screen.getByTestId("stats")).toHaveTextContent("1");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
-    expect(screen.getByTestId("records-version")).toHaveTextContent("1");
     expect(screen.getByTestId("agent-session")).toHaveTextContent("absent");
   });
 

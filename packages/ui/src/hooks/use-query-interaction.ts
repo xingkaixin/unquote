@@ -39,7 +39,6 @@ export type NavigationTarget = PathNavigationTarget | MatchNavigationTarget;
 
 interface UseQueryInteractionOptions {
   result: ParseResult;
-  recordsVersion: number;
   sourceText: string;
   sourceFile: File | null;
   forcedFormat: "json" | "jsonl" | undefined;
@@ -80,7 +79,6 @@ const buildNavigationTarget = (
 
 export const useQueryInteraction = ({
   result,
-  recordsVersion,
   sourceText,
   sourceFile,
   forcedFormat,
@@ -134,7 +132,6 @@ export const useQueryInteraction = ({
   });
   const pipeline = useRecordPipeline({
     result,
-    recordsVersion,
     searchMatches: searchWorker.matches,
     recordFilter: state.recordFilter,
   });
