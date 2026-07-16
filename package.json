@@ -10,7 +10,7 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "test": "turbo run test",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "pnpm --filter @unquote/core build && vitest run --coverage",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build",
     "benchmark": "turbo run build --force && node benchmark/perf-benchmark.mjs",
     "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs",
