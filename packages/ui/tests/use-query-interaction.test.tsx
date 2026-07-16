@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { parseInput } from "@unquote/core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { useQueryInteraction } from "../src/hooks/use-query-interaction";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { memorySearchDebounceMs, useQueryInteraction } from "../src/hooks/use-query-interaction";
 
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
 const result = parseInput(source, { forcedFormat: "jsonl" });
@@ -24,7 +24,22 @@ describe("useQueryInteraction", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     Reflect.deleteProperty(globalThis, "Worker");
+  });
+
+  it("debounces in-memory searches", async () => {
+    vi.useFakeTimers();
+    const { result: query } = renderQuery();
+
+    act(() => query.current.intent.searchFromCommand("needle"));
+    expect(query.current.snapshot.searchStatus).toBe("pending");
+
+    await act(() => vi.advanceTimersByTimeAsync(memorySearchDebounceMs - 1));
+    expect(query.current.snapshot.searchStatus).toBe("pending");
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(query.current.snapshot.searchStatus).toBe("complete");
   });
 
   it("owns search results, filtering, and match navigation behind its interface", async () => {

@@ -4,6 +4,7 @@ import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
+import { memorySearchDebounceMs } from "../src/hooks/use-query-interaction";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
@@ -1520,7 +1521,7 @@ describe("UnquoteApp", () => {
     vi.useFakeTimers();
     try {
       fireEvent.change(getToolbarInput(), { target: { value: "alpha" } });
-      await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
+      await act(() => vi.advanceTimersByTimeAsync(memorySearchDebounceMs + searchWorkerTimeoutMs));
     } finally {
       vi.useRealTimers();
     }
