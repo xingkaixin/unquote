@@ -68,4 +68,11 @@ Object.assign(globalThis, {
       return [];
     }
   },
+  ResizeObserver: class {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  },
 });
+
+Object.assign(window, { ResizeObserver: globalThis.ResizeObserver });

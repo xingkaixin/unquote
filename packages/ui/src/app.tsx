@@ -1,7 +1,7 @@
 import { materializeNode } from "@unquote/core";
 import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
-import { Chrome, PanelLeftOpen } from "lucide-react";
+import { PanelLeftOpen, Store } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette } from "./components/command-palette";
 import { FileOverview } from "./components/file-overview";
@@ -717,7 +717,7 @@ export const UnquoteApp = ({
               rel="noreferrer"
               className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
             >
-              <Chrome className="size-3.5" />
+              <Store className="size-3.5" />
               <span className="hidden sm:inline">{t("app.chrome")}</span>
             </a>
           ) : null}

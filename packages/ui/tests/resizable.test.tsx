@@ -6,13 +6,10 @@ afterEach(cleanup);
 
 const renderPanels = (withHandle?: boolean) =>
   render(
-    <ResizablePanelGroup className="custom-group" data-testid="panel-group" direction="horizontal">
-      <ResizablePanel defaultSize={50}>First</ResizablePanel>
-      <ResizableHandle
-        data-testid="resize-handle"
-        {...(withHandle === undefined ? {} : { withHandle })}
-      />
-      <ResizablePanel defaultSize={50}>Second</ResizablePanel>
+    <ResizablePanelGroup id="panel-group" className="custom-group" orientation="horizontal">
+      <ResizablePanel defaultSize="50%">First</ResizablePanel>
+      <ResizableHandle {...(withHandle === undefined ? {} : { withHandle })} />
+      <ResizablePanel defaultSize="50%">Second</ResizablePanel>
     </ResizablePanelGroup>,
   );
 
@@ -21,7 +18,9 @@ describe("resizable components", () => {
     renderPanels();
 
     expect(screen.getByTestId("panel-group")).toHaveClass("flex", "custom-group");
-    expect(screen.getByTestId("resize-handle").querySelector("svg")).toBeInTheDocument();
+    const separator = screen.getByRole("separator");
+    expect(separator).toHaveAttribute("aria-orientation", "vertical");
+    expect(separator.querySelector("svg")).toBeInTheDocument();
   });
 
   it("can hide the visual handle", () => {
@@ -29,6 +28,6 @@ describe("resizable components", () => {
 
     expect(screen.getByText("First")).toBeInTheDocument();
     expect(screen.getByText("Second")).toBeInTheDocument();
-    expect(screen.getByTestId("resize-handle").querySelector("svg")).not.toBeInTheDocument();
+    expect(screen.getByRole("separator").querySelector("svg")).not.toBeInTheDocument();
   });
 });
