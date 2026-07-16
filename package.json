@@ -11,7 +11,7 @@
     "format:check": "turbo run format:check",
     "test": "turbo run test",
     "test:coverage": "vitest run --coverage",
-    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build",
     "benchmark": "turbo run build --force && node benchmark/perf-benchmark.mjs",
     "benchmark:case1": "pnpm build && node benchmark/case1-benchmark.mjs",
     "benchmark:fixtures": "node benchmark/generate-case2-fixtures.mjs",
