@@ -1,5 +1,5 @@
-import type { JsonNode, JsonlRecord, ParseErrorMeta, ParseOptions, ParseResult } from "./types";
-import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils";
+import type { JsonNode, JsonlRecord, ParseErrorMeta, ParseOptions, ParseResult } from "./types.js";
+import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils.js";
 
 const toNode = (
   value: unknown,

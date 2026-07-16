@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "build": "tsup src/index.ts --format esm,cjs --clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
     "format": "oxfmt . --write",
