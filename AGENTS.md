@@ -15,10 +15,10 @@ apps/extension         WXT + React Chrome extension (MV3)
 
 | Layer | Tools |
 |---|---|
-| Runtime | Node.js 22 |
+| Runtime | Node.js 24 |
 | Package Manager | pnpm 11.11.0 (workspace protocol `workspace:*`) |
 | Build / Dev | Turbo, Vite, tsup |
-| Frontend | React 19, TypeScript 6, Tailwind CSS v4 |
+| Frontend | React 19, TypeScript 7, Tailwind CSS v4 |
 | Component Primitives | Base UI (dropdown, scroll-area, tabs, tooltip, separator) |
 | Virtualization | `@tanstack/react-virtual` |
 | Icons | `lucide-react` |
@@ -75,8 +75,9 @@ interface ParseResult {
 export * from "./app";                         // UnquoteApp component
 export { I18nProvider, useTranslation } from "./i18n/context";
 export { createTranslator, detectLocale, persistLocale } from "./i18n/i18n";
-export { en, zhCN } from "./i18n/*";
-export "./styles.css";                         // Tailwind v4 theme
+export type { Locale, MessageKey, Messages } from "./i18n/i18n";
+export { en } from "./i18n/en";
+export { zhCN } from "./i18n/zh-CN";
 ```
 
 ### Design System (Tailwind v4)
@@ -84,7 +85,7 @@ export "./styles.css";                         // Tailwind v4 theme
 CSS variables defined in `src/styles.css`:
 - Surface scale: `surface-50` → `surface-500`
 - Text scale: `text-primary`, `text-secondary`, `text-tertiary`, `text-muted`
-- Semantic: `accent` (orange), `success` (green), `error` (red), `warning` (amber)
+- Semantic: `accent` (orange), `success` (green), `error` (red), `warning` (orange, same hue as accent)
 - Code syntax: `code-string`, `code-number`, `code-boolean`, `code-null`, `code-key`
 - Dark mode: `.dark` class toggle on `<html>`
 
@@ -94,7 +95,7 @@ CSS variables defined in `src/styles.css`:
 |---|---|
 | `app.tsx` | Root `UnquoteApp` component. Coordinates top-level UI state (source text, theme, output view, query interaction, expanded paths, selection, focus, local-file source, agent session switching). |
 | `components/agent-session-view.tsx` | Agent log lens for detected Codex / Claude Code JSONL sessions. Shows session metadata, conversation turns, timeline events, and the matching raw JSONL record. |
-| `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >160 rows. |
+| `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >180 rows. |
 | `components/record-list.tsx` | Maps `records` → `JsonTree[]`, applies record virtualization, and swaps in hydrated local-file records. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
 | `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand/Collapse All, and overflow copy/export actions. |
@@ -163,7 +164,7 @@ Active match auto-scroll:
 ### Internationalization
 
 - `Locale = "en" | "zh-CN"`
-- `Messages` interface in `i18n/i18n.ts` — all keys must be defined in both `en.ts` and `zh-CN.ts`
+- `Messages` type is derived from the canonical `en.ts` schema and re-exported via `i18n/i18n.ts`; `zh-CN.ts` is checked against the same key set
 - `createTranslator(messages)` returns `t(key, params?)` function
 - Locale persisted to `localStorage` key `unquote-locale`
 
@@ -224,7 +225,7 @@ Active match auto-scroll:
 ## Development Guidelines
 
 - **New components** go in `packages/ui/src/components/`
-- **New i18n keys** must be added to `i18n/i18n.ts`, `en.ts`, and `zh-CN.ts`
+- **New i18n keys** must be added to `en.ts` and `zh-CN.ts`
 - **Core parser changes** should include tests in `packages/core/tests/`
 - **Agent session parser changes** should include tests in `packages/ui/tests/agent-session.test.tsx`.
 - **UI tests** use `@testing-library/react` + jsdom. Mock `Worker` as in `packages/ui/tests/app.test.tsx`.
