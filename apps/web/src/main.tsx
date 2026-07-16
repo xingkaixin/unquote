@@ -1,25 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { I18nProvider, UnquoteApp } from "@unquote/ui";
-import "@unquote/ui/styles.css";
-import { createSourceHash, getInitialInputFromHash } from "./hash";
 import { initializeThemePreference } from "@unquote/ui/theme-preference";
+import "@unquote/ui/styles.css";
+import { clearLegacySourceHash } from "./legacy-source-hash";
 
 const CHROME_WEB_STORE_URL =
   "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
 
 initializeThemePreference();
-
-const getInitialInput = () => getInitialInputFromHash(window.location.hash);
-
-const syncHash = (value: string) => {
-  const hash = createSourceHash(value);
-  history.replaceState(
-    null,
-    "",
-    hash ? `${window.location.pathname}${hash}` : window.location.pathname,
-  );
-};
+clearLegacySourceHash(window.location, window.history);
 
 const openFile = () => {
   const input = document.createElement("input");
@@ -35,9 +25,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <I18nProvider>
       <UnquoteApp
-        initialInput={getInitialInput()}
         chromeWebStoreUrl={CHROME_WEB_STORE_URL}
-        onSourceChange={syncHash}
         onOpenFile={async () => {
           const file = await openFile();
           return file;

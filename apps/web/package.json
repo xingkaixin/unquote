@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@unquote/ui": "workspace:*",
-    "lz-string": "^1.5.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
