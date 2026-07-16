@@ -50,9 +50,9 @@ Use the lower-level CSS variables only for effects that cannot be expressed thro
 | Surface step 5 | `--color-surface-500` | `#b2b2ac` | Muted structural color |
 | Display text | `--color-text-display` | `#000000` | Product name and strongest headings |
 | Primary text | `--color-text-primary` | `#1a1a18` | Main content |
-| Secondary text | `--color-text-secondary` | `#6c6c66` | Labels and supporting content |
-| Tertiary text | `--color-text-tertiary` | `#8a8a84` | Low-emphasis metadata |
-| Muted text | `--color-text-muted` | `#b2b2ac` | Placeholders and disabled context |
+| Secondary text | `--color-text-secondary` | `#5c5c55` | Labels and supporting content |
+| Tertiary text | `--color-text-tertiary` | `#6c6c65` | Low-emphasis metadata |
+| Muted text | `--color-text-muted` | `#97978f` | Placeholders and disabled context |
 | Border | `--color-border` | `#e6e6e1` | Default separation |
 | Border medium | `--color-border-medium` | `#d2d2cc` | Hover, focus-adjacent emphasis |
 | Border strong | `--color-border-strong` | `#6c6c66` | High-contrast edges |
@@ -70,8 +70,9 @@ inversion.
 | Structural surfaces | `#222222`, `#333333`, `#666666` |
 | Display text | `#ffffff` |
 | Primary text | `#e8e8e8` |
-| Secondary text | `#999999` |
-| Tertiary text | `#777777` |
+| Secondary text | `#a6a6a6` |
+| Tertiary text | `#8f8f8f` |
+| Muted text | `#7d7d7d` |
 | Default border | `#222222` |
 | Medium border | `#333333` |
 
