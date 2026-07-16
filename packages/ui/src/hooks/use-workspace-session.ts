@@ -1,7 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useRef, useState } from "react";
-import type { AgentDetailSelection } from "../components/agent-session-view";
-import { isPathWithin } from "../lib/path-codec";
+import { useCallback, useReducer, useRef, useState } from "react";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import {
   addExpandedStringifiedPaths,
@@ -14,23 +12,13 @@ import {
 } from "../lib/record-expansion";
 import { collectStringifiedPaths } from "../lib/tree";
 import type { SearchMatch, TreeRow } from "../lib/tree";
+import {
+  createInitialWorkspaceSelectionState,
+  reduceWorkspaceSelection,
+} from "../lib/workspace-selection";
+import type { AgentDetailSelection, SelectedPath } from "../lib/workspace-selection";
 
-export interface PathScrollTarget {
-  recordId: string;
-  pathText: string;
-  requestId: number;
-}
-
-export interface SelectedPath {
-  recordId: string;
-  pathText: string;
-  rawKey: string;
-}
-
-interface RecordScrollTarget {
-  recordId: string;
-  requestId: number;
-}
+export type { PathScrollTarget, SelectedPath } from "../lib/workspace-selection";
 
 const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
   recordId: record.id,
@@ -39,19 +27,15 @@ const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath
 });
 
 export const useWorkspaceSession = () => {
-  const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
-  const [detailSelection, setDetailSelection] = useState<AgentDetailSelection | null>(null);
+  const [selectionState, dispatchSelection] = useReducer(
+    reduceWorkspaceSelection,
+    undefined,
+    createInitialWorkspaceSelectionState,
+  );
   const [expandedPaths, setExpandedPaths] = useState<ExpandedStringifiedPathsByRecord>(new Map());
   const [searchExpandedPaths, setSearchExpandedPaths] = useState<ExpandedStringifiedPathsByRecord>(
     new Map(),
   );
-  const [selectedPath, setSelectedPath] = useState<SelectedPath | null>(null);
-  const [focusedPath, setFocusedPath] = useState<{
-    recordId: string;
-    pathText: string;
-  } | null>(null);
-  const [scrollTarget, setScrollTarget] = useState<PathScrollTarget | null>(null);
-  const [recordScrollTarget, setRecordScrollTarget] = useState<RecordScrollTarget | null>(null);
   const scrollRequestIdRef = useRef(0);
 
   const nextRequestId = useCallback(() => {
@@ -61,28 +45,26 @@ export const useWorkspaceSession = () => {
 
   const scrollToPath = useCallback(
     (recordId: string, pathText: string) => {
-      setFocusedPath((current) =>
-        current && (current.recordId !== recordId || !isPathWithin(pathText, current.pathText))
-          ? null
-          : current,
-      );
-      setScrollTarget({ recordId, pathText, requestId: nextRequestId() });
+      dispatchSelection({
+        type: "scrollToPath",
+        recordId,
+        pathText,
+        requestId: nextRequestId(),
+      });
     },
     [nextRequestId],
   );
 
   const selectPath = useCallback(
     (selection: SelectedPath, stringifiedPathChain: readonly string[] = []) => {
-      setSelectedPath(selection);
-      setActiveRecordId(selection.recordId);
+      dispatchSelection({ type: "selectPath", selection, requestId: nextRequestId() });
       if (stringifiedPathChain.length > 0) {
         setExpandedPaths((current) =>
           addExpandedStringifiedPaths(current, selection.recordId, stringifiedPathChain),
         );
       }
-      scrollToPath(selection.recordId, selection.pathText);
     },
-    [scrollToPath],
+    [nextRequestId],
   );
 
   const selectNode = useCallback(
@@ -92,51 +74,26 @@ export const useWorkspaceSession = () => {
 
   const selectRecord = useCallback(
     (record: JsonlRecord) => {
-      setActiveRecordId(record.id);
-      setDetailSelection({ kind: "record", recordId: record.id });
-      setFocusedPath((current) => (current?.recordId === record.id ? current : null));
-      setRecordScrollTarget({ recordId: record.id, requestId: nextRequestId() });
+      dispatchSelection({ type: "selectRecord", recordId: record.id, requestId: nextRequestId() });
     },
     [nextRequestId],
   );
 
   const selectAgentDetail = useCallback((selection: AgentDetailSelection) => {
-    setActiveRecordId(selection.recordId);
-    setDetailSelection(selection);
-    setFocusedPath((current) => (current?.recordId === selection.recordId ? current : null));
+    dispatchSelection({ type: "selectAgentDetail", selection });
   }, []);
 
   const reset = useCallback(() => {
+    dispatchSelection({ type: "resetTransientSelection" });
     setExpandedPaths(new Map());
     setSearchExpandedPaths(new Map());
-    setSelectedPath(null);
-    setDetailSelection(null);
-    setFocusedPath(null);
-    setScrollTarget(null);
-    setRecordScrollTarget(null);
   }, []);
 
   const reconcileVisibleRecords = useCallback((records: readonly JsonlRecord[]) => {
-    const visibleRecordIds = new Set(records.map((record) => record.id));
-    const firstRecordId = records[0]?.id ?? null;
-    setActiveRecordId((current) =>
-      current && visibleRecordIds.has(current) ? current : firstRecordId,
-    );
-    setSelectedPath((current) =>
-      current && !visibleRecordIds.has(current.recordId) ? null : current,
-    );
-    setDetailSelection((current) =>
-      current && !visibleRecordIds.has(current.recordId) ? null : current,
-    );
-    setFocusedPath((current) =>
-      current && !visibleRecordIds.has(current.recordId) ? null : current,
-    );
-    setScrollTarget((current) =>
-      current && !visibleRecordIds.has(current.recordId) ? null : current,
-    );
-    setRecordScrollTarget((current) =>
-      current && !visibleRecordIds.has(current.recordId) ? null : current,
-    );
+    dispatchSelection({
+      type: "recordsVisibilityChanged",
+      recordIds: records.map((record) => record.id),
+    });
   }, []);
 
   const synchronizeSearchExpansions = useCallback((matches: readonly SearchMatch[]) => {
@@ -180,22 +137,25 @@ export const useWorkspaceSession = () => {
     setExpandedPaths((current) => toggleExpandedStringifiedPath(current, recordId, path));
   }, []);
 
-  const clearFocus = useCallback(() => setFocusedPath(null), []);
-  const clearPathScroll = useCallback(() => setScrollTarget(null), []);
+  const clearFocus = useCallback(() => dispatchSelection({ type: "clearFocusedPath" }), []);
+  const clearPathScroll = useCallback(
+    () => dispatchSelection({ type: "clearPathScrollTarget" }),
+    [],
+  );
   const reportActiveRecord = useCallback((recordId: string) => {
-    setActiveRecordId((current) => (current === recordId ? current : recordId));
+    dispatchSelection({ type: "activeRecordReported", recordId });
   }, []);
 
   return {
     state: {
-      activeRecordId,
-      detailSelection,
+      activeRecordId: selectionState.activeRecordId,
+      detailSelection: selectionState.detailSelection,
       expandedPaths,
       searchExpandedPaths,
-      selectedPath,
-      focusedPath,
-      scrollTarget,
-      recordScrollTarget,
+      selectedPath: selectionState.selectedPath,
+      focusedPath: selectionState.focusedPath,
+      scrollTarget: selectionState.scrollTarget,
+      recordScrollTarget: selectionState.recordScrollTarget,
     },
     reset,
     selectPath,

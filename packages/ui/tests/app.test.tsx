@@ -841,8 +841,8 @@ describe("UnquoteApp", () => {
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("option", { name: /Matches/ }));
 
-    await waitFor(() => expect(screen.queryAllByText("#1")).toHaveLength(0));
-    expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText("#2").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("#1")).toHaveLength(0);
     expect(screen.queryAllByText("#3")).toHaveLength(0);
     expect(screen.getAllByText("boom").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1/3 records · 1 ok · 0 err").length).toBeGreaterThan(0);
