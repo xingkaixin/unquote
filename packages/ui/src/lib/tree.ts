@@ -521,7 +521,9 @@ export const searchRecords = (
 
   const matches: SearchMatch[] = [];
   for (const record of records) {
-    matches.push(...searchRecord(record, pattern, options));
+    for (const match of searchRecord(record, pattern, options)) {
+      matches.push(match);
+    }
   }
 
   return matches;

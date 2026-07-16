@@ -20,6 +20,8 @@ import {
   searchRecord,
 } from "../src/lib/tree";
 
+const oversizedMatchCount = 130_000;
+
 describe("tree paths", () => {
   it("resolves paths inside stringified JSON", () => {
     const result = parseInput('{"payload":"{\\"items\\":[{\\"a.b\\":1,\\"0\\":\\"zero\\"}]}"}');
@@ -136,6 +138,19 @@ describe("tree paths", () => {
     expect(searchJsonValue(JSON.parse(line), record.id, nullPattern!, options)).toEqual(
       searchRecord(record, nullPattern!, options),
     );
+  });
+
+  it("aggregates a record with more matches than the function argument limit", () => {
+    const values = Array.from({ length: oversizedMatchCount }, () => "needle");
+    const result = parseInput(JSON.stringify(values));
+
+    const matches = searchRecords(result.records, "needle", {
+      regex: false,
+      caseSensitive: true,
+      jq: false,
+    });
+
+    expect(matches).toHaveLength(oversizedMatchCount);
   });
 
   it("prefilters ordinary strings without skipping valid stringified JSON scalars", () => {
