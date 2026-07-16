@@ -1,14 +1,10 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { DEFAULT_MAX_DEPTH, getJsonKind, materializeNode } from "@unquote/core";
+import { materializeNode } from "@unquote/core";
 import { getPreviewNestedFieldKeys } from "./deferred-record-preview";
-import {
-  appendJsonPathSegment,
-  formatJsonPath,
-  formatJqSelector,
-  parseTreePath,
-} from "./path-codec";
+import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
-import { walkJsonNode } from "./json-walk";
+import { formatJsonValueLabel, walkJsonNode, walkRawJsonValue } from "./json-walk";
+import type { JsonValueWalkContext } from "./json-walk";
 import type { RecordInsight } from "./record-insight";
 
 export interface TreeRow {
@@ -38,37 +34,6 @@ export interface FocusedTreeRows {
 export type NodeSourceState = "source" | "stringified" | "inside-stringified";
 
 const maxStringValueLabelLength = 512;
-
-const formatStringLabel = (
-  value: string,
-  maxLength = Number.POSITIVE_INFINITY,
-  originalLength = value.length,
-) => {
-  if (value.length <= maxLength && value.length === originalLength) {
-    return JSON.stringify(value);
-  }
-
-  return `${JSON.stringify(`${value.slice(0, maxLength)}...`)} (${originalLength} chars)`;
-};
-
-const formatValueLabel = (node: JsonNode, maxStringLength?: number) => {
-  switch (node.kind) {
-    case "object":
-      return `{${Object.keys((node.children as Record<string, JsonNode>) ?? {}).length}}`;
-    case "array":
-      return `[${(node.children as JsonNode[] | undefined)?.length ?? 0}]`;
-    case "string":
-      return formatStringLabel(
-        node.value as string,
-        maxStringLength,
-        node.meta.valueLength ?? (node.value as string).length,
-      );
-    case "null":
-      return "null";
-    default:
-      return String(node.value);
-  }
-};
 
 const pushRows = (
   node: JsonNode,
@@ -102,7 +67,7 @@ const pushRows = (
         depth: Math.max(0, ctx.node.path.length - 1 - depthOffset),
         keyLabel: ctx.node.path.at(-1) ?? parentKeyLabel,
         kind: ctx.node.kind,
-        valueLabel: formatValueLabel(ctx.node, maxStringValueLabelLength),
+        valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
         wasStringified: ctx.node.wasStringified,
         expandable: Boolean(ctx.node.children),
         expanded,
@@ -270,212 +235,34 @@ const searchNode = (
   options: SearchOptions,
   pathText = "$",
 ) => {
-  walkJsonNode(
-    node,
-    (ctx) => {
-      const keyLabel = ctx.node.path.at(-1) ?? "$";
-      const valueLabel = formatValueLabel(ctx.node);
-      const keyRanges = findRanges(keyLabel, pattern);
-      const valueRanges = findRanges(valueLabel, pattern);
-      const pathRanges = options.jq ? findRanges(ctx.jsonPath, pattern) : [];
-
-      if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
-        matches.push({
-          recordId,
-          pathText: ctx.jsonPath,
-          keyRanges,
-          valueRanges,
-          pathRanges,
-          stringifiedPathChain: [...ctx.stringifiedChain],
-        });
-      }
-    },
-    { jsonPath: pathText, stringifiedAncestors },
-  );
+  walkJsonNode(node, (ctx) => addSearchMatch(ctx, recordId, pattern, options, matches), {
+    jsonPath: pathText,
+    stringifiedAncestors,
+  });
 };
 
-const formatRawValueLabel = (value: unknown) => {
-  const kind = getJsonKind(value);
-  if (kind === "object") {
-    return `{${Object.keys(value as Record<string, unknown>).length}}`;
-  }
-  if (kind === "array") {
-    return `[${(value as unknown[]).length}]`;
-  }
-  if (kind === "string") {
-    return JSON.stringify(value);
-  }
-  if (kind === "null") {
-    return "null";
-  }
-  return String(value);
-};
-
-const isJsonWhitespace = (character: string) =>
-  character === " " || character === "\t" || character === "\n" || character === "\r";
-
-const skipJsonWhitespace = (value: string, start: number) => {
-  let index = start;
-  while (index < value.length && isJsonWhitespace(value[index]!)) {
-    index++;
-  }
-  return index;
-};
-
-const hasOnlyTrailingJsonWhitespace = (value: string, start: number) =>
-  skipJsonWhitespace(value, start) === value.length;
-
-const hasJsonLiteral = (value: string, start: number, literal: string) =>
-  value.startsWith(literal, start) && hasOnlyTrailingJsonWhitespace(value, start + literal.length);
-
-const hasJsonNumber = (value: string, start: number) => {
-  let index = start;
-
-  if (value[index] === "-") {
-    index++;
-  }
-
-  if (value[index] === "0") {
-    index++;
-  } else {
-    const integerStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
-      index++;
-    }
-    if (index === integerStart) {
-      return false;
-    }
-  }
-
-  if (value[index] === ".") {
-    index++;
-    const fractionStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
-      index++;
-    }
-    if (index === fractionStart) {
-      return false;
-    }
-  }
-
-  if (value[index] === "e" || value[index] === "E") {
-    index++;
-    if (value[index] === "+" || value[index] === "-") {
-      index++;
-    }
-    const exponentStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
-      index++;
-    }
-    if (index === exponentStart) {
-      return false;
-    }
-  }
-
-  return hasOnlyTrailingJsonWhitespace(value, index);
-};
-
-const mightBeStringifiedJson = (value: string) => {
-  const start = skipJsonWhitespace(value, 0);
-  const first = value[start];
-
-  if (first === "{" || first === "[" || first === '"') {
-    return true;
-  }
-  if (first === "t") {
-    return hasJsonLiteral(value, start, "true");
-  }
-  if (first === "f") {
-    return hasJsonLiteral(value, start, "false");
-  }
-  if (first === "n") {
-    return hasJsonLiteral(value, start, "null");
-  }
-  return first === "-" || (first !== undefined && first >= "0" && first <= "9")
-    ? hasJsonNumber(value, start)
-    : false;
-};
-
-const parseStringifiedValue = (value: string, depth: number) => {
-  if (depth > DEFAULT_MAX_DEPTH || !mightBeStringifiedJson(value)) {
-    return null;
-  }
-
-  try {
-    return { value: JSON.parse(value) as unknown };
-  } catch {
-    return null;
-  }
-};
-
-const searchRawValue = (
-  value: unknown,
+const addSearchMatch = (
+  context: JsonValueWalkContext<unknown>,
   recordId: string,
   pattern: RegExp,
   options: SearchOptions,
   matches: SearchMatch[],
-  pathText: string,
-  pathSegments: TreePathSegment[],
-  stringifiedAncestors: string[],
-  depth: number,
 ) => {
-  const parsedString = typeof value === "string" ? parseStringifiedValue(value, depth) : null;
-  const nodeValue = parsedString ? parsedString.value : value;
-  const stringifiedPathChain = parsedString
-    ? [...stringifiedAncestors, pathText]
-    : stringifiedAncestors;
-  const keyLabel = pathSegments.at(-1)?.value ?? "$";
-  const valueLabel = formatRawValueLabel(nodeValue);
+  const keyLabel = context.pathSegments.at(-1)?.value ?? "$";
+  const valueLabel = formatJsonValueLabel(context);
   const keyRanges = findRanges(keyLabel, pattern);
   const valueRanges = findRanges(valueLabel, pattern);
-  const pathRanges = options.jq ? findRanges(pathText, pattern) : [];
+  const pathRanges = options.jq ? findRanges(context.jsonPath, pattern) : [];
 
   if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
     matches.push({
       recordId,
-      pathText,
+      pathText: context.jsonPath,
       keyRanges,
       valueRanges,
       pathRanges,
-      stringifiedPathChain,
+      stringifiedPathChain: [...context.stringifiedChain],
     });
-  }
-
-  if (Array.isArray(nodeValue)) {
-    nodeValue.forEach((child, index) => {
-      const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-      searchRawValue(
-        child,
-        recordId,
-        pattern,
-        options,
-        matches,
-        appendJsonPathSegment(pathText, segment),
-        [...pathSegments, segment],
-        stringifiedPathChain,
-        depth + 1,
-      );
-    });
-    return;
-  }
-
-  if (!nodeValue || typeof nodeValue !== "object") {
-    return;
-  }
-
-  for (const [key, child] of Object.entries(nodeValue as Record<string, unknown>)) {
-    const segment = { kind: "key", value: key } satisfies TreePathSegment;
-    searchRawValue(
-      child,
-      recordId,
-      pattern,
-      options,
-      matches,
-      appendJsonPathSegment(pathText, segment),
-      [...pathSegments, segment],
-      stringifiedPathChain,
-      depth + 1,
-    );
   }
 };
 
@@ -486,7 +273,7 @@ export const searchJsonValue = (
   options: SearchOptions,
 ): SearchMatch[] => {
   const matches: SearchMatch[] = [];
-  searchRawValue(value, recordId, pattern, options, matches, "$", [], [], 0);
+  walkRawJsonValue(value, (ctx) => addSearchMatch(ctx, recordId, pattern, options, matches));
   return matches;
 };
 
