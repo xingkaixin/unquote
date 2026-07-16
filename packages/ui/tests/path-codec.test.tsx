@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatJsonPath, formatJqSelector, parseTreePath } from "../src/lib/path-codec";
+import {
+  formatJsonPath,
+  formatJqSelector,
+  isArrayElementPath,
+  isPathWithin,
+  parseTreePath,
+} from "../src/lib/path-codec";
 
 describe("path codec", () => {
   it("parses and serializes JSONPath and jq selectors", () => {
@@ -50,8 +56,50 @@ describe("path codec", () => {
   });
 
   it("rejects invalid path syntax", () => {
-    expect(parseTreePath("$.payload[abc]")).toBeNull();
-    expect(parseTreePath("")).toBeNull();
-    expect(parseTreePath("payload")).toBeNull();
+    const selectors = [
+      "",
+      "payload",
+      "$payload",
+      "$.",
+      "$.payload.",
+      "$.payload..value",
+      "$.payload[abc]",
+      "$.payload[]",
+      "$.payload[-1]",
+      "$.payload[01]",
+      "$.payload[1",
+      '$.payload["value"',
+      '$.payload["value"]tail',
+      '$.payload["\\x"]',
+      '$.payload["unterminated]',
+      "$.payload['unterminated]",
+      "$['dangling\\",
+      "$.payload['dangling\\]",
+    ];
+
+    for (const selector of selectors) {
+      expect(parseTreePath(selector), selector).toBeNull();
+    }
+  });
+
+  it("parses single-quoted keys and normalizes escape sequences", () => {
+    expect(parseTreePath("$.['quote\\\'key']['line\\nfeed']['slash\\\\key']['\\q']")).toEqual([
+      { kind: "key", value: "quote'key" },
+      { kind: "key", value: "line\nfeed" },
+      { kind: "key", value: "slash\\key" },
+      { kind: "key", value: "q" },
+    ]);
+    expect(parseTreePath("$[ 12 ]")).toEqual([{ kind: "index", value: "12" }]);
+  });
+
+  it("classifies array paths and descendant paths", () => {
+    expect(isArrayElementPath("$.items[12]")).toBe(true);
+    expect(isArrayElementPath('$["12"]')).toBe(false);
+    expect(isArrayElementPath("$.items")).toBe(false);
+
+    expect(isPathWithin("$.payload", "$.payload")).toBe(true);
+    expect(isPathWithin("$.payload.value", "$.payload")).toBe(true);
+    expect(isPathWithin("$.payload[0]", "$.payload")).toBe(true);
+    expect(isPathWithin("$.payloads", "$.payload")).toBe(false);
   });
 });
