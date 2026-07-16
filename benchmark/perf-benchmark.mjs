@@ -9,7 +9,41 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const webDist = path.join(repoRoot, "dist", "web");
-const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePaths = {
+  darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+  linux: [
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+  ],
+};
+
+const resolveChromePath = () => {
+  const candidates = [
+    process.env.UNQUOTE_BENCH_CHROME,
+    ...(chromePaths[process.platform] ?? []),
+  ].filter(Boolean);
+  const executable = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!executable) {
+    throw new Error(
+      `Chrome executable not found. Set UNQUOTE_BENCH_CHROME or install Chrome in one of: ${candidates.join(", ")}`,
+    );
+  }
+
+  return executable;
+};
+
+const readBudget = (name, fallback) => {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative number`);
+  }
+
+  return value;
+};
+
+const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 9222);
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
@@ -39,10 +73,10 @@ const fixtureArgs = process.argv.slice(2);
 const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;
 
 const budgets = {
-  firstRecordReadyMsP95: 1000,
-  completeReadyMsP95: 3000,
-  domNodesMax: 10000,
-  jsHeapUsedSizeMBMax: 256,
+  firstRecordReadyMsP95: readBudget("UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS", 1000),
+  completeReadyMsP95: readBudget("UNQUOTE_BENCH_COMPLETE_BUDGET_MS", 3000),
+  domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 10000),
+  jsHeapUsedSizeMBMax: readBudget("UNQUOTE_BENCH_HEAP_BUDGET_MB", 256),
 };
 
 const ensureFile = (target) => {

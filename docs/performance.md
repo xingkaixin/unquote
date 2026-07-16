@@ -10,6 +10,25 @@ The command force-builds the app, runs the benchmark in headless Chrome, writes
 `benchmark/results/latest.json`, and exits with a non-zero status when a budget is
 exceeded.
 
+Set `UNQUOTE_BENCH_CHROME` to use a Chrome executable outside the default macOS
+and Linux locations. Runner-specific budgets can be supplied with
+`UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS`, `UNQUOTE_BENCH_COMPLETE_BUDGET_MS`,
+`UNQUOTE_BENCH_DOM_NODES_BUDGET`, and `UNQUOTE_BENCH_HEAP_BUDGET_MB`.
+
+## CI Telemetry
+
+Pull requests that can affect parser or rendering performance run the Benchmark
+workflow on GitHub's Ubuntu runner. The JSON report is retained as the
+`benchmark-results` artifact for 14 days.
+
+The workflow generates deterministic case 2 and case 4 fixtures on the runner
+and writes the report outside the checkout. This keeps workstation-only inputs
+out of CI and prevents a tracked local baseline from being uploaded as a new run.
+
+Budget failures are non-blocking during this evaluation phase, but setup errors
+and missing reports still fail the workflow. Promote the benchmark to a required
+check only after enough runner samples establish stable, Ubuntu-specific budgets.
+
 Generate ignored local JSONL fixtures with:
 
 ```sh
