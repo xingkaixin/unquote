@@ -17,7 +17,12 @@ import { Badge } from "./badge";
 import { Button } from "./button";
 import { CardHeader, CardTitle } from "./card";
 import { JsonTree } from "./json-tree";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./resizable";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useResizablePanelGroupLayout,
+} from "./resizable";
 
 const noSearchMatches: SearchMatch[] = [];
 
@@ -225,6 +230,18 @@ export const AgentSessionView = ({
   const renderedDetailRecord = detailRecord
     ? resolveHydratedRecord(detailRecord, hydratedRecords)
     : undefined;
+  const panelIds = useMemo(
+    () => [
+      ...(timelineCollapsed ? [] : ["timeline"]),
+      "conversation",
+      ...(detailEvent ? ["raw"] : []),
+    ],
+    [detailEvent, timelineCollapsed],
+  );
+  const { defaultLayout, onLayoutChanged } = useResizablePanelGroupLayout({
+    id: "uq-agent-workspace",
+    panelIds,
+  });
 
   useEffect(() => {
     if (detailSelection) {
@@ -400,16 +417,15 @@ export const AgentSessionView = ({
 
       {horizontal ? (
         <div className="h-[calc(100vh-12rem)] min-h-[26rem]">
-          <ResizablePanelGroup direction="horizontal" autoSaveId="uq-agent-workspace">
+          <ResizablePanelGroup
+            id="uq-agent-workspace"
+            orientation="horizontal"
+            defaultLayout={defaultLayout}
+            onLayoutChanged={onLayoutChanged}
+          >
             {timelineCollapsed ? null : (
               <>
-                <ResizablePanel
-                  id="timeline"
-                  order={1}
-                  defaultSize={22}
-                  minSize={14}
-                  className="min-w-0"
-                >
+                <ResizablePanel id="timeline" defaultSize="22%" minSize="14%" className="min-w-0">
                   {timelinePane}
                 </ResizablePanel>
                 <ResizableHandle />
@@ -417,9 +433,8 @@ export const AgentSessionView = ({
             )}
             <ResizablePanel
               id="conversation"
-              order={2}
-              defaultSize={detailEvent ? 52 : 78}
-              minSize={28}
+              defaultSize={detailEvent ? "52%" : "78%"}
+              minSize="28%"
               className="min-w-0"
             >
               {conversationPane}
@@ -427,13 +442,7 @@ export const AgentSessionView = ({
             {detailEvent ? (
               <>
                 <ResizableHandle />
-                <ResizablePanel
-                  id="raw"
-                  order={3}
-                  defaultSize={26}
-                  minSize={16}
-                  className="min-w-0"
-                >
+                <ResizablePanel id="raw" defaultSize="26%" minSize="16%" className="min-w-0">
                   {rawPane}
                 </ResizablePanel>
               </>

@@ -1,4 +1,4 @@
-import type { JsonKind } from "./types";
+import type { JsonKind } from "./types.js";
 
 export const DEFAULT_MAX_DEPTH = 100;
 

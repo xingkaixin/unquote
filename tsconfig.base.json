@@ -11,12 +11,10 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
     "paths": {
-      "@unquote/core": ["packages/core/src/index.ts"],
-      "@unquote/ui": ["packages/ui/src/index.ts"],
-      "@unquote/ui/*": ["packages/ui/src/*"]
+      "@unquote/core": ["./packages/core/src/index.ts"],
+      "@unquote/ui": ["./packages/ui/src/index.ts"],
+      "@unquote/ui/*": ["./packages/ui/src/*"]
     }
   }
 }

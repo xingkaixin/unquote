@@ -1,22 +1,14 @@
 import { GripVertical } from "lucide-react";
-import {
-  Panel,
-  PanelGroup,
-  PanelResizeHandle,
-  type ImperativePanelHandle,
-} from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { cn } from "../lib/utils";
 
-export type { ImperativePanelHandle };
+export { useDefaultLayout as useResizablePanelGroupLayout } from "react-resizable-panels";
 
 export const ResizablePanelGroup = ({
   className,
   ...props
-}: React.ComponentProps<typeof PanelGroup>) => (
-  <PanelGroup
-    className={cn("flex h-full w-full data-[panel-group-direction=vertical]:flex-col", className)}
-    {...props}
-  />
+}: React.ComponentProps<typeof Group>) => (
+  <Group className={cn("flex h-full w-full", className)} {...props} />
 );
 
 export const ResizablePanel = Panel;
@@ -25,18 +17,18 @@ export const ResizableHandle = ({
   withHandle = true,
   className,
   ...props
-}: React.ComponentProps<typeof PanelResizeHandle> & { withHandle?: boolean }) => (
-  <PanelResizeHandle
+}: React.ComponentProps<typeof Separator> & { withHandle?: boolean }) => (
+  <Separator
     className={cn(
-      "relative flex w-2 shrink-0 items-center justify-center outline-none transition-colors before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border data-[resize-handle-state=drag]:before:bg-accent data-[resize-handle-state=hover]:before:bg-border-medium focus-visible:before:bg-accent data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=vertical]:before:inset-x-0 data-[panel-group-direction=vertical]:before:left-0 data-[panel-group-direction=vertical]:before:h-px data-[panel-group-direction=vertical]:before:w-full data-[panel-group-direction=vertical]:before:translate-x-0",
+      "group/resize-handle relative flex w-2 shrink-0 items-center justify-center outline-none transition-colors before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border data-[separator=active]:before:bg-accent data-[separator=hover]:before:bg-border-medium focus-visible:before:bg-accent aria-[orientation=horizontal]:h-2 aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:before:inset-x-0 aria-[orientation=horizontal]:before:left-0 aria-[orientation=horizontal]:before:h-px aria-[orientation=horizontal]:before:w-full aria-[orientation=horizontal]:before:translate-x-0",
       className,
     )}
     {...props}
   >
     {withHandle ? (
-      <div className="z-10 flex h-6 w-2.5 items-center justify-center border border-border bg-surface-100 text-text-muted data-[panel-group-direction=vertical]:h-2.5 data-[panel-group-direction=vertical]:w-6 data-[panel-group-direction=vertical]:rotate-90">
+      <div className="z-10 flex h-6 w-2.5 items-center justify-center border border-border bg-surface-100 text-text-muted group-aria-[orientation=horizontal]/resize-handle:h-2.5 group-aria-[orientation=horizontal]/resize-handle:w-6 group-aria-[orientation=horizontal]/resize-handle:rotate-90">
         <GripVertical className="size-3" />
       </div>
     ) : null}
-  </PanelResizeHandle>
+  </Separator>
 );

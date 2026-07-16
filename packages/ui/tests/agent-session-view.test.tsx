@@ -166,7 +166,7 @@ describe("AgentSessionView", () => {
     expect(screen.getByText("gpt-5")).toBeInTheDocument();
     expect(screen.getByText("/repo")).toBeInTheDocument();
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
-    expect(document.querySelector('[data-panel-group-direction="horizontal"]')).toBeInTheDocument();
+    expect(screen.getByTestId("uq-agent-workspace")).toHaveAttribute("data-group", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Copy record" }));
     expect(callbacks.onCopyRecord).toHaveBeenCalledWith(records[0]);
