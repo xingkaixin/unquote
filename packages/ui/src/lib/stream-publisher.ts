@@ -20,6 +20,7 @@ export interface StreamPublisher<Stats, Progress extends { done: boolean }> {
  * The first batch publishes synchronously so results appear immediately;
  * later batches only stash a snapshot and are flushed once per frame. A
  * batch whose progress is done publishes immediately as well.
+ * Every emit receives a distinct records snapshot that later batches do not mutate.
  *
  * The scheduler is injectable so tests don't need fake rAF globals.
  */
@@ -55,7 +56,7 @@ export const createStreamPublisher = <Stats, Progress extends { done: boolean }>
     const snapshot = pending;
     pending = null;
     hasPublished = true;
-    emit(records, snapshot.stats, snapshot.progress);
+    emit(records.slice(), snapshot.stats, snapshot.progress);
   };
 
   return {

@@ -10,7 +10,6 @@ import type { SearchMatch } from "../lib/tree";
 
 export interface RecordPipelineParams {
   result: ParseResult;
-  recordsVersion: number;
   // Search matches from the search worker — covers both in-memory text search
   // and whole-file search, and is null while idle, pending, or errored.
   searchMatches: SearchMatch[] | null;
@@ -45,7 +44,6 @@ const getRecordStats = (records: JsonlRecord[]) => {
  */
 export const useRecordPipeline = ({
   result,
-  recordsVersion,
   searchMatches,
   recordFilter,
 }: RecordPipelineParams): RecordPipeline => {
@@ -56,30 +54,30 @@ export const useRecordPipeline = ({
 
   const recordInsights = useMemo(
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
-    [recordsVersion, result.records],
+    [result.records],
   );
   const recordsById = useMemo(
     () => new Map(result.records.map((record) => [record.id, record])),
-    [recordsVersion, result.records],
+    [result.records],
   );
   const visibleRecords = useMemo(
     () => filterRecords(result.records, recordFilter, matches, recordInsights),
-    [matches, recordFilter, recordInsights, recordsVersion, result.records],
+    [matches, recordFilter, recordInsights, result.records],
   );
   const visibleStats = useMemo(
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
-    [recordFilter, recordsVersion, result.stats, visibleRecords],
+    [recordFilter, result.stats, visibleRecords],
   );
   const fileOverview = useMemo(
     () => updateFileOverview(result.records, overviewStateRef.current),
-    [recordsVersion, result.records],
+    [result.records],
   );
   const visibleMatches = useMemo(() => {
     if (!matches) return null;
 
     const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
     return matches.filter((match) => visibleRecordIds.has(match.recordId));
-  }, [matches, recordsVersion, visibleRecords]);
+  }, [matches, visibleRecords]);
   const matchCount = visibleMatches?.length ?? 0;
 
   return {

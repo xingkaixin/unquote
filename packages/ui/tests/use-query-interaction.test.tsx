@@ -10,7 +10,6 @@ const renderQuery = () =>
   renderHook(() =>
     useQueryInteraction({
       result,
-      recordsVersion: 1,
       sourceText: source,
       sourceFile: null,
       forcedFormat: "jsonl",
@@ -62,6 +61,34 @@ describe("useQueryInteraction", () => {
       kind: "search",
       matchIndex: 1,
     });
+  });
+
+  it("updates record derivations from immutable parser snapshots", () => {
+    const firstResult = parseInput('{"message":"first"}', { forcedFormat: "jsonl" });
+    const nextResult = parseInput('{"message":"first"}\n{"message":"second"}', {
+      forcedFormat: "jsonl",
+    });
+    const { result: query, rerender } = renderHook(
+      ({ parseResult }) =>
+        useQueryInteraction({
+          result: parseResult,
+          sourceText: "",
+          sourceFile: null,
+          forcedFormat: "jsonl",
+          translateError: (reason) => reason,
+        }),
+      { initialProps: { parseResult: firstResult } },
+    );
+
+    expect(query.current.snapshot.visibleRecords).toHaveLength(1);
+    expect(query.current.snapshot.recordsById).toHaveLength(1);
+    expect(query.current.snapshot.fileOverview.total).toBe(1);
+
+    rerender({ parseResult: nextResult });
+
+    expect(query.current.snapshot.visibleRecords).toHaveLength(2);
+    expect(query.current.snapshot.recordsById).toHaveLength(2);
+    expect(query.current.snapshot.fileOverview.total).toBe(2);
   });
 
   it("resolves path navigation and versions repeated navigation internally", () => {

@@ -341,6 +341,26 @@ const renderCodexAgentView = async () => {
   return user;
 };
 
+const filterableJsonlInput = [
+  '{"level":"info","payload":"{\\"nested\\":true}"}',
+  '{"level":"error","message":"boom"}',
+  "not-json",
+].join("\n");
+
+const renderFilterableJsonl = async () => {
+  useDesktopViewport();
+  render(
+    <I18nProvider>
+      <UnquoteApp initialInput={filterableJsonlInput} />
+    </I18nProvider>,
+  );
+
+  fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
+    target: { value: "jsonl" },
+  });
+  await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+};
+
 describe("UnquoteApp", () => {
   it("mounts one mobile workspace pane at a time", async () => {
     const user = userEvent.setup();
@@ -813,43 +833,9 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
   });
 
-  it("filters JSONL records across list, toc, search, and copy output", async () => {
+  it("filters JSONL records across list, toc, and search", async () => {
     const user = userEvent.setup();
-    useDesktopViewport();
-    const writeText = vi.fn();
-    const exportedBlobs: Blob[] = [];
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: vi.fn((blob: Blob) => {
-        exportedBlobs.push(blob);
-        return `blob:export-${exportedBlobs.length}`;
-      }),
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: vi.fn(),
-    });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    const input = [
-      '{"level":"info","payload":"{\\"nested\\":true}"}',
-      '{"level":"error","message":"boom"}',
-      "not-json",
-    ].join("\n");
-
-    render(
-      <I18nProvider>
-        <UnquoteApp initialInput={input} />
-      </I18nProvider>,
-    );
-
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    await renderFilterableJsonl();
 
     await user.type(getToolbarInput(), "boom");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
@@ -873,6 +859,34 @@ describe("UnquoteApp", () => {
     expect(screen.queryAllByText("#2")).toHaveLength(0);
     expect(screen.queryByText("nested json")).not.toBeInTheDocument();
     expect(screen.getAllByText("payload").length).toBeGreaterThan(0);
+  });
+
+  it("copies and exports filtered JSONL records", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const exportedBlobs: Blob[] = [];
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn((blob: Blob) => {
+        exportedBlobs.push(blob);
+        return `blob:export-${exportedBlobs.length}`;
+      }),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    await renderFilterableJsonl();
+
+    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
+    await user.click(screen.getByRole("option", { name: /Nested/ }));
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("#2")).toHaveLength(0);
 
     await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
     await user.click(await screen.findByText("Copy JSONL"));
@@ -1777,7 +1791,10 @@ describe("UnquoteApp", () => {
     await user.type(getToolbarInput(), "target");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("option", { name: /Matches/ }));
-    await waitFor(() => expect(document.getElementById("record-2")).not.toBeInTheDocument());
+    await waitFor(() => {
+      expect(document.getElementById("record-1")).toBeInTheDocument();
+      expect(document.getElementById("record-2")).not.toBeInTheDocument();
+    });
 
     const collapseAll = screen
       .getAllByRole("button", { name: /^Collapse All$/i })
