@@ -49,6 +49,15 @@ describe("useSourceLoader", () => {
     mocks.writeClipboardText.mockResolvedValue(true);
   });
 
+  it("keeps record copy stable across source state updates", () => {
+    const { result } = setup();
+    const onCopyRawLine = result.current.onCopyRawLine;
+
+    act(() => result.current.onSourceChange("edited"));
+
+    expect(result.current.onCopyRawLine).toBe(onCopyRawLine);
+  });
+
   it("publishes text and imported files while restoring text after a read failure", async () => {
     const readError = new Error("read failed");
     const onReadFile = vi

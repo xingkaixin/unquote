@@ -9,7 +9,7 @@ import {
 } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
 import { resolveHydratedRecord } from "../lib/record-resolution";
-import type { TreeRow } from "../lib/tree";
+import type { SearchMatch, TreeRow } from "../lib/tree";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
 import { AgentTimelinePane } from "./agent-timeline-pane";
@@ -18,6 +18,8 @@ import { Button } from "./button";
 import { CardHeader, CardTitle } from "./card";
 import { JsonTree } from "./json-tree";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./resizable";
+
+const noSearchMatches: SearchMatch[] = [];
 
 interface AgentSessionViewProps {
   session: AgentSession;
@@ -141,16 +143,16 @@ const RawJsonlPanel = ({
             insight={insight}
             expandedStringifiedPaths={expandedStringifiedPaths}
             eager
-            searchMatches={[]}
+            searchMatches={noSearchMatches}
             activeMatch={null}
             scrollTarget={null}
             selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
             focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
             onTogglePath={onTogglePath}
-            onCopyRecord={() => onCopyRecord(record)}
-            onCopyRawLine={() => onCopyRawLine(record)}
-            onCopyError={() => onCopyError(record)}
-            onSelectNode={(row) => onSelectNode(record, row)}
+            onCopyRecord={onCopyRecord}
+            onCopyRawLine={onCopyRawLine}
+            onCopyError={onCopyError}
+            onSelectNode={onSelectNode}
             onHydrateRecord={onHydrateRecord}
             onClearFocus={onClearFocus}
           />

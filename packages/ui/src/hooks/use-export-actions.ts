@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "../i18n/context";
 import { writeClipboardText } from "../lib/clipboard";
 import {
@@ -28,24 +29,30 @@ export const useExportActions = ({
 }: UseExportActionsParams) => {
   const { t } = useTranslation();
 
-  const copyText = async (text: string) => {
-    if (!(await writeClipboardText(text))) {
-      toast.error(t("copy.failed"));
-    }
-  };
+  const copyText = useCallback(
+    async (text: string) => {
+      if (!(await writeClipboardText(text))) {
+        toast.error(t("copy.failed"));
+      }
+    },
+    [t],
+  );
 
   // Copy actions are invoked fire-and-forget from onClick, so a rejected file
   // read would become an unhandled rejection — surface it here instead.
-  const resolveCopyRecords = async (records: JsonlRecord[]) => {
-    try {
-      return await getFullRecords(records);
-    } catch {
-      toast.error(t("input.readFailed"));
-      return null;
-    }
-  };
+  const resolveCopyRecords = useCallback(
+    async (records: JsonlRecord[]) => {
+      try {
+        return await getFullRecords(records);
+      } catch {
+        toast.error(t("input.readFailed"));
+        return null;
+      }
+    },
+    [getFullRecords, t],
+  );
 
-  const onCopyJsonl = async () => {
+  const onCopyJsonl = useCallback(async () => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
       return;
@@ -55,9 +62,9 @@ export const useExportActions = ({
       return;
     }
     await copyText(formatRecordsAsJsonl(records));
-  };
+  }, [copyText, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
 
-  const onCopyFormattedJson = async () => {
+  const onCopyFormattedJson = useCallback(async () => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
       return;
@@ -67,9 +74,9 @@ export const useExportActions = ({
       return;
     }
     await copyText(formatRecordsAsJson(records, format));
-  };
+  }, [copyText, format, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
 
-  const onExportJsonl = () => {
+  const onExportJsonl = useCallback(() => {
     toast.promise(
       (async () => {
         const records = await getFullRecords(visibleRecords);
@@ -83,9 +90,9 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  };
+  }, [getFullRecords, t, visibleRecords]);
 
-  const onExportFormattedJson = () => {
+  const onExportFormattedJson = useCallback(() => {
     toast.promise(
       (async () => {
         const records = await getFullRecords(visibleRecords);
@@ -99,39 +106,55 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  };
+  }, [format, getFullRecords, t, visibleRecords]);
 
-  const onCopyRecord = async (record: JsonlRecord) => {
-    const records = await resolveCopyRecords([record]);
-    if (!records) {
-      return;
-    }
-    const [copyRecord = record] = records;
-    const value = getCopyValue(copyRecord);
-    await copyText(JSON.stringify(value, null, 2));
-  };
+  const onCopyRecord = useCallback(
+    async (record: JsonlRecord) => {
+      const records = await resolveCopyRecords([record]);
+      if (!records) {
+        return;
+      }
+      const [copyRecord = record] = records;
+      const value = getCopyValue(copyRecord);
+      await copyText(JSON.stringify(value, null, 2));
+    },
+    [copyText, resolveCopyRecords],
+  );
 
-  const onCopyRecordError = async (record: JsonlRecord) => {
-    const message = record.error ?? t("error.parseFailed");
-    const errorMeta = record.errorMeta;
-    const details = errorMeta
-      ? [
-          t("error.message", { message }),
-          t("error.location", { line: errorMeta.line, column: errorMeta.column }),
-          `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
-          `${t("error.context")}:\n${errorMeta.context}`,
-        ].join("\n")
-      : t("error.message", { message });
+  const onCopyRecordError = useCallback(
+    async (record: JsonlRecord) => {
+      const message = record.error ?? t("error.parseFailed");
+      const errorMeta = record.errorMeta;
+      const details = errorMeta
+        ? [
+            t("error.message", { message }),
+            t("error.location", { line: errorMeta.line, column: errorMeta.column }),
+            `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
+            `${t("error.context")}:\n${errorMeta.context}`,
+          ].join("\n")
+        : t("error.message", { message });
 
-    await copyText(details);
-  };
+      await copyText(details);
+    },
+    [copyText, t],
+  );
 
-  return {
-    onCopyJsonl,
-    onCopyFormattedJson,
-    onExportJsonl,
-    onExportFormattedJson,
-    onCopyRecord,
-    onCopyRecordError,
-  };
+  return useMemo(
+    () => ({
+      onCopyJsonl,
+      onCopyFormattedJson,
+      onExportJsonl,
+      onExportFormattedJson,
+      onCopyRecord,
+      onCopyRecordError,
+    }),
+    [
+      onCopyFormattedJson,
+      onCopyJsonl,
+      onCopyRecord,
+      onCopyRecordError,
+      onExportFormattedJson,
+      onExportJsonl,
+    ],
+  );
 };
