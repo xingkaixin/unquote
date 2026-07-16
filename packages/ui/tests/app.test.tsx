@@ -1777,7 +1777,10 @@ describe("UnquoteApp", () => {
     await user.type(getToolbarInput(), "target");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("option", { name: /Matches/ }));
-    await waitFor(() => expect(document.getElementById("record-2")).not.toBeInTheDocument());
+    await waitFor(() => {
+      expect(document.getElementById("record-1")).toBeInTheDocument();
+      expect(document.getElementById("record-2")).not.toBeInTheDocument();
+    });
 
     const collapseAll = screen
       .getAllByRole("button", { name: /^Collapse All$/i })
