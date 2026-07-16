@@ -10,6 +10,7 @@ import {
 import type { RecordInsight } from "../lib/record-insight";
 import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { SearchMatch, TreeRow } from "../lib/tree";
+import type { AgentDetailSelection as WorkspaceAgentDetailSelection } from "../lib/workspace-selection";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
 import { AgentTimelinePane } from "./agent-timeline-pane";
@@ -25,6 +26,8 @@ import {
 } from "./resizable";
 
 const noSearchMatches: SearchMatch[] = [];
+
+export type AgentDetailSelection = WorkspaceAgentDetailSelection;
 
 interface AgentSessionViewProps {
   session: AgentSession;
@@ -44,11 +47,6 @@ interface AgentSessionViewProps {
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
 }
-
-export type AgentDetailSelection =
-  | { kind: "record"; recordId: string }
-  | { kind: "event"; id: string; recordId: string }
-  | { kind: "conversation"; id: string; recordId: string };
 
 const metricItems = (session: AgentSession, t: ReturnType<typeof useTranslation>["t"]) => {
   const toolCount = session.conversationItems.filter(
