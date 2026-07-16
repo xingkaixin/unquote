@@ -1,4 +1,4 @@
-import { useReducer, useRef, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { writeClipboardText } from "../lib/clipboard";
 import { readFileText, readJsonlRecordsByLine } from "../lib/local-file-source";
@@ -58,6 +58,12 @@ export const useSourceLoader = ({
   const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
+  const sourceFileRef = useRef(sourceFile);
+  const onErrorRef = useRef(onError);
+  const onCopyErrorRef = useRef(onCopyError);
+  sourceFileRef.current = sourceFile;
+  onErrorRef.current = onError;
+  onCopyErrorRef.current = onCopyError;
 
   const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
     file.size > largeSourceCollapseBytes &&
@@ -163,16 +169,20 @@ export const useSourceLoader = ({
     }
   };
 
-  const onCopyRawLine = async (record: JsonlRecord) => {
+  const onCopyRawLine = useCallback(async (record: JsonlRecord) => {
     let text = record.rawLine ?? record.errorMeta?.rawLine ?? record.summary;
-    if (sourceFile) {
+    const currentSourceFile = sourceFileRef.current;
+    if (currentSourceFile) {
       let fullRecord: JsonlRecord | undefined;
       try {
-        const fullRecords = await readJsonlRecordsByLine(sourceFile, new Set([record.lineNumber]));
+        const fullRecords = await readJsonlRecordsByLine(
+          currentSourceFile,
+          new Set([record.lineNumber]),
+        );
         fullRecord = fullRecords.get(record.lineNumber);
       } catch (error) {
         // Deferred records only carry a summary, so don't fall back to copying it.
-        onError(error);
+        onErrorRef.current(error);
         return;
       }
       if (fullRecord?.node) {
@@ -183,9 +193,9 @@ export const useSourceLoader = ({
     }
 
     if (!(await writeClipboardText(text))) {
-      onCopyError();
+      onCopyErrorRef.current();
     }
-  };
+  }, []);
 
   return {
     mode,

@@ -1,6 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import {
   getExpandedStringifiedPaths,
@@ -14,6 +14,7 @@ import { JsonTree } from "./json-tree";
 export const recordVirtualizationThreshold = 160;
 const recordEstimateSize = 260;
 const recordGap = 12;
+const noSearchMatches: SearchMatch[] = [];
 
 interface RecordListProps {
   records: JsonlRecord[];
@@ -36,7 +37,7 @@ interface RecordListProps {
   onActiveRecordChange: (recordId: string) => void;
 }
 
-export const RecordList = ({
+export const RecordList = memo(function RecordList({
   records,
   recordInsights,
   hydratedRecords,
@@ -55,7 +56,7 @@ export const RecordList = ({
   onHydrateRecord,
   onClearFocus,
   onActiveRecordChange,
-}: RecordListProps) => {
+}: RecordListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const shouldVirtualize = records.length > recordVirtualizationThreshold;
@@ -197,16 +198,16 @@ export const RecordList = ({
           renderedRecord.id,
         )}
         eager={index < 6}
-        searchMatches={searchMatchesByRecord.get(record.id) ?? []}
+        searchMatches={searchMatchesByRecord.get(record.id) ?? noSearchMatches}
         activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
         scrollTarget={scrollTarget?.recordId === record.id ? scrollTarget : null}
         selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
         focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
         onTogglePath={onTogglePath}
-        onCopyRecord={() => onCopyRecord(renderedRecord)}
-        onCopyRawLine={() => onCopyRawLine(renderedRecord)}
-        onCopyError={() => onCopyError(renderedRecord)}
-        onSelectNode={(row) => onSelectNode(renderedRecord, row)}
+        onCopyRecord={onCopyRecord}
+        onCopyRawLine={onCopyRawLine}
+        onCopyError={onCopyError}
+        onSelectNode={onSelectNode}
         onHydrateRecord={onHydrateRecord}
         onClearFocus={onClearFocus}
       />
@@ -253,4 +254,4 @@ export const RecordList = ({
       })}
     </div>
   );
-};
+});

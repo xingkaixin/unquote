@@ -2,7 +2,7 @@ import type { JsonlRecord } from "@unquote/core";
 import { ChevronRight, Copy, FileWarning, Focus, Undo2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties, KeyboardEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
@@ -32,15 +32,15 @@ interface JsonTreeProps {
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (recordId: string, path: string) => void;
-  onCopyRecord: () => void;
-  onCopyRawLine: () => void;
-  onCopyError: () => void;
-  onSelectNode: (row: TreeRow) => void;
+  onCopyRecord: (record: JsonlRecord) => void;
+  onCopyRawLine: (record: JsonlRecord) => void;
+  onCopyError: (record: JsonlRecord) => void;
+  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
   onHydrateRecord: (record: JsonlRecord) => void;
   onClearFocus: () => void;
 }
 
-export const JsonTree = ({
+export const JsonTree = memo(function JsonTree({
   record,
   insight,
   expandedStringifiedPaths,
@@ -57,7 +57,7 @@ export const JsonTree = ({
   onSelectNode,
   onHydrateRecord,
   onClearFocus,
-}: JsonTreeProps) => {
+}: JsonTreeProps) {
   const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -114,12 +114,19 @@ export const JsonTree = ({
     enabled: shouldVirtualize,
   });
 
-  const toggleRow = (row: DisplayTreeRow) => {
-    if (record.deferred) {
-      onHydrateRecord(record);
-    }
-    onTogglePath(record.id, row.source.pathText);
-  };
+  const toggleRow = useCallback(
+    (row: DisplayTreeRow) => {
+      if (record.deferred) {
+        onHydrateRecord(record);
+      }
+      onTogglePath(record.id, row.source.pathText);
+    },
+    [onHydrateRecord, onTogglePath, record],
+  );
+  const selectNode = useCallback(
+    (row: TreeRow) => onSelectNode(record, row),
+    [onSelectNode, record],
+  );
 
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const activeIndex = interactiveRows.findIndex((row) => row.id === activeRowId);
@@ -162,7 +169,7 @@ export const JsonTree = ({
         break;
       case "Enter":
       case " ":
-        onSelectNode(activeRow.source);
+        selectNode(activeRow.source);
         break;
       default:
         return;
@@ -260,7 +267,7 @@ export const JsonTree = ({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[11px]"
-              onClick={onCopyRawLine}
+              onClick={() => onCopyRawLine(record)}
             >
               <Copy className="size-3" />
               {t("error.copyRawLine")}
@@ -269,7 +276,7 @@ export const JsonTree = ({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[11px]"
-              onClick={onCopyError}
+              onClick={() => onCopyError(record)}
             >
               <Copy className="size-3" />
               {t("error.copyDetails")}
@@ -361,7 +368,7 @@ export const JsonTree = ({
             variant="ghost"
             size="sm"
             className="uq-icon-button h-7 w-7 px-0"
-            onClick={onCopyRecord}
+            onClick={() => onCopyRecord(record)}
             aria-label={t("tree.copyRecord")}
           >
             <Copy className="size-3.5" />
@@ -415,7 +422,7 @@ export const JsonTree = ({
                   isSelected={isSelected}
                   isSelectedAnchor={isSelectedAnchor}
                   isActiveDescendant={row.id === activeRowId}
-                  onSelectNode={onSelectNode}
+                  onSelectNode={selectNode}
                   onActivate={setActiveRowId}
                   onTogglePath={toggleRow}
                 />
@@ -442,7 +449,7 @@ export const JsonTree = ({
                   isSelected={isSelected}
                   isSelectedAnchor={isSelectedAnchor}
                   isActiveDescendant={row.id === activeRowId}
-                  onSelectNode={onSelectNode}
+                  onSelectNode={selectNode}
                   onActivate={setActiveRowId}
                   onTogglePath={toggleRow}
                 />
@@ -453,7 +460,7 @@ export const JsonTree = ({
       </div>
     </Card>
   );
-};
+});
 
 interface HighlightTextProps {
   text: string;
@@ -648,7 +655,7 @@ interface RowItemProps {
   measureRef?: (node: HTMLDivElement | null) => void;
 }
 
-const RowItem = ({
+const RowItem = memo(function RowItem({
   row,
   searchMatch,
   isActiveMatch,
@@ -661,7 +668,7 @@ const RowItem = ({
   virtualized = false,
   style,
   measureRef,
-}: RowItemProps) => {
+}: RowItemProps) {
   const source = row.source;
   const valueRanges =
     row.kind === "value" && searchMatch?.valueRanges.length
@@ -759,7 +766,7 @@ const RowItem = ({
       </div>
     </div>
   );
-};
+});
 
 const getDisplayValueClassName = (row: DisplayTreeRow) => {
   if (row.kind === "open" || row.kind === "close" || row.kind === "empty") {

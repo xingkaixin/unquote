@@ -16,6 +16,7 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 const originalClipboard = navigator.clipboard;
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 const validRecord = parseInput('{"ok":true}', { forcedFormat: "json" }).records[0]!;
+const validRecords = [validRecord];
 const failedRecord = parseInput("{bad}", { forcedFormat: "jsonl" }).records[0]!;
 
 afterEach(() => {
@@ -37,7 +38,7 @@ const renderActions = ({
   renderHook(
     () =>
       useExportActions({
-        visibleRecords: [validRecord],
+        visibleRecords: validRecords,
         getFullRecords,
         format: "json",
         isCopyBlocked,
@@ -46,6 +47,15 @@ const renderActions = ({
   );
 
 describe("useExportActions", () => {
+  it("keeps action references stable while inputs are unchanged", () => {
+    const { result, rerender } = renderActions();
+    const actions = result.current;
+
+    rerender();
+
+    expect(result.current).toBe(actions);
+  });
+
   it("blocks both bulk copy formats before resolving records", async () => {
     const getFullRecords = vi.fn(async (records: (typeof validRecord)[]) => records);
     const { result } = renderActions({ getFullRecords, isCopyBlocked: true });

@@ -30,7 +30,7 @@ import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import { sourceSamples } from "./lib/source-samples";
-import type { TreeRow } from "./lib/tree";
+import type { SearchMatch, TreeRow } from "./lib/tree";
 
 import type { SelectedPath } from "./hooks/use-workspace-session";
 
@@ -66,6 +66,7 @@ const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
 const desktopWorkspaceQuery = "(min-width: 64rem)";
+const noSearchMatches: SearchMatch[] = [];
 
 const useDesktopWorkspace = () => {
   const mediaQuery = useMemo(() => window.matchMedia(desktopWorkspaceQuery), []);
@@ -400,9 +401,12 @@ export const UnquoteApp = ({
     workspace.collapseAll(visibleRecords.map((record) => record.id));
   };
 
-  const handleTogglePath = (recordId: string, path: string) => {
-    workspace.togglePath(recordId, path);
-  };
+  const handleTogglePath = useCallback(
+    (recordId: string, path: string) => {
+      workspace.togglePath(recordId, path);
+    },
+    [workspace.togglePath],
+  );
 
   const getSelectedNodeContext = async () => {
     if (!selectedPath) {
@@ -457,9 +461,12 @@ export const UnquoteApp = ({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [commandPaletteOpen, handleCopySelectedSubtree, selectedPath]);
 
-  const handleSelectNode = (record: JsonlRecord, row: TreeRow) => {
-    workspace.selectNode(record, row);
-  };
+  const handleSelectNode = useCallback(
+    (record: JsonlRecord, row: TreeRow) => {
+      workspace.selectNode(record, row);
+    },
+    [workspace.selectNode],
+  );
 
   const handleSelectRecord = (record: JsonlRecord) => {
     workspace.selectRecord(record);
@@ -604,7 +611,7 @@ export const UnquoteApp = ({
         recordInsights={recordInsights}
         hydratedRecords={localFileSource.hydratedRecords}
         expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
-        searchMatches={visibleMatches ?? []}
+        searchMatches={visibleMatches ?? noSearchMatches}
         activeMatch={activeMatch}
         scrollTarget={scrollTarget}
         recordScrollTarget={recordScrollTarget}

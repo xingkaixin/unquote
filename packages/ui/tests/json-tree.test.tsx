@@ -52,7 +52,7 @@ describe("JsonTree", () => {
   });
 
   it("moves focus with arrow keys and activates selection", () => {
-    const { onSelectNode } = renderTree();
+    const { onSelectNode, record } = renderTree();
     const items = screen.getAllByRole("treeitem");
 
     const tree = screen.getByRole("tree");
@@ -61,7 +61,10 @@ describe("JsonTree", () => {
     expect(tree).toHaveAttribute("aria-activedescendant", items[1]!.id);
 
     fireEvent.keyDown(tree, { key: "Enter" });
-    expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ pathText: "$.payload" }));
+    expect(onSelectNode).toHaveBeenCalledWith(
+      record,
+      expect.objectContaining({ pathText: "$.payload" }),
+    );
   });
 
   it("expands the focused collapsed item with ArrowRight", () => {
@@ -89,7 +92,7 @@ describe("JsonTree", () => {
   });
 
   it("supports boundary navigation and Space selection", () => {
-    const { onSelectNode } = renderTree();
+    const { onSelectNode, record } = renderTree();
     const tree = screen.getByRole("tree");
     const items = screen.getAllByRole("treeitem");
 
@@ -100,6 +103,6 @@ describe("JsonTree", () => {
     expect(tree).toHaveAttribute("aria-activedescendant", items[0]!.id);
 
     fireEvent.keyDown(tree, { key: " " });
-    expect(onSelectNode).toHaveBeenCalledWith(expect.objectContaining({ pathText: "$" }));
+    expect(onSelectNode).toHaveBeenCalledWith(record, expect.objectContaining({ pathText: "$" }));
   });
 });

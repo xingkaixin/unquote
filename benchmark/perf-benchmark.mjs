@@ -424,7 +424,7 @@ const runRenderFixture = async (client, fixture) => {
       if (shell.dataset.agentSession === 'true') {
         const jsonTabs = document.querySelectorAll('[data-output-tab="json"]')
         const jsonTab = jsonTabs[jsonTabs.length - 1]
-        jsonTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+        jsonTab?.click()
         await waitFor('json-view', () => shell.dataset.outputView === 'json')
         await settleFrames()
       }
@@ -474,7 +474,7 @@ const runRenderFixture = async (client, fixture) => {
         const tocStart = performance.now()
         sourceExpandButton.click()
         await waitFor('toc-ready', () => {
-          const heading = [...document.querySelectorAll('h3')].find(
+          const heading = [...document.querySelectorAll('h2, h3')].find(
             (node) => node.textContent === 'Records'
           )
           const tocContent = heading?.parentElement?.parentElement?.nextElementSibling
