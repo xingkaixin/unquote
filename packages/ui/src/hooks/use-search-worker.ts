@@ -57,6 +57,16 @@ export const useSearchWorker = (params: {
   const { text, forcedFormat, sourceFile, query, options, debounceMs = 0 } = params;
   const [state, setState] = useState<SearchWorkerResult>(idleResult);
   const requestIdRef = useRef(0);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(
+    () => () => {
+      const worker = workerRef.current;
+      workerRef.current = null;
+      worker?.terminate();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!query) {
@@ -104,37 +114,41 @@ export const useSearchWorker = (params: {
         return;
       }
 
-      const currentWorker = new Worker(new URL("../worker/search-worker.ts", import.meta.url), {
-        type: "module",
-      });
+      const currentWorker =
+        workerRef.current ??
+        new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" });
+      workerRef.current = currentWorker;
       let timeoutId: number | undefined;
-      let disposed = false;
+      let settled = false;
 
-      const onMessage = (event: MessageEvent<SearchWorkerResponse>) => {
+      function finalizeRequest(terminateWorker: boolean) {
+        if (settled) {
+          return false;
+        }
+        settled = true;
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId);
+        }
+        currentWorker.removeEventListener("message", onMessage);
+        if (terminateWorker && workerRef.current === currentWorker) {
+          workerRef.current = null;
+          currentWorker.terminate();
+        }
+        return true;
+      }
+
+      function onMessage(event: MessageEvent<SearchWorkerResponse>) {
         const response = event.data;
-        if (response.requestId !== requestIdRef.current) {
+        if (response.requestId !== requestIdRef.current || !finalizeRequest(false)) {
           return;
         }
 
-        disposeWorker();
         if (response.type === "error") {
           setState({ matches: null, status: "error", errorKind: "worker-error" });
           return;
         }
         setState({ matches: response.matches, status: "complete", errorKind: null });
-      };
-
-      const disposeWorker = () => {
-        if (disposed) {
-          return;
-        }
-        disposed = true;
-        if (timeoutId !== undefined) {
-          window.clearTimeout(timeoutId);
-        }
-        currentWorker.removeEventListener("message", onMessage);
-        currentWorker.terminate();
-      };
+      }
 
       currentWorker.addEventListener("message", onMessage);
       currentWorker.postMessage(
@@ -142,14 +156,13 @@ export const useSearchWorker = (params: {
       );
 
       timeoutId = window.setTimeout(() => {
-        if (requestIdRef.current !== requestId) {
+        if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
           return;
         }
-        disposeWorker();
         setState({ matches: null, status: "error", errorKind: "timeout" });
       }, getSearchWorkerTimeoutMs(sourceFile));
 
-      dispatchCleanup = disposeWorker;
+      dispatchCleanup = () => void finalizeRequest(true);
     };
 
     if (debounceMs > 0) {

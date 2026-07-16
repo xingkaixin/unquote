@@ -97,9 +97,24 @@ describe("useSearchWorker", () => {
     });
 
     act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("A")] }));
-    expect(worker.terminated).toBe(true);
+    expect(worker.terminated).toBe(false);
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("A");
+  });
+
+  it("reuses a worker after a completed search", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("first")] }));
+
+    rerender(<Probe query="b" text="text" />);
+
+    expect(MockWorker.instances).toHaveLength(1);
+    expect(worker.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ query: "b", requestId: 2 }),
+    );
+    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("second")] }));
+    expect(screen.getByTestId("record-id")).toHaveTextContent("second");
   });
 
   it("terminates a superseded worker and applies only the new query", () => {
@@ -176,7 +191,7 @@ describe("useSearchWorker", () => {
     const worker = MockWorker.instances[0]!;
 
     act(() => worker.respond({ type: "error", requestId: 1, message: "TypeError" }));
-    expect(worker.terminated).toBe(true);
+    expect(worker.terminated).toBe(false);
     expect(screen.getByTestId("status")).toHaveTextContent("error");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
   });
@@ -257,6 +272,7 @@ describe("useSearchWorker", () => {
   it("terminates the active worker when the hook unmounts", () => {
     const { unmount } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [] }));
 
     unmount();
 

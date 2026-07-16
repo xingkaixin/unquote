@@ -18,6 +18,8 @@ import type { SearchOptions } from "../lib/tree";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
+export const memorySearchDebounceMs = 120;
+
 export interface PathNavigationTarget {
   recordId: string;
   pathText: string;
@@ -127,7 +129,7 @@ export const useQueryInteraction = ({
     sourceFile,
     query: state.searchQuery,
     options: searchOptions,
-    debounceMs: sourceFile ? fileSearchDebounceMs : 0,
+    debounceMs: sourceFile ? fileSearchDebounceMs : memorySearchDebounceMs,
     ...(forcedFormat ? { forcedFormat } : {}),
   });
   const pipeline = useRecordPipeline({
