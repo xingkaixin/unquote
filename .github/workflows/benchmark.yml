@@ -1,0 +1,45 @@
+name: Benchmark
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/benchmark.yml
+      - apps/web/**
+      - benchmark/**
+      - packages/core/**
+      - packages/ui/**
+      - package.json
+      - pnpm-lock.yaml
+      - turbo.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run benchmark
+        continue-on-error: true
+        run: pnpm benchmark
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark/results/latest.json
+          if-no-files-found: error
+          retention-days: 14
