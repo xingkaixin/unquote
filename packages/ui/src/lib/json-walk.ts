@@ -1,25 +1,35 @@
-import type { JsonNode } from "@unquote/core";
+import { DEFAULT_MAX_DEPTH, getJsonKind } from "@unquote/core";
+import type { JsonKind, JsonNode } from "@unquote/core";
 import { appendJsonPathSegment, appendJqSelectorSegment } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 
-export interface JsonWalkContext {
-  node: JsonNode;
-  jsonPath: string; // e.g. $.a.b[0]
-  jqPath: string; // e.g. .a.b[0]
-  // The chain of stringified-JSON ancestor paths, including this node's own
-  // path when it is itself stringified — mirrors the previous per-walker
-  // `currentChain` computation.
+interface ResolvedJsonValue<T> {
+  node: T;
+  value: unknown;
+  kind: JsonKind;
+  wasStringified: boolean;
+  childCount: number;
+  children?: T[] | Record<string, T>;
+  valueLength?: number;
+}
+
+type JsonValueResolver<T> = (node: T, depth: number) => ResolvedJsonValue<T>;
+
+export interface JsonValueWalkContext<T> {
+  node: T;
+  value: unknown;
+  kind: JsonKind;
+  childCount: number;
+  valueLength?: number;
+  jsonPath: string;
+  jqPath: string;
   stringifiedChain: string[];
-  // Path segments to this node; the last segment's `kind` distinguishes an
-  // object member ("key") from an array element ("index"), which field-
-  // classifying walkers rely on.
   pathSegments: TreePathSegment[];
 }
 
-// Return `false` to skip descending into this node's children; any other value
-// (including undefined) descends. This expresses both "descend only when
-// expanded" and "always descend" without re-scattering the array/object branch.
+export type JsonWalkContext = JsonValueWalkContext<JsonNode>;
 export type JsonNodeVisitor = (ctx: JsonWalkContext) => boolean | void;
+type RawJsonValueVisitor = (ctx: JsonValueWalkContext<unknown>) => boolean | void;
 
 export interface JsonWalkStart {
   jsonPath?: string;
@@ -28,30 +38,176 @@ export interface JsonWalkStart {
   pathSegments?: TreePathSegment[];
 }
 
-// Single traversal primitive for JsonNode trees: walks array/object children,
-// builds the $.json / .jq paths incrementally, and threads the stringified
-// chain. Callers supply only per-node logic via the visitor.
-export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) => {
+const childCountFor = (kind: JsonKind, value: unknown) => {
+  if (kind === "array") {
+    return (value as unknown[]).length;
+  }
+  if (kind === "object" && value) {
+    return Object.keys(value as Record<string, unknown>).length;
+  }
+  return 0;
+};
+
+const resolveJsonNode: JsonValueResolver<JsonNode> = (node) => ({
+  node,
+  value: node.value,
+  kind: node.kind,
+  wasStringified: node.wasStringified,
+  childCount: childCountFor(node.kind, node.value),
+  ...(node.children ? { children: node.children } : {}),
+  ...(typeof node.meta.valueLength === "number" ? { valueLength: node.meta.valueLength } : {}),
+});
+
+const isJsonWhitespace = (character: string) =>
+  character === " " || character === "\t" || character === "\n" || character === "\r";
+
+const skipJsonWhitespace = (value: string, start: number) => {
+  let index = start;
+  while (index < value.length && isJsonWhitespace(value[index]!)) {
+    index++;
+  }
+  return index;
+};
+
+const hasOnlyTrailingJsonWhitespace = (value: string, start: number) =>
+  skipJsonWhitespace(value, start) === value.length;
+
+const hasJsonLiteral = (value: string, start: number, literal: string) =>
+  value.startsWith(literal, start) && hasOnlyTrailingJsonWhitespace(value, start + literal.length);
+
+const hasJsonNumber = (value: string, start: number) => {
+  let index = start;
+
+  if (value[index] === "-") {
+    index++;
+  }
+
+  if (value[index] === "0") {
+    index++;
+  } else {
+    const integerStart = index;
+    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+      index++;
+    }
+    if (index === integerStart) {
+      return false;
+    }
+  }
+
+  if (value[index] === ".") {
+    index++;
+    const fractionStart = index;
+    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+      index++;
+    }
+    if (index === fractionStart) {
+      return false;
+    }
+  }
+
+  if (value[index] === "e" || value[index] === "E") {
+    index++;
+    if (value[index] === "+" || value[index] === "-") {
+      index++;
+    }
+    const exponentStart = index;
+    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+      index++;
+    }
+    if (index === exponentStart) {
+      return false;
+    }
+  }
+
+  return hasOnlyTrailingJsonWhitespace(value, index);
+};
+
+const mightBeStringifiedJson = (value: string) => {
+  const start = skipJsonWhitespace(value, 0);
+  const first = value[start];
+
+  if (first === "{" || first === "[" || first === '"') {
+    return true;
+  }
+  if (first === "t") {
+    return hasJsonLiteral(value, start, "true");
+  }
+  if (first === "f") {
+    return hasJsonLiteral(value, start, "false");
+  }
+  if (first === "n") {
+    return hasJsonLiteral(value, start, "null");
+  }
+  return first === "-" || (first !== undefined && first >= "0" && first <= "9")
+    ? hasJsonNumber(value, start)
+    : false;
+};
+
+const parseStringifiedValue = (value: string, depth: number) => {
+  if (depth > DEFAULT_MAX_DEPTH || !mightBeStringifiedJson(value)) {
+    return null;
+  }
+
+  try {
+    return { value: JSON.parse(value) as unknown };
+  } catch {
+    return null;
+  }
+};
+
+const resolveRawJsonValue: JsonValueResolver<unknown> = (node, depth) => {
+  const parsed = typeof node === "string" ? parseStringifiedValue(node, depth) : null;
+  const value = parsed ? parsed.value : node;
+  const kind = getJsonKind(value);
+  const canDescend = depth < DEFAULT_MAX_DEPTH;
+  const children = canDescend && (kind === "array" || kind === "object") ? value : null;
+
+  return {
+    node,
+    value,
+    kind,
+    wasStringified: Boolean(parsed),
+    childCount: childCountFor(kind, value),
+    ...(children ? { children: children as unknown[] | Record<string, unknown> } : {}),
+  };
+};
+
+const walkJsonValue = <T>(
+  root: T,
+  resolveValue: JsonValueResolver<T>,
+  visit: (ctx: JsonValueWalkContext<T>) => boolean | void,
+  start: JsonWalkStart,
+) => {
   const walk = (
-    node: JsonNode,
+    node: T,
     jsonPath: string,
     jqPath: string,
     stringifiedAncestors: string[],
     pathSegments: TreePathSegment[],
+    depth: number,
   ) => {
-    const stringifiedChain = node.wasStringified
+    const resolved = resolveValue(node, depth);
+    const stringifiedChain = resolved.wasStringified
       ? [...stringifiedAncestors, jsonPath]
       : stringifiedAncestors;
+    const context = {
+      node: resolved.node,
+      value: resolved.value,
+      kind: resolved.kind,
+      childCount: resolved.childCount,
+      ...(typeof resolved.valueLength === "number" ? { valueLength: resolved.valueLength } : {}),
+      jsonPath,
+      jqPath,
+      stringifiedChain,
+      pathSegments,
+    } satisfies JsonValueWalkContext<T>;
 
-    if (
-      visit({ node, jsonPath, jqPath, stringifiedChain, pathSegments }) === false ||
-      !node.children
-    ) {
+    if (visit(context) === false || !resolved.children) {
       return;
     }
 
-    if (Array.isArray(node.children)) {
-      node.children.forEach((child, index) => {
+    if (Array.isArray(resolved.children)) {
+      resolved.children.forEach((child, index) => {
         const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
         walk(
           child,
@@ -59,12 +215,13 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
           appendJqSelectorSegment(jqPath, segment),
           stringifiedChain,
           [...pathSegments, segment],
+          depth + 1,
         );
       });
       return;
     }
 
-    for (const [key, child] of Object.entries(node.children)) {
+    for (const [key, child] of Object.entries(resolved.children)) {
       const segment = { kind: "key", value: key } satisfies TreePathSegment;
       walk(
         child,
@@ -72,6 +229,7 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
         appendJqSelectorSegment(jqPath, segment),
         stringifiedChain,
         [...pathSegments, segment],
+        depth + 1,
       );
     }
   };
@@ -82,5 +240,49 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
     start.jqPath ?? ".",
     start.stringifiedAncestors ?? [],
     start.pathSegments ?? [],
+    0,
   );
 };
+
+const formatStringLabel = (
+  value: string,
+  maxLength = Number.POSITIVE_INFINITY,
+  originalLength = value.length,
+) => {
+  if (value.length <= maxLength && value.length === originalLength) {
+    return JSON.stringify(value);
+  }
+
+  return `${JSON.stringify(`${value.slice(0, maxLength)}...`)} (${originalLength} chars)`;
+};
+
+export const formatJsonValueLabel = (
+  value: Pick<JsonValueWalkContext<unknown>, "kind" | "value" | "childCount" | "valueLength">,
+  maxStringLength?: number,
+) => {
+  switch (value.kind) {
+    case "object":
+      return `{${value.childCount}}`;
+    case "array":
+      return `[${value.childCount}]`;
+    case "string":
+      return formatStringLabel(
+        value.value as string,
+        maxStringLength,
+        value.valueLength ?? (value.value as string).length,
+      );
+    case "null":
+      return "null";
+    default:
+      return String(value.value);
+  }
+};
+
+export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) =>
+  walkJsonValue(root, resolveJsonNode, visit, start);
+
+export const walkRawJsonValue = (
+  root: unknown,
+  visit: RawJsonValueVisitor,
+  start: JsonWalkStart = {},
+) => walkJsonValue(root, resolveRawJsonValue, visit, start);

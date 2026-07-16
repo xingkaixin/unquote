@@ -1,9 +1,11 @@
+import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import {
   readFileText,
   readJsonlRecordsByLine,
   searchJsonlFile,
 } from "../src/lib/local-file-source";
+import { searchRecords } from "../src/lib/tree";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   const file = new File([contents], name, { type: "application/jsonl" });
@@ -159,6 +161,40 @@ describe("local-file-source", () => {
     expect(matches).not.toBeNull();
     expect(matches?.length).toBe(1);
     expect(matches?.[0]?.recordId).toBe("record-1");
+  });
+
+  it("matches parsed-record search paths, ranges, and stringified chains", async () => {
+    const contents = [
+      JSON.stringify({
+        "a.b": "needle",
+        payload: JSON.stringify({ nested: [{ needle: "needle" }], nullable: null }),
+      }),
+      JSON.stringify({ message: "hay", "needle.key": true }),
+    ].join("\n");
+    const options = { regex: false, caseSensitive: true, jq: true };
+    const controller = new AbortController();
+    const expected = searchRecords(
+      parseInput(contents, { forcedFormat: "jsonl" }).records,
+      "needle",
+      options,
+    );
+
+    const matches = await searchJsonlFile(
+      makeStreamedFile(contents),
+      "needle",
+      options,
+      controller.signal,
+    );
+
+    expect(matches).toEqual(expected);
+    expect(matches).toContainEqual({
+      recordId: "record-1",
+      pathText: "$.payload.nested[0].needle",
+      keyRanges: [{ start: 0, end: 6 }],
+      valueRanges: [{ start: 1, end: 7 }],
+      pathRanges: [{ start: 20, end: 26 }],
+      stringifiedPathChain: ["$.payload"],
+    });
   });
 
   it("aggregates a file line with more matches than the function argument limit", async () => {
