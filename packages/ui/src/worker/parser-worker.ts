@@ -1,18 +1,5 @@
-import type {
-  JsonContainerKind,
-  JsonlRecord,
-  JsonlRecordPreview,
-  JsonNode,
-  JsonPrimitive,
-  ParseResult,
-} from "@unquote/core";
-import {
-  extractSummary,
-  getJsonKind,
-  parseInput,
-  parseJson as parseJsonValue,
-  parseJsonlRecordLine,
-} from "@unquote/core";
+import type { JsonlRecord, ParseResult } from "@unquote/core";
+import { parseDeferredJsonlRecordLine, parseInput, parseJsonlRecordLine } from "@unquote/core";
 import {
   createAgentSessionFromText,
   createAgentSessionTracker,
@@ -75,7 +62,6 @@ export type ParserWorkerResponse =
     };
 
 const batchSize = 64;
-const maxDeferredStringLength = 160;
 let latestRequestId = 0;
 
 const elapsed = (startedAt: number) => Number((performance.now() - startedAt).toFixed(2));
@@ -119,117 +105,6 @@ const progressFromSession = (session: JsonlSession, done: boolean): ParserProgre
   elapsedMs: elapsed(session.startedAt),
   done,
 });
-
-const isLikelyStringifiedJson = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed.startsWith("{") || trimmed.startsWith("[");
-};
-
-const truncateTransferString = (value: string) =>
-  value.length > maxDeferredStringLength ? value.slice(0, maxDeferredStringLength) : value;
-
-const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, key: string) => {
-  if (!nestedFieldKeys) {
-    return key;
-  }
-
-  return Array.isArray(nestedFieldKeys) ? [...nestedFieldKeys, key] : [nestedFieldKeys, key];
-};
-
-const createDeferredPreview = (value: unknown): JsonlRecordPreview | undefined => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const fields: Record<string, JsonPrimitive> = {};
-  const containers: Record<string, JsonContainerKind> = {};
-  let hasFields = false;
-  let hasContainers = false;
-  let nestedFieldKeys: string | string[] | undefined;
-
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const kind = getJsonKind(child);
-    if (kind === "object" || kind === "array") {
-      containers[key] = kind;
-      hasContainers = true;
-      continue;
-    }
-
-    const stringValue = typeof child === "string" ? child : null;
-    fields[key] =
-      stringValue === null ? (child as JsonPrimitive) : truncateTransferString(stringValue);
-    hasFields = true;
-    if (stringValue && isLikelyStringifiedJson(stringValue)) {
-      nestedFieldKeys = appendNestedFieldKey(nestedFieldKeys, key);
-    }
-  }
-
-  if (!hasFields && !hasContainers) {
-    return undefined;
-  }
-
-  return {
-    fields,
-    ...(hasContainers ? { containers } : {}),
-    ...(nestedFieldKeys ? { nestedFieldKeys } : {}),
-  };
-};
-
-const createDeferredNode = (
-  value: unknown,
-  path: string[],
-  depth: number,
-  recordId: string,
-  sourceLine: number,
-): JsonNode => {
-  const kind = getJsonKind(value);
-  const stringValue = typeof value === "string" ? value : null;
-  const wasStringified = typeof stringValue === "string" && isLikelyStringifiedJson(stringValue);
-  const nodeValue =
-    stringValue === null
-      ? kind === "object" || kind === "array"
-        ? null
-        : value
-      : truncateTransferString(stringValue);
-  const valueLength = stringValue?.length;
-
-  return {
-    kind: wasStringified ? "string" : kind,
-    value: nodeValue,
-    path,
-    wasStringified,
-    meta: {
-      depth,
-      expandable: kind === "object" || kind === "array" || wasStringified,
-      restorable: wasStringified,
-      recordId,
-      sourceLine,
-      ...(typeof valueLength === "number" && valueLength > maxDeferredStringLength
-        ? { truncated: true, valueLength }
-        : {}),
-    },
-  };
-};
-
-const parseDeferredJsonlRecordLine = (line: string, lineNumber: number): JsonlRecord => {
-  try {
-    const value = parseJsonValue(line);
-    const id = `record-${lineNumber}`;
-    const root = createDeferredNode(value, ["$"], 0, id, lineNumber);
-    const preview = createDeferredPreview(value);
-
-    return {
-      id,
-      lineNumber,
-      node: root,
-      deferred: true,
-      ...(preview ? { preview } : {}),
-      summary: extractSummary(value),
-    };
-  } catch {
-    return parseJsonlRecordLine(line, lineNumber);
-  }
-};
 
 const postSessionComplete = (requestId: number, session: JsonlSession) => {
   self.postMessage({

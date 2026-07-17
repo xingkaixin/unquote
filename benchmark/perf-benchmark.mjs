@@ -44,7 +44,8 @@ const readBudget = (name, fallback) => {
 };
 
 const chromePath = resolveChromePath();
-const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 9222);
+const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
+const maxChromeDiagnosticLength = 8_192;
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
@@ -167,27 +168,29 @@ const serveStatic = (rootDir) =>
     server.listen(4173, "127.0.0.1", () => resolve(server));
   });
 
-const waitForDebugger = async () => {
+const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
   for (let attempt = 0; attempt < 50; attempt += 1) {
+    const debuggerPort = getDebuggerPort();
     try {
-      const response = await fetch(`http://127.0.0.1:${remoteDebuggingPort}/json/version`);
-      if (response.ok) {
-        return response.json();
+      if (debuggerPort !== null) {
+        const response = await fetch(`http://127.0.0.1:${debuggerPort}/json/version`);
+        if (response.ok) {
+          return debuggerPort;
+        }
       }
     } catch {}
 
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  throw new Error("Chrome remote debugger did not start");
+  throw new Error(`Chrome remote debugger did not start\n${getDiagnostics()}`);
 };
 
-const connectTarget = async () => {
-  await waitForDebugger();
-  const targetResponse = await fetch(
-    `http://127.0.0.1:${remoteDebuggingPort}/json/new?about:blank`,
-    { method: "PUT" },
-  );
+const connectTarget = async (getDebuggerPort, getDiagnostics) => {
+  const debuggerPort = await waitForDebugger(getDebuggerPort, getDiagnostics);
+  const targetResponse = await fetch(`http://127.0.0.1:${debuggerPort}/json/new?about:blank`, {
+    method: "PUT",
+  });
   const target = await targetResponse.json();
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
@@ -562,26 +565,54 @@ const benchmarkRender = async (fixturesInfo) => {
   const server = await serveStatic(webDist);
   debug("Starting Chrome for the render benchmark");
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "unquote-bench-"));
-  const chrome = spawn(
-    chromePath,
-    [
-      "--headless=new",
-      "--disable-gpu",
-      `--remote-debugging-port=${remoteDebuggingPort}`,
-      `--user-data-dir=${userDataDir}`,
-      "--lang=en-US",
-      "--no-first-run",
-      "--no-default-browser-check",
-      // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
-      // wide window so the source-panel expand + TOC render steps are reachable.
-      "--window-size=1440,900",
-      "about:blank",
-    ],
-    { stdio: "ignore" },
-  );
+  const chromeArguments = [
+    "--headless=new",
+    "--disable-gpu",
+    `--remote-debugging-port=${remoteDebuggingPort}`,
+    `--user-data-dir=${userDataDir}`,
+    "--lang=en-US",
+    "--no-first-run",
+    "--no-default-browser-check",
+    // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
+    // wide window so the source-panel expand + TOC render steps are reachable.
+    "--window-size=1440,900",
+    "about:blank",
+  ];
+  const chrome = spawn(chromePath, chromeArguments, { stdio: ["ignore", "ignore", "pipe"] });
+  let chromeStderr = "";
+  let chromeExit = null;
+  chrome.stderr.on("data", (chunk) => {
+    chromeStderr = `${chromeStderr}${chunk}`.slice(-maxChromeDiagnosticLength);
+  });
+  const chromeExited = new Promise((resolve) => {
+    chrome.once("exit", (code, signal) => {
+      chromeExit = { code, signal };
+      resolve();
+    });
+  });
+  const activePortPath = path.join(userDataDir, "DevToolsActivePort");
+  const getDebuggerPort = () => {
+    if (remoteDebuggingPort !== 0) {
+      return remoteDebuggingPort;
+    }
+    if (!fs.existsSync(activePortPath)) {
+      return null;
+    }
+
+    const port = Number(fs.readFileSync(activePortPath, "utf8").split(/\r?\n/, 1)[0]);
+    return Number.isInteger(port) && port > 0 ? port : null;
+  };
+  const getChromeDiagnostics = () =>
+    JSON.stringify({
+      executable: chromePath,
+      arguments: chromeArguments,
+      debuggerPort: getDebuggerPort(),
+      exit: chromeExit,
+      stderr: chromeStderr.trim(),
+    });
 
   try {
-    const client = await connectTarget();
+    const client = await connectTarget(getDebuggerPort, getChromeDiagnostics);
     await client.invoke("Page.enable");
     await client.invoke("DOM.enable");
     await client.invoke("Runtime.enable");
@@ -624,7 +655,10 @@ const benchmarkRender = async (fixturesInfo) => {
     await client.close();
     return Object.fromEntries(entries);
   } finally {
-    chrome.kill("SIGKILL");
+    if (chrome.exitCode === null && chrome.signalCode === null) {
+      chrome.kill("SIGKILL");
+    }
+    await chromeExited;
     server.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }

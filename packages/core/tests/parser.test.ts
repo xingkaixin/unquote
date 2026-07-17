@@ -4,6 +4,7 @@ import {
   extractSummary,
   formatResult,
   materializeNode,
+  parseDeferredJsonlRecordLine,
   parseInput,
   parseJsonlRecordLine,
   probeJsonl,
@@ -94,6 +95,47 @@ describe("parseInput", () => {
     expect(record.lineNumber).toBe(7);
     expect(record.node?.meta.sourceLine).toBe(7);
     expect(record.summary).toBe("event:two");
+  });
+
+  it("projects deferred records from the same stringified JSON semantics", () => {
+    const line = JSON.stringify({
+      nested: '{"ok":true}',
+      primitive: "true",
+      invalid: "{not json",
+      object: {},
+    });
+    const deferred = parseDeferredJsonlRecordLine(line, 7);
+    const hydrated = parseJsonlRecordLine(line, 7);
+    if (!hydrated.node?.children || Array.isArray(hydrated.node.children)) {
+      throw new Error("Expected hydrated object children");
+    }
+
+    expect(deferred).toMatchObject({
+      deferred: true,
+      preview: {
+        fields: {
+          nested: '{"ok":true}',
+          primitive: "true",
+          invalid: "{not json",
+        },
+        containers: { object: "object" },
+        nestedFieldKeys: ["nested", "primitive"],
+      },
+    });
+    expect(deferred.node?.children).toBeUndefined();
+    expect(hydrated.node.children.nested?.wasStringified).toBe(true);
+    expect(hydrated.node.children.primitive?.wasStringified).toBe(true);
+    expect(hydrated.node.children.invalid?.wasStringified).toBe(false);
+  });
+
+  it("keeps deferred root string semantics aligned with hydrated records", () => {
+    for (const value of ['{"ok":true}', "true", "{not json"]) {
+      const line = JSON.stringify(value);
+      const deferred = parseDeferredJsonlRecordLine(line, 3);
+      const hydrated = parseJsonlRecordLine(line, 3);
+
+      expect(deferred.node?.wasStringified).toBe(hydrated.node?.wasStringified);
+    }
   });
 
   it("restores raw stringified value", () => {
