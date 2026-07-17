@@ -173,9 +173,9 @@ Object.assign(globalThis, {
       query: string,
       options: unknown,
     ) {
-      Promise.all([import("@unquote/core"), import("../src/lib/tree")]).then(
-        ([{ parseInput }, { searchRecords }]) => {
-          const parsed = parseInput(text, forcedFormat ? { forcedFormat } : {});
+      Promise.all([import("../src/lib/parse-text"), import("../src/lib/tree")]).then(
+        ([{ parseTextResult }, { searchRecords }]) => {
+          const parsed = parseTextResult(text, forcedFormat);
           const matches = searchRecords(
             parsed.records,
             query,
@@ -208,27 +208,19 @@ Object.assign(globalThis, {
       });
     }
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
-      Promise.all([import("@unquote/core"), import("../src/lib/agent-session")]).then(
-        ([{ parseInput }, { createAgentSessionFromText }]) => {
-          const parsed = parseInput(input, forcedFormat ? { forcedFormat } : {});
-          const result = compact ? compactResultForTransfer(parsed) : parsed;
-          this.onmessage?.({
-            data: {
-              type: "complete",
-              requestId,
-              result,
-              agentSession: result.format === "jsonl" ? createAgentSessionFromText(input) : null,
-              progress: {
-                processedLines: result.stats.total,
-                success: result.stats.success,
-                failed: result.stats.failed,
-                elapsedMs: 0,
-                done: true,
-              },
-            },
-          } as MessageEvent);
-        },
-      );
+      import("../src/lib/parse-text").then(({ parseText }) => {
+        const parsed = parseText(input, { forcedFormat });
+        const result = compact ? compactResultForTransfer(parsed.result) : parsed.result;
+        this.onmessage?.({
+          data: {
+            type: "complete",
+            requestId,
+            result,
+            agentSession: parsed.agentSession,
+            progress: parsed.progress,
+          },
+        } as MessageEvent);
+      });
     }
     postMessage(payload: {
       type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl" | "search-text" | "search-file";

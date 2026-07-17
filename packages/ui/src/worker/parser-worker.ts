@@ -1,16 +1,8 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import {
-  isParsed,
-  parseDeferredJsonlRecordLine,
-  parseInput,
-  parseJsonlRecordLine,
-} from "@unquote/core";
-import {
-  createAgentSessionFromText,
-  createAgentSessionTracker,
-  type AgentSession,
-} from "../lib/agent-session";
+import { isParsed, parseDeferredJsonlRecordLine, parseJsonlRecordLine } from "@unquote/core";
+import { createAgentSessionTracker, type AgentSession } from "../lib/agent-session";
 import { drainJsonlLines } from "../lib/jsonl-lines";
+import { parseText, type ParserProgress } from "../lib/parse-text";
 
 export type ParserRequest =
   | {
@@ -34,14 +26,6 @@ export type ParserRequest =
       requestId: number;
       file: File;
     };
-
-export interface ParserProgress {
-  processedLines: number;
-  success: number;
-  failed: number;
-  elapsedMs: number;
-  done: boolean;
-}
 
 export type ParserWorkerResponse =
   | {
@@ -188,21 +172,13 @@ const parseJson = ({
   input,
   forcedFormat,
 }: Extract<ParserRequest, { type: "parse" }>) => {
-  const startedAt = performance.now();
-  const result = parseInput(input, forcedFormat ? { forcedFormat } : {});
-  const agentSession = result.format === "jsonl" ? createAgentSessionFromText(input) : null;
+  const { result, agentSession, progress } = parseText(input, { forcedFormat });
   self.postMessage({
     type: "complete",
     requestId,
     result,
     agentSession,
-    progress: {
-      processedLines: result.stats.total,
-      success: result.stats.success,
-      failed: result.stats.failed,
-      elapsedMs: elapsed(startedAt),
-      done: true,
-    },
+    progress,
   } satisfies ParserWorkerResponse);
 };
 

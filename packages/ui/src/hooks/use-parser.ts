@@ -1,14 +1,11 @@
 import type { ParseResult } from "@unquote/core";
 import { useEffect, useRef, useState } from "react";
-import { parseInput, probeJsonl } from "@unquote/core";
-import { createAgentSessionFromText } from "../lib/agent-session";
-import type { AgentSession } from "../lib/agent-session";
+import { probeJsonl } from "@unquote/core";
+import { parseText } from "../lib/parse-text";
+import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
 import { createStreamPublisher } from "../lib/stream-publisher";
-import type { ParserProgress, ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
-
-const withForcedFormat = (forcedFormat?: "json" | "jsonl") =>
-  forcedFormat ? { forcedFormat } : {};
+import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
   format: forcedFormat ?? "json",
@@ -26,39 +23,9 @@ const idleProgress: ParserProgress = {
 
 const workerChunkSize = 256 * 1024;
 
-interface MainThreadParse {
-  result: ParseResult;
-  agentSession: AgentSession | null;
-  progress: ParserProgress;
-}
-
-const completedProgress = (stats: ParseResult["stats"]): ParserProgress => ({
-  processedLines: stats.total,
-  success: stats.success,
-  failed: stats.failed,
-  elapsedMs: 0,
-  done: true,
-});
-
-// No-Worker fallback paths; both produce the same shape so the effect has a
-// single apply point.
-const parseTextOnMainThread = (input: string, forcedFormat?: "json" | "jsonl"): MainThreadParse => {
-  const result = parseInput(input, withForcedFormat(forcedFormat));
-  return {
-    result,
-    agentSession: result.format === "jsonl" ? createAgentSessionFromText(input) : null,
-    progress: completedProgress(result.stats),
-  };
-};
-
-const parseFileOnMainThread = async (file: File): Promise<MainThreadParse> => {
+const parseFileOnMainThread = async (file: File): Promise<ParsedText> => {
   const text = await file.text();
-  const result = parseInput(text, { forcedFormat: "jsonl" });
-  return {
-    result,
-    agentSession: createAgentSessionFromText(text, file.name),
-    progress: completedProgress(result.stats),
-  };
+  return parseText(text, { forcedFormat: "jsonl", fileName: file.name });
 };
 
 const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
@@ -78,10 +45,10 @@ export const useParser = (
   sourceFile?: File | null,
   onFileReadError?: () => void,
 ) => {
-  const [parserState, setParserState] = useState(() => ({
-    result: parseInput(input, withForcedFormat(forcedFormat)),
-    agentSession: forcedFormat === "json" ? null : createAgentSessionFromText(input),
-  }));
+  const [parserState, setParserState] = useState(() => {
+    const { result, agentSession } = parseText(input, { forcedFormat });
+    return { result, agentSession };
+  });
   const [progress, setProgress] = useState<ParserProgress>(idleProgress);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -93,7 +60,7 @@ export const useParser = (
     requestIdRef.current = requestId;
 
     if (typeof Worker === "undefined") {
-      const applyMainThreadParse = ({ result, agentSession, progress }: MainThreadParse) => {
+      const applyMainThreadParse = ({ result, agentSession, progress }: ParsedText) => {
         setParserState({
           result,
           agentSession,
@@ -117,7 +84,7 @@ export const useParser = (
         return;
       }
 
-      applyMainThreadParse(parseTextOnMainThread(input, forcedFormat));
+      applyMainThreadParse(parseText(input, { forcedFormat }));
       return;
     }
 
