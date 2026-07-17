@@ -25,7 +25,7 @@ export const getJsonKind = (value: unknown): JsonKind => {
   }
 };
 
-export const isJsonContainer = (value: unknown) => value !== null && typeof value === "object";
+const isJsonContainer = (value: unknown) => value !== null && typeof value === "object";
 
 export const parseJson = (input: string) => JSON.parse(input) as unknown;
 
@@ -112,7 +112,7 @@ export const extractSummary = (value: unknown) => {
   return `Object(${Object.keys(objectValue).length})`;
 };
 
-export const summarizePrimitive = (value: unknown) => {
+const summarizePrimitive = (value: unknown) => {
   if (Array.isArray(value)) {
     return `Array(${value.length})`;
   }

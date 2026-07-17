@@ -1,4 +1,5 @@
 import type {
+  FormatOptions,
   JsonNode,
   JsonlRecord,
   JsonPrimitive,
@@ -124,7 +125,7 @@ const maybeExpandString = (
   }
 };
 
-export const buildNode = (
+const buildNode = (
   value: unknown,
   path: string[],
   depth: number,
@@ -365,7 +366,7 @@ const parseSingleJsonResult = (input: string, maxDepth: number): ParseResult => 
   }
 };
 
-export const detectFormat = (input: string): "json" | "jsonl" =>
+const detectFormat = (input: string): "json" | "jsonl" =>
   probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
 
 export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
@@ -411,12 +412,17 @@ export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode => {
   const shouldRestore = node.wasStringified && (!paths || matchesPath(node.path, paths));
 
   if (shouldRestore) {
-    return toNode(
-      node.rawString ?? JSON.stringify(node.value),
-      node.path,
-      node.meta.depth,
-      DEFAULT_MAX_DEPTH,
-    );
+    return {
+      kind: "string",
+      value: node.rawString ?? JSON.stringify(node.value),
+      path: node.path,
+      wasStringified: false,
+      meta: {
+        depth: node.meta.depth,
+        expandable: false,
+        restorable: false,
+      },
+    };
   }
 
   if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
@@ -436,19 +442,7 @@ export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode => {
   return node;
 };
 
-export const expandNode = (node: JsonNode, options: ParseOptions = {}) => {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  return buildNode(
-    node.value,
-    node.path,
-    node.meta.depth,
-    maxDepth,
-    node.meta.recordId,
-    node.meta.sourceLine,
-  );
-};
-
-export const formatResult = (result: ParseResult, options: { indent?: number } = {}) => {
+export const formatResult = (result: ParseResult, options: FormatOptions = {}) => {
   const indent = options.indent ?? 2;
   if (result.format === "json") {
     const record = result.records[0];

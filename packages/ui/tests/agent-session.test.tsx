@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentSessionFromText, detectAgentSession } from "../src/lib/agent-session";
+import { createAgentSessionFromText } from "../src/lib/agent-session";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
@@ -142,8 +142,6 @@ describe("agent session", () => {
         5,
       ),
     ];
-
-    expect(detectAgentSession(samples)).toBe("Claude Code");
 
     const session = createAgentSessionFromText(samples.map((sample) => sample.raw).join("\n"));
     expect(session).toMatchObject({

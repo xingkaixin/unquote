@@ -107,7 +107,7 @@ export const readFileText = async (file: File, onProgress: (progress: number) =>
   return text;
 };
 
-export const readJsonlFileLines = async (
+const readJsonlFileLines = async (
   file: File,
   onLine: (line: string, lineNumber: number) => boolean | void,
   signal?: AbortSignal,
