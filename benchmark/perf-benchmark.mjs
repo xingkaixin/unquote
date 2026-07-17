@@ -2,7 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -46,6 +46,8 @@ const readBudget = (name, fallback) => {
 const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
 const maxChromeDiagnosticLength = 8_192;
+const chromeStartupTimeoutMs = 30_000;
+const chromeStartupPollIntervalMs = 100;
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
@@ -61,6 +63,16 @@ const debug = (message) => {
   if (process.env.UNQUOTE_BENCH_DEBUG === "1") {
     console.error(`[benchmark] ${message}`);
   }
+};
+
+const readProcessTable = () => {
+  if (process.platform !== "linux") {
+    return null;
+  }
+
+  return spawnSync("ps", ["-eo", "pid,ppid,stat,etime,comm", "--forest"], {
+    encoding: "utf8",
+  }).stdout.trim();
 };
 
 const defaultFixtures = [
@@ -169,7 +181,8 @@ const serveStatic = (rootDir) =>
   });
 
 const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  const deadline = performance.now() + chromeStartupTimeoutMs;
+  while (performance.now() < deadline) {
     const debuggerPort = getDebuggerPort();
     try {
       if (debuggerPort !== null) {
@@ -180,7 +193,7 @@ const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
       }
     } catch {}
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, chromeStartupPollIntervalMs));
   }
 
   throw new Error(`Chrome remote debugger did not start\n${getDiagnostics()}`);
@@ -578,14 +591,7 @@ const benchmarkRender = async (fixturesInfo) => {
     "--window-size=1440,900",
     "about:blank",
   ];
-  const chromeEnvironment = { ...process.env };
-  if (process.platform === "linux" && process.env.CI === "true") {
-    delete chromeEnvironment.DBUS_SESSION_BUS_ADDRESS;
-  }
-  const chrome = spawn(chromePath, chromeArguments, {
-    env: chromeEnvironment,
-    stdio: ["ignore", "ignore", "pipe"],
-  });
+  const chrome = spawn(chromePath, chromeArguments, { stdio: ["ignore", "ignore", "pipe"] });
   let chromeStderr = "";
   let chromeExit = null;
   chrome.stderr.on("data", (chunk) => {
@@ -616,6 +622,7 @@ const benchmarkRender = async (fixturesInfo) => {
       debuggerPort: getDebuggerPort(),
       exit: chromeExit,
       stderr: chromeStderr.trim(),
+      processTable: readProcessTable(),
     });
 
   try {

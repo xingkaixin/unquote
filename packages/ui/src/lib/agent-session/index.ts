@@ -42,9 +42,6 @@ const selectAdapter = (samples: ParsedAgentLine[], minScore: number) => {
   return bestAdapter && bestScore >= minScore ? bestAdapter : null;
 };
 
-export const detectAgentSession = (samples: ParsedAgentLine[]) =>
-  selectAdapter(samples, finalDetectionScore)?.fileType ?? null;
-
 export const createAgentSessionTracker = (fileName?: string) => {
   const samples: ParsedAgentLine[] = [];
   const parseWarnings: AgentParseWarning[] = [];

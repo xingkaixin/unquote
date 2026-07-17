@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  detectFormat,
-  extractSummary,
   formatResult,
   materializeNode,
   parseDeferredJsonlRecordLine,
@@ -338,16 +336,6 @@ describe("parseInput", () => {
   });
 });
 
-describe("detectFormat", () => {
-  it("detects jsonl when every line is valid json", () => {
-    expect(detectFormat('{"a":1}\n{"a":2}')).toBe("jsonl");
-  });
-
-  it("falls back to json for regular documents", () => {
-    expect(detectFormat('{"a":[1,2,3]}')).toBe("json");
-  });
-});
-
 describe("probeJsonl", () => {
   it("accepts multi-line valid jsonl", () => {
     const probe = probeJsonl('{"a":1}\n{"a":2}\n{"a":3}');
@@ -383,11 +371,5 @@ describe("probeJsonl", () => {
 
   it("returns empty counts for empty input", () => {
     expect(probeJsonl("")).toEqual({ sampledLines: 0, parsableLines: 0, isLikelyJsonl: false });
-  });
-});
-
-describe("extractSummary", () => {
-  it("picks priority fields first", () => {
-    expect(extractSummary({ event: "login", message: "ok" })).toContain("event:login");
   });
 });

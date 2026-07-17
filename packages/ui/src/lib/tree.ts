@@ -26,12 +26,12 @@ export interface TreeRow {
   node: JsonNode;
 }
 
-export interface FocusedTreeRows {
+interface FocusedTreeRows {
   rows: TreeRow[];
   focus: ResolvedTreePath;
 }
 
-export type NodeSourceState = "source" | "stringified" | "inside-stringified";
+type NodeSourceState = "source" | "stringified" | "inside-stringified";
 
 const maxStringValueLabelLength = 512;
 
@@ -100,7 +100,7 @@ export const buildRecordRows = (
   return rows;
 };
 
-export const buildFocusedRecordRows = (
+const buildFocusedRecordRows = (
   record: JsonlRecord,
   expandedStringifiedPaths: ReadonlySet<string>,
   focusedPath: string,
@@ -184,7 +184,7 @@ const containsStringifiedNode = (node: JsonNode): boolean => {
     : Object.values(node.children).some(containsStringifiedNode);
 };
 
-export const recordContainsStringifiedJson = (record: JsonlRecord) =>
+const recordContainsStringifiedJson = (record: JsonlRecord) =>
   Boolean(
     (record.preview && getPreviewNestedFieldKeys(record.preview).length > 0) ||
     (record.node && containsStringifiedNode(record.node)),
@@ -316,7 +316,7 @@ export const searchRecords = (
   return matches;
 };
 
-export const searchRecord = (
+const searchRecord = (
   record: JsonlRecord,
   pattern: RegExp,
   options: SearchOptions,

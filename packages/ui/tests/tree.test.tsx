@@ -12,12 +12,10 @@ import {
   buildRecordRows,
   collectStringifiedPaths,
   filterRecords,
-  recordContainsStringifiedJson,
   resolveTreePath,
   resolveTreePathMatches,
   searchRecords,
   searchJsonValue,
-  searchRecord,
 } from "../src/lib/tree";
 
 const oversizedMatchCount = 130_000;
@@ -130,13 +128,13 @@ describe("tree paths", () => {
 
     expect(pattern).not.toBeNull();
     expect(searchJsonValue(JSON.parse(line), record.id, pattern!, options)).toEqual(
-      searchRecord(record, pattern!, options),
+      searchRecords([record], "needle", options),
     );
 
     const nullPattern = buildSearchPattern("null", options);
     expect(nullPattern).not.toBeNull();
     expect(searchJsonValue(JSON.parse(line), record.id, nullPattern!, options)).toEqual(
-      searchRecord(record, nullPattern!, options),
+      searchRecords([record], "null", options),
     );
   });
 
@@ -227,7 +225,6 @@ describe("tree paths", () => {
     expect(
       filterRecords(result.records, "nested", matches).map((record) => record.lineNumber),
     ).toEqual([1]);
-    expect(recordContainsStringifiedJson(result.records[0]!)).toBe(true);
   });
 
   it("builds file overview diagnostics from parsed records", () => {
