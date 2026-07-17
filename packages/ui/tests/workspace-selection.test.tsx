@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createInitialWorkspaceSelectionState,
+  reconcileWorkspaceSelection,
   reduceWorkspaceSelection,
   type WorkspaceSelectionState,
 } from "../src/lib/workspace-selection";
@@ -96,6 +97,24 @@ describe("reduceWorkspaceSelection", () => {
 
     expect(state).toEqual({
       activeRecordId: "record-2",
+      detailSelection: null,
+      selectedPath: null,
+      focusedPath: null,
+      scrollIntent: null,
+    });
+  });
+
+  it("reconciles navigation issued before records become hidden", () => {
+    const navigated = reduceWorkspaceSelection(
+      { ...createPopulatedState(), detailSelection: null },
+      {
+        type: "selectPath",
+        selection: { recordId: "record-2", pathText: "$.payload", rawKey: "payload" },
+      },
+    );
+
+    expect(reconcileWorkspaceSelection(navigated, ["record-1"])).toEqual({
+      activeRecordId: "record-1",
       detailSelection: null,
       selectedPath: null,
       focusedPath: null,

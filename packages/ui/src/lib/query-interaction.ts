@@ -62,10 +62,10 @@ export type QueryInteractionAction =
   | { type: "nextMatch"; matchCount: number }
   | { type: "prevPathMatch" }
   | { type: "nextPathMatch" }
-  | { type: "clampMatchIndex"; matchCount: number }
-  | { type: "resetMatchIndex" }
-  | { type: "resetPathForFilter" }
   | { type: "resetAll" };
+
+export const reconcileMatchIndex = (currentMatchIndex: number, matchCount: number) =>
+  matchCount === 0 ? 0 : Math.min(currentMatchIndex, matchCount - 1);
 
 export const reduceQueryInteraction = (
   state: QueryInteractionState,
@@ -108,6 +108,7 @@ export const reduceQueryInteraction = (
         pathMatches: [],
         currentPathMatchIndex: 0,
         searchQuery: value,
+        currentMatchIndex: 0,
       };
     }
 
@@ -170,22 +171,33 @@ export const reduceQueryInteraction = (
     case "setSearchOption": {
       // jq and regex are mutually exclusive: enabling one clears the other.
       if (action.kind === "jq" && action.on) {
-        return { ...state, searchJq: true, searchRegex: false };
+        return { ...state, searchJq: true, searchRegex: false, currentMatchIndex: 0 };
       }
       if (action.kind === "regex" && action.on) {
-        return { ...state, searchRegex: true, searchJq: false };
+        return { ...state, searchRegex: true, searchJq: false, currentMatchIndex: 0 };
       }
       if (action.kind === "jq") {
-        return { ...state, searchJq: action.on };
+        return { ...state, searchJq: action.on, currentMatchIndex: 0 };
       }
       if (action.kind === "regex") {
-        return { ...state, searchRegex: action.on };
+        return { ...state, searchRegex: action.on, currentMatchIndex: 0 };
       }
-      return { ...state, searchCaseSensitive: action.on };
+      return { ...state, searchCaseSensitive: action.on, currentMatchIndex: 0 };
     }
 
     case "setRecordFilter": {
-      return { ...state, recordFilter: action.filter };
+      if (state.recordFilter === action.filter) {
+        return state;
+      }
+
+      return {
+        ...state,
+        recordFilter: action.filter,
+        pathError: null,
+        pathMatches: [],
+        currentPathMatchIndex: 0,
+        currentMatchIndex: 0,
+      };
     }
 
     case "setCommandInput": {
@@ -204,9 +216,10 @@ export const reduceQueryInteraction = (
       if (matchCount === 0) {
         return state;
       }
+      const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, matchCount);
       return {
         ...state,
-        currentMatchIndex: (state.currentMatchIndex - 1 + matchCount) % matchCount,
+        currentMatchIndex: (currentMatchIndex - 1 + matchCount) % matchCount,
       };
     }
 
@@ -215,9 +228,10 @@ export const reduceQueryInteraction = (
       if (matchCount === 0) {
         return state;
       }
+      const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, matchCount);
       return {
         ...state,
-        currentMatchIndex: (state.currentMatchIndex + 1) % matchCount,
+        currentMatchIndex: (currentMatchIndex + 1) % matchCount,
       };
     }
 
@@ -236,25 +250,6 @@ export const reduceQueryInteraction = (
       }
       const next = (state.currentPathMatchIndex + 1) % state.pathMatches.length;
       return { ...state, currentPathMatchIndex: next };
-    }
-
-    case "clampMatchIndex": {
-      const matchCount = action.matchCount;
-      const next = matchCount === 0 ? 0 : Math.min(state.currentMatchIndex, matchCount - 1);
-      return { ...state, currentMatchIndex: next };
-    }
-
-    case "resetMatchIndex": {
-      return { ...state, currentMatchIndex: 0 };
-    }
-
-    case "resetPathForFilter": {
-      return {
-        ...state,
-        pathError: null,
-        pathMatches: [],
-        currentPathMatchIndex: 0,
-      };
     }
 
     case "resetAll": {
