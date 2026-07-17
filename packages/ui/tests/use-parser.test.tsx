@@ -1,4 +1,5 @@
 import type { ParseResult } from "@unquote/core";
+import { isParsed } from "@unquote/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
@@ -12,8 +13,8 @@ const resultFromRecords = (records: ParseResult["records"]): ParseResult => ({
   records,
   stats: {
     total: records.length,
-    success: records.filter((record) => record.node).length,
-    failed: records.filter((record) => !record.node).length,
+    success: records.filter(isParsed).length,
+    failed: records.filter((record) => !isParsed(record)).length,
   },
 });
 

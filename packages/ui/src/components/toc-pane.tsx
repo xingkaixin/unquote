@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { JsonlRecord } from "@unquote/core";
+import { isParsed } from "@unquote/core";
 import { Copy } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useRef } from "react";
@@ -36,7 +37,7 @@ const TocRow = ({
   measureRef?: (node: HTMLDivElement | null) => void;
 }) => {
   const { t } = useTranslation();
-  const parsed = Boolean(record.node || record.deferred);
+  const parsed = isParsed(record);
   const variant = parsed ? "success" : "danger";
 
   return (

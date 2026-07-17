@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { materializeNode } from "@unquote/core";
+import { isParsed, materializeNode } from "@unquote/core";
 import { getPreviewNestedFieldKeys } from "./deferred-record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
@@ -356,7 +356,7 @@ export const filterRecords = (
 
   if (mode === "errors") {
     return records.filter(
-      (record) => (!record.node && !record.deferred) || insights.get(record.id)?.kind === "error",
+      (record) => !isParsed(record) || insights.get(record.id)?.kind === "error",
     );
   }
 

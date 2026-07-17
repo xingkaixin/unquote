@@ -1,4 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
+import { isParsed } from "@unquote/core";
 import { useMemo, useRef } from "react";
 import { createFileOverviewState, updateFileOverview } from "../lib/file-overview";
 import type { FileOverview } from "../lib/file-overview";
@@ -28,7 +29,7 @@ export interface RecordPipeline {
 }
 
 const getRecordStats = (records: JsonlRecord[]) => {
-  const success = records.filter((record) => record.node || record.deferred).length;
+  const success = records.filter(isParsed).length;
   return {
     total: records.length,
     success,
