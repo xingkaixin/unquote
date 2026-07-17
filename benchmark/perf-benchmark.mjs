@@ -45,6 +45,7 @@ const readBudget = (name, fallback) => {
 
 const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 9222);
+const maxChromeDiagnosticLength = 8_192;
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
@@ -167,7 +168,7 @@ const serveStatic = (rootDir) =>
     server.listen(4173, "127.0.0.1", () => resolve(server));
   });
 
-const waitForDebugger = async () => {
+const waitForDebugger = async (getDiagnostics) => {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       const response = await fetch(`http://127.0.0.1:${remoteDebuggingPort}/json/version`);
@@ -179,11 +180,11 @@ const waitForDebugger = async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  throw new Error("Chrome remote debugger did not start");
+  throw new Error(`Chrome remote debugger did not start\n${getDiagnostics()}`);
 };
 
-const connectTarget = async () => {
-  await waitForDebugger();
+const connectTarget = async (getDiagnostics) => {
+  await waitForDebugger(getDiagnostics);
   const targetResponse = await fetch(
     `http://127.0.0.1:${remoteDebuggingPort}/json/new?about:blank`,
     { method: "PUT" },
@@ -562,26 +563,38 @@ const benchmarkRender = async (fixturesInfo) => {
   const server = await serveStatic(webDist);
   debug("Starting Chrome for the render benchmark");
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "unquote-bench-"));
-  const chrome = spawn(
-    chromePath,
-    [
-      "--headless=new",
-      "--disable-gpu",
-      `--remote-debugging-port=${remoteDebuggingPort}`,
-      `--user-data-dir=${userDataDir}`,
-      "--lang=en-US",
-      "--no-first-run",
-      "--no-default-browser-check",
-      // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
-      // wide window so the source-panel expand + TOC render steps are reachable.
-      "--window-size=1440,900",
-      "about:blank",
-    ],
-    { stdio: "ignore" },
-  );
+  const chromeArguments = [
+    "--headless=new",
+    "--disable-gpu",
+    `--remote-debugging-port=${remoteDebuggingPort}`,
+    `--user-data-dir=${userDataDir}`,
+    "--lang=en-US",
+    "--no-first-run",
+    "--no-default-browser-check",
+    // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
+    // wide window so the source-panel expand + TOC render steps are reachable.
+    "--window-size=1440,900",
+    "about:blank",
+  ];
+  const chrome = spawn(chromePath, chromeArguments, { stdio: ["ignore", "ignore", "pipe"] });
+  let chromeStderr = "";
+  let chromeExit = null;
+  chrome.stderr.on("data", (chunk) => {
+    chromeStderr = `${chromeStderr}${chunk}`.slice(-maxChromeDiagnosticLength);
+  });
+  chrome.on("exit", (code, signal) => {
+    chromeExit = { code, signal };
+  });
+  const getChromeDiagnostics = () =>
+    JSON.stringify({
+      executable: chromePath,
+      arguments: chromeArguments,
+      exit: chromeExit,
+      stderr: chromeStderr.trim(),
+    });
 
   try {
-    const client = await connectTarget();
+    const client = await connectTarget(getChromeDiagnostics);
     await client.invoke("Page.enable");
     await client.invoke("DOM.enable");
     await client.invoke("Runtime.enable");
