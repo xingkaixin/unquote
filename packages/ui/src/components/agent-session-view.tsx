@@ -3,13 +3,11 @@ import type { JsonlRecord } from "@unquote/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
-import {
-  getExpandedStringifiedPaths,
-  type ExpandedStringifiedPathsByRecord,
-} from "../lib/record-expansion";
+import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
 import { resolveHydratedRecord } from "../lib/record-resolution";
-import type { SearchMatch, TreeRow } from "../lib/tree";
+import type { RecordViewActions, RecordViewModel } from "../lib/record-view";
+import type { SearchMatch } from "../lib/tree";
 import type { AgentDetailSelection as WorkspaceAgentDetailSelection } from "../lib/workspace-selection";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
@@ -32,20 +30,9 @@ export type AgentDetailSelection = WorkspaceAgentDetailSelection;
 interface AgentSessionViewProps {
   session: AgentSession;
   recordsById: ReadonlyMap<string, JsonlRecord>;
-  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
-  recordInsights: ReadonlyMap<string, RecordInsight>;
-  expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
-  selectedPath: { recordId: string; pathText: string } | null;
-  focusedPath: { recordId: string; pathText: string } | null;
+  recordView: RecordViewModel;
   detailSelection: AgentDetailSelection | null;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
-  onTogglePath: (recordId: string, path: string) => void;
-  onCopyRecord: (record: JsonlRecord) => void;
-  onCopyRawLine: (record: JsonlRecord) => void;
-  onCopyError: (record: JsonlRecord) => void;
-  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
-  onHydrateRecord: (record: JsonlRecord) => void;
-  onClearFocus: () => void;
 }
 
 const metricItems = (session: AgentSession, t: ReturnType<typeof useTranslation>["t"]) => {
@@ -69,13 +56,7 @@ const RawJsonlPanel = ({
   selectedPath,
   focusedPath,
   onCollapse,
-  onTogglePath,
-  onCopyRecord,
-  onCopyRawLine,
-  onCopyError,
-  onSelectNode,
-  onHydrateRecord,
-  onClearFocus,
+  actions,
 }: {
   event: AgentTimelineEvent;
   item: AgentConversationItem | undefined;
@@ -85,13 +66,7 @@ const RawJsonlPanel = ({
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   onCollapse: () => void;
-  onTogglePath: (recordId: string, path: string) => void;
-  onCopyRecord: (record: JsonlRecord) => void;
-  onCopyRawLine: (record: JsonlRecord) => void;
-  onCopyError: (record: JsonlRecord) => void;
-  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
-  onHydrateRecord: (record: JsonlRecord) => void;
-  onClearFocus: () => void;
+  actions: RecordViewActions;
 }) => {
   const { locale, t } = useTranslation();
   const role = item ? roleConfig(item.role, t) : null;
@@ -151,13 +126,7 @@ const RawJsonlPanel = ({
             scrollIntent={null}
             selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
             focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
-            onTogglePath={onTogglePath}
-            onCopyRecord={onCopyRecord}
-            onCopyRawLine={onCopyRawLine}
-            onCopyError={onCopyError}
-            onSelectNode={onSelectNode}
-            onHydrateRecord={onHydrateRecord}
-            onClearFocus={onClearFocus}
+            actions={actions}
           />
         ) : (
           <pre className="max-h-[64vh] min-h-[12rem] overflow-auto border border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary">
@@ -172,21 +141,20 @@ const RawJsonlPanel = ({
 export const AgentSessionView = ({
   session,
   recordsById,
-  hydratedRecords,
-  recordInsights,
-  expandedStringifiedPathsByRecord,
-  selectedPath,
-  focusedPath,
+  recordView,
   detailSelection,
   onDetailSelectionChange,
-  onTogglePath,
-  onCopyRecord,
-  onCopyRawLine,
-  onCopyError,
-  onSelectNode,
-  onHydrateRecord,
-  onClearFocus,
 }: AgentSessionViewProps) => {
+  const {
+    state: {
+      hydratedRecords,
+      recordInsights,
+      expandedStringifiedPathsByRecord,
+      selectedPath,
+      focusedPath,
+    },
+    actions,
+  } = recordView;
   const { t } = useTranslation();
   const eventById = useMemo(
     () => new Map(session.events.map((event) => [event.id, event])),
@@ -338,13 +306,7 @@ export const AgentSessionView = ({
       selectedPath={selectedPath}
       focusedPath={focusedPath}
       onCollapse={() => setDetailOpen(false)}
-      onTogglePath={onTogglePath}
-      onCopyRecord={onCopyRecord}
-      onCopyRawLine={onCopyRawLine}
-      onCopyError={onCopyError}
-      onSelectNode={onSelectNode}
-      onHydrateRecord={onHydrateRecord}
-      onClearFocus={onClearFocus}
+      actions={actions}
     />
   ) : null;
 

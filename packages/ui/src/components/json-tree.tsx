@@ -8,6 +8,7 @@ import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
+import type { RecordViewActions } from "../lib/record-view";
 import {
   resolvePathScrollIndex,
   targetsPathInRecord,
@@ -36,13 +37,7 @@ interface JsonTreeProps {
   scrollIntent: ScrollIntent | null;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
-  onTogglePath: (recordId: string, path: string) => void;
-  onCopyRecord: (record: JsonlRecord) => void;
-  onCopyRawLine: (record: JsonlRecord) => void;
-  onCopyError: (record: JsonlRecord) => void;
-  onSelectNode: (record: JsonlRecord, row: TreeRow) => void;
-  onHydrateRecord: (record: JsonlRecord) => void;
-  onClearFocus: () => void;
+  actions: RecordViewActions;
 }
 
 export const JsonTree = memo(function JsonTree({
@@ -55,13 +50,7 @@ export const JsonTree = memo(function JsonTree({
   scrollIntent,
   selectedPath,
   focusedPath,
-  onTogglePath,
-  onCopyRecord,
-  onCopyRawLine,
-  onCopyError,
-  onSelectNode,
-  onHydrateRecord,
-  onClearFocus,
+  actions,
 }: JsonTreeProps) {
   const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -94,9 +83,9 @@ export const JsonTree = memo(function JsonTree({
 
   useEffect(() => {
     if (record.deferred && hydrated) {
-      onHydrateRecord(record);
+      actions.hydrateRecord(record);
     }
-  }, [hydrated, onHydrateRecord, record]);
+  }, [actions, hydrated, record]);
   const searchMatchMap = useMemo(() => {
     const map = new Map<string, SearchMatch>();
     for (const match of searchMatches) {
@@ -122,15 +111,15 @@ export const JsonTree = memo(function JsonTree({
   const toggleRow = useCallback(
     (row: DisplayTreeRow) => {
       if (record.deferred) {
-        onHydrateRecord(record);
+        actions.hydrateRecord(record);
       }
-      onTogglePath(record.id, row.source.pathText);
+      actions.togglePath(record.id, row.source.pathText);
     },
-    [onHydrateRecord, onTogglePath, record],
+    [actions, record],
   );
   const selectNode = useCallback(
-    (row: TreeRow) => onSelectNode(record, row),
-    [onSelectNode, record],
+    (row: TreeRow) => actions.selectNode(record, row),
+    [actions, record],
   );
 
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -261,7 +250,7 @@ export const JsonTree = memo(function JsonTree({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[11px]"
-              onClick={() => onCopyRawLine(record)}
+              onClick={() => actions.copyRawLine(record)}
             >
               <Copy className="size-3" />
               {t("error.copyRawLine")}
@@ -270,7 +259,7 @@ export const JsonTree = memo(function JsonTree({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[11px]"
-              onClick={() => onCopyError(record)}
+              onClick={() => actions.copyError(record)}
             >
               <Copy className="size-3" />
               {t("error.copyDetails")}
@@ -352,7 +341,7 @@ export const JsonTree = memo(function JsonTree({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[11px]"
-              onClick={onClearFocus}
+              onClick={actions.clearFocus}
             >
               <Undo2 className="size-3.5" />
               {t("tree.exitFocus")}
@@ -362,7 +351,7 @@ export const JsonTree = memo(function JsonTree({
             variant="ghost"
             size="sm"
             className="uq-icon-button h-7 w-7 px-0"
-            onClick={() => onCopyRecord(record)}
+            onClick={() => actions.copyRecord(record)}
             aria-label={t("tree.copyRecord")}
           >
             <Copy className="size-3.5" />

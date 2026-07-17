@@ -21,13 +21,15 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
         scrollIntent={null}
         selectedPath={null}
         focusedPath={null}
-        onTogglePath={onTogglePath}
-        onCopyRecord={vi.fn()}
-        onCopyRawLine={vi.fn()}
-        onCopyError={vi.fn()}
-        onSelectNode={onSelectNode}
-        onHydrateRecord={vi.fn()}
-        onClearFocus={vi.fn()}
+        actions={{
+          togglePath: onTogglePath,
+          copyRecord: vi.fn(),
+          copyRawLine: vi.fn(),
+          copyError: vi.fn(),
+          selectNode: onSelectNode,
+          hydrateRecord: vi.fn(),
+          clearFocus: vi.fn(),
+        }}
       />
     </I18nProvider>,
   );
