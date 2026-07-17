@@ -46,6 +46,8 @@ const readBudget = (name, fallback) => {
 const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
 const maxChromeDiagnosticLength = 8_192;
+const chromeStartupTimeoutMs = 30_000;
+const chromeStartupPollIntervalMs = 100;
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
@@ -179,7 +181,8 @@ const serveStatic = (rootDir) =>
   });
 
 const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  const deadline = performance.now() + chromeStartupTimeoutMs;
+  while (performance.now() < deadline) {
     const debuggerPort = getDebuggerPort();
     try {
       if (debuggerPort !== null) {
@@ -190,7 +193,7 @@ const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
       }
     } catch {}
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, chromeStartupPollIntervalMs));
   }
 
   throw new Error(`Chrome remote debugger did not start\n${getDiagnostics()}`);
