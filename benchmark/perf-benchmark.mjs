@@ -2,7 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -61,6 +61,16 @@ const debug = (message) => {
   if (process.env.UNQUOTE_BENCH_DEBUG === "1") {
     console.error(`[benchmark] ${message}`);
   }
+};
+
+const readProcessTable = () => {
+  if (process.platform !== "linux") {
+    return null;
+  }
+
+  return spawnSync("ps", ["-eo", "pid,ppid,stat,etime,comm", "--forest"], {
+    encoding: "utf8",
+  }).stdout.trim();
 };
 
 const defaultFixtures = [
@@ -609,6 +619,7 @@ const benchmarkRender = async (fixturesInfo) => {
       debuggerPort: getDebuggerPort(),
       exit: chromeExit,
       stderr: chromeStderr.trim(),
+      processTable: readProcessTable(),
     });
 
   try {
