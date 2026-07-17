@@ -1,5 +1,10 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { parseDeferredJsonlRecordLine, parseInput, parseJsonlRecordLine } from "@unquote/core";
+import {
+  isParsed,
+  parseDeferredJsonlRecordLine,
+  parseInput,
+  parseJsonlRecordLine,
+} from "@unquote/core";
 import {
   createAgentSessionFromText,
   createAgentSessionTracker,
@@ -152,7 +157,7 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
     : parseJsonlRecordLine(line, session.lineNumber);
   session.processedLines += 1;
   session.lineNumber += 1;
-  if (record.node) {
+  if (isParsed(record)) {
     session.success += 1;
   } else {
     session.failed += 1;

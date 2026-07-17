@@ -1,4 +1,5 @@
 import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
+import { isParsed } from "@unquote/core";
 import {
   getPreviewMaxDepth,
   getPreviewNestedFieldKeys,
@@ -161,7 +162,7 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
     fieldValues: new Map(),
   };
 
-  if (!record.node && !record.deferred) {
+  if (!isParsed(record)) {
     return {
       ...summary,
       error: {
@@ -211,7 +212,7 @@ const addSummaryToState = (
   record: JsonlRecord,
   summary: RecordOverviewSummary,
 ) => {
-  if (record.node || record.deferred) {
+  if (isParsed(record)) {
     state.success += 1;
   }
   if (summary.hasNestedJson) {

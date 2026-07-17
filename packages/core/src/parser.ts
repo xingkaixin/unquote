@@ -6,6 +6,7 @@ import type {
   ParseOptions,
   ParseResult,
 } from "./types.js";
+import { isParsed } from "./records.js";
 import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils.js";
 
 const maxDeferredStringLength = 160;
@@ -324,7 +325,7 @@ const parseLooseJsonlRecords = (
 };
 
 const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
-  const success = records.filter((record) => record.node).length;
+  const success = records.filter(isParsed).length;
   return {
     format: "jsonl",
     records,

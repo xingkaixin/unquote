@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { isParsed, parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,7 +16,7 @@ const buildRecords = (count: number, failedIndexes: Set<number> = new Set()): Js
 };
 
 const statsFor = (records: JsonlRecord[]) => {
-  const success = records.filter((record) => record.node || record.deferred).length;
+  const success = records.filter(isParsed).length;
   return { total: records.length, success, failed: records.length - success };
 };
 
