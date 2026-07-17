@@ -6,7 +6,7 @@ import { memorySearchDebounceMs, useQueryInteraction } from "../src/hooks/use-qu
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
 const result = parseInput(source, { forcedFormat: "jsonl" });
 
-const renderQuery = () =>
+const renderQuery = (onNavigate = vi.fn()) =>
   renderHook(() =>
     useQueryInteraction({
       result,
@@ -14,6 +14,7 @@ const renderQuery = () =>
       sourceFile: null,
       forcedFormat: "jsonl",
       translateError: (reason) => reason,
+      onNavigate,
     }),
   );
 
@@ -42,7 +43,8 @@ describe("useQueryInteraction", () => {
   });
 
   it("owns search results, filtering, and match navigation behind its interface", async () => {
-    const { result: query } = renderQuery();
+    const onNavigate = vi.fn();
+    const { result: query } = renderQuery(onNavigate);
 
     act(() => query.current.intent.searchFromCommand("needle"));
 
@@ -54,12 +56,14 @@ describe("useQueryInteraction", () => {
       currentMatchIndex: 0,
     });
     expect(query.current.snapshot.visibleRecords).toHaveLength(2);
+    onNavigate.mockClear();
 
     act(() => query.current.intent.nextResult());
     expect(query.current.snapshot.currentMatchIndex).toBe(1);
-    expect(query.current.snapshot.navigationTarget).toMatchObject({
+    expect(onNavigate).toHaveBeenLastCalledWith({
       kind: "search",
-      matchIndex: 1,
+      recordId: "record-2",
+      pathText: "$.payload",
     });
   });
 
@@ -76,6 +80,7 @@ describe("useQueryInteraction", () => {
           sourceFile: null,
           forcedFormat: "jsonl",
           translateError: (reason) => reason,
+          onNavigate: vi.fn(),
         }),
       { initialProps: { parseResult: firstResult } },
     );
@@ -91,19 +96,26 @@ describe("useQueryInteraction", () => {
     expect(query.current.snapshot.fileOverview.total).toBe(2);
   });
 
-  it("resolves path navigation and versions repeated navigation internally", () => {
-    const { result: query } = renderQuery();
+  it("reissues repeated path navigation through its interface", () => {
+    const onNavigate = vi.fn();
+    const { result: query } = renderQuery(onNavigate);
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
-    const firstTarget = query.current.snapshot.navigationTarget;
-    expect(firstTarget).toMatchObject({
+    expect(onNavigate).toHaveBeenLastCalledWith({
       kind: "path",
-      recordId: "record-1",
-      pathText: "$.payload",
+      target: expect.objectContaining({
+        recordId: "record-1",
+        pathText: "$.payload",
+      }),
     });
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
-    expect(query.current.snapshot.navigationTarget?.version).toBe((firstTarget?.version ?? 0) + 1);
+    expect(onNavigate.mock.calls.map(([target]) => target.kind)).toEqual([
+      "clear",
+      "path",
+      "clear",
+      "path",
+    ]);
   });
 
   it("keeps regex and jq mutually exclusive through option intents", () => {

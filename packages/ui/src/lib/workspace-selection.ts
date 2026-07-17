@@ -1,10 +1,5 @@
 import { isPathWithin } from "./path-codec";
-
-export interface PathScrollTarget {
-  recordId: string;
-  pathText: string;
-  requestId: number;
-}
+import { issueScrollIntent, retainVisibleScrollIntent, type ScrollIntent } from "./scroll-intent";
 
 export interface SelectedPath {
   recordId: string;
@@ -17,11 +12,6 @@ export interface FocusedPath {
   pathText: string;
 }
 
-export interface RecordScrollTarget {
-  recordId: string;
-  requestId: number;
-}
-
 export type AgentDetailSelection =
   | { kind: "record"; recordId: string }
   | { kind: "event"; id: string; recordId: string }
@@ -32,8 +22,7 @@ export interface WorkspaceSelectionState {
   detailSelection: AgentDetailSelection | null;
   selectedPath: SelectedPath | null;
   focusedPath: FocusedPath | null;
-  scrollTarget: PathScrollTarget | null;
-  recordScrollTarget: RecordScrollTarget | null;
+  scrollIntent: ScrollIntent | null;
 }
 
 export const createInitialWorkspaceSelectionState = (): WorkspaceSelectionState => ({
@@ -41,19 +30,18 @@ export const createInitialWorkspaceSelectionState = (): WorkspaceSelectionState 
   detailSelection: null,
   selectedPath: null,
   focusedPath: null,
-  scrollTarget: null,
-  recordScrollTarget: null,
+  scrollIntent: null,
 });
 
 export type WorkspaceSelectionAction =
-  | { type: "scrollToPath"; recordId: string; pathText: string; requestId: number }
-  | { type: "selectPath"; selection: SelectedPath; requestId: number }
-  | { type: "selectRecord"; recordId: string; requestId: number }
+  | { type: "scrollToPath"; recordId: string; pathText: string }
+  | { type: "selectPath"; selection: SelectedPath }
+  | { type: "selectRecord"; recordId: string }
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
   | { type: "resetTransientSelection" }
   | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
   | { type: "clearFocusedPath" }
-  | { type: "clearPathScrollTarget" }
+  | { type: "clearScrollIntent" }
   | { type: "activeRecordReported"; recordId: string };
 
 const retainFocusForPath = (focusedPath: FocusedPath | null, recordId: string, pathText: string) =>
@@ -79,11 +67,11 @@ export const reduceWorkspaceSelection = (
       return {
         ...state,
         focusedPath: retainFocusForPath(state.focusedPath, action.recordId, action.pathText),
-        scrollTarget: {
+        scrollIntent: issueScrollIntent({
+          kind: "path",
           recordId: action.recordId,
           pathText: action.pathText,
-          requestId: action.requestId,
-        },
+        }),
       };
 
     case "selectPath":
@@ -96,11 +84,11 @@ export const reduceWorkspaceSelection = (
           action.selection.recordId,
           action.selection.pathText,
         ),
-        scrollTarget: {
+        scrollIntent: issueScrollIntent({
+          kind: "path",
           recordId: action.selection.recordId,
           pathText: action.selection.pathText,
-          requestId: action.requestId,
-        },
+        }),
       };
 
     case "selectRecord":
@@ -109,7 +97,7 @@ export const reduceWorkspaceSelection = (
         activeRecordId: action.recordId,
         detailSelection: { kind: "record", recordId: action.recordId },
         focusedPath: retainFocusForRecord(state.focusedPath, action.recordId),
-        recordScrollTarget: { recordId: action.recordId, requestId: action.requestId },
+        scrollIntent: issueScrollIntent({ kind: "record", recordId: action.recordId }),
       };
 
     case "selectAgentDetail":
@@ -125,8 +113,7 @@ export const reduceWorkspaceSelection = (
         !state.detailSelection &&
         !state.selectedPath &&
         !state.focusedPath &&
-        !state.scrollTarget &&
-        !state.recordScrollTarget
+        !state.scrollIntent
       ) {
         return state;
       }
@@ -135,8 +122,7 @@ export const reduceWorkspaceSelection = (
         detailSelection: null,
         selectedPath: null,
         focusedPath: null,
-        scrollTarget: null,
-        recordScrollTarget: null,
+        scrollIntent: null,
       };
 
     case "recordsVisibilityChanged": {
@@ -148,19 +134,14 @@ export const reduceWorkspaceSelection = (
       const detailSelection = retainVisibleRecordValue(state.detailSelection, visibleRecordIds);
       const selectedPath = retainVisibleRecordValue(state.selectedPath, visibleRecordIds);
       const focusedPath = retainVisibleRecordValue(state.focusedPath, visibleRecordIds);
-      const scrollTarget = retainVisibleRecordValue(state.scrollTarget, visibleRecordIds);
-      const recordScrollTarget = retainVisibleRecordValue(
-        state.recordScrollTarget,
-        visibleRecordIds,
-      );
+      const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibleRecordIds);
 
       if (
         activeRecordId === state.activeRecordId &&
         detailSelection === state.detailSelection &&
         selectedPath === state.selectedPath &&
         focusedPath === state.focusedPath &&
-        scrollTarget === state.scrollTarget &&
-        recordScrollTarget === state.recordScrollTarget
+        scrollIntent === state.scrollIntent
       ) {
         return state;
       }
@@ -170,16 +151,15 @@ export const reduceWorkspaceSelection = (
         detailSelection,
         selectedPath,
         focusedPath,
-        scrollTarget,
-        recordScrollTarget,
+        scrollIntent,
       };
     }
 
     case "clearFocusedPath":
       return state.focusedPath ? { ...state, focusedPath: null } : state;
 
-    case "clearPathScrollTarget":
-      return state.scrollTarget ? { ...state, scrollTarget: null } : state;
+    case "clearScrollIntent":
+      return state.scrollIntent ? { ...state, scrollIntent: null } : state;
 
     case "activeRecordReported":
       return state.activeRecordId === action.recordId

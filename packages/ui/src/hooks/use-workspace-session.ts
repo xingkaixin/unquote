@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useReducer, useRef, useState } from "react";
+import { useCallback, useReducer, useState } from "react";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import {
   addExpandedStringifiedPaths,
@@ -18,7 +18,7 @@ import {
 } from "../lib/workspace-selection";
 import type { AgentDetailSelection, SelectedPath } from "../lib/workspace-selection";
 
-export type { PathScrollTarget, SelectedPath } from "../lib/workspace-selection";
+export type { SelectedPath } from "../lib/workspace-selection";
 
 const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
   recordId: record.id,
@@ -36,35 +36,20 @@ export const useWorkspaceSession = () => {
   const [searchExpandedPaths, setSearchExpandedPaths] = useState<ExpandedStringifiedPathsByRecord>(
     new Map(),
   );
-  const scrollRequestIdRef = useRef(0);
-
-  const nextRequestId = useCallback(() => {
-    scrollRequestIdRef.current += 1;
-    return scrollRequestIdRef.current;
+  const scrollToPath = useCallback((recordId: string, pathText: string) => {
+    dispatchSelection({ type: "scrollToPath", recordId, pathText });
   }, []);
-
-  const scrollToPath = useCallback(
-    (recordId: string, pathText: string) => {
-      dispatchSelection({
-        type: "scrollToPath",
-        recordId,
-        pathText,
-        requestId: nextRequestId(),
-      });
-    },
-    [nextRequestId],
-  );
 
   const selectPath = useCallback(
     (selection: SelectedPath, stringifiedPathChain: readonly string[] = []) => {
-      dispatchSelection({ type: "selectPath", selection, requestId: nextRequestId() });
+      dispatchSelection({ type: "selectPath", selection });
       if (stringifiedPathChain.length > 0) {
         setExpandedPaths((current) =>
           addExpandedStringifiedPaths(current, selection.recordId, stringifiedPathChain),
         );
       }
     },
-    [nextRequestId],
+    [],
   );
 
   const selectNode = useCallback(
@@ -72,12 +57,9 @@ export const useWorkspaceSession = () => {
     [selectPath],
   );
 
-  const selectRecord = useCallback(
-    (record: JsonlRecord) => {
-      dispatchSelection({ type: "selectRecord", recordId: record.id, requestId: nextRequestId() });
-    },
-    [nextRequestId],
-  );
+  const selectRecord = useCallback((record: JsonlRecord) => {
+    dispatchSelection({ type: "selectRecord", recordId: record.id });
+  }, []);
 
   const selectAgentDetail = useCallback((selection: AgentDetailSelection) => {
     dispatchSelection({ type: "selectAgentDetail", selection });
@@ -138,10 +120,7 @@ export const useWorkspaceSession = () => {
   }, []);
 
   const clearFocus = useCallback(() => dispatchSelection({ type: "clearFocusedPath" }), []);
-  const clearPathScroll = useCallback(
-    () => dispatchSelection({ type: "clearPathScrollTarget" }),
-    [],
-  );
+  const clearScrollIntent = useCallback(() => dispatchSelection({ type: "clearScrollIntent" }), []);
   const reportActiveRecord = useCallback((recordId: string) => {
     dispatchSelection({ type: "activeRecordReported", recordId });
   }, []);
@@ -154,8 +133,7 @@ export const useWorkspaceSession = () => {
       searchExpandedPaths,
       selectedPath: selectionState.selectedPath,
       focusedPath: selectionState.focusedPath,
-      scrollTarget: selectionState.scrollTarget,
-      recordScrollTarget: selectionState.recordScrollTarget,
+      scrollIntent: selectionState.scrollIntent,
     },
     reset,
     selectPath,
@@ -170,7 +148,7 @@ export const useWorkspaceSession = () => {
     collapseAll,
     togglePath,
     clearFocus,
-    clearPathScroll,
+    clearScrollIntent,
     reportActiveRecord,
   };
 };

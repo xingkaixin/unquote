@@ -14,28 +14,16 @@ import type {
 } from "../lib/query-interaction";
 import { fileSearchDebounceMs } from "../lib/local-file-source";
 import { resolveTreePathMatches } from "../lib/tree";
-import type { SearchOptions } from "../lib/tree";
+import type { ResolvedTreePath, SearchOptions } from "../lib/tree";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
 export const memorySearchDebounceMs = 120;
 
-export interface PathNavigationTarget {
-  recordId: string;
-  pathText: string;
-  rawKey: string;
-  stringifiedPathChain: string[];
-  kind: "path";
-  version: number;
-}
-
-export interface MatchNavigationTarget {
-  kind: "search";
-  matchIndex: number;
-  version: number;
-}
-
-export type NavigationTarget = PathNavigationTarget | MatchNavigationTarget;
+export type QueryNavigationTarget =
+  | { kind: "clear" }
+  | { kind: "path"; target: ResolvedTreePath }
+  | { kind: "search"; recordId: string; pathText: string };
 
 interface UseQueryInteractionOptions {
   result: ParseResult;
@@ -43,39 +31,8 @@ interface UseQueryInteractionOptions {
   sourceFile: File | null;
   forcedFormat: "json" | "jsonl" | undefined;
   translateError: (reason: "invalid" | "not-found") => string;
+  onNavigate: (target: QueryNavigationTarget) => void;
 }
-
-const NAVIGATING_ACTIONS = new Set<QueryInteractionAction["type"]>([
-  "submitToolbarQuery",
-  "overviewPathSelect",
-  "prevMatch",
-  "nextMatch",
-  "prevPathMatch",
-  "nextPathMatch",
-]);
-
-const buildNavigationTarget = (
-  state: Pick<QueryInteractionState, "pathMatches" | "currentPathMatchIndex" | "currentMatchIndex">,
-  mode: "path" | "search",
-  hasVisibleMatches: boolean,
-  version: number,
-): NavigationTarget | null => {
-  if (mode === "path" && state.pathMatches.length > 0) {
-    const target = state.pathMatches[state.currentPathMatchIndex] ?? state.pathMatches[0]!;
-    return {
-      recordId: target.recordId,
-      pathText: target.pathText,
-      rawKey: target.rawKey,
-      stringifiedPathChain: target.stringifiedPathChain,
-      kind: "path",
-      version,
-    };
-  }
-  if (mode === "search" && hasVisibleMatches) {
-    return { kind: "search", matchIndex: state.currentMatchIndex, version };
-  }
-  return null;
-};
 
 export const useQueryInteraction = ({
   result,
@@ -83,21 +40,13 @@ export const useQueryInteraction = ({
   sourceFile,
   forcedFormat,
   translateError,
+  onNavigate,
 }: UseQueryInteractionOptions) => {
   const [state, dispatch] = useReducer(
     reduceQueryInteraction,
     undefined,
     createInitialQueryInteractionState,
   );
-  const [navigationVersion, bumpNavigationVersion] = useReducer((value: number) => value + 1, 0);
-
-  const navigate = useCallback((action: QueryInteractionAction) => {
-    dispatch(action);
-    if (NAVIGATING_ACTIONS.has(action.type)) {
-      bumpNavigationVersion();
-    }
-  }, []);
-
   const resolvePathQuery = useCallback(
     (records: JsonlRecord[], value: string): PathResolution | null => {
       const query = value.trim();
@@ -149,67 +98,118 @@ export const useQueryInteraction = ({
     dispatch({ type: "resetPathForFilter" });
   }, [state.recordFilter]);
 
-  const navigationTarget = useMemo(
-    () =>
-      buildNavigationTarget(
-        {
-          pathMatches: state.pathMatches,
-          currentPathMatchIndex: state.currentPathMatchIndex,
-          currentMatchIndex: state.currentMatchIndex,
-        },
-        mode,
-        pipeline.matchCount > 0,
-        navigationVersion,
-      ),
-    [
-      mode,
-      navigationVersion,
-      pipeline.matchCount,
-      state.currentMatchIndex,
-      state.currentPathMatchIndex,
-      state.pathMatches,
-    ],
+  const activeSearchMatch =
+    mode === "search"
+      ? (pipeline.visibleMatches?.[state.currentMatchIndex] ?? pipeline.visibleMatches?.[0] ?? null)
+      : null;
+  const activeSearchRecordId = activeSearchMatch?.recordId ?? null;
+  const activeSearchPathText = activeSearchMatch?.pathText ?? null;
+
+  useEffect(() => {
+    if (!activeSearchRecordId || !activeSearchPathText) {
+      return;
+    }
+
+    onNavigate({
+      kind: "search",
+      recordId: activeSearchRecordId,
+      pathText: activeSearchPathText,
+    });
+  }, [activeSearchPathText, activeSearchRecordId, onNavigate, state.currentMatchIndex]);
+
+  const invalidateNavigation = useCallback(() => onNavigate({ kind: "clear" }), [onNavigate]);
+
+  const navigate = useCallback(
+    (action: QueryInteractionAction) => {
+      const nextState = reduceQueryInteraction(state, action);
+      dispatch(action);
+
+      if (resolveQueryMode(nextState.toolbarQuery) === "path") {
+        const target =
+          nextState.pathMatches[nextState.currentPathMatchIndex] ?? nextState.pathMatches[0];
+        if (target) {
+          onNavigate({ kind: "path", target });
+        }
+        return;
+      }
+
+      if (
+        nextState.currentMatchIndex === state.currentMatchIndex &&
+        activeSearchRecordId &&
+        activeSearchPathText
+      ) {
+        onNavigate({
+          kind: "search",
+          recordId: activeSearchRecordId,
+          pathText: activeSearchPathText,
+        });
+      }
+    },
+    [activeSearchPathText, activeSearchRecordId, onNavigate, state],
   );
 
   const changeToolbarQuery = useCallback(
-    (value: string) => dispatch({ type: "toolbarQueryChange", value }),
-    [],
+    (value: string) => {
+      invalidateNavigation();
+      dispatch({ type: "toolbarQueryChange", value });
+    },
+    [invalidateNavigation],
   );
   const submitToolbarQuery = useCallback(
-    (value: string) =>
+    (value: string) => {
+      invalidateNavigation();
+      const resolution = resolvePathQuery(pipeline.visibleRecords, value);
       navigate({
         type: "submitToolbarQuery",
         value,
-        resolution: resolvePathQuery(pipeline.visibleRecords, value),
-      }),
-    [navigate, pipeline.visibleRecords, resolvePathQuery],
+        resolution,
+      });
+    },
+    [invalidateNavigation, navigate, pipeline.visibleRecords, resolvePathQuery],
   );
-  const clearToolbarQuery = useCallback(() => dispatch({ type: "clearToolbarQuery" }), []);
+  const clearToolbarQuery = useCallback(() => {
+    invalidateNavigation();
+    dispatch({ type: "clearToolbarQuery" });
+  }, [invalidateNavigation]);
   const searchFromCommand = useCallback(
-    (value: string) => dispatch({ type: "commandSearch", value }),
-    [],
+    (value: string) => {
+      invalidateNavigation();
+      dispatch({ type: "commandSearch", value });
+    },
+    [invalidateNavigation],
   );
   const selectOverviewPath = useCallback(
-    (value: string) =>
+    (value: string) => {
+      invalidateNavigation();
+      const resolution = resolvePathQuery(result.records, value);
       navigate({
         type: "overviewPathSelect",
         value,
-        resolution: resolvePathQuery(result.records, value),
-      }),
-    [navigate, resolvePathQuery, result.records],
+        resolution,
+      });
+    },
+    [invalidateNavigation, navigate, resolvePathQuery, result.records],
   );
   const searchOverviewFieldValue = useCallback(
-    (value: string) => dispatch({ type: "overviewFieldValueSearch", value }),
-    [],
+    (value: string) => {
+      invalidateNavigation();
+      dispatch({ type: "overviewFieldValueSearch", value });
+    },
+    [invalidateNavigation],
   );
   const setOption = useCallback(
-    (kind: SearchOptionKind, on: boolean) => dispatch({ type: "setSearchOption", kind, on }),
-    [],
+    (kind: SearchOptionKind, on: boolean) => {
+      invalidateNavigation();
+      dispatch({ type: "setSearchOption", kind, on });
+    },
+    [invalidateNavigation],
   );
   const setFilter = useCallback(
-    (filter: QueryInteractionState["recordFilter"]) =>
-      dispatch({ type: "setRecordFilter", filter }),
-    [],
+    (filter: QueryInteractionState["recordFilter"]) => {
+      invalidateNavigation();
+      dispatch({ type: "setRecordFilter", filter });
+    },
+    [invalidateNavigation],
   );
   const changeCommandInput = useCallback(
     (value: string) => dispatch({ type: "setCommandInput", value }),
@@ -279,7 +279,6 @@ export const useQueryInteraction = ({
       currentPathMatchIndex: state.currentPathMatchIndex,
       currentMatchIndex: state.currentMatchIndex,
       mode,
-      navigationTarget,
       searchStatus: searchWorker.status,
       searchErrorKind: searchWorker.errorKind,
       ...pipeline,

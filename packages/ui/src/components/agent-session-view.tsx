@@ -148,7 +148,7 @@ const RawJsonlPanel = ({
             eager
             searchMatches={noSearchMatches}
             activeMatch={null}
-            scrollTarget={null}
+            scrollIntent={null}
             selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
             focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
             onTogglePath={onTogglePath}

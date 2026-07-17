@@ -10,8 +10,7 @@ const createPopulatedState = (): WorkspaceSelectionState => ({
   detailSelection: { kind: "event", id: "event-1", recordId: "record-1" },
   selectedPath: { recordId: "record-1", pathText: "$.payload.value", rawKey: "value" },
   focusedPath: { recordId: "record-1", pathText: "$.payload" },
-  scrollTarget: { recordId: "record-1", pathText: "$.payload.value", requestId: 1 },
-  recordScrollTarget: { recordId: "record-1", requestId: 2 },
+  scrollIntent: { kind: "path", recordId: "record-1", pathText: "$.payload.value" },
 });
 
 describe("reduceWorkspaceSelection", () => {
@@ -21,8 +20,7 @@ describe("reduceWorkspaceSelection", () => {
       detailSelection: null,
       selectedPath: null,
       focusedPath: null,
-      scrollTarget: null,
-      recordScrollTarget: null,
+      scrollIntent: null,
     });
   });
 
@@ -30,14 +28,13 @@ describe("reduceWorkspaceSelection", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "selectPath",
       selection: { recordId: "record-1", pathText: "$.payload.next", rawKey: "next" },
-      requestId: 3,
     });
 
     expect(state).toMatchObject({
       activeRecordId: "record-1",
       selectedPath: { recordId: "record-1", pathText: "$.payload.next", rawKey: "next" },
       focusedPath: { recordId: "record-1", pathText: "$.payload" },
-      scrollTarget: { recordId: "record-1", pathText: "$.payload.next", requestId: 3 },
+      scrollIntent: { kind: "path", recordId: "record-1", pathText: "$.payload.next" },
     });
   });
 
@@ -45,7 +42,6 @@ describe("reduceWorkspaceSelection", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "selectPath",
       selection: { recordId: "record-1", pathText: "$.other", rawKey: "other" },
-      requestId: 3,
     });
 
     expect(state.focusedPath).toBeNull();
@@ -56,14 +52,13 @@ describe("reduceWorkspaceSelection", () => {
       type: "scrollToPath",
       recordId: "record-2",
       pathText: "$.other",
-      requestId: 3,
     });
 
     expect(state.focusedPath).toBeNull();
-    expect(state.scrollTarget).toEqual({
+    expect(state.scrollIntent).toEqual({
+      kind: "path",
       recordId: "record-2",
       pathText: "$.other",
-      requestId: 3,
     });
   });
 
@@ -71,14 +66,13 @@ describe("reduceWorkspaceSelection", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "selectRecord",
       recordId: "record-2",
-      requestId: 3,
     });
 
     expect(state).toMatchObject({
       activeRecordId: "record-2",
       detailSelection: { kind: "record", recordId: "record-2" },
       focusedPath: null,
-      recordScrollTarget: { recordId: "record-2", requestId: 3 },
+      scrollIntent: { kind: "record", recordId: "record-2" },
     });
   });
 
@@ -105,8 +99,7 @@ describe("reduceWorkspaceSelection", () => {
       detailSelection: null,
       selectedPath: null,
       focusedPath: null,
-      scrollTarget: null,
-      recordScrollTarget: null,
+      scrollIntent: null,
     });
   });
 
@@ -149,8 +142,7 @@ describe("reduceWorkspaceSelection", () => {
       detailSelection: null,
       selectedPath: null,
       focusedPath: null,
-      scrollTarget: null,
-      recordScrollTarget: null,
+      scrollIntent: null,
     });
   });
 
@@ -161,23 +153,23 @@ describe("reduceWorkspaceSelection", () => {
     expect(state).toBe(current);
   });
 
-  it("clears focus and path scroll targets independently", () => {
+  it("clears focus and scroll intents independently", () => {
     const withoutFocus = reduceWorkspaceSelection(createPopulatedState(), {
       type: "clearFocusedPath",
     });
     const withoutScroll = reduceWorkspaceSelection(withoutFocus, {
-      type: "clearPathScrollTarget",
+      type: "clearScrollIntent",
     });
 
     expect(withoutFocus.focusedPath).toBeNull();
-    expect(withoutFocus.scrollTarget).not.toBeNull();
-    expect(withoutScroll.scrollTarget).toBeNull();
+    expect(withoutFocus.scrollIntent).not.toBeNull();
+    expect(withoutScroll.scrollIntent).toBeNull();
   });
 
-  it("preserves state when focus and path scroll targets are already clear", () => {
+  it("preserves state when focus and scroll intents are already clear", () => {
     const current = createInitialWorkspaceSelectionState();
     const withoutFocus = reduceWorkspaceSelection(current, { type: "clearFocusedPath" });
-    const withoutScroll = reduceWorkspaceSelection(current, { type: "clearPathScrollTarget" });
+    const withoutScroll = reduceWorkspaceSelection(current, { type: "clearScrollIntent" });
 
     expect(withoutFocus).toBe(current);
     expect(withoutScroll).toBe(current);

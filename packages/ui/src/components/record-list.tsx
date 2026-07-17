@@ -8,6 +8,7 @@ import {
 } from "../lib/record-expansion";
 import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { RecordInsight } from "../lib/record-insight";
+import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 import type { SearchMatch } from "../lib/tree";
 import { JsonTree } from "./json-tree";
 
@@ -23,8 +24,7 @@ interface RecordListProps {
   expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
-  scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
-  recordScrollTarget: { recordId: string; requestId: number } | null;
+  scrollIntent: ScrollIntent | null;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (recordId: string, path: string) => void;
@@ -44,8 +44,7 @@ export const RecordList = memo(function RecordList({
   expandedStringifiedPathsByRecord,
   searchMatches,
   activeMatch,
-  scrollTarget,
-  recordScrollTarget,
+  scrollIntent,
   selectedPath,
   focusedPath,
   onTogglePath,
@@ -100,20 +99,19 @@ export const RecordList = memo(function RecordList({
   }, [records.length, shouldVirtualize]);
 
   const scrollToRecord = useCallback(
-    (recordId: string) => {
-      const index = records.findIndex((record) => record.id === recordId);
-      if (index === -1) {
-        return;
-      }
-
+    (index: number) => {
       if (shouldVirtualize) {
         recordVirtualizer.scrollToIndex(index, { align: "start" });
         return;
       }
 
+      const record = records[index];
+      if (!record) {
+        return;
+      }
       const frame = requestAnimationFrame(() => {
         listRef.current
-          ?.querySelector<HTMLElement>(`[id="${recordId}"]`)
+          ?.querySelector<HTMLElement>(`[id="${record.id}"]`)
           ?.scrollIntoView({ block: "start", behavior: preferredScrollBehavior() });
       });
 
@@ -123,21 +121,13 @@ export const RecordList = memo(function RecordList({
   );
 
   useLayoutEffect(() => {
-    if (!recordScrollTarget) {
+    const index = resolveRecordScrollIndex(records, scrollIntent);
+    if (index === -1) {
       return;
     }
 
-    return scrollToRecord(recordScrollTarget.recordId);
-  }, [recordScrollTarget, scrollToRecord]);
-
-  useLayoutEffect(() => {
-    const targetRecordId = scrollTarget?.recordId ?? activeMatch?.recordId;
-    if (!targetRecordId) {
-      return;
-    }
-
-    return scrollToRecord(targetRecordId);
-  }, [activeMatch, scrollTarget, scrollToRecord]);
+    return scrollToRecord(index);
+  }, [records, scrollIntent, scrollToRecord]);
 
   useLayoutEffect(() => {
     if (!shouldVirtualize) {
@@ -200,7 +190,7 @@ export const RecordList = memo(function RecordList({
         eager={index < 6}
         searchMatches={searchMatchesByRecord.get(record.id) ?? noSearchMatches}
         activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
-        scrollTarget={scrollTarget?.recordId === record.id ? scrollTarget : null}
+        scrollIntent={scrollIntent}
         selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
         focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
         onTogglePath={onTogglePath}

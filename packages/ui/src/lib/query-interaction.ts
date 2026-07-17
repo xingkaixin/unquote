@@ -113,8 +113,6 @@ export const reduceQueryInteraction = (
 
     case "submitToolbarQuery": {
       if (!action.resolution) {
-        // Search mode: re-navigate to the current match (no state change beyond
-        // the toolbar value); the hook bumps the nav version so the app re-scrolls.
         return { ...state, toolbarQuery: action.value };
       }
 
