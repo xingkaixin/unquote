@@ -1,5 +1,14 @@
-import type { JsonNode, JsonlRecord, ParseErrorMeta, ParseOptions, ParseResult } from "./types.js";
+import type {
+  JsonNode,
+  JsonlRecord,
+  JsonPrimitive,
+  ParseErrorMeta,
+  ParseOptions,
+  ParseResult,
+} from "./types.js";
 import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils.js";
+
+const maxDeferredStringLength = 160;
 
 const toNode = (
   value: unknown,
@@ -144,6 +153,107 @@ const createRecord = (value: unknown, lineNumber: number, maxDepth: number): Jso
   };
 };
 
+const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, key: string) => {
+  if (!nestedFieldKeys) {
+    return key;
+  }
+
+  return Array.isArray(nestedFieldKeys) ? [...nestedFieldKeys, key] : [nestedFieldKeys, key];
+};
+
+const truncateDeferredString = (value: string) =>
+  value.length > maxDeferredStringLength ? value.slice(0, maxDeferredStringLength) : value;
+
+const projectDeferredNode = (node: JsonNode): JsonNode => {
+  const rawString = node.wasStringified ? (node.rawString ?? JSON.stringify(node.value)) : null;
+  const stringValue = rawString ?? (node.kind === "string" ? (node.value as string) : null);
+  const isContainer = node.kind === "object" || node.kind === "array";
+  const value = stringValue === null ? (isContainer ? null : node.value) : stringValue;
+  const valueLength = stringValue?.length;
+
+  return {
+    kind: node.wasStringified ? "string" : node.kind,
+    value: typeof value === "string" ? truncateDeferredString(value) : value,
+    path: node.path,
+    wasStringified: node.wasStringified,
+    meta: {
+      depth: node.meta.depth,
+      expandable: isContainer || node.wasStringified,
+      restorable: node.wasStringified,
+      ...(node.meta.recordId ? { recordId: node.meta.recordId } : {}),
+      ...(typeof node.meta.sourceLine === "number" ? { sourceLine: node.meta.sourceLine } : {}),
+      ...(typeof valueLength === "number" && valueLength > maxDeferredStringLength
+        ? { truncated: true, valueLength }
+        : {}),
+    },
+  };
+};
+
+const createDeferredPreview = (value: unknown, recordId: string, sourceLine: number) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const fields: NonNullable<JsonlRecord["preview"]>["fields"] = {};
+  const containers: NonNullable<JsonlRecord["preview"]>["containers"] = {};
+  let nestedFieldKeys: string | string[] | undefined;
+
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const kind = getJsonKind(child);
+    if (kind === "object" || kind === "array") {
+      containers[key] = kind;
+      continue;
+    }
+
+    fields[key] =
+      typeof child === "string" ? truncateDeferredString(child) : (child as JsonPrimitive);
+    if (
+      typeof child === "string" &&
+      buildNode(child, ["$", key], 1, 1, recordId, sourceLine).wasStringified
+    ) {
+      nestedFieldKeys = appendNestedFieldKey(nestedFieldKeys, key);
+    }
+  }
+
+  if (Object.keys(fields).length === 0 && Object.keys(containers).length === 0) {
+    return undefined;
+  }
+
+  return {
+    fields,
+    ...(Object.keys(containers).length > 0 ? { containers } : {}),
+    ...(nestedFieldKeys ? { nestedFieldKeys } : {}),
+  };
+};
+
+const createDeferredRecord = (value: unknown, lineNumber: number): JsonlRecord => {
+  const id = `record-${lineNumber}`;
+  const node = projectDeferredNode(buildNode(value, ["$"], 0, 0, id, lineNumber));
+  const preview = createDeferredPreview(value, id, lineNumber);
+
+  return {
+    id,
+    lineNumber,
+    node,
+    deferred: true,
+    ...(preview ? { preview } : {}),
+    summary: extractSummary(value),
+  };
+};
+
+const createParseErrorRecord = (line: string, lineNumber: number, error: unknown): JsonlRecord => {
+  const errorMeta = getParseErrorMeta(line, error, lineNumber - 1);
+  return {
+    id: `record-${lineNumber}`,
+    lineNumber,
+    node: null,
+    error: getErrorMessage(error),
+    errorMeta,
+    rawLine: line,
+    summary: line.slice(0, 72),
+  };
+};
+
 export const parseJsonlRecordLine = (
   line: string,
   lineNumber: number,
@@ -154,16 +264,15 @@ export const parseJsonlRecordLine = (
   try {
     return createRecord(parseJson(line), lineNumber, maxDepth);
   } catch (error) {
-    const errorMeta = getParseErrorMeta(line, error, lineNumber - 1);
-    return {
-      id: `record-${lineNumber}`,
-      lineNumber,
-      node: null,
-      error: getErrorMessage(error),
-      errorMeta,
-      rawLine: line,
-      summary: line.slice(0, 72),
-    };
+    return createParseErrorRecord(line, lineNumber, error);
+  }
+};
+
+export const parseDeferredJsonlRecordLine = (line: string, lineNumber: number): JsonlRecord => {
+  try {
+    return createDeferredRecord(parseJson(line), lineNumber);
+  } catch (error) {
+    return createParseErrorRecord(line, lineNumber, error);
   }
 };
 
