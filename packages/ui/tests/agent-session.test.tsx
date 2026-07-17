@@ -1,11 +1,72 @@
 import { describe, expect, it } from "vitest";
-import { createAgentSessionFromText } from "../src/lib/agent-session";
+import { createAgentSessionFromText, createAgentSessionTracker } from "../src/lib/agent-session";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
   lineNumber,
   raw: JSON.stringify(data),
   data,
+});
+
+const codexEvent = (type = "token_count") =>
+  JSON.stringify({ type: "event_msg", payload: { type } });
+
+const unrelatedEvent = (index: number) => JSON.stringify({ event: "worker.tick", index });
+
+describe("createAgentSessionTracker", () => {
+  it("preserves streamed line metadata and parse warnings", () => {
+    const tracker = createAgentSessionTracker("stream.jsonl");
+    const sessionMeta = JSON.stringify({
+      type: "session_meta",
+      payload: { session_id: "stream-session" },
+    });
+
+    tracker.pushRawLine("", 1);
+    tracker.pushRawLine("{bad}", 2);
+    tracker.pushRawLine(sessionMeta, 4);
+
+    expect(tracker.finish()).toMatchObject({
+      fileType: "Codex",
+      fileName: "stream.jsonl",
+      meta: { sessionId: "stream-session", eventCount: 1 },
+      events: [{ lineNumber: 4, rawLine: sessionMeta }],
+      parseWarnings: [{ lineNumber: 2, message: "Invalid JSON on this line" }],
+    });
+  });
+
+  it("locks in confident detection after twenty samples", () => {
+    const tracker = createAgentSessionTracker();
+
+    for (let index = 1; index <= 5; index += 1) {
+      tracker.pushRawLine(unrelatedEvent(index), index);
+    }
+    for (let index = 6; index <= 20; index += 1) {
+      tracker.pushRawLine(codexEvent(), index);
+    }
+    for (let index = 21; index <= 80; index += 1) {
+      tracker.pushRawLine(unrelatedEvent(index), index);
+    }
+    tracker.pushRawLine(codexEvent("task_complete"), 81);
+
+    const session = tracker.finish();
+    expect(session?.fileType).toBe("Codex");
+    expect(session?.meta.eventCount).toBe(16);
+    expect(session?.events.at(-1)).toMatchObject({ lineNumber: 81, kind: "task_complete" });
+  });
+
+  it("disables detection after eighty inconclusive samples", () => {
+    const tracker = createAgentSessionTracker();
+
+    for (let index = 1; index < 80; index += 1) {
+      tracker.pushRawLine(unrelatedEvent(index), index);
+    }
+    tracker.pushRawLine(codexEvent(), 80);
+    for (let index = 81; index <= 160; index += 1) {
+      tracker.pushRawLine(codexEvent(), index);
+    }
+
+    expect(tracker.finish()).toBeNull();
+  });
 });
 
 describe("agent session", () => {
