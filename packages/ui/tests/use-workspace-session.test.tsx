@@ -21,10 +21,10 @@ describe("useWorkspaceSession", () => {
         pathText: "$.payload.nested",
         rawKey: "nested",
       },
-      scrollTarget: {
+      scrollIntent: {
+        kind: "path",
         recordId: "record-2",
         pathText: "$.payload.nested",
-        requestId: 1,
       },
     });
     expect(result.current.state.expandedPaths.get("record-2")).toEqual(new Set(["$.payload"]));
@@ -32,7 +32,7 @@ describe("useWorkspaceSession", () => {
     act(() => result.current.reset());
 
     expect(result.current.state.selectedPath).toBeNull();
-    expect(result.current.state.scrollTarget).toBeNull();
+    expect(result.current.state.scrollIntent).toBeNull();
     expect(result.current.state.expandedPaths).toEqual(new Map());
   });
 
@@ -55,8 +55,7 @@ describe("useWorkspaceSession", () => {
       detailSelection: null,
       selectedPath: null,
       focusedPath: null,
-      scrollTarget: null,
-      recordScrollTarget: null,
+      scrollIntent: null,
     });
   });
 });

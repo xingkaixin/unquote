@@ -20,6 +20,7 @@ import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
 import { useQueryInteraction } from "./hooks/use-query-interaction";
+import type { QueryNavigationTarget } from "./hooks/use-query-interaction";
 import { useExportActions } from "./hooks/use-export-actions";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
@@ -105,8 +106,7 @@ export const UnquoteApp = ({
     searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
     selectedPath,
     focusedPath,
-    scrollTarget,
-    recordScrollTarget,
+    scrollIntent,
   } = workspace.state;
   const {
     mode,
@@ -145,12 +145,36 @@ export const UnquoteApp = ({
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
+  const handleQueryNavigation = useCallback(
+    (navigation: QueryNavigationTarget) => {
+      if (navigation.kind === "clear") {
+        workspace.clearScrollIntent();
+        return;
+      }
+
+      if (navigation.kind === "search") {
+        workspace.scrollToPath(navigation.recordId, navigation.pathText);
+        return;
+      }
+
+      workspace.selectPath(
+        {
+          recordId: navigation.target.recordId,
+          pathText: navigation.target.pathText,
+          rawKey: navigation.target.rawKey,
+        },
+        navigation.target.stringifiedPathChain,
+      );
+    },
+    [workspace.clearScrollIntent, workspace.scrollToPath, workspace.selectPath],
+  );
   const query = useQueryInteraction({
     result,
     sourceText,
     sourceFile,
     forcedFormat,
     translateError,
+    onNavigate: handleQueryNavigation,
   });
   const {
     searchQuery,
@@ -165,7 +189,6 @@ export const UnquoteApp = ({
     currentPathMatchIndex,
     currentMatchIndex,
     mode: queryMode,
-    navigationTarget,
     searchStatus,
     searchErrorKind,
     recordInsights,
@@ -251,19 +274,6 @@ export const UnquoteApp = ({
   const estimatedSourceBytes = sourceFile?.size ?? sourceText.length;
   const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
 
-  // Clear any pending scroll target when the filter or search options change
-  // (match-index reset lives in the interaction hook).
-  useEffect(() => {
-    workspace.clearPathScroll();
-  }, [
-    recordFilter,
-    searchQuery,
-    searchRegex,
-    searchCaseSensitive,
-    searchJq,
-    workspace.clearPathScroll,
-  ]);
-
   useEffect(() => {
     workspace.synchronizeSearchExpansions(visibleMatches ?? []);
   }, [visibleMatches, workspace.synchronizeSearchExpansions]);
@@ -307,38 +317,6 @@ export const UnquoteApp = ({
 
     workspace.clearFocus();
   }, [activeMatch, focusedPath, workspace.clearFocus]);
-
-  const scrollToSearchMatch = (index: number) => {
-    const match = visibleMatches?.[index];
-    if (!match) {
-      return;
-    }
-    workspace.scrollToPath(match.recordId, match.pathText);
-  };
-
-  // React to interaction-driven navigation: a path jump selects/expands the
-  // target node and scrolls to it; a search re-navigation scrolls to the match.
-  useEffect(() => {
-    const target = navigationTarget;
-    if (!target) {
-      return;
-    }
-
-    if (target.kind === "path") {
-      workspace.selectPath(
-        {
-          recordId: target.recordId,
-          pathText: target.pathText,
-          rawKey: target.rawKey,
-        },
-        target.stringifiedPathChain,
-      );
-    } else {
-      scrollToSearchMatch(target.matchIndex);
-    }
-    // navigationTarget carries a version token that changes on every navigating
-    // action, so re-submitting the same query re-scrolls.
-  }, [navigationTarget]);
 
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
@@ -607,8 +585,7 @@ export const UnquoteApp = ({
         expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
         searchMatches={visibleMatches ?? noSearchMatches}
         activeMatch={activeMatch}
-        scrollTarget={scrollTarget}
-        recordScrollTarget={recordScrollTarget}
+        scrollIntent={scrollIntent}
         selectedPath={selectedPath}
         focusedPath={focusedPath}
         onTogglePath={handleTogglePath}

@@ -18,7 +18,7 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
         eager
         searchMatches={[]}
         activeMatch={null}
-        scrollTarget={null}
+        scrollIntent={null}
         selectedPath={null}
         focusedPath={null}
         onTogglePath={onTogglePath}

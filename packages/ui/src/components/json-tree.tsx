@@ -8,6 +8,11 @@ import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
+import {
+  resolvePathScrollIndex,
+  targetsPathInRecord,
+  type ScrollIntent,
+} from "../lib/scroll-intent";
 import { buildRecordRows } from "../lib/tree";
 import type { SearchMatch, TextRange, TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
@@ -28,7 +33,7 @@ interface JsonTreeProps {
   eager?: boolean;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
-  scrollTarget: { recordId: string; pathText: string; requestId: number } | null;
+  scrollIntent: ScrollIntent | null;
   selectedPath: { recordId: string; pathText: string } | null;
   focusedPath: { recordId: string; pathText: string } | null;
   onTogglePath: (recordId: string, path: string) => void;
@@ -47,7 +52,7 @@ export const JsonTree = memo(function JsonTree({
   eager = false,
   searchMatches,
   activeMatch,
-  scrollTarget,
+  scrollIntent,
   selectedPath,
   focusedPath,
   onTogglePath,
@@ -212,8 +217,7 @@ export const JsonTree = memo(function JsonTree({
   }, [hydrated]);
 
   useEffect(() => {
-    const target = scrollTarget ?? activeMatch;
-    if (!target || target.recordId !== record.id) {
+    if (!targetsPathInRecord(scrollIntent, record.id)) {
       return;
     }
     if (!hydrated) {
@@ -221,9 +225,7 @@ export const JsonTree = memo(function JsonTree({
       return;
     }
 
-    const index = displayRows.findIndex(
-      (row) => row.source.pathText === target.pathText && row.kind !== "close",
-    );
+    const index = resolvePathScrollIndex(displayRows, record.id, scrollIntent);
     if (index === -1) {
       return;
     }
@@ -238,15 +240,7 @@ export const JsonTree = memo(function JsonTree({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [
-    activeMatch,
-    scrollTarget,
-    record.id,
-    displayRows,
-    hydrated,
-    shouldVirtualize,
-    rowVirtualizer,
-  ]);
+  }, [scrollIntent, record.id, displayRows, hydrated, shouldVirtualize, rowVirtualizer]);
 
   if (!record.node) {
     const errorMeta = record.errorMeta;
