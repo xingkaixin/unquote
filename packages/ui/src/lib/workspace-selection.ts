@@ -58,6 +58,39 @@ const retainVisibleRecordValue = <Value extends { recordId: string }>(
   visibleRecordIds: ReadonlySet<string>,
 ) => (value && !visibleRecordIds.has(value.recordId) ? null : value);
 
+export const reconcileWorkspaceSelection = (
+  state: WorkspaceSelectionState,
+  recordIds: readonly string[],
+): WorkspaceSelectionState => {
+  const visibleRecordIds = new Set(recordIds);
+  const activeRecordId =
+    state.activeRecordId && visibleRecordIds.has(state.activeRecordId)
+      ? state.activeRecordId
+      : (recordIds[0] ?? null);
+  const detailSelection = retainVisibleRecordValue(state.detailSelection, visibleRecordIds);
+  const selectedPath = retainVisibleRecordValue(state.selectedPath, visibleRecordIds);
+  const focusedPath = retainVisibleRecordValue(state.focusedPath, visibleRecordIds);
+  const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibleRecordIds);
+
+  if (
+    activeRecordId === state.activeRecordId &&
+    detailSelection === state.detailSelection &&
+    selectedPath === state.selectedPath &&
+    focusedPath === state.focusedPath &&
+    scrollIntent === state.scrollIntent
+  ) {
+    return state;
+  }
+
+  return {
+    activeRecordId,
+    detailSelection,
+    selectedPath,
+    focusedPath,
+    scrollIntent,
+  };
+};
+
 export const reduceWorkspaceSelection = (
   state: WorkspaceSelectionState,
   action: WorkspaceSelectionAction,
@@ -125,35 +158,8 @@ export const reduceWorkspaceSelection = (
         scrollIntent: null,
       };
 
-    case "recordsVisibilityChanged": {
-      const visibleRecordIds = new Set(action.recordIds);
-      const activeRecordId =
-        state.activeRecordId && visibleRecordIds.has(state.activeRecordId)
-          ? state.activeRecordId
-          : (action.recordIds[0] ?? null);
-      const detailSelection = retainVisibleRecordValue(state.detailSelection, visibleRecordIds);
-      const selectedPath = retainVisibleRecordValue(state.selectedPath, visibleRecordIds);
-      const focusedPath = retainVisibleRecordValue(state.focusedPath, visibleRecordIds);
-      const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibleRecordIds);
-
-      if (
-        activeRecordId === state.activeRecordId &&
-        detailSelection === state.detailSelection &&
-        selectedPath === state.selectedPath &&
-        focusedPath === state.focusedPath &&
-        scrollIntent === state.scrollIntent
-      ) {
-        return state;
-      }
-
-      return {
-        activeRecordId,
-        detailSelection,
-        selectedPath,
-        focusedPath,
-        scrollIntent,
-      };
-    }
+    case "recordsVisibilityChanged":
+      return reconcileWorkspaceSelection(state, action.recordIds);
 
     case "clearFocusedPath":
       return state.focusedPath ? { ...state, focusedPath: null } : state;

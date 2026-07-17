@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer } from "react";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
+  reconcileMatchIndex,
   reduceQueryInteraction,
   resolveQueryMode,
 } from "../lib/query-interaction";
@@ -62,7 +63,7 @@ export const useQueryInteraction = ({
     [translateError],
   );
 
-  const mode = useMemo(() => resolveQueryMode(state.toolbarQuery), [state.toolbarQuery]);
+  const mode = resolveQueryMode(state.toolbarQuery);
   const searchOptions = useMemo<SearchOptions>(
     () => ({
       regex: state.searchRegex,
@@ -85,22 +86,11 @@ export const useQueryInteraction = ({
     recordFilter: state.recordFilter,
   });
 
-  useEffect(() => {
-    dispatch({ type: "clampMatchIndex", matchCount: pipeline.matchCount });
-  }, [pipeline.matchCount]);
-
-  const resetKey = `${state.recordFilter}|${state.searchRegex}|${state.searchCaseSensitive}|${state.searchJq}|${state.searchQuery}`;
-  useEffect(() => {
-    dispatch({ type: "resetMatchIndex" });
-  }, [resetKey]);
-
-  useEffect(() => {
-    dispatch({ type: "resetPathForFilter" });
-  }, [state.recordFilter]);
+  const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, pipeline.matchCount);
 
   const activeSearchMatch =
     mode === "search"
-      ? (pipeline.visibleMatches?.[state.currentMatchIndex] ?? pipeline.visibleMatches?.[0] ?? null)
+      ? (pipeline.visibleMatches?.[currentMatchIndex] ?? pipeline.visibleMatches?.[0] ?? null)
       : null;
   const activeSearchRecordId = activeSearchMatch?.recordId ?? null;
   const activeSearchPathText = activeSearchMatch?.pathText ?? null;
@@ -115,13 +105,15 @@ export const useQueryInteraction = ({
       recordId: activeSearchRecordId,
       pathText: activeSearchPathText,
     });
-  }, [activeSearchPathText, activeSearchRecordId, onNavigate, state.currentMatchIndex]);
+  }, [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate]);
 
   const invalidateNavigation = useCallback(() => onNavigate({ kind: "clear" }), [onNavigate]);
 
   const navigate = useCallback(
     (action: QueryInteractionAction) => {
-      const nextState = reduceQueryInteraction(state, action);
+      const reconciledState =
+        currentMatchIndex === state.currentMatchIndex ? state : { ...state, currentMatchIndex };
+      const nextState = reduceQueryInteraction(reconciledState, action);
       dispatch(action);
 
       if (resolveQueryMode(nextState.toolbarQuery) === "path") {
@@ -134,7 +126,7 @@ export const useQueryInteraction = ({
       }
 
       if (
-        nextState.currentMatchIndex === state.currentMatchIndex &&
+        nextState.currentMatchIndex === currentMatchIndex &&
         activeSearchRecordId &&
         activeSearchPathText
       ) {
@@ -145,7 +137,7 @@ export const useQueryInteraction = ({
         });
       }
     },
-    [activeSearchPathText, activeSearchRecordId, onNavigate, state],
+    [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate, state],
   );
 
   const changeToolbarQuery = useCallback(
@@ -277,7 +269,7 @@ export const useQueryInteraction = ({
       pathError: state.pathError,
       pathMatches: state.pathMatches,
       currentPathMatchIndex: state.currentPathMatchIndex,
-      currentMatchIndex: state.currentMatchIndex,
+      currentMatchIndex,
       mode,
       searchStatus: searchWorker.status,
       searchErrorKind: searchWorker.errorKind,

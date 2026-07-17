@@ -3,6 +3,7 @@ import type { ResolvedTreePath } from "../src/lib/tree";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
+  reconcileMatchIndex,
   reduceQueryInteraction,
   resolveQueryMode,
 } from "../src/lib/query-interaction";
@@ -175,12 +176,41 @@ describe("query-interaction", () => {
     expect(state.currentMatchIndex).toBe(0);
   });
 
-  it("clamps the match index to the current match count", () => {
-    let state = { ...createInitialQueryInteractionState(), currentMatchIndex: 5 };
-    state = reduceQueryInteraction(state, { type: "clampMatchIndex", matchCount: 2 });
-    expect(state.currentMatchIndex).toBe(1);
-    state = reduceQueryInteraction(state, { type: "clampMatchIndex", matchCount: 0 });
-    expect(state.currentMatchIndex).toBe(0);
+  it("reconciles the match index with the visible match count", () => {
+    expect(reconcileMatchIndex(5, 2)).toBe(1);
+    expect(reconcileMatchIndex(5, 0)).toBe(0);
+    expect(reconcileMatchIndex(1, 2)).toBe(1);
+  });
+
+  it("navigates from the reconciled match index", () => {
+    const state = { ...createInitialQueryInteractionState(), currentMatchIndex: 5 };
+
+    expect(
+      reduceQueryInteraction(state, { type: "prevMatch", matchCount: 3 }).currentMatchIndex,
+    ).toBe(1);
+    expect(
+      reduceQueryInteraction(state, { type: "nextMatch", matchCount: 3 }).currentMatchIndex,
+    ).toBe(0);
+  });
+
+  it("resets path and match navigation in the filter transition", () => {
+    const state = {
+      ...createInitialQueryInteractionState(),
+      recordFilter: "matches" as const,
+      pathError: "NOT_FOUND",
+      pathMatches: [{} as ResolvedTreePath],
+      currentPathMatchIndex: 1,
+      currentMatchIndex: 2,
+    };
+
+    expect(reduceQueryInteraction(state, { type: "setRecordFilter", filter: "errors" })).toEqual({
+      ...state,
+      recordFilter: "errors",
+      pathError: null,
+      pathMatches: [],
+      currentPathMatchIndex: 0,
+      currentMatchIndex: 0,
+    });
   });
 
   it("commandSearch switches the filter to matches", () => {
