@@ -1,6 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
-import { parseInput } from "@unquote/core";
 import { searchJsonlFile } from "../lib/local-file-source";
+import { parseTextResult } from "../lib/parse-text";
 import { searchRecords } from "../lib/tree";
 import type { SearchMatch, SearchOptions } from "../lib/tree";
 
@@ -42,7 +42,7 @@ const recordsForText = (text: string, forcedFormat?: "json" | "jsonl"): JsonlRec
     return textRecordsCache.records;
   }
 
-  const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
+  const result = parseTextResult(text, forcedFormat);
   textRecordsCache = { text, records: result.records, ...(forcedFormat ? { forcedFormat } : {}) };
   return result.records;
 };

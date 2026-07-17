@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { parseInput } from "@unquote/core";
 import { searchJsonlFile } from "../lib/local-file-source";
+import { parseTextResult } from "../lib/parse-text";
 import { searchRecords } from "../lib/tree";
 import type { SearchMatch, SearchOptions } from "../lib/tree";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
@@ -110,7 +110,7 @@ export const useSearchWorker = (params: {
           return;
         }
 
-        const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
+        const result = parseTextResult(text, forcedFormat);
         setState({
           matches: searchRecords(result.records, query, options),
           status: "complete",
