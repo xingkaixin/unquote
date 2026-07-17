@@ -2,12 +2,9 @@ import type { JsonlRecord } from "@unquote/core";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preferredScrollBehavior } from "../lib/motion-preference";
-import {
-  getExpandedStringifiedPaths,
-  type ExpandedStringifiedPathsByRecord,
-} from "../lib/record-expansion";
+import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import { resolveHydratedRecord } from "../lib/record-resolution";
-import type { RecordInsight } from "../lib/record-insight";
+import type { RecordViewModel } from "../lib/record-view";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 import type { SearchMatch } from "../lib/tree";
 import { JsonTree } from "./json-tree";
@@ -19,43 +16,31 @@ const noSearchMatches: SearchMatch[] = [];
 
 interface RecordListProps {
   records: JsonlRecord[];
-  recordInsights: ReadonlyMap<string, RecordInsight>;
-  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
-  expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
+  recordView: RecordViewModel;
   searchMatches: SearchMatch[];
   activeMatch: { recordId: string; pathText: string } | null;
   scrollIntent: ScrollIntent | null;
-  selectedPath: { recordId: string; pathText: string } | null;
-  focusedPath: { recordId: string; pathText: string } | null;
-  onTogglePath: (recordId: string, path: string) => void;
-  onCopyRecord: (record: JsonlRecord) => void;
-  onCopyRawLine: (record: JsonlRecord) => void;
-  onCopyError: (record: JsonlRecord) => void;
-  onSelectNode: (record: JsonlRecord, row: import("../lib/tree").TreeRow) => void;
-  onHydrateRecord: (record: JsonlRecord) => void;
-  onClearFocus: () => void;
   onActiveRecordChange: (recordId: string) => void;
 }
 
 export const RecordList = memo(function RecordList({
   records,
-  recordInsights,
-  hydratedRecords,
-  expandedStringifiedPathsByRecord,
+  recordView,
   searchMatches,
   activeMatch,
   scrollIntent,
-  selectedPath,
-  focusedPath,
-  onTogglePath,
-  onCopyRecord,
-  onCopyRawLine,
-  onCopyError,
-  onSelectNode,
-  onHydrateRecord,
-  onClearFocus,
   onActiveRecordChange,
 }: RecordListProps) {
+  const {
+    state: {
+      recordInsights,
+      hydratedRecords,
+      expandedStringifiedPathsByRecord,
+      selectedPath,
+      focusedPath,
+    },
+    actions,
+  } = recordView;
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const shouldVirtualize = records.length > recordVirtualizationThreshold;
@@ -193,13 +178,7 @@ export const RecordList = memo(function RecordList({
         scrollIntent={scrollIntent}
         selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
         focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
-        onTogglePath={onTogglePath}
-        onCopyRecord={onCopyRecord}
-        onCopyRawLine={onCopyRawLine}
-        onCopyError={onCopyError}
-        onSelectNode={onSelectNode}
-        onHydrateRecord={onHydrateRecord}
-        onClearFocus={onClearFocus}
+        actions={actions}
       />
     );
   };

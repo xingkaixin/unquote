@@ -1,6 +1,5 @@
 import { materializeNode } from "@unquote/core";
 import { toast } from "sonner";
-import type { JsonlRecord } from "@unquote/core";
 import { PanelLeftOpen, Store } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette } from "./components/command-palette";
@@ -8,7 +7,6 @@ import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { AgentSessionView } from "./components/agent-session-view";
-import type { AgentDetailSelection } from "./components/agent-session-view";
 import { LocaleToggle } from "./components/locale-toggle";
 import { RecordList } from "./components/record-list";
 import { Toaster } from "./components/sonner";
@@ -30,8 +28,9 @@ import { writeClipboardText } from "./lib/clipboard";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
+import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
 import { sourceSamples } from "./lib/source-samples";
-import type { SearchMatch, TreeRow } from "./lib/tree";
+import type { SearchMatch } from "./lib/tree";
 
 import type { SelectedPath } from "./hooks/use-workspace-session";
 
@@ -364,6 +363,46 @@ export const UnquoteApp = ({
     format: result.format,
     isCopyBlocked,
   });
+  const recordViewActions = useMemo<RecordViewActions>(
+    () => ({
+      togglePath: workspace.togglePath,
+      copyRecord: onCopyRecord,
+      copyRawLine: handleCopyRawLine,
+      copyError: onCopyRecordError,
+      selectNode: workspace.selectNode,
+      hydrateRecord: localFileSource.hydrateRecord,
+      clearFocus: workspace.clearFocus,
+    }),
+    [
+      handleCopyRawLine,
+      localFileSource.hydrateRecord,
+      onCopyRecord,
+      onCopyRecordError,
+      workspace.clearFocus,
+      workspace.selectNode,
+      workspace.togglePath,
+    ],
+  );
+  const recordView = useMemo<RecordViewModel>(
+    () => ({
+      state: {
+        recordInsights,
+        hydratedRecords: localFileSource.hydratedRecords,
+        expandedStringifiedPathsByRecord: displayedExpandedStringifiedPathsByRecord,
+        selectedPath,
+        focusedPath,
+      },
+      actions: recordViewActions,
+    }),
+    [
+      displayedExpandedStringifiedPathsByRecord,
+      focusedPath,
+      localFileSource.hydratedRecords,
+      recordInsights,
+      recordViewActions,
+      selectedPath,
+    ],
+  );
 
   const handleExpandAll = () => {
     workspace.expandAll(visibleRecords, displayedExpandedStringifiedPathsByRecord);
@@ -372,13 +411,6 @@ export const UnquoteApp = ({
   const handleCollapseAll = () => {
     workspace.collapseAll(visibleRecords.map((record) => record.id));
   };
-
-  const handleTogglePath = useCallback(
-    (recordId: string, path: string) => {
-      workspace.togglePath(recordId, path);
-    },
-    [workspace.togglePath],
-  );
 
   const getSelectedNodeContext = async () => {
     if (!selectedPath) {
@@ -433,21 +465,6 @@ export const UnquoteApp = ({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [commandPaletteOpen, handleCopySelectedSubtree, selectedPath]);
 
-  const handleSelectNode = useCallback(
-    (record: JsonlRecord, row: TreeRow) => {
-      workspace.selectNode(record, row);
-    },
-    [workspace.selectNode],
-  );
-
-  const handleSelectRecord = (record: JsonlRecord) => {
-    workspace.selectRecord(record);
-  };
-
-  const handleSelectAgentDetail = (selection: AgentDetailSelection) => {
-    workspace.selectAgentDetail(selection);
-  };
-
   const handleOverviewErrorSelect = (recordId: string) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
     if (!record) {
@@ -455,15 +472,8 @@ export const UnquoteApp = ({
     }
 
     queryIntent.setFilter("errors");
-    handleSelectRecord(record);
+    workspace.selectRecord(record);
   };
-
-  const handleActiveRecordChange = useCallback(
-    (recordId: string) => {
-      workspace.reportActiveRecord(recordId);
-    },
-    [workspace.reportActiveRecord],
-  );
 
   const statsLabel =
     recordFilter === "all"
@@ -580,22 +590,11 @@ export const UnquoteApp = ({
       ) : null}
       <RecordList
         records={visibleRecords}
-        recordInsights={recordInsights}
-        hydratedRecords={localFileSource.hydratedRecords}
-        expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
+        recordView={recordView}
         searchMatches={visibleMatches ?? noSearchMatches}
         activeMatch={activeMatch}
         scrollIntent={scrollIntent}
-        selectedPath={selectedPath}
-        focusedPath={focusedPath}
-        onTogglePath={handleTogglePath}
-        onCopyRecord={onCopyRecord}
-        onCopyRawLine={handleCopyRawLine}
-        onCopyError={onCopyRecordError}
-        onSelectNode={handleSelectNode}
-        onActiveRecordChange={handleActiveRecordChange}
-        onHydrateRecord={localFileSource.hydrateRecord}
-        onClearFocus={workspace.clearFocus}
+        onActiveRecordChange={workspace.reportActiveRecord}
       />
     </div>
   );
@@ -619,20 +618,9 @@ export const UnquoteApp = ({
         <AgentSessionView
           session={agentSession}
           recordsById={recordsById}
-          hydratedRecords={localFileSource.hydratedRecords}
-          recordInsights={recordInsights}
-          expandedStringifiedPathsByRecord={displayedExpandedStringifiedPathsByRecord}
-          selectedPath={selectedPath}
-          focusedPath={focusedPath}
+          recordView={recordView}
           detailSelection={detailSelection}
-          onDetailSelectionChange={handleSelectAgentDetail}
-          onTogglePath={handleTogglePath}
-          onCopyRecord={onCopyRecord}
-          onCopyRawLine={handleCopyRawLine}
-          onCopyError={onCopyRecordError}
-          onSelectNode={handleSelectNode}
-          onHydrateRecord={localFileSource.hydrateRecord}
-          onClearFocus={workspace.clearFocus}
+          onDetailSelectionChange={workspace.selectAgentDetail}
         />
       </TabsContent>
       <TabsContent value="json">{jsonOutput}</TabsContent>
@@ -723,7 +711,7 @@ export const UnquoteApp = ({
                     totalCount={result.stats.total}
                     activeRecordId={activeRecordId}
                     selectedRecordId={selectedRecordId}
-                    onSelect={handleSelectRecord}
+                    onSelect={workspace.selectRecord}
                     onCopyRawLine={handleCopyRawLine}
                   />
                 ) : null}

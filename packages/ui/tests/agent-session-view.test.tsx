@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionView, type AgentDetailSelection } from "../src/components/agent-session-view";
 import { I18nProvider } from "../src/i18n/context";
 import type { AgentSession } from "../src/lib/agent-session";
+import type { RecordViewState } from "../src/lib/record-view";
 
 const rawLines = [
   '{"type":"session_meta","payload":{"session_id":"session-1"},"nested":"{\\"a\\":1}"}',
@@ -114,7 +115,10 @@ class MockResizeObserver {
   unobserve() {}
 }
 
-const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> = {}) => {
+const renderView = (
+  overrides: Partial<ComponentProps<typeof AgentSessionView>> = {},
+  stateOverrides: Partial<RecordViewState> = {},
+) => {
   const callbacks = {
     onDetailSelectionChange: vi.fn(),
     onTogglePath: vi.fn(),
@@ -128,13 +132,27 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> 
   const props: ComponentProps<typeof AgentSessionView> = {
     session,
     recordsById: recordMap,
-    hydratedRecords: new Map(),
-    recordInsights: new Map(),
-    expandedStringifiedPathsByRecord: new Map(),
-    selectedPath: { recordId: "record-1", pathText: "$" },
-    focusedPath: { recordId: "record-1", pathText: "$" },
+    recordView: {
+      state: {
+        hydratedRecords: new Map(),
+        recordInsights: new Map(),
+        expandedStringifiedPathsByRecord: new Map(),
+        selectedPath: { recordId: "record-1", pathText: "$" },
+        focusedPath: { recordId: "record-1", pathText: "$" },
+        ...stateOverrides,
+      },
+      actions: {
+        togglePath: callbacks.onTogglePath,
+        copyRecord: callbacks.onCopyRecord,
+        copyRawLine: callbacks.onCopyRawLine,
+        copyError: callbacks.onCopyError,
+        selectNode: callbacks.onSelectNode,
+        hydrateRecord: callbacks.onHydrateRecord,
+        clearFocus: callbacks.onClearFocus,
+      },
+    },
     detailSelection: null,
-    ...callbacks,
+    onDetailSelectionChange: callbacks.onDetailSelectionChange,
     ...overrides,
   };
   const view = render(
@@ -214,11 +232,10 @@ describe("AgentSessionView", () => {
 
   it("forwards copy actions for a selected parse-error record", () => {
     const selection: AgentDetailSelection = { kind: "record", recordId: "record-3" };
-    const { callbacks } = renderView({
-      detailSelection: selection,
-      selectedPath: null,
-      focusedPath: null,
-    });
+    const { callbacks } = renderView(
+      { detailSelection: selection },
+      { selectedPath: null, focusedPath: null },
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Copy raw line" }));
     fireEvent.click(screen.getByRole("button", { name: "Copy error" }));
@@ -228,15 +245,16 @@ describe("AgentSessionView", () => {
   });
 
   it("shows the role and record linked from a conversation selection", () => {
-    renderView({
-      detailSelection: {
-        kind: "conversation",
-        id: "conversation-1",
-        recordId: "record-2",
+    renderView(
+      {
+        detailSelection: {
+          kind: "conversation",
+          id: "conversation-1",
+          recordId: "record-2",
+        },
       },
-      selectedPath: null,
-      focusedPath: null,
-    });
+      { selectedPath: null, focusedPath: null },
+    );
 
     expect(screen.getAllByText("User").length).toBeGreaterThan(1);
     expect(screen.getByRole("complementary", { name: "Raw JSONL" })).toHaveTextContent(
@@ -245,15 +263,16 @@ describe("AgentSessionView", () => {
   });
 
   it("falls back to the event raw line when its record is unavailable", () => {
-    renderView({
-      detailSelection: { kind: "event", id: "event-3", recordId: "record-3" },
-      recordsById: new Map([
-        ["record-1", records[0]!],
-        ["record-2", records[1]!],
-      ]),
-      selectedPath: null,
-      focusedPath: null,
-    });
+    renderView(
+      {
+        detailSelection: { kind: "event", id: "event-3", recordId: "record-3" },
+        recordsById: new Map([
+          ["record-1", records[0]!],
+          ["record-2", records[1]!],
+        ]),
+      },
+      { selectedPath: null, focusedPath: null },
+    );
 
     expect(screen.getByRole("complementary", { name: "Raw JSONL" })).toHaveTextContent("not json");
     expect(screen.queryByRole("button", { name: "Copy raw line" })).not.toBeInTheDocument();
@@ -268,12 +287,10 @@ describe("AgentSessionView", () => {
       conversationItems: [],
       parseWarnings: [],
     };
-    renderView({
-      session: emptySession,
-      recordsById: new Map(),
-      selectedPath: null,
-      focusedPath: null,
-    });
+    renderView(
+      { session: emptySession, recordsById: new Map() },
+      { selectedPath: null, focusedPath: null },
+    );
 
     expect(screen.getByText("No conversation items in this session")).toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Raw JSONL" })).not.toBeInTheDocument();
