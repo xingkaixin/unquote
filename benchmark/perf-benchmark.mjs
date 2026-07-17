@@ -578,7 +578,14 @@ const benchmarkRender = async (fixturesInfo) => {
     "--window-size=1440,900",
     "about:blank",
   ];
-  const chrome = spawn(chromePath, chromeArguments, { stdio: ["ignore", "ignore", "pipe"] });
+  const chromeEnvironment = { ...process.env };
+  if (process.platform === "linux" && process.env.CI === "true") {
+    delete chromeEnvironment.DBUS_SESSION_BUS_ADDRESS;
+  }
+  const chrome = spawn(chromePath, chromeArguments, {
+    env: chromeEnvironment,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
   let chromeStderr = "";
   let chromeExit = null;
   chrome.stderr.on("data", (chunk) => {
