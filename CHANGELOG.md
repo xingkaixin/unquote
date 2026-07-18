@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.10.0] - 2026-07-18
+
+### Added
+
+- Pull requests that affect parsing or rendering now publish a non-blocking benchmark report for performance tracking.
+- The web app now ships a Content Security Policy.
+
+### Changed
+
+- The web app no longer stores source input in the URL hash and clears legacy source hashes on load, so payloads are not retained in shared URLs or browser history.
+- Repeated searches, mixed-validity JSONL parsing, and streamed record or Agent session updates now reuse work and publish fewer intermediate snapshots, improving responsiveness under sustained JSONL workloads.
+- Dropdown motion, progress feedback, toolbar sizing, and semantic state colors were refined while preserving reduced-motion behavior.
+- The development baseline moved to Node.js 24, TypeScript 7, and Vitest 4, with coverage thresholds added to the release quality gate.
+- `@unquote/core` now exposes only documented parser capabilities; the implementation-only `buildNode`, `detectFormat`, `expandNode`, `extractSummary`, `isJsonContainer`, and `summarizePrimitive` exports were removed.
+- Web and extension app versions bumped to `0.10.0`.
+
+### Fixed
+
+- Regex searches no longer fall back to blocking the main thread when Web Workers are unavailable, and very large result sets no longer overflow match aggregation.
+- The Simplified Chinese extension manifest now uses a localized application name.
+
 ## [0.9.0] - 2026-07-13
 
 ### Changed

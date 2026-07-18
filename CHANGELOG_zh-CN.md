@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.10.0] - 2026-07-18
+
+### Added
+
+- 影响解析或渲染的 Pull Request 现在会生成非阻塞的基准报告，用于持续跟踪性能。
+- Web 应用现在提供 Content Security Policy。
+
+### Changed
+
+- Web 应用不再把源输入存入 URL hash，并会在加载时清除旧版 source hash，避免 payload 被保留在分享链接或浏览器历史中。
+- 重复搜索、包含无效记录的 JSONL 解析，以及流式记录或 Agent 会话更新现在会复用已有工作并减少中间快照发布，提升持续 JSONL 工作负载下的响应速度。
+- 下拉菜单动效、进度反馈、Toolbar 尺寸和语义状态颜色得到统一，同时保留减少动效行为。
+- 开发基线升级到 Node.js 24、TypeScript 7 和 Vitest 4，并在发布质量门禁中加入覆盖率阈值。
+- `@unquote/core` 现在只暴露已记录的解析器能力；移除了仅供内部实现使用的 `buildNode`、`detectFormat`、`expandNode`、`extractSummary`、`isJsonContainer` 和 `summarizePrimitive` 导出。
+- Web 和扩展应用版本升级到 `0.10.0`。
+
+### Fixed
+
+- Web Worker 不可用时，正则搜索不再回退到阻塞主线程；超大搜索结果集也不再导致匹配聚合溢出。
+- 简体中文扩展 manifest 现在使用本地化应用名称。
+
 ## [0.9.0] - 2026-07-13
 
 ### Changed
