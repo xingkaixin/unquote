@@ -64,7 +64,9 @@ const TocRow = ({
             <span className="font-mono text-[11px] text-text-muted">#{record.lineNumber}</span>
             <span className="inline-flex items-center gap-1.5">
               <span className={`nf-led ${parsed ? "is-green is-static" : "is-red"}`} />
-              <Badge variant={variant}>{parsed ? "ok" : "err"}</Badge>
+              <Badge variant={variant} translate="no">
+                {parsed ? "ok" : "err"}
+              </Badge>
             </span>
           </div>
           <span className="truncate text-[12px] text-text-secondary">

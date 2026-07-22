@@ -1,4 +1,4 @@
-import type { FileOverview as FileOverviewModel } from "../lib/file-overview";
+import type { FileOverview as FileOverviewModel, OverviewField } from "../lib/file-overview";
 import {
   CheckCircle2,
   ChevronDown,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
+import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -34,15 +35,10 @@ interface MetricItem {
 const errorPreviewLimit = 8;
 const detailsId = "file-overview-details";
 
-const fieldLabel = (field: string) => {
-  switch (field) {
-    case "tool":
-      return "tool";
-    case "type":
-      return "type";
-    default:
-      return "event";
-  }
+const fieldLabelKey: Record<OverviewField, MessageKey> = {
+  tool: "overview.field.tool",
+  type: "overview.field.type",
+  event: "overview.field.event",
 };
 
 const EmptyList = ({ label }: { label: string }) => (
@@ -205,7 +201,7 @@ export const FileOverview = ({
                           {item.value}
                         </span>
                         <span className="block truncate font-mono text-[10px] text-text-muted">
-                          {fieldLabel(item.field)} · {item.pathText}
+                          {t(fieldLabelKey[item.field])} · {item.pathText}
                         </span>
                       </span>
                       <span className="inline-flex shrink-0 border border-border bg-surface-200 px-2 py-0.5 font-mono text-[10px] text-text-secondary">
