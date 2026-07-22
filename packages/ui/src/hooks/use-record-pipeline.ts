@@ -50,6 +50,10 @@ export const useRecordPipeline = ({
 }: RecordPipelineParams): RecordPipeline => {
   const overviewStateRef = useRef(createFileOverviewState());
   const recordInsightStateRef = useRef(createRecordInsightMapState());
+  const recordsByIdStateRef = useRef<{
+    records: JsonlRecord[] | null;
+    map: Map<string, JsonlRecord>;
+  }>({ records: null, map: new Map() });
 
   const matches = searchMatches;
 
@@ -57,10 +61,36 @@ export const useRecordPipeline = ({
     () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
     [result.records],
   );
-  const recordsById = useMemo(
-    () => new Map(result.records.map((record) => [record.id, record])),
-    [result.records],
-  );
+  const recordsById = useMemo(() => {
+    const state = recordsByIdStateRef.current;
+    const { records } = result;
+    const prevRecords = state.records;
+    let hasUnchangedPrefix = prevRecords !== null && prevRecords.length <= records.length;
+    for (
+      let index = 0;
+      hasUnchangedPrefix && prevRecords && index < prevRecords.length;
+      index += 1
+    ) {
+      if (prevRecords[index] !== records[index]) {
+        hasUnchangedPrefix = false;
+      }
+    }
+
+    // Streaming appends reuse the same Map instance so downstream consumers
+    // relying on referential stability (like the stream publisher's array
+    // reuse) don't see a spurious change on every animation frame.
+    if (hasUnchangedPrefix && prevRecords) {
+      for (let index = prevRecords.length; index < records.length; index += 1) {
+        const record = records[index]!;
+        state.map.set(record.id, record);
+      }
+    } else {
+      state.map = new Map(records.map((record) => [record.id, record]));
+    }
+
+    state.records = records;
+    return state.map;
+  }, [result.records]);
   const visibleRecords = useMemo(
     () => filterRecords(result.records, recordFilter, matches, recordInsights),
     [matches, recordFilter, recordInsights, result.records],
