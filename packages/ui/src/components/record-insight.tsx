@@ -16,6 +16,7 @@ import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import type { RecordInsight } from "../lib/record-insight";
 import { Badge } from "./badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 interface RecordInsightSummaryProps {
   insight: RecordInsight;
@@ -108,15 +109,20 @@ export const RecordInsightSummary = ({ insight, compact = false }: RecordInsight
       {visibleChips.map((chip) => {
         const Icon = chip.icon;
         return (
-          <Badge
-            key={chip.key}
-            variant={chip.variant}
-            className={`max-w-full min-w-0 gap-1 ${chip.className ?? ""}`}
-            title={chip.label}
-          >
-            <Icon className="size-3 shrink-0" />
-            <span className="min-w-0 truncate">{chip.label}</span>
-          </Badge>
+          <Tooltip key={chip.key}>
+            <TooltipTrigger
+              render={
+                <Badge
+                  variant={chip.variant}
+                  className={`max-w-full min-w-0 gap-1 ${chip.className ?? ""}`}
+                >
+                  <Icon className="size-3 shrink-0" />
+                  <span className="min-w-0 truncate">{chip.label}</span>
+                </Badge>
+              }
+            />
+            <TooltipContent>{chip.label}</TooltipContent>
+          </Tooltip>
         );
       })}
       {compact && chips.length > visibleChips.length ? (
