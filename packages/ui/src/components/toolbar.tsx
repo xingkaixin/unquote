@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 interface ToolbarProps {
   leading?: ReactNode;
@@ -137,16 +138,22 @@ export const Toolbar = ({
         </div>
       </form>
       <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 px-3"
-          onClick={onOpenCommandPalette}
-          title={`${t("command.open")} · ${shortcut}`}
-        >
-          <PanelTopOpen className="size-3.5" />
-          <span className="hidden sm:inline">{t("command.openShort")}</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 px-3"
+                onClick={onOpenCommandPalette}
+              >
+                <PanelTopOpen className="size-3.5" />
+                <span className="hidden sm:inline">{t("command.openShort")}</span>
+              </Button>
+            }
+          />
+          <TooltipContent>{`${t("command.open")} · ${shortcut}`}</TooltipContent>
+        </Tooltip>
         <Button
           variant={hasExpandedStringified ? "secondary" : "default"}
           size="sm"

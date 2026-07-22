@@ -14,6 +14,7 @@ import { ThemeToggle } from "./components/theme-toggle";
 import { TocPane } from "./components/toc-pane";
 import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useParser } from "./hooks/use-parser";
@@ -556,15 +557,21 @@ export const UnquoteApp = ({
   // output's top row instead of reserving a full-height column. Desktop-only:
   // the mobile layout never uses the collapse.
   const expandSourceControl = sourceCollapsed ? (
-    <button
-      type="button"
-      className="uq-icon-button hidden size-7 shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
-      onClick={() => setSourceCollapsed(false)}
-      aria-label={t("input.expandSource")}
-      title={t("input.expandSource")}
-    >
-      <PanelLeftOpen className="size-3.5" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className="uq-icon-button hidden size-7 shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
+            onClick={() => setSourceCollapsed(false)}
+            aria-label={t("input.expandSource")}
+          >
+            <PanelLeftOpen className="size-3.5" />
+          </button>
+        }
+      />
+      <TooltipContent>{t("input.expandSource")}</TooltipContent>
+    </Tooltip>
   ) : null;
   const jsonOutput = (
     <div ref={outputRef} className="flex flex-col gap-3">
@@ -660,107 +667,109 @@ export const UnquoteApp = ({
   );
 
   return (
-    <div
-      className="uq-shell pb-8"
-      data-source-file={sourceFile?.name ?? ""}
-      data-parse-state={progress.done ? "complete" : "pending"}
-      data-agent-session={agentSession ? "true" : "false"}
-      data-output-view={agentSession ? outputView : "json"}
-      data-search-query={searchQuery}
-      data-search-state={searchStatus}
-    >
-      <a
-        href="#main-content"
-        className="sr-only fixed left-4 top-2 z-50 bg-surface-100 px-3 py-2 text-[12px] text-text-primary focus:not-sr-only focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    <TooltipProvider delay={600} closeDelay={0}>
+      <div
+        className="uq-shell pb-8"
+        data-source-file={sourceFile?.name ?? ""}
+        data-parse-state={progress.done ? "complete" : "pending"}
+        data-agent-session={agentSession ? "true" : "false"}
+        data-output-view={agentSession ? outputView : "json"}
+        data-search-query={searchQuery}
+        data-search-state={searchStatus}
       >
-        {t("app.skipToContent")}
-      </a>
-      <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
-        <div className="flex items-center gap-3.5">
-          <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
-            UNQUOTE
-          </h1>
-          <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
-            JSON · JSONL
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          {chromeWebStoreUrl ? (
-            <a
-              href={chromeWebStoreUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
-            >
-              <Store className="size-3.5" />
-              <span className="hidden sm:inline">{t("app.chrome")}</span>
-            </a>
-          ) : null}
-          <LocaleToggle />
-          <ThemeToggle theme={theme} onChange={setTheme} />
-        </div>
-      </header>
+        <a
+          href="#main-content"
+          className="sr-only fixed left-4 top-2 z-50 bg-surface-100 px-3 py-2 text-[12px] text-text-primary focus:not-sr-only focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {t("app.skipToContent")}
+        </a>
+        <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
+          <div className="flex items-center gap-3.5">
+            <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
+              UNQUOTE
+            </h1>
+            <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
+              JSON · JSONL
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {chromeWebStoreUrl ? (
+              <a
+                href={chromeWebStoreUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
+              >
+                <Store className="size-3.5" />
+                <span className="hidden sm:inline">{t("app.chrome")}</span>
+              </a>
+            ) : null}
+            <LocaleToggle />
+            <ThemeToggle theme={theme} onChange={setTheme} />
+          </div>
+        </header>
 
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto flex w-full max-w-[1760px] scroll-mt-[52px] flex-col gap-3 px-4 pb-6 pt-3.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent sm:px-6"
-      >
-        {isDesktopWorkspace ? (
-          sourceCollapsed ? (
-            <div className="min-w-0">{output}</div>
-          ) : (
-            <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
-              <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
-                {inputPane}
-                {hasJsonlRecords(result) ? (
-                  <TocPane
-                    records={visibleRecords}
-                    recordInsights={recordInsights}
-                    stats={visibleStats}
-                    totalCount={result.stats.total}
-                    activeRecordId={activeRecordId}
-                    selectedRecordId={selectedRecordId}
-                    onSelect={workspace.selectRecord}
-                    onCopyRawLine={handleCopyRawLine}
-                  />
-                ) : null}
-              </div>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto flex w-full max-w-[1760px] scroll-mt-[52px] flex-col gap-3 px-4 pb-6 pt-3.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent sm:px-6"
+        >
+          {isDesktopWorkspace ? (
+            sourceCollapsed ? (
               <div className="min-w-0">{output}</div>
-            </div>
-          )
-        ) : (
-          <Tabs defaultValue="workspace" className="flex flex-col gap-3">
-            <TabsList>
-              <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
-              <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="workspace">{inputPane}</TabsContent>
-            <TabsContent value="output">{output}</TabsContent>
-          </Tabs>
-        )}
-      </main>
-      <CommandPalette
-        open={commandPaletteOpen}
-        inputValue={commandInput}
-        regex={searchRegex}
-        caseSensitive={searchCaseSensitive}
-        jq={searchJq}
-        matchCount={matchCount}
-        pathMatchCount={pathMatches.length}
-        visibleCount={visibleStats.total}
-        totalCount={result.stats.total}
-        filterMode={recordFilter}
-        onClose={() => setCommandPaletteOpen(false)}
-        onInputChange={queryIntent.changeCommandInput}
-        onSearch={queryIntent.searchFromCommand}
-        onJumpPath={queryIntent.submitToolbarQuery}
-        onRegexChange={(value) => queryIntent.setOption("regex", value)}
-        onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
-        onJqChange={(value) => queryIntent.setOption("jq", value)}
-        onFilterChange={queryIntent.setFilter}
-      />
-      <Toaster theme={theme} />
-    </div>
+            ) : (
+              <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
+                <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
+                  {inputPane}
+                  {hasJsonlRecords(result) ? (
+                    <TocPane
+                      records={visibleRecords}
+                      recordInsights={recordInsights}
+                      stats={visibleStats}
+                      totalCount={result.stats.total}
+                      activeRecordId={activeRecordId}
+                      selectedRecordId={selectedRecordId}
+                      onSelect={workspace.selectRecord}
+                      onCopyRawLine={handleCopyRawLine}
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0">{output}</div>
+              </div>
+            )
+          ) : (
+            <Tabs defaultValue="workspace" className="flex flex-col gap-3">
+              <TabsList>
+                <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
+                <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="workspace">{inputPane}</TabsContent>
+              <TabsContent value="output">{output}</TabsContent>
+            </Tabs>
+          )}
+        </main>
+        <CommandPalette
+          open={commandPaletteOpen}
+          inputValue={commandInput}
+          regex={searchRegex}
+          caseSensitive={searchCaseSensitive}
+          jq={searchJq}
+          matchCount={matchCount}
+          pathMatchCount={pathMatches.length}
+          visibleCount={visibleStats.total}
+          totalCount={result.stats.total}
+          filterMode={recordFilter}
+          onClose={() => setCommandPaletteOpen(false)}
+          onInputChange={queryIntent.changeCommandInput}
+          onSearch={queryIntent.searchFromCommand}
+          onJumpPath={queryIntent.submitToolbarQuery}
+          onRegexChange={(value) => queryIntent.setOption("regex", value)}
+          onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
+          onJqChange={(value) => queryIntent.setOption("jq", value)}
+          onFilterChange={queryIntent.setFilter}
+        />
+        <Toaster theme={theme} />
+      </div>
+    </TooltipProvider>
   );
 };

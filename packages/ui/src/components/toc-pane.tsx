@@ -10,6 +10,7 @@ import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
 import { RecordInsightSummary } from "./record-insight";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 export const tocVirtualizationThreshold = 160;
 const tocRowEstimateSize = 64;
@@ -76,16 +77,22 @@ const TocRow = ({
         </div>
       </button>
       {!parsed ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="m-1 h-auto w-8 shrink-0 px-0"
-          aria-label={t("error.copyRawLine")}
-          title={t("error.copyRawLine")}
-          onClick={() => onCopyRawLine(record)}
-        >
-          <Copy className="size-3.5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="m-1 h-auto w-8 shrink-0 px-0"
+                aria-label={t("error.copyRawLine")}
+                onClick={() => onCopyRawLine(record)}
+              >
+                <Copy className="size-3.5" />
+              </Button>
+            }
+          />
+          <TooltipContent>{t("error.copyRawLine")}</TooltipContent>
+        </Tooltip>
       ) : null}
     </div>
   );
