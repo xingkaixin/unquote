@@ -16,7 +16,9 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
+import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
+import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useParser } from "./hooks/use-parser";
 import { useQueryInteraction } from "./hooks/use-query-interaction";
 import type { QueryNavigationTarget } from "./hooks/use-query-interaction";
@@ -26,34 +28,16 @@ import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { hasJsonlRecords, resolveTreePath } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
+import { formatFileSize } from "./lib/format";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
 import { sourceSamples } from "./lib/source-samples";
+import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 import type { SearchMatch } from "./lib/tree";
 
 import type { SelectedPath } from "./hooks/use-workspace-session";
-
-const formatFileSize = (bytes: number) => {
-  const units = ["B", "KB", "MB", "GB"] as const;
-  let value = bytes;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  const formatted = unitIndex === 0 || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
-  return `${formatted} ${units[unitIndex]}`;
-};
-
-const isTextEditingElement = (element: Element | null) =>
-  element instanceof HTMLInputElement ||
-  element instanceof HTMLTextAreaElement ||
-  element instanceof HTMLSelectElement ||
-  (element instanceof HTMLElement && element.isContentEditable);
 
 const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
   const valueText = JSON.stringify(value, null, 2);
@@ -66,21 +50,7 @@ const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-const desktopWorkspaceQuery = "(min-width: 64rem)";
 const noSearchMatches: SearchMatch[] = [];
-
-const useDesktopWorkspace = () => {
-  const mediaQuery = useMemo(() => window.matchMedia(desktopWorkspaceQuery), []);
-  const [isDesktop, setIsDesktop] = useState(mediaQuery.matches);
-
-  useEffect(() => {
-    const syncViewport = () => setIsDesktop(mediaQuery.matches);
-    mediaQuery.addEventListener("change", syncViewport);
-    return () => mediaQuery.removeEventListener("change", syncViewport);
-  }, [mediaQuery]);
-
-  return isDesktop;
-};
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -334,21 +304,6 @@ export const UnquoteApp = ({
   }, [queryIntent]);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        handleOpenCommandPalette();
-      }
-      if (event.key === "Escape") {
-        setCommandPaletteOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleOpenCommandPalette]);
-
-  useEffect(() => {
     workspace.reconcileVisibleRecords(visibleRecords);
   }, [visibleRecords, workspace.reconcileVisibleRecords]);
 
@@ -453,28 +408,43 @@ export const UnquoteApp = ({
     }
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
-        return;
-      }
+  // Global shortcut command table. Shortcuts are read via a ref inside the
+  // hook (listener mounts once), so this array can be a fresh literal every
+  // render without churn.
+  useGlobalShortcuts([
+    {
+      matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
+      allowInTextEditing: true,
+      handler: () => {
+        handleOpenCommandPalette();
+      },
+    },
+    {
+      matches: (event) => event.key === "Escape",
+      allowInTextEditing: true,
+      // Escape never preventDefault()s: it has no browser default to suppress here.
+      handler: () => {
+        setCommandPaletteOpen(false);
+        return false;
+      },
+    },
+    {
+      matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
+      handler: () => {
+        if (!selectedPath || commandPaletteOpen) {
+          return false;
+        }
+        // A non-empty window selection means the user is copying selected text,
+        // not a subtree — let the browser's default copy proceed.
+        const selectedText = window.getSelection?.()?.toString() ?? "";
+        if (selectedText) {
+          return false;
+        }
 
-      if (!selectedPath || commandPaletteOpen) {
-        return;
-      }
-
-      const selectedText = window.getSelection?.()?.toString() ?? "";
-      if (selectedText || isTextEditingElement(document.activeElement)) {
-        return;
-      }
-
-      event.preventDefault();
-      void handleCopySelectedSubtree();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [commandPaletteOpen, handleCopySelectedSubtree, selectedPath]);
+        void handleCopySelectedSubtree();
+      },
+    },
+  ]);
 
   const handleOverviewErrorSelect = (recordId: string) => {
     const record = result.records.find((candidate) => candidate.id === recordId);
@@ -486,25 +456,6 @@ export const UnquoteApp = ({
     workspace.selectRecord(record);
   };
 
-  const statsLabel =
-    recordFilter === "all"
-      ? t("stats.label", {
-          total: result.stats.total,
-          success: result.stats.success,
-          failed: result.stats.failed,
-        })
-      : t("stats.filteredLabel", {
-          shown: visibleStats.total,
-          total: result.stats.total,
-          success: visibleStats.success,
-          failed: visibleStats.failed,
-        });
-  const progressLabel = progress.done
-    ? statsLabel
-    : `${statsLabel} · ${t("stats.progress", {
-        processed: progress.processedLines,
-        elapsed: Math.round(progress.elapsedMs),
-      })}`;
   const statusFile = sourceFile ?? importedFile;
   const sourceFileStatus = readingFile
     ? t("input.readingFile", {
@@ -519,37 +470,35 @@ export const UnquoteApp = ({
         })
       : undefined;
   const sourceFileBusy = Boolean(readingFile || (statusFile && !progress.done));
-  const filterLabel = (() => {
-    switch (recordFilter) {
-      case "matches":
-        return t("filter.matches");
-      case "errors":
-        return t("filter.errors");
-      case "nested":
-        return t("filter.nested");
-      case "tool":
-        return t("filter.tools");
-      case "message":
-        return t("filter.messages");
-      case "events":
-        return t("filter.events");
-      case "all":
-        return t("filter.all");
-    }
-  })();
-  const searchErrorLabel =
-    searchQuery && searchStatus === "error"
-      ? t(searchErrorKind === "timeout" ? "search.timeout" : "search.failed")
-      : null;
-  const toolbarSummary = pathError
-    ? pathError
-    : searchErrorLabel
-      ? searchErrorLabel
-      : searchQuery || recordFilter !== "all"
-        ? `${filterLabel} · ${visibleStats.total}/${result.stats.total} · ${
-            searchQuery ? `${matchCount} ${t("filter.matches")}` : progressLabel
-          }`
-        : progressLabel;
+  const toolbarSummary = useMemo(
+    () =>
+      buildToolbarSummary(
+        {
+          progress,
+          stats: result.stats,
+          visibleStats,
+          recordFilter,
+          searchQuery,
+          searchStatus,
+          searchErrorKind,
+          pathError,
+          matchCount,
+        },
+        t,
+      ),
+    [
+      matchCount,
+      pathError,
+      progress,
+      recordFilter,
+      result.stats,
+      searchErrorKind,
+      searchQuery,
+      searchStatus,
+      t,
+      visibleStats,
+    ],
+  );
   const toolbarInPathMode = queryMode === "path";
   const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
   const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
