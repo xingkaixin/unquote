@@ -16,7 +16,7 @@
   --color-text-primary: #1a1a18;
   --color-text-secondary: #5c5c55;
   --color-text-tertiary: #6c6c65;
-  --color-text-muted: #97978f;
+  --color-text-muted: #6f6f68;
 
   /* --- Semantic --- */
   --color-accent: #f26522;
@@ -29,7 +29,7 @@
   --color-code-string: #3a7d52;
   --color-code-number: #9a6a33;
   --color-code-boolean: #46689e;
-  --color-code-null: #a8a8a2;
+  --color-code-null: #737370;
   --color-code-key: #6c6c66;
 
   /* --- Borders --- */
@@ -72,7 +72,7 @@
   --syn-string: #3a7d52;
   --syn-number: #9a6a33;
   --syn-bool: #46689e;
-  --syn-null: #a8a8a2;
+  --syn-null: #737370;
   --dot: rgba(38, 38, 34, 0.09);
   --radius-card: 16px;
   --radius-overlay: 12px;
@@ -97,7 +97,7 @@
   --color-text-primary: #e8e8e8;
   --color-text-secondary: #a6a6a6;
   --color-text-tertiary: #8f8f8f;
-  --color-text-muted: #7d7d7d;
+  --color-text-muted: #828282;
 
   --color-accent: #f26522;
   --color-accent-hover: #ff7a36;
@@ -108,7 +108,7 @@
   --color-code-string: #7bb389;
   --color-code-number: #d6a76a;
   --color-code-boolean: #88a6d2;
-  --color-code-null: #5f5f5a;
+  --color-code-null: #82827d;
   --color-code-key: #9b9b95;
 
   --color-border: #222222;
@@ -128,7 +128,7 @@
   --syn-string: #7bb389;
   --syn-number: #d6a76a;
   --syn-bool: #88a6d2;
-  --syn-null: #5f5f5a;
+  --syn-null: #82827d;
   --dot: rgba(255, 255, 255, 0.08);
   --shadow-glass: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 48px -16px rgba(0, 0, 0, 0.6);
 }
@@ -284,7 +284,7 @@ a,
 }
 
 .nf-dim {
-  color: var(--text-disabled);
+  color: var(--color-text-muted);
 }
 
 @keyframes nf-pulse {
