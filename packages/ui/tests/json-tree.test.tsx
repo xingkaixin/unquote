@@ -69,6 +69,23 @@ describe("JsonTree", () => {
     );
   });
 
+  it("scrolls the newly active row into view when not virtualized", () => {
+    // tests/setup.ts stubs HTMLElement.prototype.scrollIntoView (jsdom has no
+    // implementation); spy on that shared stub rather than Element.prototype,
+    // which sits further up the chain and would never be reached.
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+
+    renderTree();
+    const items = screen.getAllByRole("treeitem");
+    const tree = screen.getByRole("tree");
+
+    tree.focus();
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    expect((scrollIntoView.mock.instances[0] as HTMLElement).id).toBe(items[1]!.id);
+  });
+
   it("expands the focused collapsed item with ArrowRight", () => {
     const { onTogglePath, record } = renderTree();
     const tree = screen.getByRole("tree");

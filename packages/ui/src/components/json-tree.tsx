@@ -177,6 +177,10 @@ export const JsonTree = memo(function JsonTree({
           (row) => row.id === interactiveRows[nextIndex]!.id,
         );
         rowVirtualizer.scrollToIndex(displayIndex, { align: "auto" });
+      } else {
+        document
+          .getElementById(interactiveRows[nextIndex]!.id)
+          ?.scrollIntoView({ block: "nearest" });
       }
     }
   };
