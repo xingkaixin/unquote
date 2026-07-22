@@ -194,6 +194,36 @@ describe("reduceWorkspaceSelection", () => {
     expect(withoutScroll).toBe(current);
   });
 
+  it("adopts the first record on append when no record is active", () => {
+    const current = createInitialWorkspaceSelectionState();
+    const state = reduceWorkspaceSelection(current, {
+      type: "recordsAppended",
+      firstRecordId: "record-1",
+    });
+
+    expect(state.activeRecordId).toBe("record-1");
+  });
+
+  it("leaves an already-active record untouched on append", () => {
+    const current = createPopulatedState();
+    const state = reduceWorkspaceSelection(current, {
+      type: "recordsAppended",
+      firstRecordId: "record-2",
+    });
+
+    expect(state).toBe(current);
+  });
+
+  it("preserves state on append when there is no first record", () => {
+    const current = createInitialWorkspaceSelectionState();
+    const state = reduceWorkspaceSelection(current, {
+      type: "recordsAppended",
+      firstRecordId: null,
+    });
+
+    expect(state).toBe(current);
+  });
+
   it("updates the active record only when the reported record changes", () => {
     const current = createPopulatedState();
     const unchanged = reduceWorkspaceSelection(current, {

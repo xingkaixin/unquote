@@ -58,4 +58,55 @@ describe("useWorkspaceSession", () => {
       scrollIntent: null,
     });
   });
+
+  it("keeps selection references stable when visible records only append", () => {
+    const records = parseInput('{"value":1}\n{"value":2}\n{"value":3}', {
+      forcedFormat: "jsonl",
+    }).records;
+    const { result } = renderHook(() => useWorkspaceSession());
+
+    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!]));
+    act(() => {
+      result.current.selectPath({
+        recordId: records[1]!.id,
+        pathText: "$.value",
+        rawKey: "value",
+      });
+    });
+
+    const stateBeforeAppend = result.current.state;
+    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!, records[2]!]));
+
+    expect(result.current.state.activeRecordId).toBe(stateBeforeAppend.activeRecordId);
+    expect(result.current.state.selectedPath).toBe(stateBeforeAppend.selectedPath);
+    expect(result.current.state.detailSelection).toBe(stateBeforeAppend.detailSelection);
+    expect(result.current.state.focusedPath).toBe(stateBeforeAppend.focusedPath);
+    expect(result.current.state.scrollIntent).toBe(stateBeforeAppend.scrollIntent);
+  });
+
+  it("reconciles selection when visible records are replaced rather than appended", () => {
+    const records = parseInput('{"value":1}\n{"value":2}\n{"value":3}', {
+      forcedFormat: "jsonl",
+    }).records;
+    const { result } = renderHook(() => useWorkspaceSession());
+
+    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!]));
+    act(() => {
+      result.current.selectPath({
+        recordId: records[1]!.id,
+        pathText: "$.value",
+        rawKey: "value",
+      });
+    });
+
+    act(() => result.current.reconcileVisibleRecords([records[2]!]));
+
+    expect(result.current.state).toMatchObject({
+      activeRecordId: records[2]!.id,
+      detailSelection: null,
+      selectedPath: null,
+      focusedPath: null,
+      scrollIntent: null,
+    });
+  });
 });

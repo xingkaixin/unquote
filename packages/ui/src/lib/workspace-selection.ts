@@ -40,6 +40,7 @@ export type WorkspaceSelectionAction =
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
   | { type: "resetTransientSelection" }
   | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
+  | { type: "recordsAppended"; firstRecordId: string | null }
   | { type: "clearFocusedPath" }
   | { type: "clearScrollIntent" }
   | { type: "activeRecordReported"; recordId: string };
@@ -160,6 +161,15 @@ export const reduceWorkspaceSelection = (
 
     case "recordsVisibilityChanged":
       return reconcileWorkspaceSelection(state, action.recordIds);
+
+    case "recordsAppended":
+      // A pure append can never invalidate existing record-bound selection:
+      // reconcileWorkspaceSelection only drops values absent from the visible
+      // set, and appends only grow it. The only state an append can change is
+      // an unset active record, which should adopt the (still) first record.
+      return state.activeRecordId || !action.firstRecordId
+        ? state
+        : { ...state, activeRecordId: action.firstRecordId };
 
     case "clearFocusedPath":
       return state.focusedPath ? { ...state, focusedPath: null } : state;
