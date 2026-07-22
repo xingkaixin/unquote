@@ -94,11 +94,14 @@ export const JsonTree = memo(function JsonTree({
     return map;
   }, [searchMatches]);
 
-  const shouldVirtualize =
-    displayRows.length > virtualizationRowThreshold &&
-    displayRows.every(
-      (row) => row.valueText.length < inlineValueLengthLimit && !row.valueText.includes("\\n"),
-    );
+  const shouldVirtualize = useMemo(
+    () =>
+      displayRows.length > virtualizationRowThreshold &&
+      displayRows.every(
+        (row) => row.valueText.length < inlineValueLengthLimit && !row.valueText.includes("\\n"),
+      ),
+    [displayRows],
+  );
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,
     getScrollElement: () => parentRef.current,
