@@ -5,7 +5,7 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
-import { isArrayElementPath, isPathWithin } from "../lib/path-codec";
+import { isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
 import type { RecordViewActions } from "../lib/record-view";
@@ -14,6 +14,8 @@ import {
   targetsPathInRecord,
   type ScrollIntent,
 } from "../lib/scroll-intent";
+import { buildDisplayRows, getDisplayValueClassName } from "../lib/tree-display";
+import type { DisplayTreeRow } from "../lib/tree-display";
 import { buildRecordRows } from "../lib/tree";
 import type { SearchMatch, TextRange, TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
@@ -493,143 +495,6 @@ const clampRanges = (ranges: TextRange[], textLength: number) =>
     range.start < textLength ? [{ start: range.start, end: Math.min(range.end, textLength) }] : [],
   );
 
-type DisplayRowKind = "value" | "open" | "close" | "empty" | "collapsed";
-
-interface DisplayTreeRow {
-  id: string;
-  source: TreeRow;
-  kind: DisplayRowKind;
-  depth: number;
-  keyLabel: string | null;
-  valueText: string;
-  comma: boolean;
-  showToggle: boolean;
-}
-
-const isContainer = (row: TreeRow) => row.kind === "object" || row.kind === "array";
-
-const getDisplayKeyLabel = (row: TreeRow) => {
-  if (row.pathText === "$" || isArrayElementPath(row.pathText)) {
-    return null;
-  }
-
-  return row.keyLabel;
-};
-
-const getContainerOpen = (row: TreeRow) => (row.kind === "array" ? "[" : "{");
-
-const getContainerClose = (row: TreeRow) => (row.kind === "array" ? "]" : "}");
-
-const getEmptyContainer = (row: TreeRow) => (row.kind === "array" ? "[]" : "{}");
-
-const getCollapsedValue = (row: TreeRow) => {
-  const rawString = row.node.rawString;
-  if (typeof rawString === "string") {
-    return JSON.stringify(rawString);
-  }
-
-  return row.valueLabel;
-};
-
-const buildDisplayRows = (rows: TreeRow[]): DisplayTreeRow[] => {
-  const displayRows: DisplayTreeRow[] = [];
-  const openStack: TreeRow[] = [];
-
-  const closeUntilSiblingScope = (currentDepth: number) => {
-    while (openStack.length > 0 && openStack[openStack.length - 1]!.depth >= currentDepth) {
-      const source = openStack.pop()!;
-      displayRows.push({
-        id: `${source.id}:close`,
-        source,
-        kind: "close",
-        depth: source.depth,
-        keyLabel: null,
-        valueText: getContainerClose(source),
-        comma: source.depth === currentDepth,
-        showToggle: false,
-      });
-    }
-  };
-
-  rows.forEach((row, index) => {
-    closeUntilSiblingScope(row.depth);
-
-    const nextRow = rows[index + 1];
-    const hasVisibleChildren = isContainer(row) && row.expanded && nextRow?.depth === row.depth + 1;
-    const comma = nextRow?.depth === row.depth;
-
-    if (hasVisibleChildren) {
-      displayRows.push({
-        id: row.id,
-        source: row,
-        kind: "open",
-        depth: row.depth,
-        keyLabel: getDisplayKeyLabel(row),
-        valueText: getContainerOpen(row),
-        comma: false,
-        showToggle: row.wasStringified,
-      });
-      openStack.push(row);
-      return;
-    }
-
-    if (isContainer(row) && row.wasStringified && !row.expanded) {
-      displayRows.push({
-        id: row.id,
-        source: row,
-        kind: "collapsed",
-        depth: row.depth,
-        keyLabel: getDisplayKeyLabel(row),
-        valueText: getCollapsedValue(row),
-        comma,
-        showToggle: true,
-      });
-      return;
-    }
-
-    if (isContainer(row)) {
-      displayRows.push({
-        id: row.id,
-        source: row,
-        kind: "empty",
-        depth: row.depth,
-        keyLabel: getDisplayKeyLabel(row),
-        valueText: getEmptyContainer(row),
-        comma,
-        showToggle: row.wasStringified,
-      });
-      return;
-    }
-
-    displayRows.push({
-      id: row.id,
-      source: row,
-      kind: "value",
-      depth: row.depth,
-      keyLabel: getDisplayKeyLabel(row),
-      valueText: row.valueLabel,
-      comma,
-      showToggle: false,
-    });
-  });
-
-  while (openStack.length > 0) {
-    const source = openStack.pop()!;
-    displayRows.push({
-      id: `${source.id}:close`,
-      source,
-      kind: "close",
-      depth: source.depth,
-      keyLabel: null,
-      valueText: getContainerClose(source),
-      comma: false,
-      showToggle: false,
-    });
-  }
-
-  return displayRows;
-};
-
 interface RowItemProps {
   row: DisplayTreeRow;
   searchMatch?: SearchMatch | undefined;
@@ -757,33 +622,3 @@ const RowItem = memo(function RowItem({
     </div>
   );
 });
-
-const getDisplayValueClassName = (row: DisplayTreeRow) => {
-  if (row.kind === "open" || row.kind === "close" || row.kind === "empty") {
-    return "text-text-secondary";
-  }
-
-  if (row.kind === "collapsed") {
-    return "text-code-string";
-  }
-
-  return getValueClassName(row.source);
-};
-
-const getValueClassName = (row: TreeRow) => {
-  switch (row.kind) {
-    case "string":
-      return "text-code-string";
-    case "number":
-      return "text-code-number";
-    case "boolean":
-      return "text-code-boolean";
-    case "null":
-      return "text-code-null";
-    case "object":
-    case "array":
-      return "text-text-tertiary";
-    default:
-      return "text-text-secondary";
-  }
-};
