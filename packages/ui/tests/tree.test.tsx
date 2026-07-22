@@ -138,18 +138,23 @@ describe("tree paths", () => {
     );
   });
 
-  it("aggregates a record with more matches than the function argument limit", () => {
-    const values = Array.from({ length: oversizedMatchCount }, () => "needle");
-    const result = parseInput(JSON.stringify(values));
+  // Takes ~5s on slow CI runners, right at the default 5000ms timeout.
+  it(
+    "aggregates a record with more matches than the function argument limit",
+    { timeout: 15_000 },
+    () => {
+      const values = Array.from({ length: oversizedMatchCount }, () => "needle");
+      const result = parseInput(JSON.stringify(values));
 
-    const matches = searchRecords(result.records, "needle", {
-      regex: false,
-      caseSensitive: true,
-      jq: false,
-    });
+      const matches = searchRecords(result.records, "needle", {
+        regex: false,
+        caseSensitive: true,
+        jq: false,
+      });
 
-    expect(matches).toHaveLength(oversizedMatchCount);
-  });
+      expect(matches).toHaveLength(oversizedMatchCount);
+    },
+  );
 
   it("prefilters ordinary strings without skipping valid stringified JSON scalars", () => {
     const values = [
