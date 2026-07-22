@@ -3,6 +3,7 @@
   "version": "0.10.0",
   "private": true,
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",

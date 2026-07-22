@@ -50,6 +50,8 @@ pnpm check
 
 该命令依次检查格式、类型、lint、测试，并构建 Web 应用与 Chrome 扩展的生产产物。
 
+`pnpm install` 会自动接入 `.githooks/pre-commit`，仅对本次暂存的 TS/TSX/CSS/JSON 文件做 oxfmt/oxlint 检查和一次 `pnpm typecheck`，作为提交前的轻量门禁（`git commit --no-verify` 可跳过）。
+
 ## License
 
 MIT
