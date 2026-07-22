@@ -55,9 +55,36 @@ export const useSearchWorker = (params: {
   debounceMs?: number;
 }): SearchWorkerResult => {
   const { text, forcedFormat, sourceFile, query, options, debounceMs = 0 } = params;
-  const [state, setState] = useState<SearchWorkerResult>(idleResult);
+  // Seed both states from the mount-time inputs so the first render already
+  // matches what the reconciliation below would otherwise compute one pass
+  // later, avoiding a guaranteed extra render-phase setState on every mount.
+  const [state, setState] = useState<SearchWorkerResult>(() =>
+    query ? pendingResult : idleResult,
+  );
   const requestIdRef = useRef(0);
   const workerRef = useRef<Worker | null>(null);
+
+  const [lastInputs, setLastInputs] = useState(() => ({
+    text,
+    forcedFormat,
+    sourceFile,
+    query,
+    options,
+  }));
+  const inputsChanged =
+    lastInputs.text !== text ||
+    lastInputs.forcedFormat !== forcedFormat ||
+    lastInputs.sourceFile !== sourceFile ||
+    lastInputs.query !== query ||
+    lastInputs.options !== options;
+  // Reset state synchronously during render (not in the effect below) so no
+  // committed render can ever pair new inputs with stale matches from a
+  // prior source: record ids collide across sources, so a stale match
+  // would otherwise highlight the wrong record for one frame.
+  if (inputsChanged) {
+    setLastInputs({ text, forcedFormat, sourceFile, query, options });
+    setState(query ? pendingResult : idleResult);
+  }
 
   useEffect(
     () => () => {
@@ -182,5 +209,5 @@ export const useSearchWorker = (params: {
     return () => dispatchCleanup?.();
   }, [text, forcedFormat, sourceFile, query, options, debounceMs]);
 
-  return state;
+  return inputsChanged ? (query ? pendingResult : idleResult) : state;
 };

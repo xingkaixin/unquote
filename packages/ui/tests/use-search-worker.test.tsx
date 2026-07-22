@@ -50,6 +50,18 @@ class MockWorker {
   }
 }
 
+// Populated in the render body itself (not an effect), so it captures every
+// render React commits — including one that a passive-effect-based reset
+// would race past before assertions ever get to observe it via `screen`.
+interface RenderLogEntry {
+  query: string;
+  text: string;
+  sourceFile: File | null;
+  status: string;
+  matches: string;
+}
+let renderLog: RenderLogEntry[] = [];
+
 const Probe = ({
   query,
   text,
@@ -64,6 +76,13 @@ const Probe = ({
   options?: typeof defaultOptions;
 }) => {
   const result = useSearchWorker({ text, sourceFile, query, options, debounceMs });
+  renderLog.push({
+    query,
+    text,
+    sourceFile,
+    status: result.status,
+    matches: result.matches?.[0]?.recordId ?? "",
+  });
   return (
     <div>
       <div data-testid="status">{result.status}</div>
@@ -77,6 +96,7 @@ describe("useSearchWorker", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     MockWorker.instances = [];
+    renderLog = [];
     Object.assign(globalThis, { Worker: MockWorker });
   });
 
@@ -289,5 +309,94 @@ describe("useSearchWorker", () => {
     unmount();
 
     expect(worker.terminated).toBe(true);
+  });
+
+  // Asserts against every render React actually committed for the rerender
+  // call, not just the state left after `act` finishes flushing passive
+  // effects: an effect-based reset can still commit one stale render first
+  // and a post-act `screen` assertion would never see it.
+  const rendersCommittedDuring = (perform: () => void): RenderLogEntry[] => {
+    const startIndex = renderLog.length;
+    perform();
+    return renderLog.slice(startIndex);
+  };
+
+  it("resets to pending immediately on rerender when text changes, never exposing stale matches", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+
+    const committed = rendersCommittedDuring(() =>
+      rerender(<Probe query="a" text="different text" />),
+    );
+
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
+    expect(
+      committed.some((entry) => entry.status === "complete" && entry.matches === "record-3"),
+    ).toBe(false);
+  });
+
+  it("resets to pending immediately on rerender when sourceFile changes, never exposing stale matches", () => {
+    const fileA = new File(["{}"], "a.jsonl");
+    const fileB = new File(["{}"], "b.jsonl");
+    const { rerender } = render(<Probe query="a" text="" sourceFile={fileA} />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+
+    const committed = rendersCommittedDuring(() =>
+      rerender(<Probe query="a" text="" sourceFile={fileB} />),
+    );
+
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
+    expect(
+      committed.some((entry) => entry.status === "complete" && entry.matches === "record-3"),
+    ).toBe(false);
+  });
+
+  it("resets to pending immediately on rerender when options change, never exposing stale matches", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+
+    const committed = rendersCommittedDuring(() =>
+      rerender(
+        <Probe query="a" text="text" options={{ ...defaultOptions, caseSensitive: true }} />,
+      ),
+    );
+
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
+    expect(
+      committed.some((entry) => entry.status === "complete" && entry.matches === "record-3"),
+    ).toBe(false);
+  });
+
+  it("keeps completed matches on rerender when inputs are unchanged", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+
+    rerender(<Probe query="a" text="text" />);
+
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-3");
+  });
+
+  it("goes idle immediately when the query is cleared after a completed search", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+
+    rerender(<Probe query="" text="text" />);
+
+    expect(screen.getByTestId("status")).toHaveTextContent("idle");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
   });
 });
