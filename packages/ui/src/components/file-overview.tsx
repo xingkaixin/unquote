@@ -32,6 +32,7 @@ interface MetricItem {
 }
 
 const errorPreviewLimit = 8;
+const detailsId = "file-overview-details";
 
 const fieldLabel = (field: string) => {
   switch (field) {
@@ -103,6 +104,7 @@ export const FileOverview = ({
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
+        aria-controls={detailsId}
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -123,7 +125,7 @@ export const FileOverview = ({
           className={`uq-motion-transform size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
-      <CardContent className="flex flex-col gap-4 px-4 pb-4 pt-0">
+      <CardContent className="flex flex-col px-4 pb-4 pt-0">
         <div className="grid overflow-hidden border border-border bg-surface-100 sm:grid-cols-5">
           {metrics.map((metric, index) => {
             const Icon = metric.icon;
@@ -146,8 +148,12 @@ export const FileOverview = ({
           })}
         </div>
 
-        {open ? (
-          <div className="grid gap-4 xl:grid-cols-3">
+        <div
+          id={detailsId}
+          className={`uq-collapse ${open ? "uq-collapse-open" : ""}`}
+          inert={!open}
+        >
+          <div className="grid gap-4 pt-4 xl:grid-cols-3">
             <section className="min-w-0">
               <h3 className="mb-2 text-[11px] font-medium text-text-primary">
                 {t("overview.topNestedPaths")}
@@ -250,7 +256,7 @@ export const FileOverview = ({
               )}
             </section>
           </div>
-        ) : null}
+        </div>
       </CardContent>
     </Card>
   );

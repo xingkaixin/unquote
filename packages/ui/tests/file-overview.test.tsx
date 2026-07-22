@@ -48,12 +48,18 @@ describe("FileOverview", () => {
     const callbacks = renderOverview();
     const toggle = screen.getByRole("button", { name: /file overview/i });
 
+    // Details container is now permanently mounted (for the grid-rows collapse
+    // transition and a stable aria-controls target), so visibility is asserted
+    // via the `inert` attribute rather than presence/absence in the DOM.
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "file-overview-details");
     expect(screen.getByText("3/10 shown")).toBeInTheDocument();
-    expect(screen.queryByText("Top nested paths")).not.toBeInTheDocument();
+    const details = document.getElementById("file-overview-details");
+    expect(details).toHaveAttribute("inert");
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(details).not.toHaveAttribute("inert");
     expect(screen.getByText("tool · $.tool")).toBeInTheDocument();
     expect(screen.getByText("type · $.type")).toBeInTheDocument();
     expect(screen.getByText("event · $.event")).toBeInTheDocument();
@@ -85,7 +91,11 @@ describe("FileOverview", () => {
     renderOverview(overview, 0);
 
     expect(screen.queryByText(/shown$/)).not.toBeInTheDocument();
+    const details = document.getElementById("file-overview-details");
+    expect(details).toHaveAttribute("inert");
+
     await user.click(screen.getByRole("button", { name: /file overview/i }));
+    expect(details).not.toHaveAttribute("inert");
     expect(screen.getAllByText("None")).toHaveLength(3);
     expect(screen.queryByText(/more in errors filter/i)).not.toBeInTheDocument();
   });
