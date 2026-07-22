@@ -3,6 +3,7 @@ import { isParsed } from "@unquote/core";
 import { useMemo, useRef } from "react";
 import { createFileOverviewState, updateFileOverview } from "../lib/file-overview";
 import type { FileOverview } from "../lib/file-overview";
+import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { createRecordInsightMapState, updateRecordInsightMap } from "../lib/record-insight";
 import type { RecordInsight } from "../lib/record-insight";
 import type { QueryInteractionState } from "../lib/query-interaction";
@@ -65,16 +66,8 @@ export const useRecordPipeline = ({
     const state = recordsByIdStateRef.current;
     const { records } = result;
     const prevRecords = state.records;
-    let hasUnchangedPrefix = prevRecords !== null && prevRecords.length <= records.length;
-    for (
-      let index = 0;
-      hasUnchangedPrefix && prevRecords && index < prevRecords.length;
-      index += 1
-    ) {
-      if (prevRecords[index] !== records[index]) {
-        hasUnchangedPrefix = false;
-      }
-    }
+    const hasUnchangedPrefix =
+      prevRecords !== null && hasUnchangedArrayPrefix(prevRecords, records);
 
     // Streaming appends reuse the same Map instance so downstream consumers
     // relying on referential stability (like the stream publisher's array

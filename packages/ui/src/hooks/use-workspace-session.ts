@@ -1,5 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
+import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import {
   addExpandedStringifiedPaths,
@@ -71,11 +72,21 @@ export const useWorkspaceSession = () => {
     setSearchExpandedPaths(new Map());
   }, []);
 
+  const prevVisibleRecordsRef = useRef<readonly JsonlRecord[] | null>(null);
   const reconcileVisibleRecords = useCallback((records: readonly JsonlRecord[]) => {
-    dispatchSelection({
-      type: "recordsVisibilityChanged",
-      recordIds: records.map((record) => record.id),
-    });
+    const prevRecords = prevVisibleRecordsRef.current;
+    if (prevRecords !== null && hasUnchangedArrayPrefix(prevRecords, records)) {
+      dispatchSelection({
+        type: "recordsAppended",
+        firstRecordId: records[0]?.id ?? null,
+      });
+    } else {
+      dispatchSelection({
+        type: "recordsVisibilityChanged",
+        recordIds: records.map((record) => record.id),
+      });
+    }
+    prevVisibleRecordsRef.current = records;
   }, []);
 
   const synchronizeSearchExpansions = useCallback((matches: readonly SearchMatch[]) => {

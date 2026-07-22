@@ -26,21 +26,31 @@ export const createPartialRecordCache = <T>(): PartialRecordCache<T> => ({
   entries: new Map(),
 });
 
-const hasUnchangedProcessedPrefix = <T>(records: JsonlRecord[], state: PartialRecordCache<T>) => {
-  if (
-    !state.records ||
-    state.processedLength > records.length ||
-    state.processedLength > state.records.length
-  ) {
+// Compares only the first `length` items of `prev` (defaults to all of
+// `prev`) against `next`, so callers can check a sub-prefix without slicing.
+export const hasUnchangedArrayPrefix = (
+  prev: readonly unknown[],
+  next: readonly unknown[],
+  length: number = prev.length,
+) => {
+  if (length > next.length) {
     return false;
   }
 
-  for (let index = 0; index < state.processedLength; index += 1) {
-    if (state.records[index] !== records[index]) {
+  for (let index = 0; index < length; index += 1) {
+    if (prev[index] !== next[index]) {
       return false;
     }
   }
   return true;
+};
+
+const hasUnchangedProcessedPrefix = <T>(records: JsonlRecord[], state: PartialRecordCache<T>) => {
+  if (!state.records || state.processedLength > state.records.length) {
+    return false;
+  }
+
+  return hasUnchangedArrayPrefix(state.records, records, state.processedLength);
 };
 
 export const updatePartialRecordCache = <T>(

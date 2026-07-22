@@ -285,15 +285,25 @@ export const UnquoteApp = ({
       ),
     [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
   );
-  const hasExpandedVisibleStringifiedPaths = useMemo(
-    () =>
-      visibleRecords.some(
-        (record) =>
-          getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id).size >
-          0,
-      ),
-    [displayedExpandedStringifiedPathsByRecord, visibleRecords],
-  );
+  const hasExpandedVisibleStringifiedPaths = useMemo(() => {
+    let hasAny = false;
+    for (const paths of displayedExpandedStringifiedPathsByRecord.values()) {
+      if (paths.size > 0) {
+        hasAny = true;
+        break;
+      }
+    }
+    if (!hasAny) return false;
+    // Expansion maps can retain entries for record ids no longer in
+    // visibleRecords (e.g. use-source-loader's setSourceMode switches
+    // auto/json/jsonl for a text source without resetting expansion state),
+    // so a non-empty map entry doesn't guarantee a visible match — always
+    // check against visibleRecords rather than short-circuiting.
+    return visibleRecords.some(
+      (record) =>
+        getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id).size > 0,
+    );
+  }, [displayedExpandedStringifiedPathsByRecord, visibleRecords]);
 
   const activeMatch = useMemo(() => {
     if (!visibleMatches || visibleMatches.length === 0) return null;
