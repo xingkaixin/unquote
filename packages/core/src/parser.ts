@@ -491,7 +491,13 @@ const getUnexpectedTokenPosition = (input: string, message: string) => {
   }
 
   const index = input.indexOf(token);
-  return index >= 0 ? index : null;
+  if (index < 0) {
+    return null;
+  }
+
+  // The token text can occur earlier in the input than the actual failure (e.g. inside
+  // a string value), so only trust this fallback when the token is unambiguous.
+  return index === input.lastIndexOf(token) ? index : null;
 };
 
 const getMessageLineColumn = (message: string) => {

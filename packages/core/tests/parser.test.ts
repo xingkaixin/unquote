@@ -71,6 +71,32 @@ describe("parseInput", () => {
     expect(failed?.errorMeta?.context).toContain("2 | {bad}");
   });
 
+  it("locates the unexpected token when the engine omits a position and the token is unique", () => {
+    // V8's "Unexpected token 'x'" message (no "position"/"line N column N") is the fallback
+    // path getUnexpectedTokenPosition covers; 'u' occurs only once here, in "undefined".
+    const input = '{"a": undefined}';
+    const result = parseInput(input);
+    const record = result.records[0];
+
+    expect(record?.error).toContain("Unexpected token 'u'");
+    expect(record?.errorMeta).toMatchObject({ line: 1, column: 7 });
+    expect(record?.errorMeta?.context).toContain("  |       ^");
+  });
+
+  it("gives up on caret positioning when the unexpected token is ambiguous", () => {
+    // 'u' also appears earlier inside the string value "contains letter u", so the first
+    // occurrence found by a naive indexOf would point at the wrong place; the fallback
+    // should refuse to guess instead of anchoring on that earlier, unrelated 'u'.
+    const input = '{"a": "contains letter u", "b": undefined}';
+    const result = parseInput(input);
+    const record = result.records[0];
+    const misleadingIndex = input.indexOf("u");
+
+    expect(record?.error).toContain("Unexpected token 'u'");
+    expect(record?.errorMeta?.column).not.toBe(misleadingIndex + 1);
+    expect(record?.errorMeta).toMatchObject({ line: 1, column: input.length + 1 });
+  });
+
   it("parses each physical line once when auto mode falls back to loose jsonl", () => {
     const lines = Array.from({ length: 5 }, (_, index) => `{"index":${index}}`);
     const invalidLine = "{bad}";
