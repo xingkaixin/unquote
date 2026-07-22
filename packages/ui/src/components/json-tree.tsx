@@ -703,7 +703,7 @@ const RowItem = memo(function RowItem({
           <span
             data-tree-toggle
             aria-hidden="true"
-            className="mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center border border-accent bg-accent/10 text-accent"
+            className="relative mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center border border-accent bg-accent/10 text-accent before:absolute before:-inset-[5px] before:content-['']"
           >
             <ChevronRight
               className={`uq-motion-transform size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}

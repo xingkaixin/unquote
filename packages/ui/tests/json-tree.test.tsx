@@ -124,4 +124,34 @@ describe("JsonTree", () => {
     fireEvent.keyDown(tree, { key: " " });
     expect(onSelectNode).toHaveBeenCalledWith(record, expect.objectContaining({ pathText: "$" }));
   });
+
+  it("clicking the toggle affordance toggles the path instead of selecting it", () => {
+    const { onTogglePath, onSelectNode, record } = renderTree();
+    const items = screen.getAllByRole("treeitem");
+    const toggle = items[1]!.querySelector("[data-tree-toggle]");
+
+    expect(toggle).not.toBeNull();
+    // Enlarged hit area (UQ-107): the toggle's ::before pseudo-element extends the
+    // clickable region without changing the visible 15px square, but clicks on it
+    // still resolve to this host span as event.target, so closest() keeps matching.
+    expect(toggle).toHaveClass("before:-inset-[5px]");
+
+    fireEvent.click(toggle!);
+
+    expect(onTogglePath).toHaveBeenCalledWith(record.id, "$.payload");
+    expect(onSelectNode).not.toHaveBeenCalled();
+  });
+
+  it("clicking elsewhere on a row still selects the node rather than toggling", () => {
+    const { onTogglePath, onSelectNode, record } = renderTree();
+    const items = screen.getAllByRole("treeitem");
+
+    fireEvent.click(items[1]!);
+
+    expect(onSelectNode).toHaveBeenCalledWith(
+      record,
+      expect.objectContaining({ pathText: "$.payload" }),
+    );
+    expect(onTogglePath).not.toHaveBeenCalled();
+  });
 });
