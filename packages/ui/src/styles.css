@@ -236,6 +236,21 @@ a,
   will-change: opacity;
 }
 
+.uq-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms var(--ease-out);
+}
+
+.uq-collapse-open {
+  grid-template-rows: 1fr;
+}
+
+.uq-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .uq-dialog-backdrop[data-starting-style],
 .uq-dialog-backdrop[data-ending-style] {
   opacity: 0;
@@ -330,7 +345,8 @@ a,
   }
 
   .uq-motion-transform,
-  .uq-motion-progress {
+  .uq-motion-progress,
+  .uq-collapse {
     transition-duration: 0s;
   }
 
