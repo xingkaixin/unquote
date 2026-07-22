@@ -215,6 +215,32 @@ a,
   opacity: 0;
 }
 
+.uq-dialog-popup {
+  /* Base UI Dialog has no --transform-origin like the dropdown anchor; the popup is
+     centered, so it should grow from its top-center rather than a trigger point. */
+  transform-origin: 50% 0%;
+  transition:
+    transform 180ms var(--ease-out),
+    opacity 180ms var(--ease-out);
+  will-change: transform, opacity;
+}
+
+.uq-dialog-popup[data-starting-style],
+.uq-dialog-popup[data-ending-style] {
+  transform: scale(0.98);
+  opacity: 0;
+}
+
+.uq-dialog-backdrop {
+  transition: opacity 180ms var(--ease-out);
+  will-change: opacity;
+}
+
+.uq-dialog-backdrop[data-starting-style],
+.uq-dialog-backdrop[data-ending-style] {
+  opacity: 0;
+}
+
 @media (hover: none) and (pointer: coarse) {
   .uq-icon-button {
     min-width: 44px;
@@ -308,12 +334,16 @@ a,
     transition-duration: 0s;
   }
 
-  .uq-dropdown-popup {
+  .uq-dropdown-popup,
+  .uq-dialog-popup,
+  .uq-dialog-backdrop {
     transition: opacity 150ms var(--ease-out);
   }
 
   .uq-dropdown-popup[data-starting-style],
-  .uq-dropdown-popup[data-ending-style] {
+  .uq-dropdown-popup[data-ending-style],
+  .uq-dialog-popup[data-starting-style],
+  .uq-dialog-popup[data-ending-style] {
     transform: none;
   }
 
