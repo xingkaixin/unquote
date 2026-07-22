@@ -58,7 +58,7 @@ const ConversationItem = ({
         type="button"
         aria-label={`${t("agent.conversation")}: ${config.label}`}
         aria-pressed={selected}
-        className={`min-w-0 max-w-[min(48rem,100%)] rounded-md px-3 py-2 text-left transition-colors ${
+        className={`min-w-0 max-w-[min(48rem,100%)] rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
           selected
             ? "bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)]"
             : "hover:bg-surface-200"

@@ -100,7 +100,7 @@ export const FileOverview = ({
     <Card className="overflow-hidden">
       <button
         type="button"
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
       >
