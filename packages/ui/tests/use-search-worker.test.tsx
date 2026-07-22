@@ -233,14 +233,23 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
   });
 
-  it("rejects regex search when Worker is unavailable", () => {
+  it("supports regex search via the synchronous fallback when Worker is unavailable", () => {
     Reflect.deleteProperty(globalThis, "Worker");
     render(
-      <Probe query="hello" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />,
+      <Probe query="hel+o" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />,
     );
 
-    expect(screen.getByTestId("status")).toHaveTextContent("error");
-    expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("returns null matches for an invalid regex via the synchronous fallback, matching the worker path", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    render(<Probe query="[" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />);
+
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
   });
 
   it("debounces consecutive queries, dispatching only the last one after the window elapses", () => {

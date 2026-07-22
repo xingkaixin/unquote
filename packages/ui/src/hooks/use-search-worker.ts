@@ -115,11 +115,6 @@ export const useSearchWorker = (params: {
       requestIdRef.current = requestId;
 
       if (typeof Worker === "undefined") {
-        if (options.regex) {
-          setState({ matches: null, status: "error", errorKind: "worker-error" });
-          return;
-        }
-
         if (sourceFile) {
           const controller = new AbortController();
           searchJsonlFile(sourceFile, query, options, controller.signal)
