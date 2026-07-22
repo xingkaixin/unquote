@@ -1,13 +1,8 @@
-import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
-import {
-  getPreviewMaxDepth,
-  getPreviewNestedFieldKeys,
-  getPreviewPath,
-  getPreviewPathSegments,
-} from "./deferred-record-preview";
+import type { JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
-import { walkJsonNode } from "./json-walk";
-import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
+import type { ContainerCandidate } from "./field-extraction";
+import { walkRecordFields } from "./field-extraction";
+import { isToolContext, normalizeKey } from "./record-fields";
 import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
 import type { PartialRecordCache } from "./partial-record-cache";
 
@@ -64,35 +59,19 @@ const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
 const truncateText = (value: string, maxLength: number) =>
   value.length <= maxLength ? value : `${value.slice(0, maxLength)}...`;
 
-const getDirectChildValue = (node: JsonNode, keys: string[]) => {
-  if (node.kind !== "object" || !node.children || Array.isArray(node.children)) {
-    return null;
-  }
+// Keys inspected for a container's fallback text when it has no usable
+// primitive value of its own (e.g. `{"error": {"message": "boom"}}`). This is
+// insight-specific display logic, so it lives here rather than in the shared
+// field-extraction traversal.
+const errorContainerFallbackKeys = ["message", "msg", "name", "type", "code"];
 
-  for (const [key, child] of Object.entries(node.children)) {
-    if (keys.includes(normalizeKey(key))) {
-      const value = getPrimitiveValue(child);
-      if (value) {
-        return value;
-      }
-    }
-  }
-
-  return null;
-};
-
-const getErrorValue = (node: JsonNode) => {
-  const primitive = getPrimitiveValue(node);
-  if (primitive !== null) {
-    return primitive;
-  }
-
-  const detail = getDirectChildValue(node, ["message", "msg", "name", "type", "code"]);
+const getErrorContainerFallback = (candidate: ContainerCandidate) => {
+  const detail = candidate.getChildValue(errorContainerFallbackKeys);
   if (detail) {
     return detail;
   }
 
-  return node.kind === "array" ? "error array" : "error object";
+  return candidate.kind === "array" ? "error array" : "error object";
 };
 
 const classifyInsightField = (
@@ -205,58 +184,32 @@ const addPrimitiveInsightHits = (
   }
 };
 
-const walkNode = (
-  root: JsonNode,
-  hits: RecordInsightHit[],
-  metrics: { nestedJsonCount: number; maxDepth: number },
-) => {
-  walkJsonNode(root, (ctx) => {
-    metrics.maxDepth = Math.max(metrics.maxDepth, ctx.node.meta.depth);
-    if (ctx.node.wasStringified) {
-      metrics.nestedJsonCount += 1;
-    }
-
-    const lastSegment = ctx.pathSegments.at(-1);
-    if (lastSegment?.kind !== "key") {
-      return;
-    }
-
-    const key = lastSegment.value;
-    const field = classifyInsightField(key, ctx.pathSegments);
-    const primitiveValue = getPrimitiveValue(ctx.node);
-
-    if (field === "error") {
-      addHit(hits, "error", key, getErrorValue(ctx.node), ctx.jsonPath);
-    } else if (field && primitiveValue !== null) {
-      addPrimitiveInsightHits(hits, key, primitiveValue, ctx.jsonPath, ctx.pathSegments);
-    }
+// Shared with file-overview via field-extraction.ts: walkRecordFields owns
+// the node/preview traversal, this module only classifies the keys it
+// yields and derives its own error-fallback display text (see
+// getErrorContainerFallback above).
+const collectInsightHits = (record: JsonlRecord) => {
+  const hits: RecordInsightHit[] = [];
+  const metrics = walkRecordFields(record, {
+    onField: ({ key, pathSegments, pathText, primitiveValue }) => {
+      if (primitiveValue !== null) {
+        addPrimitiveInsightHits(hits, key, primitiveValue, pathText, pathSegments);
+      }
+    },
+    onContainer: (candidate) => {
+      if (classifyInsightField(candidate.key, candidate.pathSegments) === "error") {
+        addHit(
+          hits,
+          "error",
+          candidate.key,
+          getErrorContainerFallback(candidate),
+          candidate.pathText,
+        );
+      }
+    },
   });
-};
 
-const walkPreview = (
-  preview: JsonlRecordPreview,
-  hits: RecordInsightHit[],
-  metrics: { nestedJsonCount: number; maxDepth: number },
-) => {
-  metrics.maxDepth = getPreviewMaxDepth(preview);
-  metrics.nestedJsonCount = getPreviewNestedFieldKeys(preview).length;
-
-  for (const [key, value] of Object.entries(preview.fields)) {
-    addPrimitiveInsightHits(
-      hits,
-      key,
-      String(value),
-      getPreviewPath(key),
-      getPreviewPathSegments(key),
-    );
-  }
-
-  for (const [key, kind] of Object.entries(preview.containers ?? {})) {
-    const pathSegments = getPreviewPathSegments(key);
-    if (classifyInsightField(key, pathSegments) === "error") {
-      addHit(hits, "error", key, `error ${kind}`, getPreviewPath(key));
-    }
-  }
+  return { hits, nestedJsonCount: metrics.nestedCount, maxDepth: metrics.maxDepth };
 };
 
 const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
@@ -423,15 +376,8 @@ export const createRecordInsight = (record: JsonlRecord): RecordInsight | null =
     return null;
   }
 
-  const hits: RecordInsightHit[] = [];
-  const metrics = { nestedJsonCount: 0, maxDepth: 0 };
-  if (record.preview) {
-    walkPreview(record.preview, hits, metrics);
-  } else {
-    walkNode(record.node, hits, metrics);
-  }
-
-  return createRecordInsightFromHits(record, hits, metrics);
+  const { hits, nestedJsonCount, maxDepth } = collectInsightHits(record);
+  return createRecordInsightFromHits(record, hits, { nestedJsonCount, maxDepth });
 };
 
 export const createRecordInsightMap = (records: JsonlRecord[]) => {

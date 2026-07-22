@@ -1,14 +1,8 @@
-import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { isParsed } from "@unquote/core";
-import {
-  getPreviewMaxDepth,
-  getPreviewNestedFieldKeys,
-  getPreviewPath,
-  getPreviewPathSegments,
-} from "./deferred-record-preview";
 import type { TreePathSegment } from "./path-codec";
-import { walkJsonNode } from "./json-walk";
-import { getPrimitiveValue, isToolContext, normalizeKey } from "./record-fields";
+import { walkRecordFields } from "./field-extraction";
+import { isToolContext, normalizeKey } from "./record-fields";
 import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
 import type { PartialRecordCache } from "./partial-record-cache";
 
@@ -112,50 +106,8 @@ const addFieldValue = (
   values.set(key, { ...item, count });
 };
 
-const walkNode = (root: JsonNode, summary: RecordOverviewSummary) => {
-  walkJsonNode(root, (ctx) => {
-    summary.maxDepth = Math.max(summary.maxDepth, ctx.node.meta.depth);
-    if (ctx.node.wasStringified) {
-      summary.hasNestedJson = true;
-      addCount(summary.nestedPaths, ctx.jsonPath);
-    }
-
-    const lastSegment = ctx.pathSegments.at(-1);
-    if (lastSegment?.kind !== "key") {
-      return;
-    }
-
-    const field = classifyOverviewField(lastSegment.value, ctx.pathSegments);
-    const value = field ? getPrimitiveValue(ctx.node) : null;
-    if (field && value !== null) {
-      addFieldValue(summary.fieldValues, { field, pathText: ctx.jsonPath, value });
-    }
-  });
-};
-
-const summarizePreview = (preview: JsonlRecordPreview, summary: RecordOverviewSummary) => {
-  summary.maxDepth = getPreviewMaxDepth(preview);
-  const nestedFieldKeys = getPreviewNestedFieldKeys(preview);
-  summary.hasNestedJson = nestedFieldKeys.length > 0;
-  for (const key of nestedFieldKeys) {
-    addCount(summary.nestedPaths, getPreviewPath(key));
-  }
-
-  for (const [key, value] of Object.entries(preview.fields)) {
-    const pathSegments = getPreviewPathSegments(key);
-    const field = classifyOverviewField(key, pathSegments);
-    if (field) {
-      addFieldValue(summary.fieldValues, {
-        field,
-        pathText: getPreviewPath(key),
-        value: String(value),
-      });
-    }
-  }
-};
-
 const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
-  const summary: RecordOverviewSummary = {
+  const empty: RecordOverviewSummary = {
     hasNestedJson: false,
     maxDepth: 0,
     nestedPaths: new Map(),
@@ -164,7 +116,7 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
 
   if (!isParsed(record)) {
     return {
-      ...summary,
+      ...empty,
       error: {
         recordId: record.id,
         lineNumber: record.lineNumber,
@@ -175,15 +127,26 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
   }
 
   if (!record.node) {
-    return summary;
+    return empty;
   }
 
-  if (record.preview) {
-    summarizePreview(record.preview, summary);
-  } else {
-    walkNode(record.node, summary);
-  }
-  return summary;
+  const fieldValues = new Map<string, OverviewFieldValue>();
+  const metrics = walkRecordFields(record, {
+    trackNestedPaths: true,
+    onField: ({ key, pathSegments, pathText, primitiveValue }) => {
+      const field = classifyOverviewField(key, pathSegments);
+      if (field && primitiveValue !== null) {
+        addFieldValue(fieldValues, { field, pathText, value: primitiveValue });
+      }
+    },
+  });
+
+  return {
+    hasNestedJson: metrics.nestedPaths.size > 0,
+    maxDepth: metrics.maxDepth,
+    nestedPaths: metrics.nestedPaths,
+    fieldValues,
+  };
 };
 
 const sortCountItems = <T extends { count: number }>(items: T[], getLabel: (item: T) => string) =>
