@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0] - 2026-07-23
+
+### Added
+
+- Repository installs now configure a lightweight pre-commit gate that formats-checks staged TypeScript, TSX, CSS, and JSON files, lints staged TypeScript and TSX, then runs type checking.
+
+### Changed
+
+- Streamed JSONL appends now update record lookup, selection reconciliation, file overview, and record insights incrementally, avoiding repeated full-record scans as large files arrive.
+- Command palette and file overview transitions, hover hints, tree expansion targets, keyboard focus states, and muted text contrast were refined while preserving reduced-motion behavior.
+- Tree display derivation, global shortcuts, toolbar summaries, and overview / insight field extraction now live in focused shared modules with dedicated tests, reducing UI maintenance and release risk.
+- Web and extension app versions bumped to `0.11.0`.
+
+### Fixed
+
+- Changing the source or search inputs no longer briefly exposes stale matches, and regex search remains available when Web Workers are unavailable.
+- Keyboard navigation now keeps non-virtualized tree rows in view, while overview controls, row actions, field labels, and status badges expose consistent accessible and localized states.
+- Parse errors no longer show a potentially incorrect caret when the unexpected token appears more than once in the input.
+
 ## [0.10.0] - 2026-07-18
 
 ### Added

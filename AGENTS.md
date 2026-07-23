@@ -108,9 +108,11 @@ CSS variables defined in `src/styles.css`:
 | File | Purpose |
 |---|---|
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
+| `hooks/use-desktop-workspace.ts` | Tracks the desktop workspace media query for responsive input and output layout. |
 | `hooks/use-local-file-source.ts` | Stateful access layer for local JSONL files: deferred full-record hydration, search, copy/export resolution, cache eviction, and abort handling. |
+| `hooks/use-global-shortcuts.ts` | Owns document-level command palette, search navigation, expansion, and escape-key shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
-| `hooks/use-search-worker.ts` | Runs regex search off the main thread with cancellation and a time budget for superseded queries. |
+| `hooks/use-search-worker.ts` | Runs search off the main thread with cancellation and a time budget for superseded queries, with an in-process fallback when workers are unavailable. |
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
 | `hooks/use-record-pipeline.ts` | Combines parser output, local-file hydration, agent session detection, search, filters, expansion helpers, and visible record derivation. |
@@ -129,6 +131,7 @@ CSS variables defined in `src/styles.css`:
 - `lib/local-file-source.ts` — pure local-file line reading, deferred hydration, abortable whole-file search, and full-record lookup for copy/export.
 - `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts, split into Codex / Claude adapters plus shared builders and types for the `AgentSession` conversation, timeline, metadata, and parse-warning model.
 - `lib/json-walk.ts` — shared `JsonNode` tree traversal used by tree rendering, search, overview, and record insight code.
+- `lib/field-extraction.ts` — shared full-record and deferred-preview traversal for file overview and record insight field candidates and nested metrics.
 - `lib/partial-record-cache.ts` — shared incremental cache for file overview and record insight aggregation while records stream in.
 - `lib/record-export.ts` — pure copy/export formatting, filename, blob download, and large-copy threshold helpers.
 - `lib/record-fields.ts` — shared field extraction helpers for overview and insight classification.
@@ -136,6 +139,9 @@ CSS variables defined in `src/styles.css`:
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
 - `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
 - `lib/source-samples.ts` — sample payloads used by the input pane, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
+- `lib/toolbar-summary.ts` — derives localized toolbar status and progress summaries from parser, file, search, and filter state.
+- `lib/tree-display.ts` — converts flattened tree rows into display rows and syntax classes for `JsonTree`.
+- `lib/workspace-selection.ts` — pure selection reconciliation for record replacement and streamed record appends.
 
 ### Agent Session Feature
 
@@ -173,7 +179,7 @@ Active match auto-scroll:
 - **Entry:** `src/main.tsx`
 - **Build:** Vite → `dist/web`
 - **Features:**
-  - URL hash sync via `lz-string` compression (`#data=<compressed>`)
+  - Clears legacy source-bearing URL hashes without persisting new input in browser history
   - File open dialog (`.json`, `.jsonl`)
   - Chrome Web Store link badge
 
@@ -210,6 +216,7 @@ Active match auto-scroll:
 
 | Command | Description |
 |---|---|
+| `pnpm install` | Install dependencies and configure the staged-file pre-commit gate |
 | `pnpm dev` | Start all dev servers (web + extension) |
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm lint` | oxlint all packages |
