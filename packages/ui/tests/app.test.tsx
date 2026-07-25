@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
+import { parseDeferredJsonlRecordLine } from "@unquote/core";
+import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
@@ -10,7 +11,6 @@ import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
 
 const maxTransferStringLength = 4096;
-const maxDeferredStringLength = 160;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 const inputFormatLabel = "Input format";
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
@@ -67,68 +67,20 @@ const getToolbarInput = () => {
   return inputs[1] ?? inputs[0]!;
 };
 
-const deferNodeForTransfer = (node: JsonNode): JsonNode => {
-  const value =
-    node.kind === "string"
-      ? typeof node.rawString === "string"
-        ? node.rawString
-        : node.value
-      : node.kind === "object" || node.kind === "array"
-        ? null
-        : node.value;
-  const stringValue = typeof value === "string" ? value : null;
+// Mirrors parser-worker.ts's compactForTransfer branch: the worker builds
+// deferred records straight from the source lines via core, so this mock must
+// too. Re-deriving the projection here once let the mock drift from the real
+// deferred shape (children retained, no preview), which hid UQ-120.
+const compactResultForTransfer = (input: string, stats: ParseResult["stats"]): ParseResult => {
+  const records: JsonlRecord[] = [];
+  input.split(/\r?\n/).forEach((line, index) => {
+    if (line.trim()) {
+      records.push(parseDeferredJsonlRecordLine(line, index + 1));
+    }
+  });
 
-  const deferredNode: JsonNode = {
-    ...node,
-    kind: node.wasStringified ? "string" : node.kind,
-    value:
-      stringValue && stringValue.length > maxDeferredStringLength
-        ? stringValue.slice(0, maxDeferredStringLength)
-        : value,
-    meta:
-      stringValue && stringValue.length > maxDeferredStringLength
-        ? { ...node.meta, truncated: true, valueLength: stringValue.length }
-        : node.meta,
-  };
-
-  Reflect.deleteProperty(deferredNode, "children");
-  Reflect.deleteProperty(deferredNode, "rawString");
-  return deferredNode;
+  return { format: "jsonl", records, stats };
 };
-
-const deferRecordForTransfer = (record: JsonlRecord): JsonlRecord => {
-  if (!record.node) {
-    return record;
-  }
-
-  if (
-    record.node.kind !== "object" ||
-    !record.node.children ||
-    Array.isArray(record.node.children)
-  ) {
-    return { ...record, deferred: true, node: deferNodeForTransfer(record.node) };
-  }
-
-  return {
-    ...record,
-    deferred: true,
-    node: {
-      ...record.node,
-      value: null,
-      children: Object.fromEntries(
-        Object.entries(record.node.children).map(([key, child]) => [
-          key,
-          deferNodeForTransfer(child),
-        ]),
-      ),
-    },
-  };
-};
-
-const compactResultForTransfer = (result: ParseResult): ParseResult => ({
-  ...result,
-  records: result.records.map(deferRecordForTransfer),
-});
 
 const readMockFileText = (file: File) => {
   if (typeof file.text === "function") {
@@ -210,7 +162,9 @@ Object.assign(globalThis, {
     complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
       import("../src/lib/parse-text").then(({ parseText }) => {
         const parsed = parseText(input, { forcedFormat });
-        const result = compact ? compactResultForTransfer(parsed.result) : parsed.result;
+        const result = compact
+          ? compactResultForTransfer(input, parsed.result.stats)
+          : parsed.result;
         this.onmessage?.({
           data: {
             type: "complete",
@@ -1645,6 +1599,92 @@ describe("UnquoteApp", () => {
     expect(collapsedToggle.getAttribute("aria-pressed")).toBe("true");
     await user.click(collapsedToggle);
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
+  });
+
+  it("Expand All reaches nested JSON in a deferred local-file record", async () => {
+    const user = userEvent.setup();
+    // Only a .jsonl file above largeSourceCollapseBytes takes the streamed
+    // file-source path that produces deferred records, so pad past 1MB with
+    // filler lines while keeping the record under test first and eager.
+    const filler = `${JSON.stringify({ filler: "x".repeat(60_000) })}\n`;
+    const fileContents = `${JSON.stringify({
+      level: "info",
+      payload: JSON.stringify({ nested: true }),
+    })}\n${filler.repeat(20)}`;
+    const file = new File([fileContents], "deferred.jsonl", { type: "application/jsonl" });
+    expect(file.size).toBeGreaterThan(1_000_000);
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    fireEvent.paste(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      {
+        clipboardData: { files: [file], items: [], types: ["Files"] },
+      },
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "deferred.jsonl"));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("nested")).toHaveLength(0);
+
+    // A deferred record's projected node has no children, so this only works
+    // if the expansion is collected from the record's preview.
+    const toggle = screen
+      .getAllByRole("button", { name: /^Expand All$/i })
+      .find((button) => button.hasAttribute("aria-pressed"))!;
+    await user.click(toggle);
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("button", { name: /^Collapse All$/i })
+          .some((button) => button.getAttribute("aria-pressed") === "true"),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
+  });
+
+  it("Expand All reaches nested JSON below a container in a hydrated file record", async () => {
+    const user = userEvent.setup();
+    // A deferred preview only records top-level fields, so `$.meta.payload` is
+    // invisible to it — this record can only be expanded from its hydrated
+    // tree. Same padding requirement as the test above.
+    const filler = `${JSON.stringify({ filler: "x".repeat(60_000) })}\n`;
+    const fileContents = `${JSON.stringify({
+      meta: { payload: JSON.stringify({ buried: true }) },
+    })}\n${filler.repeat(20)}`;
+    const file = new File([fileContents], "buried.jsonl", { type: "application/jsonl" });
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    fireEvent.paste(
+      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+      {
+        clipboardData: { files: [file], items: [], types: ["Files"] },
+      },
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "buried.jsonl"));
+    await waitFor(() => expect(screen.getAllByText("meta").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("buried")).toHaveLength(0);
+
+    await user.click(
+      screen
+        .getAllByRole("button", { name: /^Expand All$/i })
+        .find((button) => button.hasAttribute("aria-pressed"))!,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("buried").length).toBeGreaterThan(0));
   });
 
   it("keeps stringified expansion within its JSONL record", async () => {

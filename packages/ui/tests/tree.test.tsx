@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { parseDeferredJsonlRecordLine, parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { createFileOverview } from "../src/lib/file-overview";
@@ -109,6 +109,25 @@ describe("tree paths", () => {
     const record = result.records[0]!;
 
     expect(collectStringifiedPaths(record, new Set())).toEqual(["$.payload.items[0]"]);
+  });
+
+  it("collects a deferred record's nested fields from its preview", () => {
+    // The projected node of a deferred record carries no children, so the tree
+    // walk finds nothing; the preview is the only record of what is nested.
+    const line = '{"type":"response_item","payload":"{\\"a\\":1}","note":"plain"}';
+    const parsed = parseInput(line, { forcedFormat: "jsonl" }).records[0]!;
+    const deferred = parseDeferredJsonlRecordLine(line, 1);
+
+    expect(deferred.deferred).toBe(true);
+    expect(deferred.node?.children).toBeUndefined();
+    expect(collectStringifiedPaths(parsed, new Set())).toEqual(["$.payload"]);
+    expect(collectStringifiedPaths(deferred, new Set())).toEqual(["$.payload"]);
+  });
+
+  it("reports no nested fields for a deferred record without stringified JSON", () => {
+    const deferred = parseDeferredJsonlRecordLine('{"type":"event","note":"plain"}', 1);
+
+    expect(collectStringifiedPaths(deferred, new Set())).toEqual([]);
   });
 
   it("searches raw JSON values with the same matches as a JsonNode tree", () => {

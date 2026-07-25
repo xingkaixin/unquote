@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { isParsed, materializeNode } from "@unquote/core";
-import { getPreviewNestedFieldKeys } from "./deferred-record-preview";
+import { getPreviewNestedFieldKeys, getPreviewPath } from "./deferred-record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 import { formatJsonValueLabel, walkJsonNode, walkRawJsonValue } from "./json-walk";
@@ -160,6 +160,14 @@ export const collectStringifiedPaths = (
   record: JsonlRecord,
   expandedStringifiedPaths: ReadonlySet<string>,
 ) => {
+  // A deferred record's projected node carries no children, so walking it finds
+  // nothing. Its preview already records which top-level fields hold nested
+  // JSON — the same source recordContainsStringifiedJson reads. Deeper levels
+  // surface once the record hydrates and the walk below takes over.
+  if (record.preview) {
+    return getPreviewNestedFieldKeys(record.preview).map(getPreviewPath);
+  }
+
   const node = record.node;
   if (!node) {
     return [];
