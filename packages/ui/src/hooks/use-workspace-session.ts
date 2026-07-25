@@ -7,7 +7,7 @@ import {
   clearExpandedStringifiedPaths,
   getExpandedStringifiedPaths,
   groupExpandedStringifiedPaths,
-  replaceExpandedStringifiedPaths,
+  replaceExpandedStringifiedPathsBatch,
   toggleExpandedStringifiedPath,
   type ExpandedStringifiedPathsByRecord,
 } from "../lib/record-expansion";
@@ -103,17 +103,21 @@ export const useWorkspaceSession = () => {
   const expandAll = useCallback(
     (records: readonly JsonlRecord[], displayedExpandedPaths: ExpandedStringifiedPathsByRecord) => {
       setExpandedPaths((current) =>
-        measurePerfFn("expand:all:collect", () => {
-          let next = current;
-          for (const record of records) {
-            const paths = collectStringifiedPaths(
-              record,
-              getExpandedStringifiedPaths(displayedExpandedPaths, record.id),
-            );
-            next = replaceExpandedStringifiedPaths(next, record.id, paths);
-          }
-          return next;
-        }),
+        measurePerfFn("expand:all:collect", () =>
+          replaceExpandedStringifiedPathsBatch(
+            current,
+            records.map(
+              (record) =>
+                [
+                  record.id,
+                  collectStringifiedPaths(
+                    record,
+                    getExpandedStringifiedPaths(displayedExpandedPaths, record.id),
+                  ),
+                ] as const,
+            ),
+          ),
+        ),
       );
       markPerf("expand:all:set-state");
     },

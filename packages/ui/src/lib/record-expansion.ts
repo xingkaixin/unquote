@@ -32,66 +32,88 @@ export const groupExpandedStringifiedPaths = (
 const pathsAreEqual = (left: ReadonlySet<string>, right: ReadonlySet<string>) =>
   left.size === right.size && [...left].every((path) => right.has(path));
 
+export type ExpansionEntry = readonly [recordId: string, paths: Iterable<string>];
+
+// Every write copies the whole map once, so callers with many records must go
+// through the batch entry points: applying single-record writes in a loop makes
+// the copy cost quadratic in the record count.
+export const addExpandedStringifiedPathsBatch = (
+  pathsByRecord: ExpandedStringifiedPathsByRecord,
+  entries: Iterable<ExpansionEntry>,
+): ExpandedStringifiedPathsByRecord => {
+  let next: Map<string, ReadonlySet<string>> | null = null;
+
+  for (const [recordId, paths] of entries) {
+    const current = getExpandedStringifiedPaths(next ?? pathsByRecord, recordId);
+    let nextPaths: Set<string> | null = null;
+
+    for (const path of paths) {
+      if (!current.has(path)) {
+        nextPaths ??= new Set(current);
+        nextPaths.add(path);
+      }
+    }
+
+    if (!nextPaths) {
+      continue;
+    }
+
+    next ??= new Map(pathsByRecord);
+    next.set(recordId, nextPaths);
+  }
+
+  return next ?? pathsByRecord;
+};
+
+export const replaceExpandedStringifiedPathsBatch = (
+  pathsByRecord: ExpandedStringifiedPathsByRecord,
+  entries: Iterable<ExpansionEntry>,
+): ExpandedStringifiedPathsByRecord => {
+  let next: Map<string, ReadonlySet<string>> | null = null;
+
+  for (const [recordId, paths] of entries) {
+    const nextPaths = new Set(paths);
+    const current = (next ?? pathsByRecord).get(recordId);
+
+    if (nextPaths.size === 0) {
+      if (!current) {
+        continue;
+      }
+      next ??= new Map(pathsByRecord);
+      next.delete(recordId);
+      continue;
+    }
+
+    if (current && pathsAreEqual(current, nextPaths)) {
+      continue;
+    }
+
+    next ??= new Map(pathsByRecord);
+    next.set(recordId, nextPaths);
+  }
+
+  return next ?? pathsByRecord;
+};
+
 export const addExpandedStringifiedPaths = (
   pathsByRecord: ExpandedStringifiedPathsByRecord,
   recordId: string,
   paths: Iterable<string>,
-): ExpandedStringifiedPathsByRecord => {
-  const current = getExpandedStringifiedPaths(pathsByRecord, recordId);
-  let nextPaths: Set<string> | null = null;
-
-  for (const path of paths) {
-    if (!current.has(path)) {
-      nextPaths ??= new Set(current);
-      nextPaths.add(path);
-    }
-  }
-
-  if (!nextPaths) {
-    return pathsByRecord;
-  }
-
-  const next = new Map(pathsByRecord);
-  next.set(recordId, nextPaths);
-  return next;
-};
+): ExpandedStringifiedPathsByRecord =>
+  addExpandedStringifiedPathsBatch(pathsByRecord, [[recordId, paths]]);
 
 export const mergeExpandedStringifiedPaths = (
   pathsByRecord: ExpandedStringifiedPathsByRecord,
   additionalPathsByRecord: ExpandedStringifiedPathsByRecord,
-): ExpandedStringifiedPathsByRecord => {
-  let next = pathsByRecord;
-  for (const [recordId, paths] of additionalPathsByRecord) {
-    next = addExpandedStringifiedPaths(next, recordId, paths);
-  }
-  return next;
-};
+): ExpandedStringifiedPathsByRecord =>
+  addExpandedStringifiedPathsBatch(pathsByRecord, additionalPathsByRecord);
 
 export const replaceExpandedStringifiedPaths = (
   pathsByRecord: ExpandedStringifiedPathsByRecord,
   recordId: string,
   paths: Iterable<string>,
-): ExpandedStringifiedPathsByRecord => {
-  const nextPaths = new Set(paths);
-  const current = pathsByRecord.get(recordId);
-
-  if (nextPaths.size === 0) {
-    if (!current) {
-      return pathsByRecord;
-    }
-    const next = new Map(pathsByRecord);
-    next.delete(recordId);
-    return next;
-  }
-
-  if (current && pathsAreEqual(current, nextPaths)) {
-    return pathsByRecord;
-  }
-
-  const next = new Map(pathsByRecord);
-  next.set(recordId, nextPaths);
-  return next;
-};
+): ExpandedStringifiedPathsByRecord =>
+  replaceExpandedStringifiedPathsBatch(pathsByRecord, [[recordId, paths]]);
 
 export const toggleExpandedStringifiedPath = (
   pathsByRecord: ExpandedStringifiedPathsByRecord,
