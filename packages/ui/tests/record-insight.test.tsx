@@ -95,6 +95,46 @@ describe("record insight", () => {
     );
   });
 
+  // The field pickers changed from eight filter+sort passes to a single pass
+  // keeping the minimum per field. These pin the tie-break order that the
+  // stable sort used to provide.
+  describe("field selection tie-breaks", () => {
+    const insightFor = (value: unknown) => {
+      const result = parseInput(JSON.stringify(value), { forcedFormat: "jsonl" });
+      return createRecordInsight(result.records[0]!);
+    };
+
+    it("prefers the shallowest path", () => {
+      expect(insightFor({ message: "shallow", nested: { message: "deep" } })?.message).toBe(
+        "shallow",
+      );
+    });
+
+    it("prefers the shorter value at equal depth", () => {
+      expect(
+        insightFor({ a: { message: "a much longer message" }, b: { message: "short" } })?.message,
+      ).toBe("short");
+    });
+
+    it("prefers the lexicographically smaller path at equal depth and length", () => {
+      expect(insightFor({ b: { message: "yy" }, a: { message: "xx" } })?.message).toBe("xx");
+    });
+
+    it("counts array indices as no extra depth, matching the path separators", () => {
+      // `$.items[0].message` and `$.other.message` both carry two separators,
+      // so the value length decides.
+      expect(
+        insightFor({ items: [{ message: "from array" }], other: { message: "hi" } })?.message,
+      ).toBe("hi");
+    });
+
+    it("ranks error hits by key priority before path depth", () => {
+      // `level` sits at depth 1 and `error` at depth 2, but the `error` key
+      // outranks a level-derived error hit.
+      expect(insightFor({ level: "failed", detail: { error: "boom" } })?.error).toBe("boom");
+    });
+  });
+
   it("filters records by insight type", () => {
     const result = parseInput(
       [
