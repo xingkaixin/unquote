@@ -211,8 +211,23 @@ const collectInsightHits = (record: JsonlRecord) => {
   return { hits, nestedJsonCount: metrics.nestedCount, maxDepth: metrics.maxDepth };
 };
 
+const pathSeparator = ".".charCodeAt(0);
+
+const getPathDepth = (pathText: string) => {
+  let depth = 0;
+  for (let index = 0; index < pathText.length; index += 1) {
+    if (pathText.charCodeAt(index) === pathSeparator) {
+      depth += 1;
+    }
+  }
+  return depth;
+};
+
+// Counting separators replaces `split(".").length`: both sides of the
+// comparison shift by the same constant, so the ordering is unchanged and no
+// array is allocated per comparison.
 const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
-  left.pathText.split(".").length - right.pathText.split(".").length ||
+  getPathDepth(left.pathText) - getPathDepth(right.pathText) ||
   left.value.length - right.value.length ||
   left.pathText.localeCompare(right.pathText);
 
@@ -230,14 +245,30 @@ const getErrorHitPriority = (hit: RecordInsightHit) => {
   return 3;
 };
 
-const pickHit = (hits: RecordInsightHit[], field: RecordInsightField) =>
-  hits
-    .filter((hit) => hit.field === field)
-    .sort((left, right) =>
-      field === "error"
-        ? getErrorHitPriority(left) - getErrorHitPriority(right) || compareHits(left, right)
-        : compareHits(left, right),
-    )[0];
+const compareFieldHits = (
+  field: RecordInsightField,
+  left: RecordInsightHit,
+  right: RecordInsightHit,
+) =>
+  field === "error"
+    ? getErrorHitPriority(left) - getErrorHitPriority(right) || compareHits(left, right)
+    : compareHits(left, right);
+
+// One pass keeping the minimum per field, replacing eight filter+sort passes
+// over the same array. The strict `<` keeps the previous stable sort's
+// tie-break: among equal hits the earliest one wins.
+const pickBestHits = (hits: RecordInsightHit[]) => {
+  const best = new Map<RecordInsightField, RecordInsightHit>();
+
+  for (const hit of hits) {
+    const current = best.get(hit.field);
+    if (!current || compareFieldHits(hit.field, hit, current) < 0) {
+      best.set(hit.field, hit);
+    }
+  }
+
+  return best;
+};
 
 const getKind = (values: {
   event: string | undefined;
@@ -312,14 +343,15 @@ const createRecordInsightFromHits = (
   hits: RecordInsightHit[],
   metrics: { nestedJsonCount: number; maxDepth: number },
 ): RecordInsight => {
-  const timestamp = pickHit(hits, "timestamp")?.value;
-  const level = pickHit(hits, "level")?.value;
-  const status = pickHit(hits, "status")?.value;
-  const role = pickHit(hits, "role")?.value;
-  const event = pickHit(hits, "event")?.value;
-  const tool = pickHit(hits, "tool")?.value;
-  const error = pickHit(hits, "error")?.value;
-  const message = pickHit(hits, "message")?.value;
+  const best = pickBestHits(hits);
+  const timestamp = best.get("timestamp")?.value;
+  const level = best.get("level")?.value;
+  const status = best.get("status")?.value;
+  const role = best.get("role")?.value;
+  const event = best.get("event")?.value;
+  const tool = best.get("tool")?.value;
+  const error = best.get("error")?.value;
+  const message = best.get("message")?.value;
   const kind = getKind({ event, role, tool, error, message });
   const title = getTitle(record.summary, {
     kind,
