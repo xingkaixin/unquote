@@ -1687,6 +1687,41 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("buried").length).toBeGreaterThan(0));
   });
 
+  it("Expand All opens every level of nested stringified JSON in one click", async () => {
+    const user = userEvent.setup();
+    // The toolbar control is a single toggle, so there is no second Expand All
+    // click available: one click has to reach all the way down.
+    const input = JSON.stringify({
+      payload: JSON.stringify({ inner: JSON.stringify({ deep: 1 }) }),
+    });
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
+      target: { value: "jsonl" },
+    });
+    await user.click(screen.getByRole("tab", { name: "Output" }));
+    await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
+    expect(screen.queryAllByText("deep")).toHaveLength(0);
+
+    await user.click(
+      screen
+        .getAllByRole("button", { name: /^Expand All$/i })
+        .find((button) => button.hasAttribute("aria-pressed"))!,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("deep").length).toBeGreaterThan(0));
+
+    await user.click(
+      screen
+        .getAllByRole("button", { name: /^Collapse All$/i })
+        .find((button) => button.hasAttribute("aria-pressed"))!,
+    );
+    await waitFor(() => expect(screen.queryAllByText("inner")).toHaveLength(0));
+  });
+
   it("keeps stringified expansion within its JSONL record", async () => {
     const user = userEvent.setup();
     const input = [
