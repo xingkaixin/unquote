@@ -1,11 +1,7 @@
 import { parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
-import {
-  createFileOverview,
-  createFileOverviewState,
-  updateFileOverview,
-} from "../src/lib/file-overview";
+import { createFileOverview } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
 import {
   buildSearchPattern,
@@ -300,50 +296,5 @@ describe("tree paths", () => {
         expect.objectContaining({ field: "tool", value: "billing.search" }),
       ]),
     );
-  });
-
-  it("updates file overview incrementally for appended records", () => {
-    const result = parseInput(
-      [
-        '{"event":"tool_call","tool":"billing.search","args":"{\\"status\\":\\"open\\"}"}',
-        '{"event":"tool_result","tool":"billing.search","result":{"ok":true}}',
-        "not-json",
-      ].join("\n"),
-      { forcedFormat: "jsonl" },
-    );
-    const records = result.records.slice(0, 1);
-    const state = createFileOverviewState();
-
-    const first = updateFileOverview(records, state);
-    expect(first.total).toBe(1);
-    expect(first.nestedRecords).toBe(1);
-
-    records.push(...result.records.slice(1));
-    expect(updateFileOverview(records, state)).toEqual(createFileOverview(records));
-  });
-
-  it("keeps incremental Top-K equal to full recomputation across rebuilds", () => {
-    const allRecords = parseInput(
-      Array.from({ length: 500 }, (_, index) =>
-        JSON.stringify({
-          event: `event-${index % 73}`,
-          type: `type-${index % 41}`,
-          payload: JSON.stringify({ index }),
-        }),
-      ).join("\n"),
-      { forcedFormat: "jsonl" },
-    ).records;
-    const state = createFileOverviewState();
-    const streamedRecords: JsonlRecord[] = [];
-
-    for (let offset = 0; offset < allRecords.length; offset += 17) {
-      streamedRecords.push(...allRecords.slice(offset, offset + 17));
-      expect(updateFileOverview(streamedRecords, state)).toEqual(
-        createFileOverview(streamedRecords),
-      );
-    }
-
-    const shortened = allRecords.slice(0, 83);
-    expect(updateFileOverview(shortened, state)).toEqual(createFileOverview(shortened));
   });
 });

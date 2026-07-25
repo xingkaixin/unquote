@@ -2,9 +2,8 @@ import type { JsonlRecord } from "@unquote/core";
 import { isParsed } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import { walkRecordFields } from "./field-extraction";
+import type { FieldCandidate, FieldExtractionMetrics } from "./field-extraction";
 import { isToolContext, normalizeKey } from "./record-fields";
-import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
-import type { PartialRecordCache } from "./partial-record-cache";
 
 export type OverviewField = "event" | "type" | "tool";
 
@@ -38,7 +37,7 @@ export interface FileOverview {
   errors: OverviewError[];
 }
 
-interface RecordOverviewSummary {
+export interface RecordOverviewSummary {
   hasNestedJson: boolean;
   maxDepth: number;
   nestedPaths: Map<string, number>;
@@ -46,8 +45,9 @@ interface RecordOverviewSummary {
   error?: OverviewError;
 }
 
-export interface FileOverviewState {
-  cache: PartialRecordCache<RecordOverviewSummary>;
+// The running aggregate across every record seen so far. record-derivation.ts
+// owns the incremental cache that decides which records still need summarizing.
+export interface FileOverviewAggregate {
   nestedPathCounts: Map<string, number>;
   fieldValues: Map<string, OverviewFieldValue>;
   errors: OverviewError[];
@@ -106,17 +106,20 @@ const addFieldValue = (
   values.set(key, { ...item, count });
 };
 
-const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
-  const empty: RecordOverviewSummary = {
-    hasNestedJson: false,
-    maxDepth: 0,
-    nestedPaths: new Map(),
-    fieldValues: new Map(),
-  };
+const emptyRecordOverviewSummary = (): RecordOverviewSummary => ({
+  hasNestedJson: false,
+  maxDepth: 0,
+  nestedPaths: new Map(),
+  fieldValues: new Map(),
+});
 
+// Records with no tree of their own never reach the traversal, so their
+// summary is decided up front: unparsed lines become an error entry, anything
+// else contributes nothing.
+export const summarizeUnwalkableRecord = (record: JsonlRecord): RecordOverviewSummary | null => {
   if (!isParsed(record)) {
     return {
-      ...empty,
+      ...emptyRecordOverviewSummary(),
       error: {
         recordId: record.id,
         lineNumber: record.lineNumber,
@@ -126,27 +129,43 @@ const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
     };
   }
 
-  if (!record.node) {
-    return empty;
-  }
+  return record.node ? null : emptyRecordOverviewSummary();
+};
 
+export interface OverviewCollector {
+  onField: (candidate: FieldCandidate) => void;
+  build: (metrics: FieldExtractionMetrics) => RecordOverviewSummary;
+}
+
+export const createOverviewCollector = (): OverviewCollector => {
   const fieldValues = new Map<string, OverviewFieldValue>();
-  const metrics = walkRecordFields(record, {
-    trackNestedPaths: true,
+
+  return {
     onField: ({ key, pathSegments, pathText, primitiveValue }) => {
       const field = classifyOverviewField(key, pathSegments);
       if (field && primitiveValue !== null) {
         addFieldValue(fieldValues, { field, pathText, value: primitiveValue });
       }
     },
-  });
-
-  return {
-    hasNestedJson: metrics.nestedPaths.size > 0,
-    maxDepth: metrics.maxDepth,
-    nestedPaths: metrics.nestedPaths,
-    fieldValues,
+    build: (metrics) => ({
+      hasNestedJson: metrics.nestedPaths.size > 0,
+      maxDepth: metrics.maxDepth,
+      nestedPaths: metrics.nestedPaths,
+      fieldValues,
+    }),
   };
+};
+
+const summarizeRecord = (record: JsonlRecord): RecordOverviewSummary => {
+  const unwalkable = summarizeUnwalkableRecord(record);
+  if (unwalkable) {
+    return unwalkable;
+  }
+
+  const collector = createOverviewCollector();
+  return collector.build(
+    walkRecordFields(record, { trackNestedPaths: true, onField: collector.onField }),
+  );
 };
 
 const sortCountItems = <T extends { count: number }>(items: T[], getLabel: (item: T) => string) =>
@@ -154,10 +173,7 @@ const sortCountItems = <T extends { count: number }>(items: T[], getLabel: (item
     (left, right) => right.count - left.count || getLabel(left).localeCompare(getLabel(right)),
   );
 
-const createEmptyFileOverviewState = (): Omit<
-  FileOverviewState,
-  "records" | "processedLength" | "cache"
-> => ({
+export const createFileOverviewAggregate = (): FileOverviewAggregate => ({
   nestedPathCounts: new Map(),
   fieldValues: new Map(),
   errors: [],
@@ -170,8 +186,8 @@ const createEmptyFileOverviewState = (): Omit<
   dirtyFieldValues: new Set(),
 });
 
-const addSummaryToState = (
-  state: FileOverviewState,
+export const addSummaryToFileOverview = (
+  state: FileOverviewAggregate,
   record: JsonlRecord,
   summary: RecordOverviewSummary,
 ) => {
@@ -195,7 +211,7 @@ const addSummaryToState = (
   }
 };
 
-const toFileOverview = (state: FileOverviewState, total: number): FileOverview => {
+export const toFileOverview = (state: FileOverviewAggregate, total: number): FileOverview => {
   const nestedPathCandidates = new Set([
     ...state.topNestedPaths.map((item) => item.pathText),
     ...state.dirtyNestedPaths,
@@ -233,32 +249,10 @@ const toFileOverview = (state: FileOverviewState, total: number): FileOverview =
   };
 };
 
-export const createFileOverviewState = (): FileOverviewState => ({
-  cache: createPartialRecordCache(),
-  ...createEmptyFileOverviewState(),
-});
-
 export const createFileOverview = (records: JsonlRecord[]): FileOverview => {
-  const state: FileOverviewState = {
-    cache: createPartialRecordCache(),
-    ...createEmptyFileOverviewState(),
-  };
+  const aggregate = createFileOverviewAggregate();
   for (const record of records) {
-    addSummaryToState(state, record, summarizeRecord(record));
+    addSummaryToFileOverview(aggregate, record, summarizeRecord(record));
   }
-  return toFileOverview(state, records.length);
-};
-
-export const updateFileOverview = (
-  records: JsonlRecord[],
-  state: FileOverviewState,
-): FileOverview => {
-  const { rebuilt, processed } = updatePartialRecordCache(records, state.cache, summarizeRecord);
-  if (rebuilt) {
-    Object.assign(state, createEmptyFileOverviewState());
-  }
-  for (const { record, value } of processed) {
-    addSummaryToState(state, record, value);
-  }
-  return toFileOverview(state, records.length);
+  return toFileOverview(aggregate, records.length);
 };

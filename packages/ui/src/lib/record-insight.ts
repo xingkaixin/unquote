@@ -1,10 +1,12 @@
 import type { JsonlRecord } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
-import type { ContainerCandidate } from "./field-extraction";
+import type {
+  ContainerCandidate,
+  FieldCandidate,
+  FieldExtractionMetrics,
+} from "./field-extraction";
 import { walkRecordFields } from "./field-extraction";
 import { isToolContext, normalizeKey } from "./record-fields";
-import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
-import type { PartialRecordCache } from "./partial-record-cache";
 
 export type RecordInsightKind = "error" | "tool" | "message" | "event";
 
@@ -41,11 +43,6 @@ export interface RecordInsight {
   tool?: string;
   error?: string;
   message?: string;
-}
-
-export interface RecordInsightMapState {
-  cache: PartialRecordCache<RecordInsight | null>;
-  insights: Map<string, RecordInsight>;
 }
 
 const maxInsightValueLength = 160;
@@ -183,13 +180,20 @@ const addPrimitiveInsightHits = (
   }
 };
 
-// Shared with file-overview via field-extraction.ts: walkRecordFields owns
-// the node/preview traversal, this module only classifies the keys it
-// yields and derives its own error-fallback display text (see
-// getErrorContainerFallback above).
-const collectInsightHits = (record: JsonlRecord) => {
+// The record traversal itself lives in record-derivation.ts, which drives this
+// collector and file-overview's side by side over a single walk. This module
+// only classifies the candidates it is handed and derives its own
+// error-fallback display text (see getErrorContainerFallback above).
+export interface InsightCollector {
+  onField: (candidate: FieldCandidate) => void;
+  onContainer: (candidate: ContainerCandidate) => void;
+  build: (record: JsonlRecord, metrics: FieldExtractionMetrics) => RecordInsight;
+}
+
+export const createInsightCollector = (): InsightCollector => {
   const hits: RecordInsightHit[] = [];
-  const metrics = walkRecordFields(record, {
+
+  return {
     onField: ({ key, pathSegments, pathText, primitiveValue }) => {
       if (primitiveValue !== null) {
         addPrimitiveInsightHits(hits, key, primitiveValue, pathText, pathSegments);
@@ -206,9 +210,12 @@ const collectInsightHits = (record: JsonlRecord) => {
         );
       }
     },
-  });
-
-  return { hits, nestedJsonCount: metrics.nestedCount, maxDepth: metrics.maxDepth };
+    build: (record, metrics) =>
+      createRecordInsightFromHits(record, hits, {
+        nestedJsonCount: metrics.nestedCount,
+        maxDepth: metrics.maxDepth,
+      }),
+  };
 };
 
 const pathSeparator = ".".charCodeAt(0);
@@ -389,8 +396,12 @@ export const createRecordInsight = (record: JsonlRecord): RecordInsight | null =
     return null;
   }
 
-  const { hits, nestedJsonCount, maxDepth } = collectInsightHits(record);
-  return createRecordInsightFromHits(record, hits, { nestedJsonCount, maxDepth });
+  const collector = createInsightCollector();
+  const metrics = walkRecordFields(record, {
+    onField: collector.onField,
+    onContainer: collector.onContainer,
+  });
+  return collector.build(record, metrics);
 };
 
 export const createRecordInsightMap = (records: JsonlRecord[]) => {
@@ -402,28 +413,4 @@ export const createRecordInsightMap = (records: JsonlRecord[]) => {
     }
   }
   return insights;
-};
-
-export const createRecordInsightMapState = (): RecordInsightMapState => ({
-  cache: createPartialRecordCache(),
-  insights: new Map(),
-});
-
-export const updateRecordInsightMap = (records: JsonlRecord[], state: RecordInsightMapState) => {
-  const { rebuilt, processed } = updatePartialRecordCache(
-    records,
-    state.cache,
-    createRecordInsight,
-  );
-  if (rebuilt) {
-    state.insights = new Map();
-  }
-  for (const { record, value } of processed) {
-    if (value) {
-      state.insights.set(record.id, value);
-    } else {
-      state.insights.delete(record.id);
-    }
-  }
-  return state.insights;
 };
