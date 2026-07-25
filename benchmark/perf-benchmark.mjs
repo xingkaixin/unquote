@@ -48,6 +48,9 @@ const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
 const maxChromeDiagnosticLength = 8_192;
 const chromeStartupTimeoutMs = 30_000;
 const chromeStartupPollIntervalMs = 100;
+// Deferred file records only grow an expandable row once they hydrate; give
+// that a bounded wait rather than assuming it has already happened.
+const expandableRowTimeoutMs = 10_000;
 const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
@@ -88,6 +91,8 @@ const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;
 const budgets = {
   firstRecordReadyMsP95: readBudget("UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS", 1000),
   completeReadyMsP95: readBudget("UNQUOTE_BENCH_COMPLETE_BUDGET_MS", 3000),
+  expandPathReadyMsP95: readBudget("UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS", 400),
+  expandAllReadyMsP95: readBudget("UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS", 800),
   domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 10000),
   jsHeapUsedSizeMBMax: readBudget("UNQUOTE_BENCH_HEAP_BUDGET_MB", 256),
 };
@@ -479,6 +484,55 @@ const runRenderFixture = async (client, fixture) => {
         await settleFrames()
       }
 
+      // Expansion is measured before the search step and restored afterwards:
+      // search populates its own expansion state, which flips the toolbar
+      // control to Collapse All and makes anything measured after it depend on
+      // whether the query happened to match inside stringified JSON.
+      const expansionControl = (label) =>
+        [...document.querySelectorAll('button')].find(
+          (node) => node.textContent?.trim() === label
+        )
+      // The per-row toggle is an aria-hidden span; its row owns the click
+      // handler and the aria-expanded state. It used to be matched by
+      // [aria-label^="Toggle"], which stopped existing in #67 and left
+      // expandPathReadyMs silently null on every fixture since.
+      const firstToggleRow = await waitFor(
+        'expandable-row',
+        () => document.querySelector('[data-tree-toggle]')?.closest('[role="treeitem"]') ?? null,
+        ${expandableRowTimeoutMs}
+      ).catch(() => null)
+
+      let expandPathReadyMs = null
+      if (firstToggleRow) {
+        const expandPathStart = performance.now()
+        firstToggleRow.querySelector('[data-tree-toggle]').click()
+        await waitFor('expand-path', () => firstToggleRow.getAttribute('aria-expanded') === 'true')
+        await settleFrames()
+        expandPathReadyMs = performance.now() - expandPathStart
+
+        // Restore the collapsed baseline so Expand All starts from a known state.
+        firstToggleRow.querySelector('[data-tree-toggle]').click()
+        await waitFor('collapse-path', () => firstToggleRow.getAttribute('aria-expanded') !== 'true')
+        await settleFrames()
+      }
+
+      // Expand All applies one expansion write per visible record — a
+      // different path from the single toggle above, and the one that
+      // regressed to O(n^2) in UQ-113. The control carries no aria-label, but
+      // its text doubles as its current state.
+      let expandAllReadyMs = null
+      if (expansionControl('Expand All')) {
+        const expandAllStart = performance.now()
+        expansionControl('Expand All').click()
+        await waitFor('expand-all', () => expansionControl('Collapse All'))
+        await settleFrames()
+        expandAllReadyMs = performance.now() - expandAllStart
+
+        expansionControl('Collapse All').click()
+        await waitFor('collapse-all', () => expansionControl('Expand All'))
+        await settleFrames()
+      }
+
       let searchReadyMs = null
       if (!${JSON.stringify(skipSearch)}) {
         const searchInput = await waitFor('search-input', () =>
@@ -506,15 +560,6 @@ const runRenderFixture = async (client, fixture) => {
         searchReadyMs = performance.now() - searchStart
       }
 
-      const toggle = document.querySelector('[aria-label^="Toggle"]')
-      let expandPathReadyMs = null
-      if (toggle) {
-        const expandPathStart = performance.now()
-        toggle.click()
-        await settleFrames()
-        expandPathReadyMs = performance.now() - expandPathStart
-      }
-
       // Large fixtures auto-collapse the source panel (see app.tsx sourceCollapsed),
       // which unmounts TocPane entirely. Re-expand it so the TOC's per-record DOM
       // cost (currently unvirtualized) is captured by domNodes/recordCards below.
@@ -534,12 +579,18 @@ const runRenderFixture = async (client, fixture) => {
         tocReadyMs = performance.now() - tocStart
       }
 
+      // domNodes is budgeted against the default mostly-collapsed view, which
+      // is why the expansion steps above restore their state before returning.
+      const domNodes = document.getElementsByTagName('*').length
+      const recordCards = document.querySelectorAll('[id^="record-"]:not([id*=":"])').length
+
       return {
         searchReadyMs,
         expandPathReadyMs,
+        expandAllReadyMs,
         tocReadyMs,
-        domNodes: document.getElementsByTagName('*').length,
-        recordCards: document.querySelectorAll('[id^="record-"]:not([id*=":"])').length,
+        domNodes,
+        recordCards,
       }
     }
   )()`;
@@ -655,6 +706,7 @@ const benchmarkRender = async (fixturesInfo) => {
           completeReadyMs: summarize(runs.map((run) => run.completeReadyMs)),
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
           expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
+          expandAllReadyMs: summarize(runs.map((run) => run.expandAllReadyMs)),
           tocReadyMs: summarize(runs.map((run) => run.tocReadyMs)),
           domNodes: summarize(runs.map((run) => run.domNodes)),
           recordCards: summarize(runs.map((run) => run.recordCards)),
@@ -686,6 +738,12 @@ const collectBudgetFailures = (render) => {
     }
     if ((metrics.completeReadyMs.p95 ?? 0) > budgets.completeReadyMsP95) {
       failures.push(`${fixture} completeReadyMs.p95 ${metrics.completeReadyMs.p95}`);
+    }
+    if ((metrics.expandPathReadyMs.p95 ?? 0) > budgets.expandPathReadyMsP95) {
+      failures.push(`${fixture} expandPathReadyMs.p95 ${metrics.expandPathReadyMs.p95}`);
+    }
+    if ((metrics.expandAllReadyMs.p95 ?? 0) > budgets.expandAllReadyMsP95) {
+      failures.push(`${fixture} expandAllReadyMs.p95 ${metrics.expandAllReadyMs.p95}`);
     }
     if ((metrics.domNodes.max ?? 0) > budgets.domNodesMax) {
       failures.push(`${fixture} domNodes.max ${metrics.domNodes.max}`);
