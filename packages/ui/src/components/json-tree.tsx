@@ -74,14 +74,27 @@ export const JsonTree = memo(function JsonTree({
     [displayRows],
   );
   const [activeRowId, setActiveRowId] = useState<string | undefined>();
+  // Keyboard navigation resolves a row id to its position on every keypress.
+  // Building the lookups once per row-set change keeps that O(1): the row set
+  // only changes on expand/collapse or a new search, far less often than keys.
+  const interactiveIndexById = useMemo(() => {
+    const indexById = new Map<string, number>();
+    interactiveRows.forEach((row, index) => indexById.set(row.id, index));
+    return indexById;
+  }, [interactiveRows]);
+  const displayIndexById = useMemo(() => {
+    const indexById = new Map<string, number>();
+    displayRows.forEach((row, index) => indexById.set(row.id, index));
+    return indexById;
+  }, [displayRows]);
 
   useEffect(() => {
-    if (interactiveRows.some((row) => row.id === activeRowId)) {
+    if (activeRowId !== undefined && interactiveIndexById.has(activeRowId)) {
       return;
     }
 
     setActiveRowId(interactiveRows[0]?.id);
-  }, [activeRowId, interactiveRows]);
+  }, [activeRowId, interactiveIndexById, interactiveRows]);
 
   useEffect(() => {
     if (record.deferred && hydrated) {
@@ -128,8 +141,8 @@ export const JsonTree = memo(function JsonTree({
   );
 
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const activeIndex = interactiveRows.findIndex((row) => row.id === activeRowId);
-    const currentIndex = activeIndex === -1 ? 0 : activeIndex;
+    const currentIndex =
+      activeRowId === undefined ? 0 : (interactiveIndexById.get(activeRowId) ?? 0);
     const activeRow = interactiveRows[currentIndex];
     if (!activeRow) {
       return;
@@ -176,16 +189,12 @@ export const JsonTree = memo(function JsonTree({
 
     event.preventDefault();
     if (nextIndex !== undefined && nextIndex >= 0) {
-      setActiveRowId(interactiveRows[nextIndex]!.id);
+      const nextRowId = interactiveRows[nextIndex]!.id;
+      setActiveRowId(nextRowId);
       if (shouldVirtualize) {
-        const displayIndex = displayRows.findIndex(
-          (row) => row.id === interactiveRows[nextIndex]!.id,
-        );
-        rowVirtualizer.scrollToIndex(displayIndex, { align: "auto" });
+        rowVirtualizer.scrollToIndex(displayIndexById.get(nextRowId) ?? -1, { align: "auto" });
       } else {
-        document
-          .getElementById(interactiveRows[nextIndex]!.id)
-          ?.scrollIntoView({ block: "nearest" });
+        document.getElementById(nextRowId)?.scrollIntoView({ block: "nearest" });
       }
     }
   };
