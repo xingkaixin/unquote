@@ -51,9 +51,10 @@ const chromeStartupPollIntervalMs = 100;
 // Deferred file records only grow an expandable row once they hydrate; give
 // that a bounded wait rather than assuming it has already happened.
 const expandableRowTimeoutMs = 10_000;
-// Five samples so the gating median is an actual median rather than the
-// middle of three noisy runs.
-const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 5);
+// Three samples: gating on the median already removes the worst-run
+// sensitivity, and raising this to five pushed the CI job past its 20 minute
+// timeout even though the same change costs only ~1.4x locally.
+const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
 const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
 const outputPath = path.resolve(
   repoRoot,
@@ -382,23 +383,31 @@ const runRenderFixture = async (client, fixture) => {
       const start = window.__unquoteBenchmarkStart ?? performance.now()
       const waitFor = (stage, predicate, timeout = 30000) =>
         new Promise((resolve, reject) => {
-          const startedAt = performance.now()
-          const step = () => {
-            const value = predicate()
-            if (value) {
-              resolve(value)
-              return
-            }
-
-            if (performance.now() - startedAt > timeout) {
+          let settled = false
+          const finish = (apply) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            apply()
+          }
+          const fail = () =>
+            finish(() => {
               const shell = document.querySelector('.uq-shell')
               reject(new Error('timeout ' + stage + ' ' + JSON.stringify(shell?.dataset ?? {})))
+            })
+          // The deadline needs its own timer: requestAnimationFrame stalls
+          // under a long main-thread block, and a rAF-only check would then
+          // never run, leaving the run hanging with no diagnostic at all.
+          const timer = setTimeout(fail, timeout)
+          const step = () => {
+            if (settled) return
+            const value = predicate()
+            if (value) {
+              finish(() => resolve(value))
               return
             }
-
             requestAnimationFrame(step)
           }
-
           step()
         })
       const settleFrames = () =>
@@ -462,16 +471,27 @@ const runRenderFixture = async (client, fixture) => {
     async () => {
       const waitFor = (stage, predicate, timeout = 30000) =>
         new Promise((resolve, reject) => {
-          const startedAt = performance.now()
-          const step = () => {
-            const value = predicate()
-            if (value) {
-              resolve(value)
-              return
-            }
-            if (performance.now() - startedAt > timeout) {
+          let settled = false
+          const finish = (apply) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            apply()
+          }
+          const fail = () =>
+            finish(() => {
               const shell = document.querySelector('.uq-shell')
               reject(new Error('timeout ' + stage + ' ' + JSON.stringify(shell?.dataset ?? {})))
+            })
+          // The deadline needs its own timer: requestAnimationFrame stalls
+          // under a long main-thread block, and a rAF-only check would then
+          // never run, leaving the run hanging with no diagnostic at all.
+          const timer = setTimeout(fail, timeout)
+          const step = () => {
+            if (settled) return
+            const value = predicate()
+            if (value) {
+              finish(() => resolve(value))
               return
             }
             requestAnimationFrame(step)
