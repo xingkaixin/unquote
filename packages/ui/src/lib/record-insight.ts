@@ -33,7 +33,6 @@ export interface RecordInsight {
   nestedJsonCount: number;
   maxDepth: number;
   keyPaths: string[];
-  filterText: string;
   timestamp?: string;
   level?: string;
   status?: string;
@@ -333,23 +332,6 @@ const createRecordInsightFromHits = (
     level,
   });
   const keyPaths = unique(hits.map((hit) => hit.pathText)).slice(0, maxKeyPathCount);
-  const filterText = [
-    kind,
-    title,
-    record.summary,
-    timestamp,
-    level,
-    status,
-    role,
-    event,
-    tool,
-    error,
-    message,
-    ...hits.flatMap((hit) => [hit.key, hit.pathText, hit.value]),
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .toLowerCase();
 
   return {
     recordId: record.id,
@@ -359,7 +341,6 @@ const createRecordInsightFromHits = (
     nestedJsonCount: metrics.nestedJsonCount,
     maxDepth: metrics.maxDepth,
     keyPaths,
-    filterText,
     ...(timestamp ? { timestamp } : {}),
     ...(level ? { level } : {}),
     ...(status ? { status } : {}),
