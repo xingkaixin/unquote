@@ -1,10 +1,9 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { isParsed } from "@unquote/core";
 import { useMemo, useRef } from "react";
-import { createFileOverviewState, updateFileOverview } from "../lib/file-overview";
 import type { FileOverview } from "../lib/file-overview";
 import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
-import { createRecordInsightMapState, updateRecordInsightMap } from "../lib/record-insight";
+import { createRecordDerivationState, updateRecordDerivations } from "../lib/record-derivation";
 import type { RecordInsight } from "../lib/record-insight";
 import type { QueryInteractionState } from "../lib/query-interaction";
 import { filterRecords } from "../lib/tree";
@@ -49,8 +48,7 @@ export const useRecordPipeline = ({
   searchMatches,
   recordFilter,
 }: RecordPipelineParams): RecordPipeline => {
-  const overviewStateRef = useRef(createFileOverviewState());
-  const recordInsightStateRef = useRef(createRecordInsightMapState());
+  const derivationStateRef = useRef(createRecordDerivationState());
   const recordsByIdStateRef = useRef<{
     records: JsonlRecord[] | null;
     map: Map<string, JsonlRecord>;
@@ -58,10 +56,14 @@ export const useRecordPipeline = ({
 
   const matches = searchMatches;
 
-  const recordInsights = useMemo(
-    () => updateRecordInsightMap(result.records, recordInsightStateRef.current),
+  // Insights and the file overview share one traversal per record, so they are
+  // derived together rather than as two independent memos.
+  const derivations = useMemo(
+    () => updateRecordDerivations(result.records, derivationStateRef.current),
     [result.records],
   );
+  const recordInsights = derivations.insights;
+  const fileOverview = derivations.overview;
   const recordsById = useMemo(() => {
     const state = recordsByIdStateRef.current;
     const { records } = result;
@@ -91,10 +93,6 @@ export const useRecordPipeline = ({
   const visibleStats = useMemo(
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
     [recordFilter, result.stats, visibleRecords],
-  );
-  const fileOverview = useMemo(
-    () => updateFileOverview(result.records, overviewStateRef.current),
-    [result.records],
   );
   const visibleMatches = useMemo(() => {
     if (!matches) return null;
