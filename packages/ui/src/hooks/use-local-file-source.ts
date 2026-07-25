@@ -31,7 +31,7 @@ const createHydrationGeneration = (sourceFile: File | null): HydrationGeneration
  * Deep module for local JSONL file source access.
  *
  * Owns the source-access concerns that leaked out of `UnquoteApp`:
- *  - deferred-record hydration cache (with in-flight de-dup + LRU eviction)
+ *  - deferred-record hydration cache (with in-flight de-dup + FIFO eviction)
  *  - full-record resolution for copy / export
  *
  * Whole-file search has moved to `useSearchWorker`, which reads the file
@@ -112,12 +112,21 @@ export const useLocalFileSource = (
             }
             next.set(lineNumber, hydrated);
           }
+          // Eviction is FIFO, not LRU: `Map.keys()` yields insertion order and
+          // the cache is only written on hydration, never on read, so a
+          // repeatedly viewed record does not move to the back. That is a
+          // deliberate trade — making it a true LRU would mean touching the
+          // cache from the read path, which is a pure lookup today and would
+          // otherwise re-render the whole record list on every scroll. Under
+          // one-directional scrolling the two policies agree; the cost of the
+          // difference is one extra scan when scrolling back past the limit,
+          // after which the record is re-inserted at the back.
           while (next.size > hydratedFileRecordLimit) {
-            const oldest = next.keys().next().value;
-            if (typeof oldest !== "number") {
+            const firstInserted = next.keys().next().value;
+            if (typeof firstInserted !== "number") {
               break;
             }
-            next.delete(oldest);
+            next.delete(firstInserted);
           }
           return next;
         });
