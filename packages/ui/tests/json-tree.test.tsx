@@ -8,13 +8,12 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
   const record = parseInput('{"payload":"{\\"answer\\":42}","status":"ok"}').records[0]!;
   const onSelectNode = vi.fn();
   const onTogglePath = vi.fn();
-
-  render(
+  const tree = (paths: ReadonlySet<string>) => (
     <I18nProvider>
       <JsonTree
         record={record}
         insight={undefined}
-        expandedStringifiedPaths={expandedStringifiedPaths}
+        expandedStringifiedPaths={paths}
         eager
         searchMatches={[]}
         activeMatch={null}
@@ -31,10 +30,17 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
           clearFocus: vi.fn(),
         }}
       />
-    </I18nProvider>,
+    </I18nProvider>
   );
 
-  return { onSelectNode, onTogglePath, record };
+  const { rerender } = render(tree(expandedStringifiedPaths));
+
+  return {
+    onSelectNode,
+    onTogglePath,
+    record,
+    setExpandedPaths: (paths: ReadonlySet<string>) => rerender(tree(paths)),
+  };
 };
 
 afterEach(cleanup);
@@ -123,6 +129,21 @@ describe("JsonTree", () => {
 
     fireEvent.keyDown(tree, { key: " " });
     expect(onSelectNode).toHaveBeenCalledWith(record, expect.objectContaining({ pathText: "$" }));
+  });
+
+  it("keeps navigation aligned after the row set changes", () => {
+    const { setExpandedPaths, record } = renderTree();
+    const tree = screen.getByRole("tree");
+
+    fireEvent.keyDown(tree, { key: "End" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.status`);
+
+    // Expanding inserts rows between the active row and the start of the list,
+    // so a stale row-position lookup would land on the wrong row here.
+    setExpandedPaths(new Set(["$.payload"]));
+    fireEvent.keyDown(tree, { key: "ArrowUp" });
+
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload.answer`);
   });
 
   it("clicking the toggle affordance toggles the path instead of selecting it", () => {
