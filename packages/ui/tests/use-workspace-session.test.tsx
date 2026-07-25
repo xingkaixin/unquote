@@ -84,6 +84,36 @@ describe("useWorkspaceSession", () => {
     expect(result.current.state.scrollIntent).toBe(stateBeforeAppend.scrollIntent);
   });
 
+  it("expands every level of nested stringified JSON in one pass", () => {
+    // Three levels: $.payload holds JSON holding JSON. A single
+    // collectStringifiedPaths call only reaches the outermost one.
+    const deepest = JSON.stringify({ deep: 1 });
+    const middle = JSON.stringify({ inner: deepest });
+    const records = parseInput(JSON.stringify({ payload: middle }), {
+      forcedFormat: "jsonl",
+    }).records;
+    const { result } = renderHook(() => useWorkspaceSession());
+
+    act(() => result.current.expandAll(records, new Map()));
+
+    expect([...result.current.state.expandedPaths.get(records[0]!.id)!].sort()).toEqual([
+      "$.payload",
+      "$.payload.inner",
+    ]);
+  });
+
+  it("drops seeded expansion paths that the record no longer contains", () => {
+    const records = parseInput(JSON.stringify({ payload: JSON.stringify({ a: 1 }) }), {
+      forcedFormat: "jsonl",
+    }).records;
+    const { result } = renderHook(() => useWorkspaceSession());
+    const staleSeed = new Map([[records[0]!.id, new Set(["$.gone"])]]);
+
+    act(() => result.current.expandAll(records, staleSeed));
+
+    expect([...result.current.state.expandedPaths.get(records[0]!.id)!]).toEqual(["$.payload"]);
+  });
+
   it("reconciles selection when visible records are replaced rather than appended", () => {
     const records = parseInput('{"value":1}\n{"value":2}\n{"value":3}', {
       forcedFormat: "jsonl",

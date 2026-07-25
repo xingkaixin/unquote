@@ -27,6 +27,30 @@ const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath
   rawKey: row.keyLabel,
 });
 
+// collectStringifiedPaths only reaches the outermost stringified nodes of the
+// currently expanded frontier — descending further needs those paths to already
+// be expanded. Expand All means all, so drive it to a fixpoint. The set only
+// grows and is bounded by the record's stringified node count, so this
+// terminates; in practice it runs once per level of nesting.
+const collectAllStringifiedPaths = (record: JsonlRecord, seed: ReadonlySet<string>) => {
+  // `frontier` drives how deep the walk may descend; `collected` is the result.
+  // Keeping them separate preserves the previous behaviour of dropping seed
+  // paths that are no longer reachable in the record.
+  const frontier = new Set(seed);
+  const collected = new Set<string>();
+
+  for (;;) {
+    const sizeBefore = collected.size;
+    for (const path of collectStringifiedPaths(record, frontier)) {
+      collected.add(path);
+      frontier.add(path);
+    }
+    if (collected.size === sizeBefore) {
+      return collected;
+    }
+  }
+};
+
 export const useWorkspaceSession = () => {
   const [selectionState, dispatchSelection] = useReducer(
     reduceWorkspaceSelection,
@@ -110,7 +134,7 @@ export const useWorkspaceSession = () => {
               (record) =>
                 [
                   record.id,
-                  collectStringifiedPaths(
+                  collectAllStringifiedPaths(
                     record,
                     getExpandedStringifiedPaths(displayedExpandedPaths, record.id),
                   ),
