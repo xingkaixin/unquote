@@ -25,7 +25,6 @@ describe("record insight", () => {
             nestedJsonCount: 0,
             maxDepth: 0,
             keyPaths: [],
-            filterText: "message",
           }}
         />
       </I18nProvider>,
