@@ -32,6 +32,7 @@ import { formatFileSize } from "./lib/format";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
+import { resolveHydratedRecord } from "./lib/record-resolution";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -371,7 +372,15 @@ export const UnquoteApp = ({
   );
 
   const handleExpandAll = () => {
-    workspace.expandAll(visibleRecords, displayedExpandedStringifiedPathsByRecord);
+    // Expand from the hydrated record where one exists: a deferred record's
+    // preview only lists top-level nested fields, so stringified JSON sitting
+    // under a plain container would otherwise be unreachable from here.
+    workspace.expandAll(
+      visibleRecords.map((record) =>
+        resolveHydratedRecord(record, localFileSource.hydratedRecords),
+      ),
+      displayedExpandedStringifiedPathsByRecord,
+    );
   };
 
   const handleCollapseAll = () => {
