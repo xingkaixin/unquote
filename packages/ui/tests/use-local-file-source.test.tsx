@@ -325,7 +325,7 @@ describe("useLocalFileSource", () => {
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
 
-  it("caps a merged batch at hydratedFileRecordLimit via LRU eviction", async () => {
+  it("caps a merged batch at hydratedFileRecordLimit via FIFO eviction", async () => {
     const lineCount = 505;
     const contents = Array.from({ length: lineCount }, (_, index) => `{"n":${index + 1}}`).join(
       "\n",
@@ -343,6 +343,36 @@ describe("useLocalFileSource", () => {
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(1);
     expect(result.current.hydratedRecords.has(1)).toBe(false);
     expect(result.current.hydratedRecords.has(lineCount)).toBe(true);
+  });
+
+  it("evicts by insertion order even for a just-requested record", async () => {
+    const lineCount = 505;
+    const contents = Array.from({ length: lineCount }, (_, index) => `{"n":${index + 1}}`).join(
+      "\n",
+    );
+    const file = makeStreamedFile(`${contents}\n`);
+    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+
+    act(() => {
+      for (let lineNumber = 1; lineNumber <= 500; lineNumber += 1) {
+        result.current.hydrateRecord(makeDeferredRecord(lineNumber));
+      }
+    });
+    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(500));
+
+    act(() => {
+      // Already cached, so this is a no-op that does not move line 1 to the
+      // back of the map. A true LRU would keep it alive past the next batch.
+      result.current.hydrateRecord(makeDeferredRecord(1));
+      for (let lineNumber = 501; lineNumber <= lineCount; lineNumber += 1) {
+        result.current.hydrateRecord(makeDeferredRecord(lineNumber));
+      }
+    });
+    await waitFor(() => expect(result.current.hydratedRecords.has(lineCount)).toBe(true));
+
+    expect(result.current.hydratedRecords.size).toBe(500);
+    expect(result.current.hydratedRecords.has(1)).toBe(false);
+    expect(result.current.hydratedRecords.has(6)).toBe(true);
   });
 
   it("does not hydrate non-deferred records", async () => {
