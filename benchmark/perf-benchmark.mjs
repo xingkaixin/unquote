@@ -92,7 +92,12 @@ const fixtureArgs = process.argv.slice(2);
 const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;
 
 const budgets = {
-  firstRecordReadyMsP50: readBudget("UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS", 1000),
+  // 1500 rather than 1000: first-record latency covers worker startup and first
+  // paint, the noisiest thing measured here (2.4x run-to-run on the median
+  // across nine CI runs, worst observed median 549ms). completeReadyMs is the
+  // steady metric for parse throughput; this one only guards gross startup
+  // regressions, so it is sized to stay off CI's back.
+  firstRecordReadyMsP50: readBudget("UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS", 1500),
   completeReadyMsP50: readBudget("UNQUOTE_BENCH_COMPLETE_BUDGET_MS", 3000),
   expandPathReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS", 400),
   expandAllReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS", 800),

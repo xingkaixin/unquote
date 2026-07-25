@@ -36,8 +36,11 @@ jobs:
         run: |
           pnpm benchmark:fixtures
           pnpm benchmark:case4-fixture
+      # Budget failures fail the job. The gate compares medians (see
+      # perf-benchmark.mjs) so a single slow run on a shared runner does not
+      # trip it; UNQUOTE_BENCH_*_BUDGET_* can relax a threshold without a code
+      # change if a runner turns out to be pathological.
       - name: Run benchmark
-        continue-on-error: true
         env:
           UNQUOTE_BENCH_OUTPUT: ${{ runner.temp }}/unquote-benchmark/latest.json
         run: >-
