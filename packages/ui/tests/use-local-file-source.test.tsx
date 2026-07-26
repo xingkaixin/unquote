@@ -117,6 +117,7 @@ const makeControlledFile = (contents: string, name: string) => {
 };
 
 const makeDeferredRecord = (lineNumber: number) => ({
+  status: "preview" as const,
   id: `record-${lineNumber}`,
   lineNumber,
   node: {
@@ -132,7 +133,6 @@ const makeDeferredRecord = (lineNumber: number) => ({
       sourceLine: lineNumber,
     },
   },
-  deferred: true,
   summary: "deferred",
 });
 
@@ -379,7 +379,7 @@ describe("useLocalFileSource", () => {
     const file = makeStreamedFile('{"a":1}\n');
     const { result } = renderHook(() => useLocalFileSource(file, noopError));
 
-    const record = { ...makeDeferredRecord(1), deferred: false };
+    const record = { ...makeDeferredRecord(1), status: "full" as const };
     act(() => {
       result.current.hydrateRecord(record);
     });

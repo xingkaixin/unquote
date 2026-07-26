@@ -129,7 +129,7 @@ export const summarizeUnwalkableRecord = (record: JsonlRecord): RecordOverviewSu
     };
   }
 
-  return record.node ? null : emptyRecordOverviewSummary();
+  return null;
 };
 
 export interface OverviewCollector {

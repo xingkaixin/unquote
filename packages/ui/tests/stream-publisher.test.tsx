@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JsonlRecord } from "@unquote/core";
+import { parseInput } from "@unquote/core";
 import { createStreamPublisher } from "../src/lib/stream-publisher";
 
 interface TestProgress {
@@ -7,9 +8,9 @@ interface TestProgress {
 }
 
 const makeRecord = (lineNumber: number): JsonlRecord => ({
+  ...parseInput("not-json", { forcedFormat: "jsonl" }).records[0]!,
   id: `record-${lineNumber}`,
   lineNumber,
-  node: null,
   summary: `line ${lineNumber}`,
 });
 

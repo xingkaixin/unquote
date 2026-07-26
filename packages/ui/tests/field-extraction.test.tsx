@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ContainerCandidate, FieldCandidate } from "../src/lib/field-extraction";
 import { walkRecordFields } from "../src/lib/field-extraction";
 
-const walk = (record: Pick<JsonlRecord, "node" | "preview">, trackNestedPaths = false) => {
+const walk = (record: JsonlRecord, trackNestedPaths = false) => {
   const fields: FieldCandidate[] = [];
   const containers: ContainerCandidate[] = [];
   const metrics = walkRecordFields(record, {
@@ -96,7 +96,7 @@ describe("field-extraction", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,
-      deferred: true,
+      status: "preview",
       node: {
         kind: "object",
         value: null,
@@ -140,7 +140,8 @@ describe("field-extraction", () => {
   });
 
   it("does nothing for a record with neither a node nor a preview", () => {
-    const { fields, containers, metrics } = walk({ node: null });
+    const failed = parseInput("not-json", { forcedFormat: "jsonl" }).records[0]!;
+    const { fields, containers, metrics } = walk(failed);
 
     expect(fields).toEqual([]);
     expect(containers).toEqual([]);

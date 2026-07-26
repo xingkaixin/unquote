@@ -1,4 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
+import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import {
   createPartialRecordCache,
@@ -6,9 +7,8 @@ import {
 } from "../src/lib/partial-record-cache";
 
 const rec = (id: string): JsonlRecord => ({
+  ...parseInput("not-json", { forcedFormat: "jsonl" }).records[0]!,
   id,
-  lineNumber: 1,
-  node: null,
   summary: id,
 });
 

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatResult,
   materializeNode,
-  parseDeferredJsonlRecordLine,
   parseInput,
   parseJsonlRecordLine,
+  parsePreviewJsonlRecordLine,
   probeJsonl,
   restoreNode,
 } from "../src";
@@ -121,21 +121,21 @@ describe("parseInput", () => {
     expect(record.summary).toBe("event:two");
   });
 
-  it("projects deferred records from the same stringified JSON semantics", () => {
+  it("projects Preview Records from the same stringified JSON semantics", () => {
     const line = JSON.stringify({
       nested: '{"ok":true}',
       primitive: "true",
       invalid: "{not json",
       object: {},
     });
-    const deferred = parseDeferredJsonlRecordLine(line, 7);
+    const preview = parsePreviewJsonlRecordLine(line, 7);
     const hydrated = parseJsonlRecordLine(line, 7);
     if (!hydrated.node?.children || Array.isArray(hydrated.node.children)) {
       throw new Error("Expected hydrated object children");
     }
 
-    expect(deferred).toMatchObject({
-      deferred: true,
+    expect(preview).toMatchObject({
+      status: "preview",
       preview: {
         fields: {
           nested: '{"ok":true}',
@@ -146,19 +146,19 @@ describe("parseInput", () => {
         nestedFieldKeys: ["nested", "primitive"],
       },
     });
-    expect(deferred.node?.children).toBeUndefined();
+    expect(preview.node?.children).toBeUndefined();
     expect(hydrated.node.children.nested?.wasStringified).toBe(true);
     expect(hydrated.node.children.primitive?.wasStringified).toBe(true);
     expect(hydrated.node.children.invalid?.wasStringified).toBe(false);
   });
 
-  it("keeps deferred root string semantics aligned with hydrated records", () => {
+  it("keeps Preview Record root string semantics aligned with Full Records", () => {
     for (const value of ['{"ok":true}', "true", "{not json"]) {
       const line = JSON.stringify(value);
-      const deferred = parseDeferredJsonlRecordLine(line, 3);
+      const preview = parsePreviewJsonlRecordLine(line, 3);
       const hydrated = parseJsonlRecordLine(line, 3);
 
-      expect(deferred.node?.wasStringified).toBe(hydrated.node?.wasStringified);
+      expect(preview.node?.wasStringified).toBe(hydrated.node?.wasStringified);
     }
   });
 

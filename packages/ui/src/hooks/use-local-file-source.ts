@@ -152,7 +152,7 @@ export const useLocalFileSource = (
 
   const hydrateRecord = useCallback(
     (record: JsonlRecord) => {
-      if (!sourceFile || !record.deferred) {
+      if (!sourceFile || record.status !== "preview") {
         return;
       }
 

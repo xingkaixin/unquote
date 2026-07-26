@@ -97,7 +97,7 @@ export const JsonTree = memo(function JsonTree({
   }, [activeRowId, interactiveIndexById, interactiveRows]);
 
   useEffect(() => {
-    if (record.deferred && hydrated) {
+    if (record.status === "preview" && hydrated) {
       actions.hydrateRecord(record);
     }
   }, [actions, hydrated, record]);
@@ -128,7 +128,7 @@ export const JsonTree = memo(function JsonTree({
 
   const toggleRow = useCallback(
     (row: DisplayTreeRow) => {
-      if (record.deferred) {
+      if (record.status === "preview") {
         actions.hydrateRecord(record);
       }
       actions.togglePath(record.id, row.source.pathText);
@@ -249,9 +249,9 @@ export const JsonTree = memo(function JsonTree({
     return () => cancelAnimationFrame(frame);
   }, [scrollIntent, record.id, displayRows, hydrated, shouldVirtualize, rowVirtualizer]);
 
-  if (!record.node) {
+  if (record.status === "failed") {
     const errorMeta = record.errorMeta;
-    const rawLine = record.rawLine ?? errorMeta?.rawLine ?? record.summary;
+    const rawLine = record.rawLine;
     return (
       <Card id={record.id} className="min-h-[120px] overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-border px-4 py-[11px] sm:flex-row sm:items-center sm:justify-between">
