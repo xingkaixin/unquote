@@ -220,6 +220,9 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
   } catch {
     failed = true;
   } finally {
+    if (jsonlSession === session) {
+      jsonlSession = null;
+    }
     await reader?.cancel().catch(() => undefined);
   }
 

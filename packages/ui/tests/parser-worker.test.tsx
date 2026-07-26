@@ -202,6 +202,15 @@ describe("parser worker file dispatch", () => {
     expect(parse.mock.calls.filter(([input]) => input === validLine)).toHaveLength(1);
     expect(parse.mock.calls.filter(([input]) => input === invalidLine)).toHaveLength(1);
     parse.mockRestore();
+
+    workerScope.postMessage.mockClear();
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 1,
+      chunk: '{"after":true}\n',
+      done: true,
+    });
+    expect(workerScope.postMessage).not.toHaveBeenCalled();
   });
 
   it("streams JSONL chunks, skips blank lines, and completes with failure stats", async () => {
