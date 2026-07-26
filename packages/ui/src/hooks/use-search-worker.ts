@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { searchJsonlFile } from "../lib/local-file-source";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/tree";
@@ -36,12 +36,12 @@ const buildSearchRequest = (
   requestId: number,
   text: string,
   forcedFormat: "json" | "jsonl" | undefined,
-  sourceFile: File | null,
+  sourceAccess: LocalFileAccess | null,
   query: string,
   options: SearchOptions,
 ): SearchRequest =>
-  sourceFile
-    ? { type: "search-file", requestId, file: sourceFile, query, options }
+  sourceAccess
+    ? { type: "search-file", requestId, file: sourceAccess.getFile(), query, options }
     : {
         type: "search-text",
         requestId,
@@ -51,15 +51,15 @@ const buildSearchRequest = (
         ...(forcedFormat ? { forcedFormat } : {}),
       };
 
-const getSearchWorkerTimeoutMs = (sourceFile: File | null) =>
-  sourceFile && sourceFile.size > largeFileSearchBytes
+const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileAccess | null) =>
+  sourceAccess && sourceAccess.size > largeFileSearchBytes
     ? largeFileSearchWorkerTimeoutMs
     : searchWorkerTimeoutMs;
 
 export const useSearchWorker = (params: {
   text: string;
   forcedFormat?: "json" | "jsonl";
-  sourceFile: File | null;
+  sourceAccess: LocalFileAccess | null;
   query: string;
   options: SearchOptions;
   sourceRevision: SourceRevision;
@@ -67,7 +67,15 @@ export const useSearchWorker = (params: {
   // within the window fires. Defaults to 0 (dispatch immediately).
   debounceMs?: number;
 }): SearchWorkerResult => {
-  const { text, forcedFormat, sourceFile, query, options, sourceRevision, debounceMs = 0 } = params;
+  const {
+    text,
+    forcedFormat,
+    sourceAccess,
+    query,
+    options,
+    sourceRevision,
+    debounceMs = 0,
+  } = params;
   // Seed both states from the mount-time inputs so the first render already
   // matches what the reconciliation below would otherwise compute one pass
   // later, avoiding a guaranteed extra render-phase setState on every mount.
@@ -80,7 +88,7 @@ export const useSearchWorker = (params: {
   const [lastInputs, setLastInputs] = useState(() => ({
     text,
     forcedFormat,
-    sourceFile,
+    sourceAccess,
     query,
     options,
     sourceRevision,
@@ -88,7 +96,7 @@ export const useSearchWorker = (params: {
   const inputsChanged =
     lastInputs.text !== text ||
     lastInputs.forcedFormat !== forcedFormat ||
-    lastInputs.sourceFile !== sourceFile ||
+    lastInputs.sourceAccess !== sourceAccess ||
     lastInputs.query !== query ||
     lastInputs.options !== options ||
     lastInputs.sourceRevision !== sourceRevision;
@@ -97,7 +105,7 @@ export const useSearchWorker = (params: {
   // prior source: record ids collide across sources, so a stale match
   // would otherwise highlight the wrong record for one frame.
   if (inputsChanged) {
-    setLastInputs({ text, forcedFormat, sourceFile, query, options, sourceRevision });
+    setLastInputs({ text, forcedFormat, sourceAccess, query, options, sourceRevision });
     setState(query ? pendingResult(sourceRevision) : idleResult(sourceRevision));
   }
 
@@ -130,9 +138,10 @@ export const useSearchWorker = (params: {
       requestIdRef.current = requestId;
 
       if (typeof Worker === "undefined") {
-        if (sourceFile) {
+        if (sourceAccess) {
           const controller = new AbortController();
-          searchJsonlFile(sourceFile, query, options, controller.signal)
+          sourceAccess
+            .search(query, options, controller.signal)
             .then((matches) => {
               if (requestIdRef.current === requestId) {
                 setState({ sourceRevision, matches, status: "complete", errorKind: null });
@@ -210,7 +219,7 @@ export const useSearchWorker = (params: {
 
       currentWorker.addEventListener("message", onMessage);
       currentWorker.postMessage(
-        buildSearchRequest(requestId, text, forcedFormat, sourceFile, query, options),
+        buildSearchRequest(requestId, text, forcedFormat, sourceAccess, query, options),
       );
 
       timeoutId = window.setTimeout(() => {
@@ -218,7 +227,7 @@ export const useSearchWorker = (params: {
           return;
         }
         setState({ sourceRevision, matches: null, status: "error", errorKind: "timeout" });
-      }, getSearchWorkerTimeoutMs(sourceFile));
+      }, getSearchWorkerTimeoutMs(sourceAccess));
 
       dispatchCleanup = () => void finalizeRequest(true);
     };
@@ -233,7 +242,7 @@ export const useSearchWorker = (params: {
 
     dispatch();
     return () => dispatchCleanup?.();
-  }, [text, forcedFormat, sourceFile, query, options, sourceRevision, debounceMs]);
+  }, [text, forcedFormat, sourceAccess, query, options, sourceRevision, debounceMs]);
 
   return inputsChanged
     ? query

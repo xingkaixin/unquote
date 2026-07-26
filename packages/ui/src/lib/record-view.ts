@@ -10,7 +10,7 @@ export interface RecordViewPath {
 
 export interface RecordViewState {
   recordInsights: ReadonlyMap<string, RecordInsight>;
-  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
+  resolveRecord: (record: JsonlRecord) => JsonlRecord;
   expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
   selectedPath: RecordViewPath | null;
   focusedPath: RecordViewPath | null;

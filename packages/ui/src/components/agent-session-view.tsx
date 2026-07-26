@@ -5,7 +5,6 @@ import { useTranslation } from "../i18n/context";
 import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
-import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { RecordViewActions, RecordViewModel } from "../lib/record-view";
 import type { SearchMatch } from "../lib/tree";
 import type { AgentDetailSelection as WorkspaceAgentDetailSelection } from "../lib/workspace-selection";
@@ -147,7 +146,7 @@ export const AgentSessionView = ({
 }: AgentSessionViewProps) => {
   const {
     state: {
-      hydratedRecords,
+      resolveRecord,
       recordInsights,
       expandedStringifiedPathsByRecord,
       selectedPath,
@@ -193,9 +192,7 @@ export const AgentSessionView = ({
   const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
   const rawCollapsed = !detailEvent && session.events.length > 0;
   const detailRecord = detailEvent ? recordsById.get(detailEvent.recordId) : undefined;
-  const renderedDetailRecord = detailRecord
-    ? resolveHydratedRecord(detailRecord, hydratedRecords)
-    : undefined;
+  const renderedDetailRecord = detailRecord ? resolveRecord(detailRecord) : undefined;
   const panelIds = useMemo(
     () => [
       ...(timelineCollapsed ? [] : ["timeline"]),

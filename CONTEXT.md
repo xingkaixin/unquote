@@ -12,6 +12,10 @@ _Avoid_: Input payload, document
 Source 内容及其解析模式的一个不可变版本。任何解析、搜索或视图派生结果都只属于产生它的 Source Revision。
 _Avoid_: Generation, request version
 
+**Local-file Source Access**:
+本地文件 Source 的能力边界，负责读取、搜索，以及将 Preview Record 解析为 Full Record；调用方只表达意图，不感知逐行扫描、checkpoint 或 cache。
+_Avoid_: File helper, hydration layer
+
 **Record**:
 Source 中可独立定位和查看的内容项；JSON Source 对应整体内容，JSONL Source 对应一个非空行。
 _Avoid_: Row, entry

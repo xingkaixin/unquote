@@ -13,7 +13,7 @@ import type {
   QueryInteractionState,
   SearchOptionKind,
 } from "../lib/query-interaction";
-import { fileSearchDebounceMs } from "../lib/local-file-source";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { resolveTreePathMatches } from "../lib/tree";
@@ -22,6 +22,7 @@ import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
 export const memorySearchDebounceMs = 120;
+export const localFileSearchDebounceMs = 250;
 
 export type QueryNavigationTarget =
   | { sourceRevision: SourceRevision; kind: "clear" }
@@ -38,7 +39,7 @@ interface UseQueryInteractionOptions {
   resultRevision: SourceRevision;
   result: ParseResult;
   sourceText: string;
-  sourceFile: File | null;
+  sourceAccess: LocalFileAccess | null;
   forcedFormat: "json" | "jsonl" | undefined;
   translateError: (reason: "invalid" | "not-found") => string;
   onNavigate: (target: QueryNavigationTarget) => void;
@@ -77,7 +78,7 @@ export const useQueryInteraction = ({
   resultRevision,
   result,
   sourceText,
-  sourceFile,
+  sourceAccess,
   forcedFormat,
   translateError,
   onNavigate,
@@ -119,11 +120,11 @@ export const useQueryInteraction = ({
   );
   const searchWorker = useSearchWorker({
     text: sourceText,
-    sourceFile,
+    sourceAccess,
     query: state.searchQuery,
     options: searchOptions,
     sourceRevision,
-    debounceMs: sourceFile ? fileSearchDebounceMs : memorySearchDebounceMs,
+    debounceMs: sourceAccess ? localFileSearchDebounceMs : memorySearchDebounceMs,
     ...(forcedFormat ? { forcedFormat } : {}),
   });
   const revisionsAligned = shareSourceRevision(

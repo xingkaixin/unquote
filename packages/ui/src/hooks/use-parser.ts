@@ -4,6 +4,7 @@ import { probeJsonl } from "@unquote/core";
 import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { createStreamPublisher } from "../lib/stream-publisher";
@@ -35,10 +36,10 @@ export interface ParserSnapshot {
 const pendingSnapshot = (
   sourceRevision: SourceRevision,
   forcedFormat: "json" | "jsonl" | undefined,
-  sourceFile: File | null | undefined,
+  sourceAccess: LocalFileAccess | null | undefined,
 ): ParserSnapshot => ({
   sourceRevision,
-  result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
+  result: sourceAccess ? emptyResult("jsonl") : emptyResult(forcedFormat),
   progress: { ...idleProgress, done: false },
   agentSession: null,
 });
@@ -62,7 +63,7 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
 export interface UseParserOptions {
   input: string;
   forcedFormat?: "json" | "jsonl" | undefined;
-  sourceFile?: File | null | undefined;
+  sourceAccess?: LocalFileAccess | null | undefined;
   onFileReadError?: (() => void) | undefined;
   sourceRevision: SourceRevision;
 }
@@ -70,7 +71,7 @@ export interface UseParserOptions {
 export const useParser = ({
   input,
   forcedFormat,
-  sourceFile,
+  sourceAccess,
   onFileReadError,
   sourceRevision,
 }: UseParserOptions) => {
@@ -81,6 +82,7 @@ export const useParser = ({
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
   const onFileReadErrorRef = useRef(onFileReadError);
+  const sourceFile = sourceAccess?.getFile() ?? null;
   onFileReadErrorRef.current = onFileReadError;
 
   useEffect(() => {
@@ -107,7 +109,7 @@ export const useParser = ({
           .catch(() => {
             if (requestIdRef.current === requestId) {
               setParserState({
-                ...pendingSnapshot(sourceRevision, forcedFormat, sourceFile),
+                ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
                 progress: idleProgress,
               });
               onFileReadErrorRef.current?.();
@@ -125,7 +127,7 @@ export const useParser = ({
     });
 
     const currentWorker = workerRef.current;
-    setParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceFile));
+    setParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess));
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
 
@@ -248,7 +250,7 @@ export const useParser = ({
       publisher.cancel();
       currentWorker.removeEventListener("message", onMessage);
     };
-  }, [forcedFormat, input, sourceFile, sourceRevision]);
+  }, [forcedFormat, input, sourceAccess, sourceRevision]);
 
   // Terminate the worker thread when the hook's owner unmounts; the per-request
   // cleanup above only detaches listeners and timers.
@@ -262,5 +264,5 @@ export const useParser = ({
 
   return belongsToSourceRevision(sourceRevision, parserState)
     ? parserState
-    : pendingSnapshot(sourceRevision, forcedFormat, sourceFile);
+    : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess);
 };

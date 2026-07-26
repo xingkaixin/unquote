@@ -3,7 +3,6 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
-import { resolveHydratedRecord } from "../lib/record-resolution";
 import type { RecordViewModel } from "../lib/record-view";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 import type { SearchMatch } from "../lib/tree";
@@ -34,7 +33,7 @@ export const RecordList = memo(function RecordList({
   const {
     state: {
       recordInsights,
-      hydratedRecords,
+      resolveRecord,
       expandedStringifiedPathsByRecord,
       selectedPath,
       focusedPath,
@@ -161,7 +160,7 @@ export const RecordList = memo(function RecordList({
   }, [onActiveRecordChange, records, shouldVirtualize]);
 
   const renderRecord = (record: JsonlRecord, index: number) => {
-    const renderedRecord = resolveHydratedRecord(record, hydratedRecords);
+    const renderedRecord = resolveRecord(record);
 
     return (
       <JsonTree

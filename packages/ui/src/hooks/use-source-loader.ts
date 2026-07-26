@@ -1,8 +1,7 @@
 import { useCallback, useReducer, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { writeClipboardText } from "../lib/clipboard";
-import { readFileText, readJsonlRecordsByLine } from "../lib/local-file-source";
-import { getCopyValue } from "../lib/record-export";
+import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -11,7 +10,7 @@ type SourceMode = "auto" | "json" | "jsonl";
 type PublishedSourceState =
   | { kind: "text"; text: string }
   | { kind: "imported"; file: File; text: string }
-  | { kind: "streaming"; file: File };
+  | { kind: "streaming"; access: LocalFileAccess };
 
 type SourceState =
   | PublishedSourceState
@@ -59,14 +58,14 @@ export const useSourceLoader = ({
     publishedSource.kind === "text" || publishedSource.kind === "imported"
       ? publishedSource.text
       : "";
-  const sourceFile = publishedSource.kind === "streaming" ? publishedSource.file : null;
+  const sourceAccess = publishedSource.kind === "streaming" ? publishedSource.access : null;
   const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
-  const sourceFileRef = useRef(sourceFile);
+  const sourceAccessRef = useRef(sourceAccess);
   const onErrorRef = useRef(onError);
   const onCopyErrorRef = useRef(onCopyError);
-  sourceFileRef.current = sourceFile;
+  sourceAccessRef.current = sourceAccess;
   onErrorRef.current = onError;
   onCopyErrorRef.current = onCopyError;
 
@@ -76,7 +75,7 @@ export const useSourceLoader = ({
       (sourceMode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
 
   const publishStreamingFile = (file: File) => {
-    setSourceState({ kind: "streaming", file });
+    setSourceState({ kind: "streaming", access: createLocalFileAccess(file) });
     onReset();
     incrementSourceRevision();
     onCollapseSource();
@@ -118,9 +117,10 @@ export const useSourceLoader = ({
 
     let text: string;
     try {
+      const access = createLocalFileAccess(file);
       text = onReadFile
         ? await onReadFile(file)
-        : await readFileText(file, (nextProgress) => {
+        : await access.readText((nextProgress) => {
             if (fileImportIdRef.current === requestId) {
               setSourceState((prev) =>
                 prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
@@ -157,9 +157,12 @@ export const useSourceLoader = ({
     modeRef.current = nextMode;
     setMode(nextMode);
 
-    if (publishedSource.kind === "streaming" && !shouldStreamFile(publishedSource.file, nextMode)) {
-      void onFileDrop(publishedSource.file);
-      return;
+    if (publishedSource.kind === "streaming") {
+      const file = publishedSource.access.getFile();
+      if (!shouldStreamFile(file, nextMode)) {
+        void onFileDrop(file);
+        return;
+      }
     }
 
     if (publishedSource.kind === "imported" && shouldStreamFile(publishedSource.file, nextMode)) {
@@ -186,24 +189,13 @@ export const useSourceLoader = ({
 
   const onCopyRawLine = useCallback(async (record: JsonlRecord) => {
     let text = record.status === "failed" ? record.rawLine : record.summary;
-    const currentSourceFile = sourceFileRef.current;
-    if (currentSourceFile) {
-      let fullRecord: JsonlRecord | undefined;
+    const currentAccess = sourceAccessRef.current;
+    if (currentAccess) {
       try {
-        const fullRecords = await readJsonlRecordsByLine(
-          currentSourceFile,
-          new Set([record.lineNumber]),
-        );
-        fullRecord = fullRecords.get(record.lineNumber);
+        text = await currentAccess.readRecordText(record);
       } catch (error) {
-        // Deferred records only carry a summary, so don't fall back to copying it.
         onErrorRef.current(error);
         return;
-      }
-      if (fullRecord?.status === "full") {
-        text = JSON.stringify(getCopyValue(fullRecord));
-      } else if (fullRecord?.status === "failed") {
-        text = fullRecord.rawLine;
       }
     }
 
@@ -216,7 +208,7 @@ export const useSourceLoader = ({
     mode,
     setMode: setSourceMode,
     sourceText,
-    sourceFile,
+    sourceAccess,
     readingFile,
     readProgress,
     importedFile,

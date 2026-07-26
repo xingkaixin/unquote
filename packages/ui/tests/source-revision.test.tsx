@@ -1,9 +1,11 @@
 import { parseInput } from "@unquote/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
 import { useSearchWorker } from "../src/hooks/use-search-worker";
+import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch } from "../src/lib/tree";
 
@@ -76,11 +78,15 @@ const Probe = ({
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File | null;
 }) => {
-  const parser = useParser({ input: text, forcedFormat, sourceFile, sourceRevision });
+  const sourceAccess = useMemo(
+    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
+    [sourceFile],
+  );
+  const parser = useParser({ input: text, forcedFormat, sourceAccess, sourceRevision });
   const search = useSearchWorker({
     text,
     forcedFormat,
-    sourceFile,
+    sourceAccess,
     sourceRevision,
     query: "needle",
     options,

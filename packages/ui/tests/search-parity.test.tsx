@@ -1,6 +1,6 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
-import { searchJsonlFile } from "../src/lib/local-file-source";
+import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { searchRecords } from "../src/lib/tree";
 import type { SearchMatch, SearchOptions } from "../src/lib/tree";
 
@@ -63,7 +63,7 @@ const searchInMemory = (query: string, options: SearchOptions) =>
 
 const searchInFile = (query: string, options: SearchOptions) => {
   const controller = new AbortController();
-  return searchJsonlFile(makeStreamedFile(fixture), query, options, controller.signal);
+  return createLocalFileAccess(makeStreamedFile(fixture)).search(query, options, controller.signal);
 };
 
 const expectParity = async (query: string, options: SearchOptions) => {
