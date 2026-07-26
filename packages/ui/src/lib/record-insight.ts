@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { isParsed } from "@unquote/core";
+import { isParsed, truncateAtCodePointBoundary } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import type {
   ContainerCandidate,
@@ -54,7 +54,7 @@ const errorLikePattern =
 const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
 
 const truncateText = (value: string, maxLength: number) =>
-  value.length <= maxLength ? value : `${value.slice(0, maxLength)}...`;
+  value.length <= maxLength ? value : `${truncateAtCodePointBoundary(value, maxLength)}...`;
 
 // Keys inspected for a container's fallback text when it has no usable
 // primitive value of its own (e.g. `{"error": {"message": "boom"}}`). This is

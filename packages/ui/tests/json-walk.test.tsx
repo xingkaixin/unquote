@@ -1,7 +1,12 @@
 import { parseInput } from "@unquote/core";
 import type { JsonNode } from "@unquote/core";
 import { describe, expect, it } from "vitest";
-import { walkJsonNode, walkRawJsonValue } from "../src/lib/json-walk";
+import {
+  formatJsonValueLabel,
+  getSearchableJsonValueLabelLength,
+  walkJsonNode,
+  walkRawJsonValue,
+} from "../src/lib/json-walk";
 import type { JsonWalkContext } from "../src/lib/json-walk";
 import type { TreePathSegment } from "../src/lib/path-codec";
 
@@ -99,5 +104,16 @@ describe("walkJsonNode", () => {
     expect(lastKindByPath.get("$")).toBe("root");
     expect(lastKindByPath.get("$.a")).toBe("key");
     expect(lastKindByPath.get("$.a[0]")).toBe("index");
+  });
+
+  it("keeps truncated labels and searchable lengths on a code point boundary", () => {
+    const prefix = "a".repeat(511);
+    const value = `${prefix}😀tail`;
+    const input = { kind: "string" as const, value, childCount: 0 };
+    const label = formatJsonValueLabel(input, 512);
+
+    expect(label).not.toContain("\\ud83d");
+    expect(label).toContain(`${prefix}...`);
+    expect(getSearchableJsonValueLabelLength(input, 512)).toBe(JSON.stringify(prefix).length - 1);
   });
 });

@@ -45,5 +45,11 @@ export type {
   TruncatedJsonNode,
   TruncatedJsonObjectNode,
 } from "./types.js";
-export { DEFAULT_MAX_DEPTH, getJsonKind, parseJson, probeJsonl } from "./utils.js";
+export {
+  DEFAULT_MAX_DEPTH,
+  getJsonKind,
+  parseJson,
+  probeJsonl,
+  truncateAtCodePointBoundary,
+} from "./utils.js";
 export type { JsonlProbeResult } from "./utils.js";
