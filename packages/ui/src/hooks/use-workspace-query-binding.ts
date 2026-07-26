@@ -1,7 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useEffect } from "react";
 import { isPathWithin } from "../lib/path-codec";
-import type { SearchMatch } from "../lib/tree";
+import type { SearchMatch } from "../lib/record-search";
 import type { FocusedPath } from "../lib/workspace-selection";
 
 interface QueryBindingSnapshot {

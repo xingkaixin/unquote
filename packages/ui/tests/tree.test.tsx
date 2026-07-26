@@ -3,16 +3,10 @@ import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { createFileOverview } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
-import {
-  buildSearchPattern,
-  buildRecordRows,
-  collectStringifiedPaths,
-  filterRecords,
-  resolveTreePath,
-  resolveTreePathMatches,
-  searchRecords,
-  searchJsonValue,
-} from "../src/lib/tree";
+import { filterRecords } from "../src/lib/record-filter";
+import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
+import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
+import { resolveTreePath, resolveTreePathMatches } from "../src/lib/tree-path";
 
 const oversizedMatchCount = 130_000;
 

@@ -7,7 +7,7 @@ import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
 import { useSearchWorker } from "../src/hooks/use-search-worker";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
-import type { SearchMatch } from "../src/lib/tree";
+import type { SearchMatch } from "../src/lib/record-search";
 
 const options = { regex: false, caseSensitive: false, jq: false };
 

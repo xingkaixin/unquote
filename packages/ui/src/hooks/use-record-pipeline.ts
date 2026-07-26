@@ -4,11 +4,11 @@ import { useMemo, useRef } from "react";
 import type { FileOverview } from "../lib/file-overview";
 import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { createRecordDerivationState, updateRecordDerivations } from "../lib/record-derivation";
+import { filterRecords } from "../lib/record-filter";
 import type { RecordInsight } from "../lib/record-insight";
+import type { SearchMatch } from "../lib/record-search";
 import type { QueryInteractionState } from "../lib/query-interaction";
 import type { SourceRevision } from "../lib/source-revision";
-import { filterRecords } from "../lib/tree";
-import type { SearchMatch } from "../lib/tree";
 
 export interface RecordPipelineParams {
   sourceRevision: SourceRevision;

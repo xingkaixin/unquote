@@ -2,8 +2,8 @@ import { materializeNode, parseJson, parseJsonlRecordLine } from "@unquote/core"
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 import { measurePerfAsync } from "./perf";
-import { buildSearchPattern, searchJsonValue } from "./tree";
-import type { SearchMatch, SearchOptions } from "./tree";
+import { buildSearchPattern, searchJsonValue } from "./record-search";
+import type { SearchMatch, SearchOptions } from "./record-search";
 
 export const hydratedFileRecordLimit = 500;
 
@@ -55,7 +55,7 @@ const lineIndexFor = (file: File) => {
   return index;
 };
 
-export type { SearchMatch, SearchOptions } from "./tree";
+export type { SearchMatch, SearchOptions } from "./record-search";
 
 const readFileWithFileReader = (file: File, onProgress: (progress: number) => void) =>
   new Promise<string>((resolve, reject) => {

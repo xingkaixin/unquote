@@ -1,8 +1,8 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
-import { searchRecords } from "../src/lib/tree";
-import type { SearchMatch, SearchOptions } from "../src/lib/tree";
+import { searchRecords } from "../src/lib/record-search";
+import type { SearchMatch, SearchOptions } from "../src/lib/record-search";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   const file = new File([contents], name, { type: "application/jsonl" });

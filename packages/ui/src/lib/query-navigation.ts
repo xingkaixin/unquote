@@ -1,5 +1,5 @@
 import type { SourceRevision } from "./source-revision";
-import type { ResolvedTreePath } from "./tree";
+import type { ResolvedTreePath } from "./tree-path";
 
 export type QueryNavigationTarget =
   | { sourceRevision: SourceRevision; kind: "clear" }

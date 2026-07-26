@@ -3,7 +3,7 @@ import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
-import type { SearchMatch } from "../src/lib/tree";
+import type { SearchMatch } from "../src/lib/record-search";
 
 const result = parseInput('{"value":1}\ninvalid\n{"value":2}', { forcedFormat: "jsonl" });
 

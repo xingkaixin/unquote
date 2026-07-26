@@ -27,16 +27,16 @@ import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
-import { hasJsonlRecords, resolveTreePath } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
 import { formatFileSize } from "./lib/format";
 import { isArrayElementPath } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
+import type { SearchMatch } from "./lib/record-search";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
-import type { SearchMatch } from "./lib/tree";
+import { resolveTreePath } from "./lib/tree-path";
 
 import type { SelectedPath } from "./hooks/use-workspace-session";
 
@@ -117,6 +117,7 @@ export const UnquoteApp = ({
     onFileReadError: () => toast.error(t("input.readFailed")),
     sourceRevision,
   });
+  const hasMultipleJsonlRecords = result.format === "jsonl" && result.records.length > 1;
 
   const translateError = useCallback(
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
@@ -618,7 +619,7 @@ export const UnquoteApp = ({
               <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
                 <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
                   {inputPane}
-                  {hasJsonlRecords(result) ? (
+                  {hasMultipleJsonlRecords ? (
                     <TocPane
                       records={visibleRecords}
                       recordInsights={recordInsights}

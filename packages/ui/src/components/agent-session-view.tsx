@@ -13,7 +13,7 @@ import {
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
 import type { RecordViewActions, RecordViewModel } from "../lib/record-view";
-import type { SearchMatch } from "../lib/tree";
+import type { SearchMatch } from "../lib/record-search";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
 import { AgentTimelinePane } from "./agent-timeline-pane";

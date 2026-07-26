@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { RecordInsightSummary } from "../src/components/record-insight";
 import { I18nProvider } from "../src/i18n/context";
 import { createRecordInsight, createRecordInsightMap } from "../src/lib/record-insight";
-import { filterRecords } from "../src/lib/tree";
+import { filterRecords } from "../src/lib/record-filter";
 
 describe("record insight", () => {
   it("renders the message kind with the neutral badge variant", () => {

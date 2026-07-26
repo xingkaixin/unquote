@@ -130,7 +130,7 @@ Object.assign(globalThis, {
       query: string,
       options: unknown,
     ) {
-      Promise.all([import("../src/lib/parse-text"), import("../src/lib/tree")]).then(
+      Promise.all([import("../src/lib/parse-text"), import("../src/lib/record-search")]).then(
         ([{ parseTextResult }, { searchRecords }]) => {
           const parsed = parseTextResult(text, forcedFormat);
           const matches = searchRecords(
