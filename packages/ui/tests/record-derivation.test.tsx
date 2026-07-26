@@ -98,8 +98,10 @@ describe("record derivation", () => {
     const state = createRecordDerivationState();
 
     const first = updateRecordDerivations(records, state);
-    records.push(...parseRecords(sampleLines).slice(1));
-    const second = updateRecordDerivations(records, state);
+    const appendedRecords = [...records, ...parseRecords(sampleLines).slice(1)];
+    const second = updateRecordDerivations(appendedRecords, state, {
+      previousRecords: records,
+    });
 
     expect(second.insights).toBe(first.insights);
     expect([...second.insights.keys()]).toEqual(["record-1", "record-2", "record-3"]);
@@ -117,11 +119,16 @@ describe("record derivation", () => {
       ),
     );
     const state = createRecordDerivationState();
-    const streamedRecords: JsonlRecord[] = [];
+    let streamedRecords: JsonlRecord[] = [];
 
     for (let offset = 0; offset < allRecords.length; offset += 17) {
-      streamedRecords.push(...allRecords.slice(offset, offset + 17));
-      const derived = updateRecordDerivations(streamedRecords, state);
+      const previousRecords = streamedRecords;
+      streamedRecords = [...streamedRecords, ...allRecords.slice(offset, offset + 17)];
+      const derived = updateRecordDerivations(
+        streamedRecords,
+        state,
+        previousRecords.length > 0 ? { previousRecords } : null,
+      );
       expect([...derived.insights]).toEqual([...createRecordInsightMap(streamedRecords)]);
       expect(derived.overview).toEqual(createFileOverview(streamedRecords));
     }

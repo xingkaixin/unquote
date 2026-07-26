@@ -90,10 +90,10 @@ export const RecordInsightSummary = ({ insight, compact = false }: RecordInsight
       icon: Layers,
     });
   }
-  if (!compact && insight.keyPaths.length > 0) {
+  if (!compact && insight.keyPathCount > 0) {
     chips.push({
       key: "paths",
-      label: t("insight.paths", { count: insight.keyPaths.length }),
+      label: t("insight.paths", { count: insight.keyPathCount }),
       icon: Route,
     });
   }

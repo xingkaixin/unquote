@@ -4,6 +4,7 @@ import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
 import type { SearchMatch } from "../src/lib/record-search";
+import type { RecordAppend } from "../src/lib/record-sequence";
 
 const result = parseInput('{"value":1}\ninvalid\n{"value":2}', { forcedFormat: "jsonl" });
 
@@ -27,6 +28,11 @@ const buildResult = (records: JsonlRecord[]): ParseResult => ({
   records,
   stats: { total: records.length, success: records.length, failed: 0 },
 });
+
+interface StreamedPipelineProps {
+  result: ParseResult;
+  recordAppend: RecordAppend | null;
+}
 
 describe("useRecordPipeline", () => {
   it("preserves core stats for the unfiltered record set", () => {
@@ -76,23 +82,35 @@ describe("useRecordPipeline", () => {
   it("reuses the same recordsById Map instance across a streamed append", () => {
     const r1 = rec("r1");
     const r2 = rec("r2");
+    const initialResult = buildResult([r1, r2]);
+    const initialProps: StreamedPipelineProps = {
+      result: initialResult,
+      recordAppend: null,
+    };
     const { result: pipeline, rerender } = renderHook(
-      ({ result: streamed }: { result: ParseResult }) =>
+      ({ result: streamed, recordAppend }: StreamedPipelineProps) =>
         useRecordPipeline({
           sourceRevision: 0,
           result: streamed,
           searchMatches: null,
           recordFilter: "all",
+          recordAppend,
         }),
-      { initialProps: { result: buildResult([r1, r2]) } },
+      { initialProps },
     );
 
     const mapBeforeAppend = pipeline.current.recordsById;
 
     const r3 = rec("r3");
-    rerender({ result: buildResult([r1, r2, r3]) });
+    rerender({
+      result: buildResult([r1, r2, r3]),
+      recordAppend: { previousRecords: initialResult.records },
+    });
 
     expect(pipeline.current.recordsById).toBe(mapBeforeAppend);
+    expect(pipeline.current.visibleRecordAppend).toEqual({
+      previousRecords: initialResult.records,
+    });
     expect(pipeline.current.recordsById).toEqual(
       new Map([
         ["r1", r1],

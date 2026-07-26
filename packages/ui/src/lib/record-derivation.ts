@@ -12,6 +12,7 @@ import { createInsightCollector } from "./record-insight";
 import type { RecordInsight } from "./record-insight";
 import { createPartialRecordCache, updatePartialRecordCache } from "./partial-record-cache";
 import type { PartialRecordCache } from "./partial-record-cache";
+import type { RecordAppend } from "./record-sequence";
 
 // Record insight and file overview both need every field of every record.
 // Running them as two independent pipelines walked each record's tree twice;
@@ -22,7 +23,7 @@ export interface RecordDerivation {
 }
 
 export interface RecordDerivationState {
-  cache: PartialRecordCache<RecordDerivation>;
+  cache: PartialRecordCache;
   insights: Map<string, RecordInsight>;
   overview: FileOverviewAggregate;
 }
@@ -62,8 +63,14 @@ export const createRecordDerivationState = (): RecordDerivationState => ({
 export const updateRecordDerivations = (
   records: JsonlRecord[],
   state: RecordDerivationState,
+  recordAppend: RecordAppend | null = null,
 ): { insights: Map<string, RecordInsight>; overview: FileOverview } => {
-  const { rebuilt, processed } = updatePartialRecordCache(records, state.cache, deriveRecord);
+  const { rebuilt, processed } = updatePartialRecordCache(
+    records,
+    state.cache,
+    deriveRecord,
+    recordAppend,
+  );
   if (rebuilt) {
     state.insights = new Map();
     state.overview = createFileOverviewAggregate();

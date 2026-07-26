@@ -1,82 +1,37 @@
 import type { JsonlRecord } from "@unquote/core";
+import { isRecordAppendFrom } from "./record-sequence";
+import type { RecordAppend } from "./record-sequence";
 
-// Shared incremental cache for per-record derived values (record-insight,
-// file-overview). Reprocesses only the appended tail when prior records are
-// an unchanged object prefix; rebuilds after replacements, reorders, or
-// removals while reusing unchanged per-record values.
-export interface PartialRecordCache<T> {
-  records: JsonlRecord[] | null;
+export interface PartialRecordCache {
+  records: readonly JsonlRecord[] | null;
   processedLength: number;
-  entries: Map<string, { record: JsonlRecord; value: T }>;
 }
 
 export interface PartialRecordCacheUpdate<T> {
-  // true when the cache was rebuilt from scratch (the processed prefix changed
-  // or the list shrank); callers reset any derived aggregate on rebuild.
   rebuilt: boolean;
-  // Records processed this call, in order: the whole list on rebuild, only the
-  // appended tail otherwise. Values are reused from cache when the record
-  // object is unchanged.
   processed: { record: JsonlRecord; value: T }[];
 }
 
-export const createPartialRecordCache = <T>(): PartialRecordCache<T> => ({
+export const createPartialRecordCache = (): PartialRecordCache => ({
   records: null,
   processedLength: 0,
-  entries: new Map(),
 });
-
-// Compares only the first `length` items of `prev` (defaults to all of
-// `prev`) against `next`, so callers can check a sub-prefix without slicing.
-export const hasUnchangedArrayPrefix = (
-  prev: readonly unknown[],
-  next: readonly unknown[],
-  length: number = prev.length,
-) => {
-  if (length > next.length) {
-    return false;
-  }
-
-  for (let index = 0; index < length; index += 1) {
-    if (prev[index] !== next[index]) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const hasUnchangedProcessedPrefix = <T>(records: JsonlRecord[], state: PartialRecordCache<T>) => {
-  if (!state.records || state.processedLength > state.records.length) {
-    return false;
-  }
-
-  return hasUnchangedArrayPrefix(state.records, records, state.processedLength);
-};
 
 export const updatePartialRecordCache = <T>(
   records: JsonlRecord[],
-  state: PartialRecordCache<T>,
+  state: PartialRecordCache,
   process: (record: JsonlRecord) => T,
+  recordAppend: RecordAppend | null = null,
 ): PartialRecordCacheUpdate<T> => {
-  const rebuilt = !hasUnchangedProcessedPrefix(records, state);
+  const rebuilt =
+    !isRecordAppendFrom(state.records, records, recordAppend) ||
+    state.processedLength !== state.records?.length;
   const startIndex = rebuilt ? 0 : state.processedLength;
   const processed: { record: JsonlRecord; value: T }[] = [];
 
   for (let index = startIndex; index < records.length; index += 1) {
     const record = records[index]!;
-    const cached = state.entries.get(record.id);
-    const value = cached?.record === record ? cached.value : process(record);
-    state.entries.set(record.id, { record, value });
-    processed.push({ record, value });
-  }
-
-  if (rebuilt) {
-    const liveRecordIds = new Set(records.map((record) => record.id));
-    for (const recordId of state.entries.keys()) {
-      if (!liveRecordIds.has(recordId)) {
-        state.entries.delete(recordId);
-      }
-    }
+    processed.push({ record, value: process(record) });
   }
 
   state.records = records;

@@ -2,19 +2,24 @@ import type { JsonlRecord } from "@unquote/core";
 import { useEffect } from "react";
 import { isPathWithin } from "../lib/path-codec";
 import type { SearchMatch } from "../lib/record-search";
+import type { RecordAppend } from "../lib/record-sequence";
 import type { FocusedPath } from "../lib/workspace-selection";
 
 interface QueryBindingSnapshot {
   activeSearchMatch: SearchMatch | null;
   visibleMatches: readonly SearchMatch[] | null;
   visibleRecords: readonly JsonlRecord[];
+  visibleRecordAppend: RecordAppend | null;
 }
 
 interface QueryBindingWorkspace {
   state: { focusedPath: FocusedPath | null };
   synchronizeSearchExpansions: (matches: readonly SearchMatch[]) => void;
   clearFocus: () => void;
-  reconcileVisibleRecords: (records: readonly JsonlRecord[]) => void;
+  reconcileVisibleRecords: (
+    records: readonly JsonlRecord[],
+    recordAppend?: RecordAppend | null,
+  ) => void;
 }
 
 interface UseWorkspaceQueryBindingParams {
@@ -23,7 +28,7 @@ interface UseWorkspaceQueryBindingParams {
 }
 
 export const useWorkspaceQueryBinding = ({ query, workspace }: UseWorkspaceQueryBindingParams) => {
-  const { activeSearchMatch, visibleMatches, visibleRecords } = query;
+  const { activeSearchMatch, visibleMatches, visibleRecords, visibleRecordAppend } = query;
   const { focusedPath } = workspace.state;
 
   useEffect(() => {
@@ -44,8 +49,8 @@ export const useWorkspaceQueryBinding = ({ query, workspace }: UseWorkspaceQuery
   }, [activeSearchMatch, focusedPath, workspace.clearFocus]);
 
   useEffect(() => {
-    workspace.reconcileVisibleRecords(visibleRecords);
-  }, [visibleRecords, workspace.reconcileVisibleRecords]);
+    workspace.reconcileVisibleRecords(visibleRecords, visibleRecordAppend);
+  }, [visibleRecordAppend, visibleRecords, workspace.reconcileVisibleRecords]);
 
   return activeSearchMatch;
 };

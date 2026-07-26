@@ -39,6 +39,7 @@ describe("useWorkspaceQueryBinding", () => {
             activeSearchMatch: match,
             visibleMatches: [activeMatch],
             visibleRecords,
+            visibleRecordAppend: null,
           },
           workspace,
         }),
@@ -47,6 +48,7 @@ describe("useWorkspaceQueryBinding", () => {
 
     expect(result.current).toBe(activeMatch);
     expect(calls).toEqual(["search-expansions", "focus", "visible-records"]);
+    expect(workspace.reconcileVisibleRecords).toHaveBeenCalledWith(visibleRecords, null);
 
     rerender({ match: null });
     expect(result.current).toBeNull();

@@ -2,11 +2,12 @@ import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { isParsed } from "@unquote/core";
 import { useMemo, useRef } from "react";
 import type { FileOverview } from "../lib/file-overview";
-import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { createRecordDerivationState, updateRecordDerivations } from "../lib/record-derivation";
 import { filterRecords } from "../lib/record-filter";
 import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/record-search";
+import { isRecordAppendFrom } from "../lib/record-sequence";
+import type { RecordAppend } from "../lib/record-sequence";
 import type { QueryInteractionState } from "../lib/query-interaction";
 import type { SourceRevision } from "../lib/source-revision";
 
@@ -17,6 +18,7 @@ export interface RecordPipelineParams {
   // and whole-file search, and is null while idle, pending, or errored.
   searchMatches: SearchMatch[] | null;
   recordFilter: QueryInteractionState["recordFilter"];
+  recordAppend?: RecordAppend | null;
 }
 
 export interface RecordPipeline {
@@ -25,6 +27,7 @@ export interface RecordPipeline {
   recordInsights: Map<string, RecordInsight>;
   recordsById: Map<string, JsonlRecord>;
   visibleRecords: JsonlRecord[];
+  visibleRecordAppend: RecordAppend | null;
   visibleStats: { total: number; success: number; failed: number };
   fileOverview: FileOverview;
   visibleMatches: SearchMatch[] | null;
@@ -51,6 +54,7 @@ export const useRecordPipeline = ({
   result,
   searchMatches,
   recordFilter,
+  recordAppend = null,
 }: RecordPipelineParams): RecordPipeline => {
   const derivationStateRef = useRef(createRecordDerivationState());
   const recordsByIdStateRef = useRef<{
@@ -63,8 +67,8 @@ export const useRecordPipeline = ({
   // Insights and the file overview share one traversal per record, so they are
   // derived together rather than as two independent memos.
   const derivations = useMemo(
-    () => updateRecordDerivations(result.records, derivationStateRef.current),
-    [result.records],
+    () => updateRecordDerivations(result.records, derivationStateRef.current, recordAppend),
+    [recordAppend, result.records],
   );
   const recordInsights = derivations.insights;
   const fileOverview = derivations.overview;
@@ -72,13 +76,10 @@ export const useRecordPipeline = ({
     const state = recordsByIdStateRef.current;
     const { records } = result;
     const prevRecords = state.records;
-    const hasUnchangedPrefix =
-      prevRecords !== null && hasUnchangedArrayPrefix(prevRecords, records);
+    const isRecordAppend = isRecordAppendFrom(prevRecords, records, recordAppend);
 
-    // Streaming appends reuse the same Map instance so downstream consumers
-    // relying on referential stability (like the stream publisher's array
-    // reuse) don't see a spurious change on every animation frame.
-    if (hasUnchangedPrefix && prevRecords) {
+    // Reusing the Map avoids rebuilding every prior entry for each streamed tail.
+    if (isRecordAppend && prevRecords) {
       for (let index = prevRecords.length; index < records.length; index += 1) {
         const record = records[index]!;
         state.map.set(record.id, record);
@@ -89,7 +90,7 @@ export const useRecordPipeline = ({
 
     state.records = records;
     return state.map;
-  }, [result.records]);
+  }, [recordAppend, result.records]);
   const visibleRecords = useMemo(
     () => filterRecords(result.records, recordFilter, matches, recordInsights),
     [matches, recordFilter, recordInsights, result.records],
@@ -105,6 +106,7 @@ export const useRecordPipeline = ({
     return matches.filter((match) => visibleRecordIds.has(match.recordId));
   }, [matches, visibleRecords]);
   const matchCount = visibleMatches?.length ?? 0;
+  const visibleRecordAppend = recordFilter === "all" ? recordAppend : null;
 
   return {
     sourceRevision,
@@ -112,6 +114,7 @@ export const useRecordPipeline = ({
     recordInsights,
     recordsById,
     visibleRecords,
+    visibleRecordAppend,
     visibleStats,
     fileOverview,
     visibleMatches,

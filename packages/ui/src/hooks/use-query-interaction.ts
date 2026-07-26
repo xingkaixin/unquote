@@ -15,6 +15,7 @@ import type {
 import type { QueryNavigationTarget } from "../lib/query-navigation";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import type { SearchOptions } from "../lib/record-search";
+import type { RecordAppend } from "../lib/record-sequence";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { resolveTreePath, resolveTreePathMatches } from "../lib/tree-path";
@@ -37,6 +38,7 @@ interface UseQueryInteractionOptions {
   forcedFormat: "json" | "jsonl" | undefined;
   translateError: (reason: "invalid" | "not-found") => string;
   onNavigate: (target: QueryNavigationTarget) => void;
+  recordAppend?: RecordAppend | null;
 }
 
 interface RevisionedQueryState {
@@ -76,6 +78,7 @@ export const useQueryInteraction = ({
   forcedFormat,
   translateError,
   onNavigate,
+  recordAppend = null,
 }: UseQueryInteractionOptions) => {
   const [storedQuery, dispatchToRevision] = useReducer(
     reduceRevisionedQueryState,
@@ -135,6 +138,7 @@ export const useQueryInteraction = ({
     result,
     searchMatches: revisionsAligned ? searchWorker.matches : null,
     recordFilter: state.recordFilter,
+    recordAppend,
   });
 
   const currentMatchIndex = reconcileMatchIndex(
