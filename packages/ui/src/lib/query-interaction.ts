@@ -1,19 +1,25 @@
 import type { RecordFilterMode } from "./record-filter";
 import type { ResolvedTreePath } from "./tree-path";
 
-export type QueryMode = "search" | "path";
+export type QueryModeState =
+  | { mode: "idle" }
+  | { mode: "search"; query: string; currentMatchIndex: number }
+  | {
+      mode: "path";
+      query: string;
+      error: string | null;
+      matches: ResolvedTreePath[];
+      currentIndex: number;
+    };
+
+export type QueryMode = QueryModeState["mode"];
 
 export interface QueryInteractionState {
   toolbarQuery: string;
-  searchQuery: string;
+  modeState: QueryModeState;
   searchRegex: boolean;
   searchCaseSensitive: boolean;
   searchJq: boolean;
-  pathQuery: string;
-  pathError: string | null;
-  pathMatches: ResolvedTreePath[];
-  currentPathMatchIndex: number;
-  currentMatchIndex: number;
   recordFilter: RecordFilterMode;
   commandInput: string;
 }
@@ -21,20 +27,12 @@ export interface QueryInteractionState {
 export const isPathLikeQuery = (value: string) =>
   /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
 
-export const resolveQueryMode = (value: string): QueryMode =>
-  isPathLikeQuery(value) ? "path" : "search";
-
 export const createInitialQueryInteractionState = (): QueryInteractionState => ({
   toolbarQuery: "",
-  searchQuery: "",
+  modeState: { mode: "idle" },
   searchRegex: false,
   searchCaseSensitive: false,
   searchJq: false,
-  pathQuery: "",
-  pathError: null,
-  pathMatches: [],
-  currentPathMatchIndex: 0,
-  currentMatchIndex: 0,
   recordFilter: "all",
   commandInput: "",
 });
@@ -74,48 +72,20 @@ export const reduceQueryInteraction = (
 ): QueryInteractionState => {
   switch (action.type) {
     case "toolbarQueryChange": {
-      const value = action.value;
-      if (!value.trim()) {
-        return {
-          ...state,
-          toolbarQuery: value,
-          pathError: null,
-          searchQuery: "",
-          pathQuery: "",
-          pathMatches: [],
-          currentPathMatchIndex: 0,
-          currentMatchIndex: 0,
-        };
-      }
-
-      if (isPathLikeQuery(value)) {
-        return {
-          ...state,
-          toolbarQuery: value,
-          pathError: null,
-          pathQuery: value,
-          pathMatches: [],
-          currentPathMatchIndex: 0,
-          searchQuery: "",
-          currentMatchIndex: 0,
-        };
-      }
-
       return {
         ...state,
-        toolbarQuery: value,
-        pathError: null,
-        pathQuery: "",
-        pathMatches: [],
-        currentPathMatchIndex: 0,
-        searchQuery: value,
-        currentMatchIndex: 0,
+        toolbarQuery: action.value,
+        modeState: createModeState(action.value),
       };
     }
 
     case "submitToolbarQuery": {
       if (!action.resolution) {
-        return { ...state, toolbarQuery: action.value };
+        const modeState =
+          state.modeState.mode === "search" && state.modeState.query === action.value
+            ? state.modeState
+            : createModeState(action.value);
+        return { ...state, toolbarQuery: action.value, modeState };
       }
 
       return applyPathResolution(state, action.value, action.resolution);
@@ -123,7 +93,12 @@ export const reduceQueryInteraction = (
 
     case "overviewPathSelect": {
       if (!action.resolution) {
-        return { ...state, toolbarQuery: action.value, recordFilter: "all" };
+        return {
+          ...state,
+          toolbarQuery: action.value,
+          modeState: createModeState(action.value),
+          recordFilter: "all",
+        };
       }
 
       return applyPathResolution(
@@ -137,12 +112,7 @@ export const reduceQueryInteraction = (
       return {
         ...state,
         toolbarQuery: "",
-        searchQuery: "",
-        pathQuery: "",
-        pathError: null,
-        pathMatches: [],
-        currentPathMatchIndex: 0,
-        currentMatchIndex: 0,
+        modeState: { mode: "idle" },
       };
     }
 
@@ -150,9 +120,8 @@ export const reduceQueryInteraction = (
       return {
         ...state,
         toolbarQuery: action.value,
-        searchQuery: action.value,
+        modeState: createSearchModeState(action.value),
         recordFilter: "matches",
-        currentMatchIndex: 0,
       };
     }
 
@@ -160,30 +129,29 @@ export const reduceQueryInteraction = (
       return {
         ...state,
         toolbarQuery: action.value,
-        searchQuery: action.value,
+        modeState: createSearchModeState(action.value),
         searchRegex: false,
         searchCaseSensitive: false,
         searchJq: false,
         recordFilter: "matches",
-        currentMatchIndex: 0,
       };
     }
 
     case "setSearchOption": {
-      // jq and regex are mutually exclusive: enabling one clears the other.
+      const modeState = resetSearchMatchIndex(state.modeState);
       if (action.kind === "jq" && action.on) {
-        return { ...state, searchJq: true, searchRegex: false, currentMatchIndex: 0 };
+        return { ...state, modeState, searchJq: true, searchRegex: false };
       }
       if (action.kind === "regex" && action.on) {
-        return { ...state, searchRegex: true, searchJq: false, currentMatchIndex: 0 };
+        return { ...state, modeState, searchRegex: true, searchJq: false };
       }
       if (action.kind === "jq") {
-        return { ...state, searchJq: action.on, currentMatchIndex: 0 };
+        return { ...state, modeState, searchJq: action.on };
       }
       if (action.kind === "regex") {
-        return { ...state, searchRegex: action.on, currentMatchIndex: 0 };
+        return { ...state, modeState, searchRegex: action.on };
       }
-      return { ...state, searchCaseSensitive: action.on, currentMatchIndex: 0 };
+      return { ...state, modeState, searchCaseSensitive: action.on };
     }
 
     case "setRecordFilter": {
@@ -194,10 +162,7 @@ export const reduceQueryInteraction = (
       return {
         ...state,
         recordFilter: action.filter,
-        pathError: null,
-        pathMatches: [],
-        currentPathMatchIndex: 0,
-        currentMatchIndex: 0,
+        modeState: resetModeNavigation(state.modeState),
       };
     }
 
@@ -208,62 +173,95 @@ export const reduceQueryInteraction = (
     case "seedCommandInput": {
       return {
         ...state,
-        commandInput: state.toolbarQuery || state.searchQuery || state.pathQuery,
+        commandInput:
+          state.toolbarQuery || (state.modeState.mode === "idle" ? "" : state.modeState.query),
       };
     }
 
     case "prevMatch": {
       const matchCount = action.matchCount;
-      if (matchCount === 0) {
+      if (state.modeState.mode !== "search" || matchCount === 0) {
         return state;
       }
-      const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, matchCount);
+      const currentMatchIndex = reconcileMatchIndex(state.modeState.currentMatchIndex, matchCount);
       return {
         ...state,
-        currentMatchIndex: (currentMatchIndex - 1 + matchCount) % matchCount,
+        modeState: {
+          ...state.modeState,
+          currentMatchIndex: (currentMatchIndex - 1 + matchCount) % matchCount,
+        },
       };
     }
 
     case "nextMatch": {
       const matchCount = action.matchCount;
-      if (matchCount === 0) {
+      if (state.modeState.mode !== "search" || matchCount === 0) {
         return state;
       }
-      const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, matchCount);
+      const currentMatchIndex = reconcileMatchIndex(state.modeState.currentMatchIndex, matchCount);
       return {
         ...state,
-        currentMatchIndex: (currentMatchIndex + 1) % matchCount,
+        modeState: {
+          ...state.modeState,
+          currentMatchIndex: (currentMatchIndex + 1) % matchCount,
+        },
       };
     }
 
     case "prevPathMatch": {
-      if (state.pathMatches.length === 0) {
+      if (state.modeState.mode !== "path" || state.modeState.matches.length === 0) {
         return state;
       }
       const next =
-        (state.currentPathMatchIndex - 1 + state.pathMatches.length) % state.pathMatches.length;
-      return { ...state, currentPathMatchIndex: next };
+        (state.modeState.currentIndex - 1 + state.modeState.matches.length) %
+        state.modeState.matches.length;
+      return { ...state, modeState: { ...state.modeState, currentIndex: next } };
     }
 
     case "nextPathMatch": {
-      if (state.pathMatches.length === 0) {
+      if (state.modeState.mode !== "path" || state.modeState.matches.length === 0) {
         return state;
       }
-      const next = (state.currentPathMatchIndex + 1) % state.pathMatches.length;
-      return { ...state, currentPathMatchIndex: next };
+      const next = (state.modeState.currentIndex + 1) % state.modeState.matches.length;
+      return { ...state, modeState: { ...state.modeState, currentIndex: next } };
     }
 
     case "resetAll": {
       return createInitialQueryInteractionState();
     }
+  }
 
-    default:
-      return state;
+  action satisfies never;
+  return state;
+};
+
+const createSearchModeState = (query: string): QueryModeState =>
+  query.trim() ? { mode: "search", query, currentMatchIndex: 0 } : { mode: "idle" };
+
+const createModeState = (query: string): QueryModeState => {
+  if (!query.trim()) {
+    return { mode: "idle" };
+  }
+
+  return isPathLikeQuery(query)
+    ? { mode: "path", query, error: null, matches: [], currentIndex: 0 }
+    : createSearchModeState(query);
+};
+
+const resetSearchMatchIndex = (modeState: QueryModeState): QueryModeState =>
+  modeState.mode === "search" ? { ...modeState, currentMatchIndex: 0 } : modeState;
+
+const resetModeNavigation = (modeState: QueryModeState): QueryModeState => {
+  switch (modeState.mode) {
+    case "idle":
+      return modeState;
+    case "search":
+      return { ...modeState, currentMatchIndex: 0 };
+    case "path":
+      return { ...modeState, error: null, matches: [], currentIndex: 0 };
   }
 };
 
-// Shared transition for path jumps driven by toolbar submit, palette submit,
-// or overview selection: either records the error or lands on the first target.
 const applyPathResolution = (
   state: QueryInteractionState,
   toolbarValue: string,
@@ -271,10 +269,11 @@ const applyPathResolution = (
 ): QueryInteractionState => ({
   ...state,
   toolbarQuery: toolbarValue,
-  pathQuery: resolution.query,
-  searchQuery: "",
-  currentMatchIndex: 0,
-  currentPathMatchIndex: 0,
-  pathError: resolution.ok ? null : resolution.error,
-  pathMatches: resolution.ok ? resolution.targets : [],
+  modeState: {
+    mode: "path",
+    query: resolution.query,
+    error: resolution.ok ? null : resolution.error,
+    matches: resolution.ok ? resolution.targets : [],
+    currentIndex: 0,
+  },
 });
