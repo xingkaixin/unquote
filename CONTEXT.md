@@ -45,7 +45,9 @@ _Avoid_: Error row
 _Avoid_: Escaped JSON
 
 **Agent Session**:
-从可识别的 Agent JSONL Source 中投影出的会话语义，包含会话信息、对话与时间线。
+从可识别的 Agent JSONL Source 中投影出的会话语义，包含会话信息与 Agent Event；
+Conversation Item 归属于产生它的 Agent Event，会话负责解析 Event、Conversation 与
+Record 选择之间的关联。
 _Avoid_: Agent log
 
 **Agent Event**:
@@ -53,5 +55,11 @@ Agent Session 时间线中的一次可定位事件，并关联回产生它的 Re
 _Avoid_: Timeline row
 
 **Conversation Item**:
-Agent Session 对话中的一项用户消息、助手消息、推理、工具调用或工具结果，并关联回产生它的 Agent Event。
+Agent Session 对话中的一项用户消息、助手消息、推理、工具调用或工具结果；它直接
+归属于产生它的 Agent Event，不单独复制 Event 或 Record 身份。
 _Avoid_: Message row, conversation block
+
+**Agent Detail**:
+由 Agent Session 根据 timeline、conversation 或 Record 选择解析出的统一投影，包含
+canonical Agent Event、可选 Conversation Item 与对应 Record 身份。
+_Avoid_: Raw pane state, selected message

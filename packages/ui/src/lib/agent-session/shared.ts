@@ -104,16 +104,11 @@ export const createBaseEvent = (
   kind,
   label,
   preview,
-  conversationItemIds: [],
+  conversationItems: [],
 });
 
-export const attachConversationItem = (
-  event: AgentTimelineEvent,
-  items: AgentConversationItem[],
-  item: AgentConversationItem,
-) => {
-  items.push(item);
-  event.conversationItemIds.push(item.id);
+export const attachConversationItem = (event: AgentTimelineEvent, item: AgentConversationItem) => {
+  event.conversationItems.push(item);
 };
 
 export const buildSession = (

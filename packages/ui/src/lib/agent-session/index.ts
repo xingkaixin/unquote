@@ -10,15 +10,21 @@ import { codexRolloutAdapter } from "./codex-adapter";
 export type {
   AgentContentBlock,
   AgentConversationItem,
+  AgentConversationEntry,
   AgentConversationRole,
+  AgentDetailSelection,
   AgentEventCategory,
   AgentParseWarning,
   AgentSession,
+  AgentSessionDetail,
+  AgentSessionIntegrityIssue,
   AgentSessionMeta,
+  AgentSessionModel,
   AgentTimelineEvent,
   AgentTokenUsage,
   ParsedAgentLine,
 } from "./types";
+export { createAgentSessionModel } from "./model";
 
 const detectionLineLimit = 80;
 const earlyDetectionLineCount = 20;

@@ -54,7 +54,7 @@ export interface AgentTimelineEvent {
   kind: string;
   label: string;
   preview: string;
-  conversationItemIds: string[];
+  conversationItems: AgentConversationItem[];
   timestamp?: number;
   turnIndex?: number;
   requestId?: string;
@@ -70,9 +70,6 @@ export interface AgentTimelineEvent {
 
 export interface AgentConversationItem {
   id: string;
-  eventId: string;
-  recordId: string;
-  lineNumber: number;
   role: AgentConversationRole;
   turnIndex?: number;
   block?: AgentContentBlock;
@@ -83,8 +80,37 @@ export interface AgentSession {
   fileName?: string;
   meta: AgentSessionMeta;
   events: AgentTimelineEvent[];
-  conversationItems: AgentConversationItem[];
   parseWarnings: AgentParseWarning[];
+}
+
+export type AgentDetailSelection =
+  | { kind: "record"; recordId: string }
+  | { kind: "event"; id: string; recordId: string }
+  | { kind: "conversation"; id: string; recordId: string };
+
+export interface AgentConversationEntry {
+  item: AgentConversationItem;
+  event: AgentTimelineEvent;
+}
+
+export interface AgentSessionDetail {
+  event: AgentTimelineEvent;
+  conversationItem?: AgentConversationItem;
+  recordId: string;
+}
+
+export type AgentSessionIntegrityIssue =
+  | { kind: "duplicate-event-id"; id: string }
+  | { kind: "duplicate-record-id"; recordId: string }
+  | { kind: "duplicate-conversation-id"; id: string };
+
+export interface AgentSessionModel {
+  events: readonly AgentTimelineEvent[];
+  conversation: readonly AgentConversationEntry[];
+  integrityIssues: readonly AgentSessionIntegrityIssue[];
+  resolveDetail(selection: AgentDetailSelection | null): AgentSessionDetail | null;
+  selectEvent(eventId: string): AgentDetailSelection | null;
+  selectConversation(itemId: string): AgentDetailSelection | null;
 }
 
 export interface ParsedAgentLine {

@@ -2,9 +2,9 @@ import { parseInput } from "@unquote/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentSessionView, type AgentDetailSelection } from "../src/components/agent-session-view";
+import { AgentSessionView } from "../src/components/agent-session-view";
 import { I18nProvider } from "../src/i18n/context";
-import type { AgentSession } from "../src/lib/agent-session";
+import type { AgentDetailSelection, AgentSession } from "../src/lib/agent-session";
 import type { RecordViewState } from "../src/lib/record-view";
 
 const rawLines = [
@@ -36,7 +36,7 @@ const session: AgentSession = {
       kind: "session_meta",
       label: "Session metadata",
       preview: "session-1",
-      conversationItemIds: [],
+      conversationItems: [],
       timestampLabel: "2026-07-16T10:00:00.000Z",
     },
     {
@@ -48,7 +48,14 @@ const session: AgentSession = {
       kind: "message",
       label: "User message",
       preview: "hello",
-      conversationItemIds: ["conversation-1"],
+      conversationItems: [
+        {
+          id: "conversation-1",
+          role: "user",
+          turnIndex: 1,
+          block: { type: "text", text: "hello" },
+        },
+      ],
       turnIndex: 1,
     },
     {
@@ -60,18 +67,7 @@ const session: AgentSession = {
       kind: "invalid",
       label: "Invalid line",
       preview: "",
-      conversationItemIds: [],
-    },
-  ],
-  conversationItems: [
-    {
-      id: "conversation-1",
-      eventId: "event-2",
-      recordId: "record-2",
-      lineNumber: 2,
-      role: "user",
-      turnIndex: 1,
-      block: { type: "text", text: "hello" },
+      conversationItems: [],
     },
   ],
   parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
@@ -284,7 +280,6 @@ describe("AgentSessionView", () => {
       fileType: "Claude Code",
       meta: { eventCount: 0, turnCount: 0 },
       events: [],
-      conversationItems: [],
       parseWarnings: [],
     };
     renderView(

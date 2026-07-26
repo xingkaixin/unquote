@@ -19,7 +19,7 @@ const buildEvent = (index: number): AgentTimelineEvent => ({
   kind: "message",
   label: `Event ${index}`,
   preview: "",
-  conversationItemIds: [],
+  conversationItems: [],
 });
 
 const renderPane = (

@@ -5,34 +5,42 @@ import {
   conversationVirtualizationThreshold,
 } from "../src/components/agent-conversation-pane";
 import { I18nProvider } from "../src/i18n/context";
-import type { AgentConversationItem, AgentTimelineEvent } from "../src/lib/agent-session";
-import type { AgentDetailSelection } from "../src/components/agent-session-view";
+import type { AgentConversationEntry, AgentDetailSelection } from "../src/lib/agent-session";
 
 const measuredRowHeight = 96;
 const containerTop = 40;
 
-const buildItem = (index: number): AgentConversationItem => ({
-  id: `item-${index}`,
-  eventId: `event-${index}`,
-  recordId: `record-${index}`,
-  lineNumber: index + 1,
-  role: index % 2 === 0 ? "user" : "assistant",
+const buildEntry = (index: number): AgentConversationEntry => ({
+  item: {
+    id: `item-${index}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+  },
+  event: {
+    id: `event-${index}`,
+    recordId: `record-${index}`,
+    lineNumber: index + 1,
+    rawLine: `{"index":${index}}`,
+    category: "assistant",
+    kind: "message",
+    label: `Event ${index}`,
+    preview: "",
+    conversationItems: [],
+  },
 });
 
 const renderPane = (
-  items: AgentConversationItem[],
+  entries: AgentConversationEntry[],
   overrides: Partial<{
     selectedConversationId: string | undefined;
     detailSelection: AgentDetailSelection | null;
-    onSelectItem: (itemId: string, recordId: string) => void;
+    onSelectItem: (itemId: string) => void;
   }> = {},
 ) => {
   const onSelectItem = overrides.onSelectItem ?? vi.fn();
   const { rerender } = render(
     <I18nProvider>
       <AgentConversationPane
-        items={items}
-        eventById={new Map<string, AgentTimelineEvent>()}
+        entries={entries}
         selectedConversationId={overrides.selectedConversationId}
         detailSelection={overrides.detailSelection ?? null}
         onSelectItem={onSelectItem}
@@ -42,7 +50,7 @@ const renderPane = (
 
   const rerenderWith = (
     next: Partial<{
-      items: AgentConversationItem[];
+      entries: AgentConversationEntry[];
       selectedConversationId: string | undefined;
       detailSelection: AgentDetailSelection | null;
     }>,
@@ -50,8 +58,7 @@ const renderPane = (
     rerender(
       <I18nProvider>
         <AgentConversationPane
-          items={next.items ?? items}
-          eventById={new Map<string, AgentTimelineEvent>()}
+          entries={next.entries ?? entries}
           selectedConversationId={next.selectedConversationId}
           detailSelection={next.detailSelection ?? null}
           onSelectItem={onSelectItem}
@@ -101,8 +108,8 @@ describe("AgentConversationPane", () => {
   });
 
   it("renders every item without virtualizing below the threshold", () => {
-    const items = Array.from({ length: 5 }, (_, index) => buildItem(index));
-    const { onSelectItem } = renderPane(items, { selectedConversationId: "item-2" });
+    const entries = Array.from({ length: 5 }, (_, index) => buildEntry(index));
+    const { onSelectItem } = renderPane(entries, { selectedConversationId: "item-2" });
 
     const buttons = conversationButtons();
     expect(buttons).toHaveLength(5);
@@ -110,11 +117,11 @@ describe("AgentConversationPane", () => {
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(buttons[0]!);
-    expect(onSelectItem).toHaveBeenCalledWith("item-0", "record-0");
+    expect(onSelectItem).toHaveBeenCalledWith("item-0");
   });
 
   it("re-scrolls to the same item when it is selected again below the threshold", () => {
-    const items = Array.from({ length: 5 }, (_, index) => buildItem(index));
+    const entries = Array.from({ length: 5 }, (_, index) => buildEntry(index));
     const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
     scrollIntoView.mockClear();
 
@@ -126,7 +133,7 @@ describe("AgentConversationPane", () => {
       id: "item-1",
       recordId: "record-1",
     };
-    const { rerenderWith } = renderPane(items, {
+    const { rerenderWith } = renderPane(entries, {
       selectedConversationId: "item-1",
       detailSelection: firstSelection,
     });
@@ -145,7 +152,7 @@ describe("AgentConversationPane", () => {
   });
 
   it("does not re-scroll when the items array is rebuilt with the same selection", () => {
-    const items = Array.from({ length: 5 }, (_, index) => buildItem(index));
+    const entries = Array.from({ length: 5 }, (_, index) => buildEntry(index));
     const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
     scrollIntoView.mockClear();
 
@@ -154,14 +161,14 @@ describe("AgentConversationPane", () => {
       id: "item-1",
       recordId: "record-1",
     };
-    const { rerenderWith } = renderPane(items, {
+    const { rerenderWith } = renderPane(entries, {
       selectedConversationId: "item-1",
       detailSelection: selection,
     });
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
     rerenderWith({
-      items: items.map((item) => ({ ...item })),
+      entries: entries.map((entry) => ({ ...entry })),
       selectedConversationId: "item-1",
       detailSelection: selection,
     });
@@ -170,8 +177,8 @@ describe("AgentConversationPane", () => {
 
   it("windows the rendered rows once items exceed the virtualization threshold", () => {
     const total = conversationVirtualizationThreshold + 340;
-    const items = Array.from({ length: total }, (_, index) => buildItem(index));
-    renderPane(items);
+    const entries = Array.from({ length: total }, (_, index) => buildEntry(index));
+    renderPane(entries);
 
     const buttons = conversationButtons();
     expect(buttons.length).toBeGreaterThan(0);
@@ -182,8 +189,8 @@ describe("AgentConversationPane", () => {
 
   it("selects a windowed item and reports it as pressed", () => {
     const total = conversationVirtualizationThreshold + 40;
-    const items = Array.from({ length: total }, (_, index) => buildItem(index));
-    const { onSelectItem } = renderPane(items, { selectedConversationId: "item-1" });
+    const entries = Array.from({ length: total }, (_, index) => buildEntry(index));
+    const { onSelectItem } = renderPane(entries, { selectedConversationId: "item-1" });
 
     const pressedButtons = screen
       .getAllByRole("button")
@@ -197,10 +204,10 @@ describe("AgentConversationPane", () => {
 
   it("invokes measureElement per rendered row for the dynamic-height virtualized path", () => {
     const total = conversationVirtualizationThreshold + 40;
-    const items = Array.from({ length: total }, (_, index) => buildItem(index));
+    const entries = Array.from({ length: total }, (_, index) => buildEntry(index));
     offsetHeightSpy.mockClear();
 
-    renderPane(items);
+    renderPane(entries);
 
     const rowCount = document.querySelectorAll("[data-index]").length;
     expect(rowCount).toBeGreaterThan(0);

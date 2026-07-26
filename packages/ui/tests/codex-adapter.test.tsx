@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 import { codexRolloutAdapter } from "../src/lib/agent-session/codex-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
@@ -7,6 +8,9 @@ const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   lineNumber,
   raw: JSON.stringify(data),
 });
+
+const conversationItems = (session: AgentSession) =>
+  createAgentSessionModel(session).conversation.map(({ item }) => item);
 
 describe("codexRolloutAdapter", () => {
   it("scores only recognized Codex envelopes with record payloads", () => {
@@ -119,8 +123,9 @@ describe("codexRolloutAdapter", () => {
     });
 
     const session = builder.finish([]);
+    const items = conversationItems(session);
     expect(session.meta.turnCount).toBe(1);
-    expect(session.conversationItems.map((item) => item.role)).toEqual([
+    expect(items.map((item) => item.role)).toEqual([
       "system",
       "assistant",
       "system",
@@ -136,25 +141,25 @@ describe("codexRolloutAdapter", () => {
       "system",
       "system",
     ]);
-    expect(session.conversationItems[0]?.block?.text).toBe("System guidance");
-    expect(session.conversationItems[2]).not.toHaveProperty("block");
-    expect(session.conversationItems[3]?.block?.text).toBe("encrypted reasoning");
-    expect(session.conversationItems[5]?.block).toMatchObject({
+    expect(items[0]?.block?.text).toBe("System guidance");
+    expect(items[2]).not.toHaveProperty("block");
+    expect(items[3]?.block?.text).toBe("encrypted reasoning");
+    expect(items[5]?.block).toMatchObject({
       toolName: "tool",
       toolInput: {},
       status: "pending",
     });
-    expect(session.conversationItems[6]?.block).toMatchObject({
+    expect(items[6]?.block).toMatchObject({
       toolCallId: "short-id",
       toolInput: { raw: "not json" },
     });
-    expect(session.conversationItems[7]?.block?.toolInput).toEqual({ raw: "42" });
+    expect(items[7]?.block?.toolInput).toEqual({ raw: "42" });
     expect(session.events[8]?.label).toBe("tool_result call_1234567");
-    expect(session.conversationItems.slice(8, 11).map((item) => item.block?.status)).toEqual([
+    expect(items.slice(8, 11).map((item) => item.block?.status)).toEqual([
       "completed",
       "failed",
       "failed",
     ]);
-    expect(session.conversationItems[11]).not.toHaveProperty("block");
+    expect(items[11]).not.toHaveProperty("block");
   });
 });

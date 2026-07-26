@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
+
+const conversationItems = (session: AgentSession) =>
+  createAgentSessionModel(session).conversation.map(({ item }) => item);
 
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
@@ -148,20 +152,21 @@ describe("claudeTranscriptAdapter", () => {
       role: "user",
       stopReason: "end_turn",
     });
-    expect(session.conversationItems.map((item) => item.role)).toEqual([
+    const items = conversationItems(session);
+    expect(items.map((item) => item.role)).toEqual([
       "user",
       "user",
       "user",
       "tool_result",
       "tool_result",
     ]);
-    expect(session.conversationItems[1]?.block?.text).toContain("More context");
-    expect(session.conversationItems[2]).not.toHaveProperty("block");
-    expect(session.conversationItems[3]?.block).toMatchObject({
+    expect(items[1]?.block?.text).toContain("More context");
+    expect(items[2]).not.toHaveProperty("block");
+    expect(items[3]?.block).toMatchObject({
       status: "failed",
       toolCallId: "toolu_12345678901234567890",
     });
-    expect(session.conversationItems[4]).not.toHaveProperty("block");
+    expect(items[4]).not.toHaveProperty("block");
     expect(session.events[5]?.label).toBe("tool_result toolu_123456");
   });
 
@@ -254,7 +259,8 @@ describe("claudeTranscriptAdapter", () => {
         cacheReadInputTokens: 0,
       },
     });
-    expect(session.conversationItems.map((item) => item.role)).toEqual([
+    const items = conversationItems(session);
+    expect(items.map((item) => item.role)).toEqual([
       "user",
       "assistant",
       "assistant",
@@ -265,6 +271,6 @@ describe("claudeTranscriptAdapter", () => {
       "thinking",
       "tool_call",
     ]);
-    expect(session.conversationItems[5]?.block?.toolInput).toEqual({});
+    expect(items[5]?.block?.toolInput).toEqual({});
   });
 });
