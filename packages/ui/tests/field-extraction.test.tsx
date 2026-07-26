@@ -99,16 +99,8 @@ describe("field-extraction", () => {
       status: "preview",
       node: {
         kind: "object",
-        value: null,
-        path: ["$"],
-        wasStringified: false,
-        meta: {
-          depth: 0,
-          expandable: true,
-          restorable: false,
-          recordId: "record-1",
-          sourceLine: 1,
-        },
+        childCount: 0,
+        preview: true,
       },
       preview: {
         fields: { event: "tool_call", tool: "billing.search" },

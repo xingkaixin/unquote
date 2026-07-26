@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { isParsed, materializeNode } from "@unquote/core";
+import { hasJsonNodeChildren, isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
 import { getPreviewNestedFieldKeys, getPreviewPath } from "./record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
@@ -49,27 +49,29 @@ const pushRows = (
   walkJsonNode(
     node,
     (ctx) => {
-      const sourceState: NodeSourceState = ctx.node.wasStringified
+      const wasStringified = isStringifiedNode(ctx.node);
+      const sourceState: NodeSourceState = wasStringified
         ? "stringified"
         : ctx.stringifiedChain.length > 0
           ? "inside-stringified"
           : "source";
-      const expanded = !ctx.node.wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+      const expanded = !wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+      const path = ["$", ...ctx.pathSegments.map((segment) => segment.value)];
       rows.push({
         id: `${recordId}:${ctx.jsonPath}`,
         recordId,
-        path: ctx.node.path,
+        path,
         pathText: ctx.jsonPath,
         jsonPath: ctx.jsonPath,
         jqPath: ctx.jqPath,
         stringifiedPathChain: [...ctx.stringifiedChain],
         sourceState,
-        depth: Math.max(0, ctx.node.path.length - 1 - depthOffset),
-        keyLabel: ctx.node.path.at(-1) ?? parentKeyLabel,
+        depth: Math.max(0, ctx.pathSegments.length - depthOffset),
+        keyLabel: ctx.pathSegments.at(-1)?.value ?? parentKeyLabel,
         kind: ctx.node.kind,
         valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
-        wasStringified: ctx.node.wasStringified,
-        expandable: Boolean(ctx.node.children),
+        wasStringified,
+        expandable: hasJsonNodeChildren(ctx.node),
         expanded,
         node: ctx.node,
       });
@@ -111,7 +113,7 @@ const buildFocusedRecordRows = (
   }
 
   const rows: TreeRow[] = [];
-  const stringifiedAncestors = resolved.target.node.wasStringified
+  const stringifiedAncestors = isStringifiedNode(resolved.target.node)
     ? resolved.target.stringifiedPathChain.slice(0, -1)
     : resolved.target.stringifiedPathChain;
   pushRows(
@@ -123,7 +125,7 @@ const buildFocusedRecordRows = (
     resolved.target.jqPath,
     stringifiedAncestors,
     resolved.target.rawKey,
-    Math.max(0, resolved.target.node.path.length - 1),
+    Math.max(0, resolved.target.path.length - 1),
   );
 
   return { rows, focus: resolved.target };
@@ -146,10 +148,10 @@ const collectPaths = (
   walkJsonNode(
     node,
     (ctx) => {
-      if (ctx.node.wasStringified) {
+      if (isStringifiedNode(ctx.node)) {
         output.add(ctx.jsonPath);
       }
-      return !ctx.node.wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+      return !isStringifiedNode(ctx.node) || expandedStringifiedPaths.has(ctx.jsonPath);
     },
     { jsonPath: pathText },
   );
@@ -177,11 +179,11 @@ export const collectStringifiedPaths = (
 };
 
 const containsStringifiedNode = (node: JsonNode): boolean => {
-  if (node.wasStringified) {
+  if (isStringifiedNode(node)) {
     return true;
   }
 
-  if (!node.children) {
+  if (!hasJsonNodeChildren(node)) {
     return false;
   }
 
@@ -424,18 +426,18 @@ const createResolvedTreePath = (
 ): ResolvedTreePath => {
   const jsonPath = formatJsonPath(pathSegments);
   const jqPath = formatJqSelector(pathSegments);
-  const sourceState: NodeSourceState = node.wasStringified
+  const sourceState: NodeSourceState = isStringifiedNode(node)
     ? "stringified"
     : stringifiedPathChain.length > 0
       ? "inside-stringified"
       : "source";
-  const sourceLine = node.meta.sourceLine;
+  const path = ["$", ...pathSegments.map((segment) => segment.value)];
 
   return {
     recordId: record.id,
     recordLine: record.lineNumber,
     node,
-    path: node.path,
+    path,
     pathText: jsonPath,
     jsonPath,
     jqPath,
@@ -443,7 +445,7 @@ const createResolvedTreePath = (
     kind: node.kind,
     sourceState,
     stringifiedPathChain: [...stringifiedPathChain],
-    ...(typeof sourceLine === "number" ? { sourceLine } : {}),
+    sourceLine: record.lineNumber,
   };
 };
 
@@ -457,14 +459,14 @@ const resolvePathInRecord = (
 
   let node = record.node;
   const actualSegments: TreePathSegment[] = [];
-  let stringifiedPathChain = node.wasStringified ? [formatJsonPath(actualSegments)] : [];
+  let stringifiedPathChain = isStringifiedNode(node) ? [formatJsonPath(actualSegments)] : [];
 
   for (const requested of requestedSegments) {
-    if (!node.children) {
+    if (!hasJsonNodeChildren(node)) {
       return null;
     }
 
-    if (Array.isArray(node.children)) {
+    if (node.kind === "array") {
       if (requested.kind !== "index") {
         return null;
       }
@@ -495,7 +497,7 @@ const resolvePathInRecord = (
       actualSegments.push({ kind: "key", value: requested.value });
     }
 
-    if (node.wasStringified) {
+    if (isStringifiedNode(node)) {
       stringifiedPathChain = [...stringifiedPathChain, formatJsonPath(actualSegments)];
     }
   }

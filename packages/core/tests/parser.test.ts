@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatResult,
+  hasJsonNodeChildren,
+  isStringifiedNode,
+  isTruncatedJsonNode,
   materializeNode,
   parseInput,
   parseJsonlRecordLine,
@@ -16,9 +19,31 @@ describe("parseInput", () => {
     const result = parseInput('{"payload":"{\\"user\\":{\\"id\\":42}}"}');
     expect(result.format).toBe("json");
     const children = result.records[0]?.node?.children;
-    expect(children && !Array.isArray(children) ? children.payload?.wasStringified : false).toBe(
-      true,
-    );
+    expect(
+      children && !Array.isArray(children) && children.payload
+        ? isStringifiedNode(children.payload)
+        : false,
+    ).toBe(true);
+  });
+
+  it("stores only the facts required by each node shape", () => {
+    const record = parseInput('{"object":{"value":1},"array":[true],"primitive":"text"}')
+      .records[0];
+    if (
+      record?.status !== "full" ||
+      !hasJsonNodeChildren(record.node) ||
+      record.node.kind !== "object"
+    ) {
+      throw new Error("Expected a full object record");
+    }
+
+    expect(record.node).not.toHaveProperty("value");
+    expect(record.node).not.toHaveProperty("path");
+    expect(record.node).not.toHaveProperty("meta");
+    expect(record.node.children.object).toMatchObject({ kind: "object" });
+    expect(record.node.children.object).not.toHaveProperty("value");
+    expect(record.node.children.array).toMatchObject({ kind: "array" });
+    expect(record.node.children.primitive).toEqual({ kind: "string", value: "text" });
   });
 
   it("parses jsonl line by line", () => {
@@ -113,11 +138,10 @@ describe("parseInput", () => {
     }
   });
 
-  it("parses a jsonl line with source line metadata", () => {
+  it("parses a jsonl line with record identity", () => {
     const record = parseJsonlRecordLine('{"event":"two"}', 7);
     expect(record.id).toBe("record-7");
     expect(record.lineNumber).toBe(7);
-    expect(record.node?.meta.sourceLine).toBe(7);
     expect(record.summary).toBe("event:two");
   });
 
@@ -147,9 +171,9 @@ describe("parseInput", () => {
       },
     });
     expect(preview.node?.children).toBeUndefined();
-    expect(hydrated.node.children.nested?.wasStringified).toBe(true);
-    expect(hydrated.node.children.primitive?.wasStringified).toBe(true);
-    expect(hydrated.node.children.invalid?.wasStringified).toBe(false);
+    expect(isStringifiedNode(hydrated.node.children.nested!)).toBe(true);
+    expect(isStringifiedNode(hydrated.node.children.primitive!)).toBe(true);
+    expect(isStringifiedNode(hydrated.node.children.invalid!)).toBe(false);
   });
 
   it("keeps Preview Record root string semantics aligned with Full Records", () => {
@@ -158,7 +182,7 @@ describe("parseInput", () => {
       const preview = parsePreviewJsonlRecordLine(line, 3);
       const hydrated = parseJsonlRecordLine(line, 3);
 
-      expect(preview.node?.wasStringified).toBe(hydrated.node?.wasStringified);
+      expect(isStringifiedNode(preview.node!)).toBe(isStringifiedNode(hydrated.node!));
     }
   });
 
@@ -203,7 +227,8 @@ describe("parseInput", () => {
     }
 
     expect(restored.children["a.b"]).toMatchObject({ kind: "string", value: '{"flat":true}' });
-    expect(restoredNested.children.b).toMatchObject({ kind: "object", wasStringified: true });
+    expect(restoredNested.children.b?.kind).toBe("object");
+    expect(isStringifiedNode(restoredNested.children.b!)).toBe(true);
   });
 
   it("matches special restore path segments exactly", () => {
@@ -244,7 +269,8 @@ describe("parseInput", () => {
     if (!items?.children || !Array.isArray(items.children)) {
       throw new Error("Expected array children");
     }
-    expect(items.children[0]).toMatchObject({ kind: "object", wasStringified: true });
+    expect(items.children[0]?.kind).toBe("object");
+    expect(isStringifiedNode(items.children[0]!)).toBe(true);
 
     const restoredArray = restoreNode(root, [["$", "items", "0"]]);
     if (!restoredArray.children || Array.isArray(restoredArray.children)) {
@@ -255,11 +281,10 @@ describe("parseInput", () => {
       throw new Error("Expected array children");
     }
     expect(restoredItems.children[0]).toMatchObject({ kind: "string", value: '{"indexed":true}' });
-    expect(restoredItems.children[1]).toMatchObject({ kind: "object", wasStringified: true });
-    expect(restoredArray.children["items[0]"]).toMatchObject({
-      kind: "object",
-      wasStringified: true,
-    });
+    expect(restoredItems.children[1]?.kind).toBe("object");
+    expect(isStringifiedNode(restoredItems.children[1]!)).toBe(true);
+    expect(restoredArray.children["items[0]"]?.kind).toBe("object");
+    expect(isStringifiedNode(restoredArray.children["items[0]"]!)).toBe(true);
   });
 
   it("formats back to json", () => {
@@ -308,7 +333,6 @@ describe("parseInput", () => {
     expect(result.stats).toEqual({ total: 1, success: 1, failed: 0 });
     let node = result.records[0]?.node;
     for (let depth = 0; depth < 10; depth += 1) {
-      expect(node?.meta.depth).toBe(depth);
       if (!node?.children || Array.isArray(node.children)) {
         throw new Error(`Expected object children at depth ${depth}`);
       }
@@ -316,8 +340,9 @@ describe("parseInput", () => {
     }
     expect(node).toMatchObject({
       kind: "object",
-      meta: { depth: 10, expandable: true, truncated: true },
+      truncated: true,
     });
+    expect(isTruncatedJsonNode(node!)).toBe(true);
     expect(node?.children).toBeUndefined();
   });
 
@@ -347,9 +372,9 @@ describe("parseInput", () => {
 
     expect(root.children.payload).toMatchObject({
       kind: "object",
-      wasStringified: true,
-      meta: { depth: 1, truncated: true },
+      truncated: true,
     });
+    expect(isStringifiedNode(root.children.payload!)).toBe(true);
     expect(materializeNode(root)).toEqual({ payload: { nested: { value: 1 } } });
   });
 

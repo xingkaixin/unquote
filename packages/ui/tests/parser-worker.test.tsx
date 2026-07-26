@@ -154,8 +154,8 @@ describe("parser worker file dispatch", () => {
       .flatMap((message) => message.records);
     expect(records).toHaveLength(7);
     expect(records[0]).not.toHaveProperty("preview");
-    expect(records[0]?.node).toMatchObject({ kind: "object", value: null });
-    expect(records[1]?.node).toMatchObject({ kind: "array", value: null });
+    expect(records[0]?.node).toMatchObject({ kind: "object", childCount: 0, preview: true });
+    expect(records[1]?.node).toMatchObject({ kind: "array", childCount: 0, preview: true });
     expect(records[2]?.preview).toEqual({
       fields: {},
       containers: { object: "object", array: "array" },
@@ -166,7 +166,7 @@ describe("parser worker file dispatch", () => {
     });
     expect(records[4]?.node).toMatchObject({
       value: "x".repeat(160),
-      meta: { truncated: true, valueLength: 200 },
+      valueLength: 200,
     });
     expect(records[5]).not.toHaveProperty("preview");
     expect(records[6]?.node).toBeNull();

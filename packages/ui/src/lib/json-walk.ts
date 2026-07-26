@@ -1,4 +1,9 @@
-import { DEFAULT_MAX_DEPTH, getJsonKind } from "@unquote/core";
+import {
+  DEFAULT_MAX_DEPTH,
+  getJsonKind,
+  hasJsonNodeChildren,
+  isStringifiedNode,
+} from "@unquote/core";
 import type { JsonKind, JsonNode } from "@unquote/core";
 import { appendJsonPathSegment, appendJqSelectorSegment } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
@@ -48,15 +53,42 @@ const childCountFor = (kind: JsonKind, value: unknown) => {
   return 0;
 };
 
-const resolveJsonNode: JsonValueResolver<JsonNode> = (node) => ({
-  node,
-  value: node.value,
-  kind: node.kind,
-  wasStringified: node.wasStringified,
-  childCount: childCountFor(node.kind, node.value),
-  ...(node.children ? { children: node.children } : {}),
-  ...(typeof node.meta.valueLength === "number" ? { valueLength: node.meta.valueLength } : {}),
-});
+const resolveJsonNode: JsonValueResolver<JsonNode> = (node) => {
+  if (hasJsonNodeChildren(node)) {
+    return {
+      node,
+      value: null,
+      kind: node.kind,
+      wasStringified: isStringifiedNode(node),
+      childCount: Array.isArray(node.children)
+        ? node.children.length
+        : Object.keys(node.children).length,
+      children: node.children,
+    };
+  }
+
+  if (node.kind === "object" || node.kind === "array") {
+    const value = node.preview ? null : node.value;
+    return {
+      node,
+      value,
+      kind: node.kind,
+      wasStringified: isStringifiedNode(node),
+      childCount: node.preview ? node.childCount : childCountFor(node.kind, value),
+    };
+  }
+
+  return {
+    node,
+    value: node.value,
+    kind: node.kind,
+    wasStringified: isStringifiedNode(node),
+    childCount: 0,
+    ...(node.kind === "string" && typeof node.valueLength === "number"
+      ? { valueLength: node.valueLength }
+      : {}),
+  };
+};
 
 const isJsonWhitespace = (character: string) =>
   character === " " || character === "\t" || character === "\n" || character === "\r";

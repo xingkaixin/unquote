@@ -20,6 +20,14 @@ _Avoid_: File helper, hydration layer
 Source 中可独立定位和查看的内容项；JSON Source 对应整体内容，JSONL Source 对应一个非空行。
 _Avoid_: Row, entry
 
+**JSON Node**:
+Record 内的一项 JSON 事实。容器节点保存 children，primitive 保存 value；路径、深度与 Record 归属属于遍历上下文，不复制到节点。
+_Avoid_: Tree row, value wrapper
+
+**Truncated JSON Node**:
+达到解析深度预算的容器节点。它不再递归建立 children，但保留未展开的容器 value，以保证 materialize 与格式化不丢失内容。
+_Avoid_: Preview Record, failed node
+
 **Preview Record**:
 仅提供浏览和定位所需部分信息、完整内容尚未取得的 Record。
 _Avoid_: Deferred record, compact record
