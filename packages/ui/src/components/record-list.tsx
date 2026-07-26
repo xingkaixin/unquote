@@ -80,7 +80,7 @@ export const RecordList = memo(function RecordList({
     updateScrollMargin();
     window.addEventListener("resize", updateScrollMargin);
     return () => window.removeEventListener("resize", updateScrollMargin);
-  }, [records.length, shouldVirtualize]);
+  }, [shouldVirtualize]);
 
   const scrollToRecord = useCallback(
     (index: number) => {

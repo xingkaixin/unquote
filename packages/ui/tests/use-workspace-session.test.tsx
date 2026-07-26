@@ -138,7 +138,8 @@ describe("useWorkspaceSession", () => {
     }).records;
     const { result } = renderHook(() => useWorkspaceSession(0));
 
-    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!]));
+    const previousRecords = [records[0]!, records[1]!];
+    act(() => result.current.reconcileVisibleRecords(previousRecords));
     act(() => {
       result.current.selectPath({
         recordId: records[1]!.id,
@@ -148,7 +149,11 @@ describe("useWorkspaceSession", () => {
     });
 
     const stateBeforeAppend = result.current.state;
-    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!, records[2]!]));
+    act(() =>
+      result.current.reconcileVisibleRecords([records[0]!, records[1]!, records[2]!], {
+        previousRecords,
+      }),
+    );
 
     expect(result.current.state.activeRecordId).toBe(stateBeforeAppend.activeRecordId);
     expect(result.current.state.selectedPath).toBe(stateBeforeAppend.selectedPath);

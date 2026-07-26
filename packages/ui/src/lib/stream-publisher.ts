@@ -1,4 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
+import type { RecordAppend } from "./record-sequence";
 
 export interface StreamPublisherOptions {
   schedule?: (callback: () => void) => number;
@@ -25,7 +26,12 @@ export interface StreamPublisher<Stats, Progress extends { done: boolean }> {
  * The scheduler is injectable so tests don't need fake rAF globals.
  */
 export const createStreamPublisher = <Stats, Progress extends { done: boolean }>(
-  emit: (records: JsonlRecord[], stats: Stats, progress: Progress) => void,
+  emit: (
+    records: JsonlRecord[],
+    stats: Stats,
+    progress: Progress,
+    recordAppend: RecordAppend | null,
+  ) => void,
   options: StreamPublisherOptions = {},
 ): StreamPublisher<Stats, Progress> => {
   const schedule =
@@ -37,6 +43,7 @@ export const createStreamPublisher = <Stats, Progress extends { done: boolean }>
   let pending: { stats: Stats; progress: Progress } | null = null;
   let frameId: number | null = null;
   let hasPublished = false;
+  let lastPublishedRecords: JsonlRecord[] | null = null;
 
   const cancelFrame = () => {
     if (frameId === null) {
@@ -56,7 +63,11 @@ export const createStreamPublisher = <Stats, Progress extends { done: boolean }>
     const snapshot = pending;
     pending = null;
     hasPublished = true;
-    emit(records.slice(), snapshot.stats, snapshot.progress);
+    const publishedRecords = records.slice();
+    const recordAppend =
+      lastPublishedRecords === null ? null : { previousRecords: lastPublishedRecords };
+    lastPublishedRecords = publishedRecords;
+    emit(publishedRecords, snapshot.stats, snapshot.progress, recordAppend);
   };
 
   return {

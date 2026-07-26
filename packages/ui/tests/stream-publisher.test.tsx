@@ -68,6 +68,7 @@ describe("createStreamPublisher", () => {
     expect(emit).toHaveBeenCalledTimes(1);
     expect(publisher.hasPublished()).toBe(true);
     const firstRecords = emit.mock.calls[0]![0] as JsonlRecord[];
+    expect(emit.mock.calls[0]![3]).toBeNull();
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
 
     publisher.pushBatch([makeRecord(2)], 2, { done: false });
@@ -83,6 +84,7 @@ describe("createStreamPublisher", () => {
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
     expect((records as JsonlRecord[]).map((record) => record.lineNumber)).toEqual([1, 2, 3]);
     expect(stats).toBe(3);
+    expect(emit.mock.calls[1]![3]).toEqual({ previousRecords: firstRecords });
   });
 
   it("publishes immediately when the batch progress is done", () => {

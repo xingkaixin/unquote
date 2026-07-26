@@ -1,9 +1,10 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { AgentDetailSelection } from "../lib/agent-session";
-import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
+import { isRecordAppendFrom } from "../lib/record-sequence";
+import type { RecordAppend } from "../lib/record-sequence";
 import {
   addExpandedStringifiedPaths,
   clearExpandedStringifiedPaths,
@@ -195,7 +196,7 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
 
   const prevVisibleRecordsRef = useRef<RevisionedValue<readonly JsonlRecord[]> | null>(null);
   const reconcileVisibleRecords = useCallback(
-    (records: readonly JsonlRecord[]) => {
+    (records: readonly JsonlRecord[], recordAppend: RecordAppend | null = null) => {
       const previous = prevVisibleRecordsRef.current;
       if (previous && previous.sourceRevision > sourceRevision) {
         return;
@@ -203,7 +204,7 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
 
       const prevRecords =
         previous && belongsToSourceRevision(sourceRevision, previous) ? previous.value : null;
-      if (prevRecords !== null && hasUnchangedArrayPrefix(prevRecords, records)) {
+      if (isRecordAppendFrom(prevRecords, records, recordAppend)) {
         dispatchSelection({
           type: "recordsAppended",
           firstRecordId: records[0]?.id ?? null,

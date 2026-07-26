@@ -106,6 +106,7 @@ export const UnquoteApp = ({
     result,
     progress,
     agentSession,
+    recordAppend,
   } = useParser({
     input: sourceText,
     forcedFormat,
@@ -125,6 +126,7 @@ export const UnquoteApp = ({
     sourceText,
     sourceAccess,
     forcedFormat,
+    recordAppend,
     translateError,
     onNavigate: workspace.navigate,
   });

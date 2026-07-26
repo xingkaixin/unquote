@@ -9,6 +9,7 @@ import { markPerf, measurePerf } from "../lib/perf";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
+import type { RecordAppend } from "../lib/record-sequence";
 import { createStreamPublisher } from "../lib/stream-publisher";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
@@ -33,6 +34,7 @@ export interface ParserSnapshot {
   result: ParseResult;
   progress: ParserProgress;
   agentSession: ParsedText["agentSession"];
+  recordAppend: RecordAppend | null;
 }
 
 const pendingSnapshot = (
@@ -44,6 +46,7 @@ const pendingSnapshot = (
   result: sourceAccess ? emptyResult("jsonl") : emptyResult(forcedFormat),
   progress: { ...idleProgress, done: false },
   agentSession: null,
+  recordAppend: null,
 });
 
 const parseFileOnMainThread = async (file: File): Promise<ParsedText> => {
@@ -78,7 +81,7 @@ export const useParser = ({
   const { t } = useTranslation();
   const [parserState, setParserState] = useState<ParserSnapshot>(() => {
     const { result, agentSession, progress } = parseText(input, { forcedFormat });
-    return { sourceRevision, result, progress, agentSession };
+    return { sourceRevision, result, progress, agentSession, recordAppend: null };
   });
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -98,6 +101,7 @@ export const useParser = ({
           result,
           agentSession,
           progress,
+          recordAppend: null,
         });
       };
 
@@ -134,7 +138,7 @@ export const useParser = ({
     let chunkTimeoutId: number | null = null;
 
     const publisher = createStreamPublisher<ParseResult["stats"], ParserProgress>(
-      (records, stats, progress) => {
+      (records, stats, progress, recordAppend) => {
         setParserState((current) => ({
           sourceRevision,
           result: { format: "jsonl", records, stats },
@@ -142,6 +146,7 @@ export const useParser = ({
             ? current.agentSession
             : null,
           progress,
+          recordAppend,
         }));
       },
     );
@@ -217,6 +222,7 @@ export const useParser = ({
           result: { ...current.result, format: "jsonl", stats: message.stats },
           agentSession: null,
           progress: message.progress,
+          recordAppend: current.recordAppend,
         }));
         reportFileReadError();
         return;
@@ -230,6 +236,7 @@ export const useParser = ({
           result: message.result,
           agentSession: message.agentSession,
           progress: message.progress,
+          recordAppend: null,
         });
         return;
       }
@@ -239,6 +246,7 @@ export const useParser = ({
         result: { ...current.result, format: "jsonl", stats: message.stats },
         agentSession: message.agentSession,
         progress: message.progress,
+        recordAppend: current.recordAppend,
       }));
     };
 

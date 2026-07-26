@@ -14,7 +14,7 @@ const rec = (id: string): JsonlRecord => ({
 
 describe("partial-record-cache", () => {
   it("processes all records on the first call and reports rebuilt", () => {
-    const state = createPartialRecordCache<string>();
+    const state = createPartialRecordCache();
     const calls: string[] = [];
     const { rebuilt, processed } = updatePartialRecordCache([rec("a"), rec("b")], state, (r) => {
       calls.push(r.id);
@@ -25,52 +25,66 @@ describe("partial-record-cache", () => {
     expect(processed.map((p) => p.value)).toEqual(["A", "B"]);
   });
 
-  it("processes only the appended tail when the same array grows", () => {
-    const state = createPartialRecordCache<string>();
-    const records = [rec("a")];
-    updatePartialRecordCache(records, state, (r) => r.id);
-    records.push(rec("b"));
-    const calls: string[] = [];
-    const { rebuilt, processed } = updatePartialRecordCache(records, state, (r) => {
-      calls.push(r.id);
-      return r.id;
-    });
-    expect(rebuilt).toBe(false);
-    expect(calls).toEqual(["b"]);
-    expect(processed.map((p) => p.record.id)).toEqual(["b"]);
-  });
-
-  it("processes only the appended tail when an immutable snapshot grows", () => {
-    const state = createPartialRecordCache<string>();
+  it("processes only an explicitly signaled immutable append", () => {
+    const state = createPartialRecordCache();
     const a = rec("a");
-    updatePartialRecordCache([a], state, (record) => record.id);
+    const previousRecords = [a];
+    updatePartialRecordCache(previousRecords, state, (record) => record.id);
 
     const calls: string[] = [];
-    const { rebuilt, processed } = updatePartialRecordCache([a, rec("b")], state, (record) => {
-      calls.push(record.id);
-      return record.id;
-    });
+    const { rebuilt, processed } = updatePartialRecordCache(
+      [a, rec("b")],
+      state,
+      (record) => {
+        calls.push(record.id);
+        return record.id;
+      },
+      { previousRecords },
+    );
 
     expect(rebuilt).toBe(false);
     expect(calls).toEqual(["b"]);
     expect(processed.map(({ record }) => record.id)).toEqual(["b"]);
   });
 
-  it("does not reprocess an unchanged immutable snapshot", () => {
-    const state = createPartialRecordCache<string>();
+  it("rebuilds when an append signal is missing", () => {
+    const state = createPartialRecordCache();
     const a = rec("a");
-    updatePartialRecordCache([a], state, (r) => r.id);
+    const previousRecords = [a];
+    updatePartialRecordCache(previousRecords, state, (r) => r.id);
     const calls: string[] = [];
-    const { rebuilt } = updatePartialRecordCache([a], state, (r) => {
+    const { rebuilt } = updatePartialRecordCache([a, rec("b")], state, (r) => {
       calls.push(r.id);
       return r.id;
     });
-    expect(rebuilt).toBe(false);
-    expect(calls).toEqual([]);
+    expect(rebuilt).toBe(true);
+    expect(calls).toEqual(["a", "b"]);
+  });
+
+  it("rebuilds when the consumer did not process the signaled previous snapshot", () => {
+    const state = createPartialRecordCache();
+    const a = rec("a");
+    const processedRecords = [a];
+    updatePartialRecordCache(processedRecords, state, (record) => record.id);
+
+    const skippedRecords = [a, rec("b")];
+    const calls: string[] = [];
+    const { rebuilt } = updatePartialRecordCache(
+      [...skippedRecords, rec("c")],
+      state,
+      (record) => {
+        calls.push(record.id);
+        return record.id;
+      },
+      { previousRecords: skippedRecords },
+    );
+
+    expect(rebuilt).toBe(true);
+    expect(calls).toEqual(["a", "b", "c"]);
   });
 
   it("rebuilds when an immutable snapshot changes the processed prefix", () => {
-    const state = createPartialRecordCache<string>();
+    const state = createPartialRecordCache();
     const a = rec("a");
     const b = rec("b");
     updatePartialRecordCache([a, b], state, (record) => record.id);
@@ -83,15 +97,14 @@ describe("partial-record-cache", () => {
     });
 
     expect(rebuilt).toBe(true);
-    expect(calls).toEqual(["a"]);
+    expect(calls).toEqual(["a", "b"]);
     expect(processed.map(({ record }) => record.id)).toEqual(["a", "b"]);
   });
 
-  it("evicts records absent from the rebuilt list", () => {
-    const state = createPartialRecordCache<string>();
+  it("does not retain per-record derived values", () => {
+    const state = createPartialRecordCache();
     updatePartialRecordCache([rec("a"), rec("b")], state, (r) => r.id);
-    updatePartialRecordCache([rec("a")], state, (r) => r.id);
-    expect(state.entries.has("a")).toBe(true);
-    expect(state.entries.has("b")).toBe(false);
+
+    expect(state).not.toHaveProperty("entries");
   });
 });

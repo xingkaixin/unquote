@@ -35,7 +35,7 @@ export interface RecordInsight {
   title: string;
   nestedJsonCount: number;
   maxDepth: number;
-  keyPaths: string[];
+  keyPathCount: number;
   timestamp?: string;
   level?: string;
   status?: string;
@@ -344,7 +344,16 @@ const getTitle = (
   );
 };
 
-const unique = (values: string[]) => [...new Set(values)];
+const countKeyPaths = (hits: readonly RecordInsightHit[]) => {
+  const paths = new Set<string>();
+  for (const hit of hits) {
+    paths.add(hit.pathText);
+    if (paths.size === maxKeyPathCount) {
+      break;
+    }
+  }
+  return paths.size;
+};
 
 const createRecordInsightFromHits = (
   record: JsonlRecord,
@@ -371,7 +380,7 @@ const createRecordInsightFromHits = (
     status,
     level,
   });
-  const keyPaths = unique(hits.map((hit) => hit.pathText)).slice(0, maxKeyPathCount);
+  const keyPathCount = countKeyPaths(hits);
 
   return {
     recordId: record.id,
@@ -380,7 +389,7 @@ const createRecordInsightFromHits = (
     title,
     nestedJsonCount: metrics.nestedJsonCount,
     maxDepth: metrics.maxDepth,
-    keyPaths,
+    keyPathCount,
     ...(timestamp ? { timestamp } : {}),
     ...(level ? { level } : {}),
     ...(status ? { status } : {}),

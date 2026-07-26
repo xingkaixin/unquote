@@ -19,7 +19,7 @@ describe("record insight", () => {
             title: "message",
             nestedJsonCount: 0,
             maxDepth: 0,
-            keyPaths: [],
+            keyPathCount: 0,
           }}
         />
       </I18nProvider>,
@@ -85,9 +85,7 @@ describe("record insight", () => {
       nestedJsonCount: 1,
     });
     expect(tool?.maxDepth).toBeGreaterThanOrEqual(3);
-    expect(tool?.keyPaths).toEqual(
-      expect.arrayContaining(["$.payload.timestamp", "$.payload.function.name"]),
-    );
+    expect(tool?.keyPathCount).toBeGreaterThanOrEqual(2);
   });
 
   // The field pickers changed from eight filter+sort passes to a single pass
