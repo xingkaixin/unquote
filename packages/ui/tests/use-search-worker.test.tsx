@@ -7,6 +7,7 @@ import {
   useSearchWorker,
 } from "../src/hooks/use-search-worker";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+import type { LocalFileAccess } from "../src/lib/local-file-source";
 import type { SearchMatch } from "../src/lib/record-search";
 
 interface Listener {
@@ -71,6 +72,7 @@ const Probe = ({
   sourceRevision = 0,
   debounceMs = 0,
   options = defaultOptions,
+  access,
 }: {
   query: string;
   text: string;
@@ -78,10 +80,11 @@ const Probe = ({
   sourceRevision?: number;
   debounceMs?: number;
   options?: typeof defaultOptions;
+  access?: LocalFileAccess;
 }) => {
   const sourceAccess = useMemo(
-    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
-    [sourceFile],
+    () => access ?? (sourceFile ? createLocalFileAccess(sourceFile) : null),
+    [access, sourceFile],
   );
   const result = useSearchWorker({
     text,
@@ -308,6 +311,35 @@ describe("useSearchWorker", () => {
     expect(worker.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ query: "abc", requestId: 1 }),
     );
+  });
+
+  it("ignores an aborted fallback file search while the next query is debouncing", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const file = new File(["{}"], "payload.jsonl");
+    let resolveSearch: ((matches: SearchMatch[] | null) => void) | undefined;
+    let searchSignal: AbortSignal | undefined;
+    const access: LocalFileAccess = {
+      ...createLocalFileAccess(file),
+      search: vi.fn((_query, _options, signal) => {
+        searchSignal = signal;
+        return new Promise<SearchMatch[] | null>((resolve) => {
+          resolveSearch = resolve;
+        });
+      }),
+    };
+    const { rerender } = render(<Probe query="old" text="" access={access} debounceMs={250} />);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+
+    rerender(<Probe query="new" text="" access={access} debounceMs={250} />);
+    expect(searchSignal?.aborted).toBe(true);
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+
+    await act(async () => {
+      resolveSearch?.(null);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
   });
 
   it("terminates a superseded search-file worker", () => {
