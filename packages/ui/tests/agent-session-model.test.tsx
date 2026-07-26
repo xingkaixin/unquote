@@ -14,7 +14,6 @@ const event = (
   id,
   recordId,
   lineNumber: Number(recordId.replace("record-", "")),
-  rawLine: JSON.stringify({ id }),
   category: "assistant",
   kind: "message",
   label: id,

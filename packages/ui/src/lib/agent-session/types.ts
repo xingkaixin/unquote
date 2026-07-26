@@ -49,7 +49,6 @@ export interface AgentTimelineEvent {
   id: string;
   recordId: string;
   lineNumber: number;
-  rawLine: string;
   category: AgentEventCategory;
   kind: string;
   label: string;
@@ -115,7 +114,6 @@ export interface AgentSessionModel {
 
 export interface ParsedAgentLine {
   lineNumber: number;
-  raw: string;
   data: unknown;
 }
 

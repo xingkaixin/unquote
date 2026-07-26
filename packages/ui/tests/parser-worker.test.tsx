@@ -173,6 +173,46 @@ describe("parser worker file dispatch", () => {
     expect(records[6]?.status).toBe("failed");
   });
 
+  it("parses each top-level file line once for records and agent tracking", async () => {
+    const validLine = '{"value":1}';
+    const invalidLine = "{bad}";
+    const reader = {
+      read: vi
+        .fn()
+        .mockResolvedValueOnce({ value: `${validLine}\n${invalidLine}\n`, done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+      cancel: vi.fn().mockResolvedValue(undefined),
+    };
+    const file = {
+      name: "single-parse.jsonl",
+      stream: () => ({
+        pipeThrough: () => ({ getReader: () => reader }),
+      }),
+    } as unknown as File;
+    const parse = vi.spyOn(JSON, "parse");
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
+    await vi.waitFor(() =>
+      expect(workerScope.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "complete", requestId: 1 }),
+      ),
+    );
+
+    expect(parse.mock.calls.filter(([input]) => input === validLine)).toHaveLength(1);
+    expect(parse.mock.calls.filter(([input]) => input === invalidLine)).toHaveLength(1);
+    parse.mockRestore();
+
+    workerScope.postMessage.mockClear();
+    dispatch(workerScope, {
+      type: "jsonl-chunk",
+      requestId: 1,
+      chunk: '{"after":true}\n',
+      done: true,
+    });
+    expect(workerScope.postMessage).not.toHaveBeenCalled();
+  });
+
   it("streams JSONL chunks, skips blank lines, and completes with failure stats", async () => {
     const workerScope = await loadWorker();
     dispatch(workerScope, {

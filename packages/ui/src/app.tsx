@@ -613,6 +613,7 @@ export const UnquoteApp = ({
           recordView={recordView}
           detailSelection={detailSelection}
           onDetailSelectionChange={workspace.selectAgentDetail}
+          {...(sourceAccess ? { readRawLine: sourceAccess.readRecordTextByLine } : {})}
         />
       </TabsContent>
       <TabsContent value="json">{jsonOutput}</TabsContent>

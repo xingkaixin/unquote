@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   readText: vi.fn(),
   readRecordText: vi.fn(),
+  readRecordTextByLine: vi.fn(),
   writeClipboardText: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock("../src/lib/local-file-source", async () => {
       readRecords: vi.fn(),
       resolveRecords: vi.fn(),
       readRecordText: mocks.readRecordText,
+      readRecordTextByLine: mocks.readRecordTextByLine,
       search: vi.fn(),
     }),
   };

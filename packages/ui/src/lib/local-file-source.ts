@@ -178,14 +178,14 @@ const readJsonlFileLines = async (
   }
 };
 
-const readJsonlRecordsByLine = async (
+const readJsonlLinesByNumber = async (
   file: File,
   lineNumbers: Set<number>,
   signal?: AbortSignal,
 ) => {
-  const records = new Map<number, JsonlRecord>();
+  const lines = new Map<number, string>();
   if (lineNumbers.size === 0) {
-    return records;
+    return lines;
   }
 
   let firstRequestedLine = Number.POSITIVE_INFINITY;
@@ -201,13 +201,13 @@ const readJsonlRecordsByLine = async (
       file,
       (line, lineNumber) => {
         if (lineNumbers.has(lineNumber)) {
-          records.set(lineNumber, parseJsonlRecordLine(line, lineNumber));
+          lines.set(lineNumber, line);
         }
-        return records.size < lineNumbers.size;
+        return lines.size < lineNumbers.size;
       },
       signal,
     );
-    return records;
+    return lines;
   }
 
   const reader = slicedFile.stream().getReader();
@@ -234,10 +234,10 @@ const readJsonlRecordsByLine = async (
     }
     const content = bytes.at(-1) === 13 ? bytes.subarray(0, -1) : bytes;
     if (lineNumbers.has(lineNumber)) {
-      records.set(lineNumber, parseJsonlRecordLine(decoder.decode(content), lineNumber));
+      lines.set(lineNumber, decoder.decode(content));
     }
     lineChunks = [];
-    return records.size < lineNumbers.size;
+    return lines.size < lineNumbers.size;
   };
 
   try {
@@ -285,7 +285,18 @@ const readJsonlRecordsByLine = async (
     }
   }
 
-  return records;
+  return lines;
+};
+
+const readJsonlRecordsByLine = async (
+  file: File,
+  lineNumbers: Set<number>,
+  signal?: AbortSignal,
+) => {
+  const lines = await readJsonlLinesByNumber(file, lineNumbers, signal);
+  return new Map(
+    [...lines].map(([lineNumber, line]) => [lineNumber, parseJsonlRecordLine(line, lineNumber)]),
+  );
 };
 
 const searchJsonlFile = async (
@@ -339,12 +350,18 @@ export interface LocalFileAccess {
   ) => Promise<Map<number, JsonlRecord>>;
   resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
   readRecordText: (record: JsonlRecord, signal?: AbortSignal) => Promise<string>;
+  readRecordTextByLine: (lineNumber: number, signal?: AbortSignal) => Promise<string>;
   search: (
     query: string,
     options: SearchOptions,
     signal: AbortSignal,
   ) => Promise<SearchMatch[] | null>;
 }
+
+const formatRecordText = (record: JsonlRecord) =>
+  record.status === "failed"
+    ? record.rawLine
+    : (JSON.stringify(materializeNode(record.node)) ?? record.summary);
 
 export const createLocalFileAccess = (file: File): LocalFileAccess => ({
   name: file.name,
@@ -364,13 +381,19 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => ({
     const resolved = (await readJsonlRecordsByLine(file, new Set([record.lineNumber]), signal)).get(
       record.lineNumber,
     );
-    if (resolved?.status === "failed") {
-      return resolved.rawLine;
-    }
     if (resolved) {
-      return JSON.stringify(materializeNode(resolved.node));
+      return formatRecordText(resolved);
     }
     return record.status === "failed" ? record.rawLine : record.summary;
+  },
+  readRecordTextByLine: async (lineNumber, signal) => {
+    const line = (await readJsonlLinesByNumber(file, new Set([lineNumber]), signal)).get(
+      lineNumber,
+    );
+    if (line === undefined) {
+      throw new Error(`Record line ${lineNumber} was not found`);
+    }
+    return line;
   },
   search: (query, options, signal) => searchJsonlFile(file, query, options, signal),
 });

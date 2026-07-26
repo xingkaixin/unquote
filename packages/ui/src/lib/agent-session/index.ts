@@ -91,16 +91,24 @@ export const createAgentSessionTracker = (fileName?: string) => {
     }
   };
 
+  const pushParseWarning = (lineNumber: number) => {
+    if (!disabled) {
+      parseWarnings.push({ lineNumber, message: "Invalid JSON on this line" });
+    }
+  };
+
   return {
+    pushParsedLine,
+    pushParseWarning,
     pushRawLine(raw: string, lineNumber: number) {
       if (disabled || !raw.trim()) {
         return;
       }
 
       try {
-        pushParsedLine({ lineNumber, raw, data: JSON.parse(raw) as unknown });
+        pushParsedLine({ lineNumber, data: JSON.parse(raw) as unknown });
       } catch {
-        parseWarnings.push({ lineNumber, message: "Invalid JSON on this line" });
+        pushParseWarning(lineNumber);
       }
     },
 
