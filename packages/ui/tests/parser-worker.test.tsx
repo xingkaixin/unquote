@@ -16,10 +16,34 @@ const dispatch = (workerScope: WorkerScope, data: unknown) => {
   workerScope.onmessage?.({ data } as MessageEvent);
 };
 
-describe("parser worker file dispatch", () => {
+describe("parser worker dispatch", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.resetModules();
+  });
+
+  it("posts a complete-result response for whole-input parsing", async () => {
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, {
+      type: "parse",
+      requestId: 1,
+      input: '{"value":1}',
+      forcedFormat: "json",
+    });
+
+    expect(workerScope.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "complete-result",
+        requestId: 1,
+        result: expect.objectContaining({
+          format: "json",
+          stats: { total: 1, success: 1, failed: 0 },
+        }),
+        agentSession: null,
+        progress: expect.objectContaining({ done: true }),
+      }),
+    );
   });
 
   it("cancels the reader and posts an error terminal response", async () => {
@@ -144,7 +168,7 @@ describe("parser worker file dispatch", () => {
     dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
     await vi.waitFor(() =>
       expect(workerScope.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "complete", requestId: 1 }),
+        expect.objectContaining({ type: "complete-stats", requestId: 1 }),
       ),
     );
 
@@ -195,7 +219,7 @@ describe("parser worker file dispatch", () => {
     dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
     await vi.waitFor(() =>
       expect(workerScope.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "complete", requestId: 1 }),
+        expect.objectContaining({ type: "complete-stats", requestId: 1 }),
       ),
     );
 
@@ -239,7 +263,7 @@ describe("parser worker file dispatch", () => {
 
     expect(workerScope.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "complete",
+        type: "complete-stats",
         requestId: 2,
         stats: { total: 2, success: 1, failed: 1 },
       }),
