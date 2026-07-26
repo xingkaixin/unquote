@@ -2,12 +2,18 @@ import { PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { JsonlRecord } from "@unquote/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
-import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "../lib/agent-session";
+import {
+  createAgentSessionModel,
+  type AgentConversationItem,
+  type AgentDetailSelection,
+  type AgentSession,
+  type AgentSessionModel,
+  type AgentTimelineEvent,
+} from "../lib/agent-session";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
 import type { RecordViewActions, RecordViewModel } from "../lib/record-view";
 import type { SearchMatch } from "../lib/tree";
-import type { AgentDetailSelection as WorkspaceAgentDetailSelection } from "../lib/workspace-selection";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
 import { AgentTimelinePane } from "./agent-timeline-pane";
@@ -24,8 +30,6 @@ import {
 
 const noSearchMatches: SearchMatch[] = [];
 
-export type AgentDetailSelection = WorkspaceAgentDetailSelection;
-
 interface AgentSessionViewProps {
   session: AgentSession;
   recordsById: ReadonlyMap<string, JsonlRecord>;
@@ -34,13 +38,17 @@ interface AgentSessionViewProps {
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
 }
 
-const metricItems = (session: AgentSession, t: ReturnType<typeof useTranslation>["t"]) => {
-  const toolCount = session.conversationItems.filter(
-    (item) => item.role === "tool_call" || item.role === "tool_result",
+const metricItems = (
+  session: AgentSession,
+  model: AgentSessionModel,
+  t: ReturnType<typeof useTranslation>["t"],
+) => {
+  const toolCount = model.conversation.filter(
+    ({ item }) => item.role === "tool_call" || item.role === "tool_result",
   ).length;
   return [
-    { label: t("agent.metric.events"), value: session.events.length },
-    { label: t("agent.metric.messages"), value: session.conversationItems.length },
+    { label: t("agent.metric.events"), value: model.events.length },
+    { label: t("agent.metric.messages"), value: model.conversation.length },
     { label: t("agent.metric.turns"), value: session.meta.turnCount },
     { label: t("agent.metric.tools"), value: toolCount },
   ];
@@ -155,42 +163,18 @@ export const AgentSessionView = ({
     actions,
   } = recordView;
   const { t } = useTranslation();
-  const eventById = useMemo(
-    () => new Map(session.events.map((event) => [event.id, event])),
-    [session.events],
-  );
-  const eventByRecordId = useMemo(
-    () => new Map(session.events.map((event) => [event.recordId, event])),
-    [session.events],
-  );
-  const conversationById = useMemo(
-    () => new Map(session.conversationItems.map((item) => [item.id, item])),
-    [session.conversationItems],
-  );
-  const metrics = useMemo(() => metricItems(session, t), [session, t]);
+  const model = useMemo(() => createAgentSessionModel(session), [session]);
+  const metrics = useMemo(() => metricItems(session, model, t), [model, session, t]);
   const [detailOpen, setDetailOpen] = useState(true);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const [shellWidth, setShellWidth] = useState(0);
-  const selectedItem =
-    detailSelection?.kind === "conversation" ? conversationById.get(detailSelection.id) : undefined;
-  const selectedEvent =
-    detailSelection?.kind === "event"
-      ? eventById.get(detailSelection.id)
-      : selectedItem
-        ? eventById.get(selectedItem.eventId)
-        : detailSelection
-          ? eventByRecordId.get(detailSelection.recordId)
-          : undefined;
-  const detailEvent = detailOpen ? (selectedEvent ?? session.events[0]) : undefined;
-  const detailItem =
-    selectedItem ??
-    (detailEvent?.conversationItemIds[0]
-      ? conversationById.get(detailEvent.conversationItemIds[0])
-      : undefined);
+  const detail = detailOpen ? model.resolveDetail(detailSelection) : null;
+  const detailEvent = detail?.event;
+  const detailItem = detail?.conversationItem;
   const selectedConversationId = detailItem?.id;
-  const highlightedRecordId = detailSelection?.recordId ?? detailEvent?.recordId;
-  const rawCollapsed = !detailEvent && session.events.length > 0;
+  const highlightedRecordId = detail?.recordId;
+  const rawCollapsed = !detailEvent && model.events.length > 0;
   const detailRecord = detailEvent ? recordsById.get(detailEvent.recordId) : undefined;
   const renderedDetailRecord = detailRecord ? resolveRecord(detailRecord) : undefined;
   const panelIds = useMemo(
@@ -227,17 +211,12 @@ export const AgentSessionView = ({
   }, []);
 
   const handleSelectTimelineEvent = (eventId: string) => {
-    const event = eventById.get(eventId);
-    const conversationItemId = event?.conversationItemIds[0];
-    if (!event) {
+    const selection = model.selectEvent(eventId);
+    if (!selection) {
       return;
     }
 
-    onDetailSelectionChange(
-      conversationItemId
-        ? { kind: "conversation", id: conversationItemId, recordId: event.recordId }
-        : { kind: "event", id: eventId, recordId: event.recordId },
-    );
+    onDetailSelectionChange(selection);
     setDetailOpen(true);
   };
 
@@ -269,7 +248,7 @@ export const AgentSessionView = ({
   const horizontal = shellWidth >= 832;
   const timelinePane = (
     <AgentTimelinePane
-      events={session.events}
+      events={model.events}
       highlightedRecordId={highlightedRecordId}
       collapsed={timelineCollapsed}
       onToggleCollapsed={() => setTimelineCollapsed((current) => !current)}
@@ -278,12 +257,15 @@ export const AgentSessionView = ({
   );
   const conversationPane = (
     <AgentConversationPane
-      items={session.conversationItems}
-      eventById={eventById}
+      entries={model.conversation}
       selectedConversationId={selectedConversationId}
       detailSelection={detailSelection}
-      onSelectItem={(itemId, recordId) => {
-        onDetailSelectionChange({ kind: "conversation", id: itemId, recordId });
+      onSelectItem={(itemId) => {
+        const selection = model.selectConversation(itemId);
+        if (!selection) {
+          return;
+        }
+        onDetailSelectionChange(selection);
         setDetailOpen(true);
       }}
       headerStart={timelineExpandControl}

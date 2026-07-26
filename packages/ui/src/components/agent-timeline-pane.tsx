@@ -74,7 +74,7 @@ const TimelineEvent = ({
 };
 
 interface AgentTimelinePaneProps {
-  events: AgentTimelineEvent[];
+  events: readonly AgentTimelineEvent[];
   highlightedRecordId: string | undefined;
   collapsed: boolean;
   onToggleCollapsed: () => void;

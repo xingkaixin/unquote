@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createAgentSessionFromText, createAgentSessionTracker } from "../src/lib/agent-session";
-import type { ParsedAgentLine } from "../src/lib/agent-session";
+import {
+  createAgentSessionFromText,
+  createAgentSessionModel,
+  createAgentSessionTracker,
+} from "../src/lib/agent-session";
+import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
   lineNumber,
@@ -12,6 +16,9 @@ const codexEvent = (type = "token_count") =>
   JSON.stringify({ type: "event_msg", payload: { type } });
 
 const unrelatedEvent = (index: number) => JSON.stringify({ event: "worker.tick", index });
+
+const conversationItems = (session: AgentSession | null | undefined) =>
+  session ? createAgentSessionModel(session).conversation.map(({ item }) => item) : [];
 
 describe("createAgentSessionTracker", () => {
   it("preserves streamed line metadata and parse warnings", () => {
@@ -140,19 +147,20 @@ describe("agent session", () => {
         turnCount: 1,
       },
     });
-    expect(session?.conversationItems.map((item) => item.role)).toEqual([
+    const items = conversationItems(session);
+    expect(items.map((item) => item.role)).toEqual([
       "user",
       "thinking",
       "tool_call",
       "tool_result",
     ]);
     expect(session?.events[4]?.rawLine).toContain(`"call_id":"${callId}"`);
-    expect(session?.conversationItems[2]?.block).toMatchObject({
+    expect(items[2]?.block).toMatchObject({
       toolName: "exec_command",
       toolCallId: callId,
       status: "pending",
     });
-    expect(session?.conversationItems[3]?.block).toMatchObject({
+    expect(items[3]?.block).toMatchObject({
       toolCallId: callId,
       status: "completed",
     });
@@ -214,7 +222,7 @@ describe("agent session", () => {
         turnCount: 1,
       },
     });
-    expect(session?.conversationItems.map((item) => item.role)).toEqual([
+    expect(conversationItems(session).map((item) => item.role)).toEqual([
       "user",
       "thinking",
       "tool_call",
@@ -265,8 +273,9 @@ describe("agent session", () => {
       ].join("\n"),
     );
 
-    const toolCall = session?.conversationItems.find((item) => item.role === "tool_call");
-    const toolResult = session?.conversationItems.find((item) => item.role === "tool_result");
+    const items = conversationItems(session);
+    const toolCall = items.find((item) => item.role === "tool_call");
+    const toolResult = items.find((item) => item.role === "tool_result");
     expect(toolCall?.block?.toolCallId).toBe("toolu_123");
     expect(toolResult?.block).toMatchObject({
       toolCallId: "toolu_123",

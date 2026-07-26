@@ -1,3 +1,4 @@
+import type { AgentDetailSelection } from "./agent-session";
 import { isPathWithin } from "./path-codec";
 import { issueScrollIntent, retainVisibleScrollIntent, type ScrollIntent } from "./scroll-intent";
 
@@ -11,11 +12,6 @@ export interface FocusedPath {
   recordId: string;
   pathText: string;
 }
-
-export type AgentDetailSelection =
-  | { kind: "record"; recordId: string }
-  | { kind: "event"; id: string; recordId: string }
-  | { kind: "conversation"; id: string; recordId: string };
 
 export interface WorkspaceSelectionState {
   activeRecordId: string | null;

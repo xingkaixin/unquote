@@ -1,5 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useReducer, useRef, useState } from "react";
+import type { AgentDetailSelection } from "../lib/agent-session";
 import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import {
@@ -17,7 +18,7 @@ import {
   createInitialWorkspaceSelectionState,
   reduceWorkspaceSelection,
 } from "../lib/workspace-selection";
-import type { AgentDetailSelection, SelectedPath } from "../lib/workspace-selection";
+import type { SelectedPath } from "../lib/workspace-selection";
 
 export type { SelectedPath } from "../lib/workspace-selection";
 

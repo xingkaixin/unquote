@@ -5,10 +5,9 @@ import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import type {
   AgentContentBlock,
-  AgentConversationItem,
-  AgentTimelineEvent,
+  AgentConversationEntry,
+  AgentDetailSelection,
 } from "../lib/agent-session";
-import type { AgentDetailSelection } from "./agent-session-view";
 import { formatTimestamp, roleConfig } from "./agent-session-format";
 import { Badge } from "./badge";
 import { Card, CardHeader, CardTitle } from "./card";
@@ -42,15 +41,15 @@ const ConversationItem = ({
   selected,
   onSelect,
 }: {
-  item: AgentConversationItem;
-  event: AgentTimelineEvent | undefined;
+  item: AgentConversationEntry["item"];
+  event: AgentConversationEntry["event"];
   selected: boolean;
   onSelect: (itemId: string) => void;
 }) => {
   const { locale, t } = useTranslation();
   const config = roleConfig(item.role, t);
   const Icon = config.icon;
-  const timestamp = formatTimestamp(event?.timestamp, event?.timestampLabel, locale);
+  const timestamp = formatTimestamp(event.timestamp, event.timestampLabel, locale);
 
   return (
     <article className={`flex ${config.align === "end" ? "justify-end" : "justify-start"}`}>
@@ -75,7 +74,7 @@ const ConversationItem = ({
           {item.turnIndex ? <Badge>{t("agent.turn", { turn: item.turnIndex })}</Badge> : null}
           <span className="inline-flex items-center gap-1 text-[11px] text-text-muted">
             <Hash className="size-3" />
-            {t("agent.line", { line: item.lineNumber })}
+            {t("agent.line", { line: event.lineNumber })}
           </span>
           {timestamp ? (
             <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-text-muted">
@@ -91,18 +90,16 @@ const ConversationItem = ({
 };
 
 interface AgentConversationPaneProps {
-  items: AgentConversationItem[];
-  eventById: ReadonlyMap<string, AgentTimelineEvent>;
+  entries: readonly AgentConversationEntry[];
   selectedConversationId: string | undefined;
   detailSelection: AgentDetailSelection | null;
-  onSelectItem: (itemId: string, recordId: string) => void;
+  onSelectItem: (itemId: string) => void;
   headerStart?: ReactNode;
   headerEnd?: ReactNode;
 }
 
 export const AgentConversationPane = ({
-  items,
-  eventById,
+  entries,
   selectedConversationId,
   detailSelection,
   onSelectItem,
@@ -112,19 +109,19 @@ export const AgentConversationPane = ({
   const { t } = useTranslation();
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
   const scrollRef = useRef<HTMLDivElement>(null);
-  const shouldVirtualize = items.length > conversationVirtualizationThreshold;
+  const shouldVirtualize = entries.length > conversationVirtualizationThreshold;
   const indexById = useMemo(() => {
     const map = new Map<string, number>();
-    items.forEach((item, index) => map.set(item.id, index));
+    entries.forEach(({ item }, index) => map.set(item.id, index));
     return map;
-  }, [items]);
+  }, [entries]);
   const conversationVirtualizer = useVirtualizer({
-    count: items.length,
+    count: entries.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => conversationItemEstimateSize,
     overscan: 4,
     gap: conversationItemGap,
-    getItemKey: (index) => items[index]?.id ?? index,
+    getItemKey: (index) => entries[index]?.item.id ?? index,
     enabled: shouldVirtualize,
   });
   const virtualItems = conversationVirtualizer.getVirtualItems();
@@ -150,12 +147,12 @@ export const AgentConversationPane = ({
       ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
   }, [detailSelection, selectedConversationId]);
 
-  const renderItem = (item: AgentConversationItem) => (
+  const renderItem = ({ item, event }: AgentConversationEntry) => (
     <ConversationItem
       item={item}
-      event={eventById.get(item.eventId)}
+      event={event}
       selected={selectedConversationId === item.id}
-      onSelect={(itemId) => onSelectItem(itemId, item.recordId)}
+      onSelect={onSelectItem}
     />
   );
 
@@ -169,7 +166,7 @@ export const AgentConversationPane = ({
         {headerEnd}
       </CardHeader>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-        {items.length === 0 ? (
+        {entries.length === 0 ? (
           <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-muted">
             {t("agent.noConversation")}
           </div>
@@ -179,14 +176,14 @@ export const AgentConversationPane = ({
             style={{ height: `${conversationVirtualizer.getTotalSize()}px` }}
           >
             {virtualItems.map((virtualItem) => {
-              const item = items[virtualItem.index];
-              if (!item) {
+              const entry = entries[virtualItem.index];
+              if (!entry) {
                 return null;
               }
 
               return (
                 <div
-                  key={item.id}
+                  key={entry.item.id}
                   ref={(node) => {
                     if (node) {
                       conversationVirtualizer.measureElement(node);
@@ -196,25 +193,25 @@ export const AgentConversationPane = ({
                   className="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
-                  {renderItem(item)}
+                  {renderItem(entry)}
                 </div>
               );
             })}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map((item) => (
+            {entries.map((entry) => (
               <div
-                key={item.id}
+                key={entry.item.id}
                 ref={(node) => {
                   if (node) {
-                    conversationRefs.current.set(item.id, node);
+                    conversationRefs.current.set(entry.item.id, node);
                   } else {
-                    conversationRefs.current.delete(item.id);
+                    conversationRefs.current.delete(entry.item.id);
                   }
                 }}
               >
-                {renderItem(item)}
+                {renderItem(entry)}
               </div>
             ))}
           </div>

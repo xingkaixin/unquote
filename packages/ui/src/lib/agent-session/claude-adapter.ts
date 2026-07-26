@@ -5,7 +5,6 @@ import type {
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
-  AgentConversationItem,
   AgentTokenUsage,
 } from "./types";
 import {
@@ -230,7 +229,6 @@ const parseClaudeModel = (raw: unknown) => {
 
 const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
-  const conversationItems: AgentConversationItem[] = [];
   let turnIndex = 0;
   let lastPromptId: string | undefined;
   let sessionId: string | undefined;
@@ -297,11 +295,8 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
                   : {}),
               }
             : undefined;
-          attachConversationItem(event, conversationItems, {
+          attachConversationItem(event, {
             id: `conv-${line.lineNumber}-tool-result`,
-            eventId: event.id,
-            recordId: event.recordId,
-            lineNumber: line.lineNumber,
             role: "tool_result",
             turnIndex,
             ...(block ? { block } : {}),
@@ -311,11 +306,8 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           const block: AgentContentBlock | undefined = text
             ? { type: "text", text: truncateBlockText(text) }
             : undefined;
-          attachConversationItem(event, conversationItems, {
+          attachConversationItem(event, {
             id: `conv-${line.lineNumber}-user`,
-            eventId: event.id,
-            recordId: event.recordId,
-            lineNumber: line.lineNumber,
             role: "user",
             turnIndex,
             ...(block ? { block } : {}),
@@ -326,21 +318,15 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         model = parseClaudeModel(record) ?? model;
 
         if (blocks.length === 0) {
-          attachConversationItem(event, conversationItems, {
+          attachConversationItem(event, {
             id: `conv-${line.lineNumber}-assistant`,
-            eventId: event.id,
-            recordId: event.recordId,
-            lineNumber: line.lineNumber,
             role: "assistant",
             turnIndex,
           });
         } else {
           blocks.forEach((block, blockIndex) => {
-            attachConversationItem(event, conversationItems, {
+            attachConversationItem(event, {
               id: `conv-${line.lineNumber}-block-${blockIndex}`,
-              eventId: event.id,
-              recordId: event.recordId,
-              lineNumber: line.lineNumber,
               role: claudeBlockRole(block),
               turnIndex,
               block,
@@ -365,7 +351,6 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
             ...(version ? { version } : {}),
           },
           events,
-          conversationItems,
         },
         parseWarnings,
       );

@@ -5,7 +5,6 @@ import type {
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
-  AgentConversationItem,
 } from "./types";
 import {
   addOptionalNumber,
@@ -307,7 +306,6 @@ const codexPreview = (
 
 const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
-  const conversationItems: AgentConversationItem[] = [];
   const turnIdToIndex = new Map<string, number>();
   let sessionId: string | undefined;
   let cwd: string | undefined;
@@ -395,11 +393,8 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       if (envelopeType === "response_item" && itemType) {
         const block = codexResponseBlock(payload, itemType);
-        attachConversationItem(event, conversationItems, {
+        attachConversationItem(event, {
           id: codexResponseItemId(line.lineNumber, itemType, messageRole),
-          eventId: event.id,
-          recordId: event.recordId,
-          lineNumber: line.lineNumber,
           role: codexResponseRole(itemType, messageRole),
           turnIndex,
           ...(block ? { block } : {}),
@@ -410,7 +405,11 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
     },
     finish(parseWarnings) {
       const turnCount =
-        turnIdToIndex.size > 0 ? turnIdToIndex.size : conversationItems.length > 0 ? 1 : 0;
+        turnIdToIndex.size > 0
+          ? turnIdToIndex.size
+          : events.some((event) => event.conversationItems.length > 0)
+            ? 1
+            : 0;
       return buildSession(
         {
           fileType: "Codex",
@@ -424,7 +423,6 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
             ...(version ? { version } : {}),
           },
           events,
-          conversationItems,
         },
         parseWarnings,
       );

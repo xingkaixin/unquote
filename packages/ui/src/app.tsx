@@ -186,13 +186,20 @@ export const UnquoteApp = ({
   } = query.snapshot;
   const { intent: queryIntent } = query;
 
+  const agentSessionConversationCount = useMemo(
+    () =>
+      agentSession
+        ? agentSession.events.reduce((count, event) => count + event.conversationItems.length, 0)
+        : 0,
+    [agentSession],
+  );
   const agentSessionKey = agentSession
     ? [
         agentSession.fileType,
         agentSession.fileName ?? "",
         agentSession.meta.sessionId ?? "",
         agentSession.events.length,
-        agentSession.conversationItems.length,
+        agentSessionConversationCount,
       ].join(":")
     : null;
 
