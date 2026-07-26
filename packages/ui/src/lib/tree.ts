@@ -3,6 +3,7 @@ import { hasJsonNodeChildren, isParsed, isStringifiedNode, materializeNode } fro
 import { getPreviewNestedFieldKeys, getPreviewPath } from "./record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
+import { measurePerfFn } from "./perf";
 import {
   formatJsonValueLabel,
   getSearchableJsonValueLabelLength,
@@ -317,21 +318,22 @@ export const searchRecords = (
   records: JsonlRecord[],
   query: string,
   options: SearchOptions,
-): SearchMatch[] | null => {
-  const pattern = buildSearchPattern(query, options);
-  if (!pattern) {
-    return null;
-  }
-
-  const matches: SearchMatch[] = [];
-  for (const record of records) {
-    for (const match of searchRecord(record, pattern, options)) {
-      matches.push(match);
+): SearchMatch[] | null =>
+  measurePerfFn("search:memory", () => {
+    const pattern = buildSearchPattern(query, options);
+    if (!pattern) {
+      return null;
     }
-  }
 
-  return matches;
-};
+    const matches: SearchMatch[] = [];
+    for (const record of records) {
+      for (const match of searchRecord(record, pattern, options)) {
+        matches.push(match);
+      }
+    }
+
+    return matches;
+  });
 
 const searchRecord = (
   record: JsonlRecord,

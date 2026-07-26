@@ -1,6 +1,7 @@
 import { materializeNode, parseJson, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
+import { measurePerfAsync } from "./perf";
 import { buildSearchPattern, searchJsonValue } from "./tree";
 import type { SearchMatch, SearchOptions } from "./tree";
 
@@ -304,40 +305,41 @@ const searchJsonlFile = async (
   query: string,
   options: SearchOptions,
   signal: AbortSignal,
-): Promise<SearchMatch[] | null> => {
-  const pattern = buildSearchPattern(query, options);
-  if (!pattern) {
-    return null;
-  }
+): Promise<SearchMatch[] | null> =>
+  measurePerfAsync("search:file", async () => {
+    const pattern = buildSearchPattern(query, options);
+    if (!pattern) {
+      return null;
+    }
 
-  const matches: SearchMatch[] = [];
-  await readJsonlFileLines(
-    file,
-    (line, lineNumber) => {
-      if (signal.aborted) {
-        return false;
-      }
-
-      if (line.trim()) {
-        try {
-          for (const match of searchJsonValue(
-            parseJson(line),
-            `record-${lineNumber}`,
-            pattern,
-            options,
-          )) {
-            matches.push(match);
-          }
-        } catch {
-          // Invalid JSONL lines are excluded from search, matching the record-tree path.
+    const matches: SearchMatch[] = [];
+    await readJsonlFileLines(
+      file,
+      (line, lineNumber) => {
+        if (signal.aborted) {
+          return false;
         }
-      }
-    },
-    signal,
-  );
 
-  return signal.aborted ? null : matches;
-};
+        if (line.trim()) {
+          try {
+            for (const match of searchJsonValue(
+              parseJson(line),
+              `record-${lineNumber}`,
+              pattern,
+              options,
+            )) {
+              matches.push(match);
+            }
+          } catch {
+            // Invalid JSONL lines are excluded from search, matching the record-tree path.
+          }
+        }
+      },
+      signal,
+    );
+
+    return signal.aborted ? null : matches;
+  });
 
 export interface LocalFileAccess {
   readonly name: string;

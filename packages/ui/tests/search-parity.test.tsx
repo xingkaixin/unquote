@@ -164,6 +164,20 @@ describe("search parity between memory and file search paths", () => {
     expect(memoryMatches).toEqual([]);
     expect(fileMatches).toEqual([]);
   });
+
+  it("records separate memory and file search timings", async () => {
+    performance.clearMeasures("unquote:search:memory");
+    performance.clearMeasures("unquote:search:file");
+
+    await expectParity("needle", {
+      regex: false,
+      caseSensitive: false,
+      jq: false,
+    });
+
+    expect(performance.getEntriesByName("unquote:search:memory")).toHaveLength(1);
+    expect(performance.getEntriesByName("unquote:search:file")).toHaveLength(1);
+  });
 });
 
 describe("search parity for the empty query", () => {

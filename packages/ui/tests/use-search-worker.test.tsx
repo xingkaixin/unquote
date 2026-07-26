@@ -108,6 +108,7 @@ const Probe = ({
 describe("useSearchWorker", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    performance.clearMeasures("unquote:search:request");
     MockWorker.instances = [];
     renderLog = [];
     Object.assign(globalThis, { Worker: MockWorker });
@@ -120,6 +121,7 @@ describe("useSearchWorker", () => {
   });
 
   it("posts a search-text request and applies the completed result", () => {
+    const measure = vi.spyOn(performance, "measure");
     render(<Probe query="hello" text='{"a":"hello"}' />);
 
     const worker = MockWorker.instances[0]!;
@@ -133,6 +135,10 @@ describe("useSearchWorker", () => {
 
     act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("A")] }));
     expect(worker.terminated).toBe(false);
+    expect(measure).toHaveBeenCalledWith(
+      "unquote:search:request",
+      expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) }),
+    );
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("A");
   });

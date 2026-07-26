@@ -26,6 +26,26 @@ export const measurePerf = (name: string, startName: string, endName?: string) =
   }
 };
 
+export const startPerfMeasure = (name: string) => {
+  if (!canMeasure()) {
+    return () => undefined;
+  }
+
+  const startedAt = performance.now();
+  let finished = false;
+  return () => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    try {
+      performance.measure(`${prefix}:${name}`, { start: startedAt, end: performance.now() });
+    } catch {
+      // Measurements are diagnostics and must not affect app behavior.
+    }
+  };
+};
+
 export const measurePerfFn = <T>(name: string, fn: () => T): T => {
   if (!canMeasure()) {
     return fn();
@@ -45,5 +65,14 @@ export const measurePerfFn = <T>(name: string, fn: () => T): T => {
     }
     performance.clearMarks(start);
     performance.clearMarks(end);
+  }
+};
+
+export const measurePerfAsync = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+  const finish = startPerfMeasure(name);
+  try {
+    return await fn();
+  } finally {
+    finish();
   }
 };
