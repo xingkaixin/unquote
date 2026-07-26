@@ -5,7 +5,7 @@ import {
   isStringifiedNode,
 } from "@unquote/core";
 import type { JsonKind, JsonNode } from "@unquote/core";
-import { appendJsonPathSegment, appendJqSelectorSegment } from "./path-codec";
+import { appendJsonPathSegment } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 
 interface ResolvedJsonValue<T> {
@@ -27,7 +27,6 @@ export interface JsonValueWalkContext<T> {
   childCount: number;
   valueLength?: number;
   jsonPath: string;
-  jqPath: string;
   stringifiedChain: string[];
   pathSegments: TreePathSegment[];
 }
@@ -38,7 +37,6 @@ type RawJsonValueVisitor = (ctx: JsonValueWalkContext<unknown>) => boolean | voi
 
 export interface JsonWalkStart {
   jsonPath?: string;
-  jqPath?: string;
   stringifiedAncestors?: string[];
   pathSegments?: TreePathSegment[];
 }
@@ -213,7 +211,6 @@ const walkJsonValue = <T>(
   const walk = (
     node: T,
     jsonPath: string,
-    jqPath: string,
     stringifiedAncestors: string[],
     pathSegments: TreePathSegment[],
     depth: number,
@@ -229,7 +226,6 @@ const walkJsonValue = <T>(
       childCount: resolved.childCount,
       ...(typeof resolved.valueLength === "number" ? { valueLength: resolved.valueLength } : {}),
       jsonPath,
-      jqPath,
       stringifiedChain,
       pathSegments,
     } satisfies JsonValueWalkContext<T>;
@@ -244,7 +240,6 @@ const walkJsonValue = <T>(
         walk(
           child,
           appendJsonPathSegment(jsonPath, segment),
-          appendJqSelectorSegment(jqPath, segment),
           stringifiedChain,
           [...pathSegments, segment],
           depth + 1,
@@ -258,7 +253,6 @@ const walkJsonValue = <T>(
       walk(
         child,
         appendJsonPathSegment(jsonPath, segment),
-        appendJqSelectorSegment(jqPath, segment),
         stringifiedChain,
         [...pathSegments, segment],
         depth + 1,
@@ -266,14 +260,7 @@ const walkJsonValue = <T>(
     }
   };
 
-  walk(
-    root,
-    start.jsonPath ?? "$",
-    start.jqPath ?? ".",
-    start.stringifiedAncestors ?? [],
-    start.pathSegments ?? [],
-    0,
-  );
+  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? [], start.pathSegments ?? [], 0);
 };
 
 const formatStringLabel = (

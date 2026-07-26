@@ -68,7 +68,6 @@ describe("tree paths", () => {
     const depth = 36;
     let value: unknown = "needle";
     let expectedJsonPath = "$";
-    let expectedJqPath = ".";
 
     for (let index = depth - 1; index >= 0; index--) {
       value = index % 2 === 0 ? { [`key.${index}`]: value } : [value];
@@ -77,10 +76,8 @@ describe("tree paths", () => {
     for (let index = 0; index < depth; index++) {
       if (index % 2 === 0) {
         expectedJsonPath += `["key.${index}"]`;
-        expectedJqPath += `["key.${index}"]`;
       } else {
         expectedJsonPath += "[0]";
-        expectedJqPath += "[0]";
       }
     }
 
@@ -95,7 +92,6 @@ describe("tree paths", () => {
     });
 
     expect(leaf?.jsonPath).toBe(expectedJsonPath);
-    expect(leaf?.jqPath).toBe(expectedJqPath);
     expect(matches).toEqual([
       expect.objectContaining({
         pathText: expectedJsonPath,

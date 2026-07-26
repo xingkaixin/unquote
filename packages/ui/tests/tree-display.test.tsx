@@ -32,7 +32,6 @@ const makeRow = (
   recordId: "record-1",
   path: [],
   jsonPath: overrides.pathText,
-  jqPath: ".",
   stringifiedPathChain: [],
   sourceState: "source",
   keyLabel: "$",

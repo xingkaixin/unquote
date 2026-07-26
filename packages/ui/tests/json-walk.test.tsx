@@ -17,13 +17,11 @@ describe("walkJsonNode", () => {
     const rawContexts: unknown[] = [];
     const selectContext = (ctx: {
       jsonPath: string;
-      jqPath: string;
       kind: string;
       childCount: number;
       stringifiedChain: string[];
     }) => ({
       jsonPath: ctx.jsonPath,
-      jqPath: ctx.jqPath,
       kind: ctx.kind,
       childCount: ctx.childCount,
       stringifiedChain: ctx.stringifiedChain,
@@ -39,14 +37,13 @@ describe("walkJsonNode", () => {
     expect(rawContexts).toEqual(nodeContexts);
   });
 
-  it("visits every node depth-first with json and jq paths", () => {
+  it("visits every node depth-first with JSON paths", () => {
     const node = nodeFrom('{"a":1,"b":[10,20]}');
-    const seen: { json: string; jq: string }[] = [];
+    const paths: string[] = [];
     walkJsonNode(node, (ctx) => {
-      seen.push({ json: ctx.jsonPath, jq: ctx.jqPath });
+      paths.push(ctx.jsonPath);
     });
-    expect(seen.map((s) => s.json)).toEqual(["$", "$.a", "$.b", "$.b[0]", "$.b[1]"]);
-    expect(seen.map((s) => s.jq)).toEqual([".", ".a", ".b", ".b[0]", ".b[1]"]);
+    expect(paths).toEqual(["$", "$.a", "$.b", "$.b[0]", "$.b[1]"]);
   });
 
   it("accumulates the stringified chain across nested stringified JSON", () => {
@@ -82,7 +79,7 @@ describe("walkJsonNode", () => {
       (ctx) => {
         paths.push(ctx.jsonPath);
       },
-      { jsonPath: "$.items", jqPath: ".items" },
+      { jsonPath: "$.items" },
     );
     expect(paths).toEqual(["$.items", "$.items[0]", "$.items[1]"]);
   });
