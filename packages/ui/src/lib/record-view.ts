@@ -8,6 +8,9 @@ export interface RecordViewPath {
   pathText: string;
 }
 
+export const narrowPathToRecord = (path: RecordViewPath | null, recordId: string): string | null =>
+  path?.recordId === recordId ? path.pathText : null;
+
 export interface RecordViewState {
   recordInsights: ReadonlyMap<string, RecordInsight>;
   resolveRecord: (record: JsonlRecord) => JsonlRecord;

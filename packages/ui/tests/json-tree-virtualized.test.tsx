@@ -43,7 +43,7 @@ const renderWideTree = () => {
         expandedStringifiedPaths={new Set()}
         eager
         searchMatches={[]}
-        activeMatch={null}
+        activeMatchPath={null}
         scrollIntent={null}
         selectedPath={null}
         focusedPath={null}

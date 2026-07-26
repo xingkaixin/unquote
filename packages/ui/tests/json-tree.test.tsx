@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { JsonTree } from "../src/components/json-tree";
 import { I18nProvider } from "../src/i18n/context";
 
-const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) => {
+const renderTree = (
+  expandedStringifiedPaths: ReadonlySet<string> = new Set(),
+  selectedPath: string | null = null,
+) => {
   const record = parseInput('{"payload":"{\\"answer\\":42}","status":"ok"}').records[0]!;
   const onSelectNode = vi.fn();
   const onTogglePath = vi.fn();
@@ -16,9 +19,9 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
         expandedStringifiedPaths={paths}
         eager
         searchMatches={[]}
-        activeMatch={null}
+        activeMatchPath={null}
         scrollIntent={null}
-        selectedPath={null}
+        selectedPath={selectedPath}
         focusedPath={null}
         actions={{
           togglePath: onTogglePath,
@@ -73,6 +76,12 @@ describe("JsonTree", () => {
       record,
       expect.objectContaining({ pathText: "$.payload" }),
     );
+  });
+
+  it("marks a record-scoped selected path", () => {
+    renderTree(new Set(), "$.status");
+
+    expect(document.getElementById("record-1:$.status")).toHaveAttribute("aria-selected", "true");
   });
 
   it("scrolls the newly active row into view when not virtualized", () => {
