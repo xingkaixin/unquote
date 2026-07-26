@@ -4,7 +4,14 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
+import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: toastMocks }));
 
 interface Listener {
   (event: MessageEvent): void;
@@ -162,17 +169,13 @@ class MockWorker {
   }
 }
 
-const Probe = ({
-  input,
-  forcedFormat,
-  sourceFile,
-  onFileReadError,
-}: {
+interface ProbeProps {
   input: string;
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File;
-  onFileReadError?: () => void;
-}) => {
+}
+
+const ParserProbe = ({ input, forcedFormat, sourceFile }: ProbeProps) => {
   const sourceAccess = useMemo(
     () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
     [sourceFile],
@@ -182,7 +185,6 @@ const Probe = ({
     input,
     forcedFormat,
     sourceAccess,
-    onFileReadError,
   });
   return (
     <div>
@@ -195,9 +197,17 @@ const Probe = ({
   );
 };
 
+const Probe = (props: ProbeProps) => (
+  <I18nProvider>
+    <ParserProbe {...props} />
+  </I18nProvider>
+);
+
 describe("useParser", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
+    localStorage.clear();
     MockWorker.instances = [];
     Object.assign(globalThis, { Worker: MockWorker });
   });
@@ -223,43 +233,24 @@ describe("useParser", () => {
   });
 
   it("finishes when worker file reading fails", async () => {
-    const onFileReadError = vi.fn();
-    render(
-      <Probe
-        input=""
-        sourceFile={new File(["x"], "broken.jsonl")}
-        onFileReadError={onFileReadError}
-      />,
-    );
+    render(<Probe input="" sourceFile={new File(["x"], "broken.jsonl")} />);
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
-    expect(onFileReadError).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
   });
 
   it("ignores a stale worker file error", async () => {
-    const onFileReadError = vi.fn();
-    const { rerender } = render(
-      <Probe
-        input=""
-        sourceFile={new File(["old"], "old.jsonl")}
-        onFileReadError={onFileReadError}
-      />,
-    );
+    const { rerender } = render(<Probe input="" sourceFile={new File(["old"], "old.jsonl")} />);
     await act(() => vi.advanceTimersByTimeAsync(121));
-    rerender(
-      <Probe
-        input=""
-        sourceFile={new File(["new"], "new.jsonl")}
-        onFileReadError={onFileReadError}
-      />,
-    );
+    rerender(<Probe input="" sourceFile={new File(["new"], "new.jsonl")} />);
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
-    expect(onFileReadError).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
   });
 
   it("parses text on the main thread when Worker is unavailable", () => {
@@ -298,17 +289,17 @@ describe("useParser", () => {
 
   it("reports a main-thread file read failure", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
-    const onFileReadError = vi.fn();
     const file = new File([], "broken.jsonl");
     Object.defineProperty(file, "text", {
       value: () => Promise.reject(new Error("read failed")),
     });
 
-    render(<Probe input="" sourceFile={file} onFileReadError={onFileReadError} />);
+    render(<Probe input="" sourceFile={file} />);
     await act(async () => undefined);
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
-    expect(onFileReadError).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
   });
 
   it("posts non-streaming JSON requests without an implicit format", async () => {

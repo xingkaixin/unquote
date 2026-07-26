@@ -2,7 +2,6 @@ import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "../i18n/context";
-import { writeClipboardText } from "../lib/clipboard";
 import {
   createExportFilename,
   downloadBlob,
@@ -13,6 +12,7 @@ import {
   getCopyValue,
   yieldToMain,
 } from "../lib/record-export";
+import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
 interface UseExportActionsParams {
   visibleRecords: JsonlRecord[];
@@ -28,15 +28,7 @@ export const useExportActions = ({
   isCopyBlocked,
 }: UseExportActionsParams) => {
   const { t } = useTranslation();
-
-  const copyText = useCallback(
-    async (text: string) => {
-      if (!(await writeClipboardText(text))) {
-        toast.error(t("copy.failed"));
-      }
-    },
-    [t],
-  );
+  const copyText = useCopyToClipboard();
 
   // Copy actions are invoked fire-and-forget from onClick, so a rejected file
   // read would become an unhandled rejection — surface it here instead.

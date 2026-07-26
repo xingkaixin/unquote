@@ -1,5 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useTranslation } from "../i18n/context";
 import { fullRecordCacheLimit, type LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
@@ -57,10 +59,8 @@ const createFullRecordCache = (sourceRevision: SourceRevision): FullRecordCache 
 export const useLocalFileSource = (
   access: LocalFileAccess | null,
   sourceRevision: SourceRevision,
-  // Called when a Full Record read fails, so the caller can surface it. Read
-  // through a ref: identity is not a dependency.
-  onError: (error: unknown) => void,
 ): LocalFileSource => {
+  const { t } = useTranslation();
   const [fullRecordCache, setFullRecordCache] = useState<FullRecordCache>(() =>
     createFullRecordCache(sourceRevision),
   );
@@ -70,8 +70,6 @@ export const useLocalFileSource = (
     ? fullRecordCache.recordsByLine
     : emptyFullRecordsByLine;
   const fullRecordScopeRef = useRef<FullRecordScope>(createFullRecordScope(access, sourceRevision));
-  const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
 
   // Replace the whole scope before browser events can request Full Records from
   // a newly committed source.
@@ -96,88 +94,94 @@ export const useLocalFileSource = (
   // Runs once per tick per scope: collects every line queued by
   // `requestFullRecord` since the last flush and resolves them with one scan
   // instead of one per record.
-  const flushFullRecordScope = useCallback((scope: FullRecordScope) => {
-    scope.flushScheduled = false;
-    if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
-      scope.pendingLines.clear();
-      return;
-    }
+  const flushFullRecordScope = useCallback(
+    (scope: FullRecordScope) => {
+      scope.flushScheduled = false;
+      if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
+        scope.pendingLines.clear();
+        return;
+      }
 
-    const batch = scope.pendingLines;
-    scope.pendingLines = new Set();
-    if (batch.size === 0 || !scope.access) {
-      return;
-    }
+      const batch = scope.pendingLines;
+      scope.pendingLines = new Set();
+      if (batch.size === 0 || !scope.access) {
+        return;
+      }
 
-    for (const lineNumber of batch) {
-      scope.inFlightLines.add(lineNumber);
-    }
+      for (const lineNumber of batch) {
+        scope.inFlightLines.add(lineNumber);
+      }
 
-    void scope.access
-      .readRecords(batch, scope.controller.signal)
-      .then((records) => {
-        if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
-          return;
-        }
-
-        setFullRecordCache((current) => {
-          if (fullRecordScopeRef.current !== scope) {
-            return current;
+      void scope.access
+        .readRecords(batch, scope.controller.signal)
+        .then((records) => {
+          if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
+            return;
           }
 
-          const currentCacheBelongsToScope = belongsToSourceRevision(scope.sourceRevision, current);
-          const currentRecords = currentCacheBelongsToScope
-            ? current.recordsByLine
-            : new Map<number, JsonlRecord>();
-          let next = currentRecords;
-          for (const lineNumber of batch) {
-            const fullRecord = records.get(lineNumber);
-            if (!fullRecord || next.has(lineNumber)) {
-              continue;
+          setFullRecordCache((current) => {
+            if (fullRecordScopeRef.current !== scope) {
+              return current;
             }
-            if (next === currentRecords) {
-              next = new Map(currentRecords);
-            }
-            next.set(lineNumber, fullRecord);
-          }
-          // Eviction is FIFO, not LRU: `Map.keys()` yields insertion order and
-          // the cache is only written when a Full Record resolves. Reads never
-          // move a repeatedly viewed record to the back. That is a
-          // deliberate trade — making it a true LRU would mean touching the
-          // cache from the read path, which is a pure lookup today and would
-          // otherwise re-render the whole record list on every scroll. Under
-          // one-directional scrolling the two policies agree; the cost of the
-          // difference is one extra scan when scrolling back past the limit,
-          // after which the record is re-inserted at the back.
-          while (next.size > fullRecordCacheLimit) {
-            const firstInserted = next.keys().next().value;
-            if (typeof firstInserted !== "number") {
-              break;
-            }
-            next.delete(firstInserted);
-          }
-          if (currentCacheBelongsToScope && next === current.recordsByLine) {
-            return current;
-          }
 
-          return { sourceRevision: scope.sourceRevision, recordsByLine: next };
+            const currentCacheBelongsToScope = belongsToSourceRevision(
+              scope.sourceRevision,
+              current,
+            );
+            const currentRecords = currentCacheBelongsToScope
+              ? current.recordsByLine
+              : new Map<number, JsonlRecord>();
+            let next = currentRecords;
+            for (const lineNumber of batch) {
+              const fullRecord = records.get(lineNumber);
+              if (!fullRecord || next.has(lineNumber)) {
+                continue;
+              }
+              if (next === currentRecords) {
+                next = new Map(currentRecords);
+              }
+              next.set(lineNumber, fullRecord);
+            }
+            // Eviction is FIFO, not LRU: `Map.keys()` yields insertion order and
+            // the cache is only written when a Full Record resolves. Reads never
+            // move a repeatedly viewed record to the back. That is a
+            // deliberate trade — making it a true LRU would mean touching the
+            // cache from the read path, which is a pure lookup today and would
+            // otherwise re-render the whole record list on every scroll. Under
+            // one-directional scrolling the two policies agree; the cost of the
+            // difference is one extra scan when scrolling back past the limit,
+            // after which the record is re-inserted at the back.
+            while (next.size > fullRecordCacheLimit) {
+              const firstInserted = next.keys().next().value;
+              if (typeof firstInserted !== "number") {
+                break;
+              }
+              next.delete(firstInserted);
+            }
+            if (currentCacheBelongsToScope && next === current.recordsByLine) {
+              return current;
+            }
+
+            return { sourceRevision: scope.sourceRevision, recordsByLine: next };
+          });
+        })
+        .catch(() => {
+          if (fullRecordScopeRef.current === scope && !scope.controller.signal.aborted) {
+            toast.error(t("input.readFailed"));
+          }
+        })
+        .finally(() => {
+          if (fullRecordScopeRef.current === scope) {
+            // Clearing the in-flight marks also lets failed lines retry when
+            // they scroll back into view.
+            for (const lineNumber of batch) {
+              scope.inFlightLines.delete(lineNumber);
+            }
+          }
         });
-      })
-      .catch((error) => {
-        if (fullRecordScopeRef.current === scope && !scope.controller.signal.aborted) {
-          onErrorRef.current(error);
-        }
-      })
-      .finally(() => {
-        if (fullRecordScopeRef.current === scope) {
-          // Clearing the in-flight marks also lets failed lines retry when
-          // they scroll back into view.
-          for (const lineNumber of batch) {
-            scope.inFlightLines.delete(lineNumber);
-          }
-        }
-      });
-  }, []);
+    },
+    [t],
+  );
 
   const requestFullRecord = useCallback(
     (record: JsonlRecord) => {

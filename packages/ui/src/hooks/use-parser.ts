@@ -1,6 +1,8 @@
 import type { ParseResult } from "@unquote/core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { probeJsonl } from "@unquote/core";
+import { toast } from "sonner";
+import { useTranslation } from "../i18n/context";
 import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
@@ -64,7 +66,6 @@ export interface UseParserOptions {
   input: string;
   forcedFormat?: "json" | "jsonl" | undefined;
   sourceAccess?: LocalFileAccess | null | undefined;
-  onFileReadError?: (() => void) | undefined;
   sourceRevision: SourceRevision;
 }
 
@@ -72,18 +73,19 @@ export const useParser = ({
   input,
   forcedFormat,
   sourceAccess,
-  onFileReadError,
   sourceRevision,
 }: UseParserOptions) => {
+  const { t } = useTranslation();
   const [parserState, setParserState] = useState<ParserSnapshot>(() => {
     const { result, agentSession, progress } = parseText(input, { forcedFormat });
     return { sourceRevision, result, progress, agentSession };
   });
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
-  const onFileReadErrorRef = useRef(onFileReadError);
   const sourceFile = sourceAccess?.getFile() ?? null;
-  onFileReadErrorRef.current = onFileReadError;
+  const reportFileReadError = useEffectEvent(() => {
+    toast.error(t("input.readFailed"));
+  });
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
@@ -112,7 +114,7 @@ export const useParser = ({
                 ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
                 progress: idleProgress,
               });
-              onFileReadErrorRef.current?.();
+              reportFileReadError();
             }
           });
         return;
@@ -216,7 +218,7 @@ export const useParser = ({
           agentSession: null,
           progress: message.progress,
         }));
-        onFileReadErrorRef.current?.();
+        reportFileReadError();
         return;
       }
 

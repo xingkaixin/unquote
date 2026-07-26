@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
 import { useSearchWorker } from "../src/hooks/use-search-worker";
+import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch } from "../src/lib/record-search";
@@ -67,17 +68,19 @@ interface CommitSnapshot {
 
 let commits: CommitSnapshot[] = [];
 
-const Probe = ({
-  sourceRevision,
-  text,
-  forcedFormat = "json",
-  sourceFile = null,
-}: {
+interface ProbeProps {
   sourceRevision: number;
   text: string;
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File | null;
-}) => {
+}
+
+const RevisionProbe = ({
+  sourceRevision,
+  text,
+  forcedFormat = "json",
+  sourceFile = null,
+}: ProbeProps) => {
   const sourceAccess = useMemo(
     () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
     [sourceFile],
@@ -115,6 +118,12 @@ const Probe = ({
   );
 };
 
+const Probe = (props: ProbeProps) => (
+  <I18nProvider>
+    <RevisionProbe {...props} />
+  </I18nProvider>
+);
+
 const completeParser = (worker: ControlledWorker, requestId: number, text: string) => {
   const result = parseInput(text, { forcedFormat: "json" });
   worker.respond({
@@ -135,6 +144,7 @@ const completeParser = (worker: ControlledWorker, requestId: number, text: strin
 describe("Source Revision", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.clear();
     commits = [];
     ControlledWorker.parserWorkers = [];
     ControlledWorker.searchWorkers = [];

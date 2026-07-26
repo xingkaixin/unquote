@@ -1,8 +1,10 @@
 import { useCallback, useReducer, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
-import { writeClipboardText } from "../lib/clipboard";
+import { toast } from "sonner";
+import { useTranslation } from "../i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
 import type { SourceRevision } from "../lib/source-revision";
+import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -28,21 +30,15 @@ interface UseSourceLoaderParams {
     | (() => Promise<File | string | null> | File | string | null | void)
     | undefined;
   onCollapseSource: () => void;
-  // Called when a file read fails, so the caller can surface it (e.g. a toast).
-  // The hook does not rethrow — InputPane invokes onFileDrop fire-and-forget,
-  // so a throw here would become an unhandled rejection with no user feedback.
-  onError: (error: unknown) => void;
-  // Called when a clipboard write fails (permission denied / document unfocused).
-  onCopyError: () => void;
 }
 
 export const useSourceLoader = ({
   initialInput,
   onRequestOpenFile,
   onCollapseSource,
-  onError,
-  onCopyError,
 }: UseSourceLoaderParams) => {
+  const { t } = useTranslation();
+  const copyToClipboard = useCopyToClipboard();
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<SourceMode>("auto");
   const modeRef = useRef<SourceMode>(mode);
@@ -60,11 +56,7 @@ export const useSourceLoader = ({
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
   const sourceAccessRef = useRef(sourceAccess);
-  const onErrorRef = useRef(onError);
-  const onCopyErrorRef = useRef(onCopyError);
   sourceAccessRef.current = sourceAccess;
-  onErrorRef.current = onError;
-  onCopyErrorRef.current = onCopyError;
 
   const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
     file.size > largeSourceCollapseBytes &&
@@ -126,13 +118,13 @@ export const useSourceLoader = ({
           );
         }
       });
-    } catch (error) {
+    } catch {
       if (fileImportIdRef.current !== requestId) {
         return;
       }
 
       setSourceState((prev) => (prev.kind === "reading" ? prev.previousSource : prev));
-      onError(error);
+      toast.error(t("input.readFailed"));
       return;
     }
 
@@ -185,22 +177,23 @@ export const useSourceLoader = ({
     }
   };
 
-  const onCopyRawLine = useCallback(async (record: JsonlRecord) => {
-    let text = record.status === "failed" ? record.rawLine : record.summary;
-    const currentAccess = sourceAccessRef.current;
-    if (currentAccess) {
-      try {
-        text = await currentAccess.readRecordText(record);
-      } catch (error) {
-        onErrorRef.current(error);
-        return;
+  const onCopyRawLine = useCallback(
+    async (record: JsonlRecord) => {
+      let text = record.status === "failed" ? record.rawLine : record.summary;
+      const currentAccess = sourceAccessRef.current;
+      if (currentAccess) {
+        try {
+          text = await currentAccess.readRecordText(record);
+        } catch {
+          toast.error(t("input.readFailed"));
+          return;
+        }
       }
-    }
 
-    if (!(await writeClipboardText(text))) {
-      onCopyErrorRef.current();
-    }
-  }, []);
+      await copyToClipboard(text);
+    },
+    [copyToClipboard, t],
+  );
 
   return {
     mode,
