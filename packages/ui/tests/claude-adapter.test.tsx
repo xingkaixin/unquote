@@ -103,7 +103,7 @@ describe("claudeTranscriptAdapter", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "toolu_12345678901234567890",
+                tool_use_id: "toolu_12345😀tail",
                 content: { error: "failed" },
                 is_error: true,
               },
@@ -163,10 +163,10 @@ describe("claudeTranscriptAdapter", () => {
     expect(items[2]).not.toHaveProperty("block");
     expect(items[3]?.block).toMatchObject({
       status: "failed",
-      toolCallId: "toolu_12345678901234567890",
+      toolCallId: "toolu_12345😀tail",
     });
     expect(items[4]).not.toHaveProperty("block");
-    expect(session.events[5]?.label).toBe("tool_result toolu_123456");
+    expect(session.events[5]?.label).toBe("tool_result toolu_12345");
   });
 
   it("normalizes assistant content blocks, model state, and partial token usage", () => {

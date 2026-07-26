@@ -1,3 +1,4 @@
+import { truncateAtCodePointBoundary } from "@unquote/core";
 import type {
   AgentConversationItem,
   AgentEventCategory,
@@ -11,7 +12,7 @@ const previewLimit = 160;
 const blockTextLimit = 8000;
 
 export const truncateText = (value: string, limit: number) =>
-  value.length <= limit ? value : `${value.slice(0, limit)}... [truncated]`;
+  value.length <= limit ? value : `${truncateAtCodePointBoundary(value, limit)}... [truncated]`;
 
 export const truncatePreview = (value: string) =>
   truncateText(value.replace(/\s+/g, " ").trim(), previewLimit);

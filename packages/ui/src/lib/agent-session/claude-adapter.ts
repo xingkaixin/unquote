@@ -1,3 +1,4 @@
+import { truncateAtCodePointBoundary } from "@unquote/core";
 import type {
   AgentAdapterBuilder,
   AgentContentBlock,
@@ -158,7 +159,7 @@ const claudeLabel = (type: string, record: Record<string, unknown>) => {
       const parts = record.message.content;
       const first = Array.isArray(parts) && isRecord(parts[0]) ? parts[0] : undefined;
       const toolId = typeof first?.tool_use_id === "string" ? first.tool_use_id : undefined;
-      return toolId ? `tool_result ${toolId.slice(0, 12)}` : "tool_result";
+      return toolId ? `tool_result ${truncateAtCodePointBoundary(toolId, 12)}` : "tool_result";
     }
     return "user";
   }

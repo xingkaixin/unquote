@@ -181,6 +181,15 @@ describe("record insight", () => {
     expect(insight?.error).toBeUndefined();
   });
 
+  it("does not split surrogate pairs in insight titles", () => {
+    const prefix = "a".repeat(95);
+    const result = parseInput(JSON.stringify({ message: `${prefix}😀tail` }), {
+      forcedFormat: "jsonl",
+    });
+
+    expect(createRecordInsight(result.records[0]!)?.title).toBe(`${prefix}...`);
+  });
+
   it("derives the same filter fields from a deferred preview", () => {
     const record = {
       id: "record-1",

@@ -1,3 +1,4 @@
+import { truncateAtCodePointBoundary } from "@unquote/core";
 import type {
   AgentAdapterBuilder,
   AgentContentBlock,
@@ -58,7 +59,7 @@ const extractCodexReasoningText = (payload: Record<string, unknown>) => {
 };
 
 const shortCallId = (callId: string | undefined) =>
-  callId && callId.length > 12 ? callId.slice(0, 12) : callId;
+  callId ? truncateAtCodePointBoundary(callId, 12) : callId;
 
 const codexMessageRole = (role: string | undefined): AgentConversationRole => {
   if (role === "developer" || role === "system") {

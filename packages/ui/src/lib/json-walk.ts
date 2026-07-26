@@ -3,6 +3,7 @@ import {
   getJsonKind,
   hasJsonNodeChildren,
   isStringifiedNode,
+  truncateAtCodePointBoundary,
 } from "@unquote/core";
 import type { JsonKind, JsonNode } from "@unquote/core";
 import { appendJsonPathSegment } from "./path-codec";
@@ -261,7 +262,8 @@ const formatStringLabel = (
     return JSON.stringify(value);
   }
 
-  return `${JSON.stringify(`${value.slice(0, maxLength)}...`)} (${originalLength} chars)`;
+  const truncated = truncateAtCodePointBoundary(value, maxLength);
+  return `${JSON.stringify(`${truncated}...`)} (${originalLength} chars)`;
 };
 
 type JsonValueLabelInput = Pick<
@@ -303,7 +305,7 @@ export const getSearchableJsonValueLabelLength = (
     return label.length;
   }
 
-  return JSON.stringify(stringValue.slice(0, maxStringLength)).length - 1;
+  return JSON.stringify(truncateAtCodePointBoundary(stringValue, maxStringLength)).length - 1;
 };
 
 export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) =>

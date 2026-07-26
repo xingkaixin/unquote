@@ -104,7 +104,7 @@ describe("codexRolloutAdapter", () => {
       { type: "function_call", name: "scalar_tool", arguments: "42" },
       {
         type: "custom_tool_call_output",
-        call_id: "call_12345678901234567890",
+        call_id: "call_123456😀tail",
         output: { ok: true },
       },
       {
@@ -153,7 +153,7 @@ describe("codexRolloutAdapter", () => {
       toolInput: { raw: "not json" },
     });
     expect(items[7]?.block?.toolInput).toEqual({ raw: "42" });
-    expect(session.events[8]?.label).toBe("tool_result call_1234567");
+    expect(session.events[8]?.label).toBe("tool_result call_123456");
     expect(items.slice(8, 11).map((item) => item.block?.status)).toEqual([
       "completed",
       "failed",
