@@ -300,6 +300,32 @@ const readJsonlRecordsByLine = async (
   );
 };
 
+const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
+const numericLabelPattern = /^[\d.eE+-]+$/;
+const containerLabelPattern = /^[\d[\]{}]+$/;
+
+const buildRawLineProbe = (
+  query: string,
+  options: SearchOptions,
+  searchPattern: RegExp,
+): RegExp | null => {
+  // Numbers, containers, paths, and escaped strings can match text absent from the raw JSON.
+  if (
+    options.regex ||
+    options.jq ||
+    unsafeRawProbePattern.test(query) ||
+    numericLabelPattern.test(query) ||
+    containerLabelPattern.test(query)
+  ) {
+    return null;
+  }
+
+  return new RegExp(searchPattern.source, options.caseSensitive ? "" : "i");
+};
+
+const rawLineMayMatch = (line: string, probe: RegExp | null) =>
+  !probe || line.includes("\\u") || probe.test(line);
+
 const searchJsonlFile = async (
   file: File,
   query: string,
@@ -311,6 +337,7 @@ const searchJsonlFile = async (
     if (!pattern) {
       return null;
     }
+    const rawLineProbe = buildRawLineProbe(query, options, pattern);
 
     const matches: SearchMatch[] = [];
     await readJsonlFileLines(
@@ -320,7 +347,7 @@ const searchJsonlFile = async (
           return false;
         }
 
-        if (line.trim()) {
+        if (line.trim() && rawLineMayMatch(line, rawLineProbe)) {
           try {
             for (const match of searchJsonValue(
               parseJson(line),

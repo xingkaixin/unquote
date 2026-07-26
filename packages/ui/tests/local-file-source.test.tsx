@@ -1,5 +1,5 @@
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { searchRecords } from "../src/lib/tree";
 
@@ -176,6 +176,24 @@ describe("local-file-source", () => {
     expect(matches).not.toBeNull();
     expect(matches?.length).toBe(1);
     expect(matches?.[0]?.recordId).toBe("record-1");
+  });
+
+  it("skips parsing lines that cannot contain a safe literal match", async () => {
+    const skippedLine = '{"message":"hay"}';
+    const matchedLine = '{"message":"needle"}';
+    const escapedLine = String.raw`{"message":"\u006eeedle"}`;
+    const parse = vi.spyOn(JSON, "parse");
+    const controller = new AbortController();
+
+    const matches = await createLocalFileAccess(
+      makeStreamedFile([skippedLine, matchedLine, escapedLine].join("\n")),
+    ).search("needle", { regex: false, caseSensitive: false, jq: false }, controller.signal);
+
+    expect(matches?.map((match) => match.recordId)).toEqual(["record-2", "record-3"]);
+    expect(parse.mock.calls.filter(([input]) => input === skippedLine)).toHaveLength(0);
+    expect(parse.mock.calls.filter(([input]) => input === matchedLine)).toHaveLength(1);
+    expect(parse.mock.calls.filter(([input]) => input === escapedLine)).toHaveLength(1);
+    parse.mockRestore();
   });
 
   it("matches parsed-record search paths, ranges, and stringified chains", async () => {
