@@ -45,7 +45,8 @@ const line2 = {
   value: 42,
 };
 
-const fixture = [JSON.stringify(line1), JSON.stringify(line2)].join("\n");
+const escapedLine = String.raw`{"escaped":"quo\u0074e","solidus":"a\/b","lineBreak":"line\nbreak","small":0.0000001,"left":true,"right":false}`;
+const fixture = [JSON.stringify(line1), JSON.stringify(line2), escapedLine].join("\n");
 
 // SearchMatch order is not guaranteed to be identical between the two search
 // paths, so compare after sorting by (recordId, pathText).
@@ -163,6 +164,38 @@ describe("search parity between memory and file search paths", () => {
 
     expect(memoryMatches).toEqual([]);
     expect(fileMatches).toEqual([]);
+  });
+
+  it.each([
+    ["quote", "a Unicode-escaped string"],
+    ["a/b", "an escaped solidus"],
+    [String.raw`\n`, "an escaped control character"],
+    ["e-7", "a normalized number label"],
+    ["6", "a synthesized container-count label"],
+  ])("preserves parity for %s in %s", async (query) => {
+    const { memoryMatches } = await expectParity(query, {
+      regex: false,
+      caseSensitive: true,
+      jq: false,
+    });
+
+    expect(memoryMatches).toEqual(
+      expect.arrayContaining([expect.objectContaining({ recordId: "record-3" })]),
+    );
+  });
+
+  it("records separate memory and file search timings", async () => {
+    performance.clearMeasures("unquote:search:memory");
+    performance.clearMeasures("unquote:search:file");
+
+    await expectParity("needle", {
+      regex: false,
+      caseSensitive: false,
+      jq: false,
+    });
+
+    expect(performance.getEntriesByName("unquote:search:memory")).toHaveLength(1);
+    expect(performance.getEntriesByName("unquote:search:file")).toHaveLength(1);
   });
 });
 

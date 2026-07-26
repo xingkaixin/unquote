@@ -1,6 +1,7 @@
 import { materializeNode, parseJson, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
+import { measurePerfAsync } from "./perf";
 import { buildSearchPattern, searchJsonValue } from "./tree";
 import type { SearchMatch, SearchOptions } from "./tree";
 
@@ -299,45 +300,73 @@ const readJsonlRecordsByLine = async (
   );
 };
 
+const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
+const numericLabelPattern = /^[\d.eE+-]+$/;
+const containerLabelPattern = /^[\d[\]{}]+$/;
+
+const buildRawLineProbe = (
+  query: string,
+  options: SearchOptions,
+  searchPattern: RegExp,
+): RegExp | null => {
+  // Numbers, containers, paths, and escaped strings can match text absent from the raw JSON.
+  if (
+    options.regex ||
+    options.jq ||
+    unsafeRawProbePattern.test(query) ||
+    numericLabelPattern.test(query) ||
+    containerLabelPattern.test(query)
+  ) {
+    return null;
+  }
+
+  return new RegExp(searchPattern.source, options.caseSensitive ? "" : "i");
+};
+
+const rawLineMayMatch = (line: string, probe: RegExp | null) =>
+  !probe || line.includes("\\u") || probe.test(line);
+
 const searchJsonlFile = async (
   file: File,
   query: string,
   options: SearchOptions,
   signal: AbortSignal,
-): Promise<SearchMatch[] | null> => {
-  const pattern = buildSearchPattern(query, options);
-  if (!pattern) {
-    return null;
-  }
+): Promise<SearchMatch[] | null> =>
+  measurePerfAsync("search:file", async () => {
+    const pattern = buildSearchPattern(query, options);
+    if (!pattern) {
+      return null;
+    }
+    const rawLineProbe = buildRawLineProbe(query, options, pattern);
 
-  const matches: SearchMatch[] = [];
-  await readJsonlFileLines(
-    file,
-    (line, lineNumber) => {
-      if (signal.aborted) {
-        return false;
-      }
-
-      if (line.trim()) {
-        try {
-          for (const match of searchJsonValue(
-            parseJson(line),
-            `record-${lineNumber}`,
-            pattern,
-            options,
-          )) {
-            matches.push(match);
-          }
-        } catch {
-          // Invalid JSONL lines are excluded from search, matching the record-tree path.
+    const matches: SearchMatch[] = [];
+    await readJsonlFileLines(
+      file,
+      (line, lineNumber) => {
+        if (signal.aborted) {
+          return false;
         }
-      }
-    },
-    signal,
-  );
 
-  return signal.aborted ? null : matches;
-};
+        if (line.trim() && rawLineMayMatch(line, rawLineProbe)) {
+          try {
+            for (const match of searchJsonValue(
+              parseJson(line),
+              `record-${lineNumber}`,
+              pattern,
+              options,
+            )) {
+              matches.push(match);
+            }
+          } catch {
+            // Invalid JSONL lines are excluded from search, matching the record-tree path.
+          }
+        }
+      },
+      signal,
+    );
+
+    return signal.aborted ? null : matches;
+  });
 
 export interface LocalFileAccess {
   readonly name: string;

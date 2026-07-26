@@ -68,12 +68,14 @@ const Probe = ({
   query,
   text,
   sourceFile = null,
+  sourceRevision = 0,
   debounceMs = 0,
   options = defaultOptions,
 }: {
   query: string;
   text: string;
   sourceFile?: File | null;
+  sourceRevision?: number;
   debounceMs?: number;
   options?: typeof defaultOptions;
 }) => {
@@ -87,7 +89,7 @@ const Probe = ({
     query,
     options,
     debounceMs,
-    sourceRevision: 0,
+    sourceRevision,
   });
   renderLog.push({
     query,
@@ -108,6 +110,7 @@ const Probe = ({
 describe("useSearchWorker", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    performance.clearMeasures("unquote:search:request");
     MockWorker.instances = [];
     renderLog = [];
     Object.assign(globalThis, { Worker: MockWorker });
@@ -120,19 +123,28 @@ describe("useSearchWorker", () => {
   });
 
   it("posts a search-text request and applies the completed result", () => {
+    const measure = vi.spyOn(performance, "measure");
     render(<Probe query="hello" text='{"a":"hello"}' />);
 
     const worker = MockWorker.instances[0]!;
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: "search-text",
       requestId: 1,
-      text: '{"a":"hello"}',
+      source: {
+        kind: "content",
+        sourceRevision: 0,
+        text: '{"a":"hello"}',
+      },
       query: "hello",
       options: defaultOptions,
     });
 
     act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("A")] }));
     expect(worker.terminated).toBe(false);
+    expect(measure).toHaveBeenCalledWith(
+      "unquote:search:request",
+      expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) }),
+    );
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("A");
   });
@@ -145,9 +157,13 @@ describe("useSearchWorker", () => {
     rerender(<Probe query="b" text="text" />);
 
     expect(MockWorker.instances).toHaveLength(1);
-    expect(worker.postMessage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ query: "b", requestId: 2 }),
-    );
+    expect(worker.postMessage).toHaveBeenLastCalledWith({
+      type: "search-text",
+      requestId: 2,
+      source: { kind: "cached", sourceRevision: 0 },
+      query: "b",
+      options: defaultOptions,
+    });
     act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("second")] }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("second");
   });
@@ -222,13 +238,20 @@ describe("useSearchWorker", () => {
   });
 
   it("reports a worker error response", () => {
-    render(<Probe query="a" text="text" />);
+    const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
 
     act(() => worker.respond({ type: "error", requestId: 1, message: "TypeError" }));
     expect(worker.terminated).toBe(false);
     expect(screen.getByTestId("status")).toHaveTextContent("error");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
+
+    rerender(<Probe query="b" text="text" />);
+    expect(worker.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        source: expect.objectContaining({ kind: "content", sourceRevision: 0, text: "text" }),
+      }),
+    );
   });
 
   it("stays idle and does not post a message for an empty query", () => {
@@ -350,7 +373,17 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     const committed = rendersCommittedDuring(() =>
-      rerender(<Probe query="a" text="different text" />),
+      rerender(<Probe query="a" text="different text" sourceRevision={1} />),
+    );
+
+    expect(worker.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        source: expect.objectContaining({
+          kind: "content",
+          sourceRevision: 1,
+          text: "different text",
+        }),
+      }),
     );
 
     expect(screen.getByTestId("status")).toHaveTextContent("pending");
@@ -369,7 +402,7 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     const committed = rendersCommittedDuring(() =>
-      rerender(<Probe query="a" text="" sourceFile={fileB} />),
+      rerender(<Probe query="a" text="" sourceFile={fileB} sourceRevision={1} />),
     );
 
     expect(screen.getByTestId("status")).toHaveTextContent("pending");

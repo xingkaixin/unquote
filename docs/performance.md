@@ -68,10 +68,12 @@ benchmark query `nested`. `expandPathReadyMs` measures one visible stringified
 JSON toggle when the fixture exposes one.
 
 Chrome Performance recordings include `unquote:*` user timing entries for the
-main hot paths: `parse:first-batch`, `parse:complete`, `search:memory`,
-`recordRows:build`, `expand:all:collect`, and `expand:path`. Use these marks
-with the React Profiler to confirm whether search, tree row construction, or
-expanded-path state is the active bottleneck before optimizing.
+main hot paths: `parse:first-batch`, `parse:complete`, `search:request`,
+`search:memory`, `search:file`, `recordRows:build`, `expand:all:collect`, and
+`expand:path`. `search:request` spans dispatch to a terminal worker response,
+while `search:memory` and `search:file` isolate the two execution paths. Use
+these entries with the React Profiler to confirm whether search, tree row
+construction, or expanded-path state is the active bottleneck before optimizing.
 
 `case4-5K-rows` is the high-record-count release fixture. It uses the same
 release budgets as the smaller fixtures: first record p95 under 1000 ms,

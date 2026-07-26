@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
+import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/tree";
 import type { SearchMatch, SearchOptions } from "../lib/tree";
@@ -39,16 +40,24 @@ const buildSearchRequest = (
   sourceAccess: LocalFileAccess | null,
   query: string,
   options: SearchOptions,
+  sourceRevision: SourceRevision,
+  sendText: boolean,
 ): SearchRequest =>
   sourceAccess
     ? { type: "search-file", requestId, file: sourceAccess.getFile(), query, options }
     : {
         type: "search-text",
         requestId,
-        text,
+        source: sendText
+          ? {
+              kind: "content",
+              sourceRevision,
+              text,
+              ...(forcedFormat ? { forcedFormat } : {}),
+            }
+          : { kind: "cached", sourceRevision },
         query,
         options,
-        ...(forcedFormat ? { forcedFormat } : {}),
       };
 
 const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileAccess | null) =>
@@ -84,6 +93,7 @@ export const useSearchWorker = (params: {
   );
   const requestIdRef = useRef(0);
   const workerRef = useRef<Worker | null>(null);
+  const workerSourceRevisionRef = useRef<SourceRevision | null>(null);
 
   const [lastInputs, setLastInputs] = useState(() => ({
     text,
@@ -113,6 +123,7 @@ export const useSearchWorker = (params: {
     () => () => {
       const worker = workerRef.current;
       workerRef.current = null;
+      workerSourceRevisionRef.current = null;
       worker?.terminate();
     },
     [],
@@ -136,6 +147,7 @@ export const useSearchWorker = (params: {
     const dispatch = () => {
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;
+      const finishRequestMeasure = startPerfMeasure("search:request");
 
       if (typeof Worker === "undefined") {
         if (sourceAccess) {
@@ -143,11 +155,13 @@ export const useSearchWorker = (params: {
           sourceAccess
             .search(query, options, controller.signal)
             .then((matches) => {
+              finishRequestMeasure();
               if (requestIdRef.current === requestId) {
                 setState({ sourceRevision, matches, status: "complete", errorKind: null });
               }
             })
             .catch(() => {
+              finishRequestMeasure();
               if (requestIdRef.current === requestId) {
                 setState({
                   sourceRevision,
@@ -162,9 +176,11 @@ export const useSearchWorker = (params: {
         }
 
         const result = parseTextResult(text, forcedFormat);
+        const matches = searchRecords(result.records, query, options);
+        finishRequestMeasure();
         setState({
           sourceRevision,
-          matches: searchRecords(result.records, query, options),
+          matches,
           status: "complete",
           errorKind: null,
         });
@@ -189,6 +205,7 @@ export const useSearchWorker = (params: {
         currentWorker.removeEventListener("message", onMessage);
         if (terminateWorker && workerRef.current === currentWorker) {
           workerRef.current = null;
+          workerSourceRevisionRef.current = null;
           currentWorker.terminate();
         }
         return true;
@@ -199,8 +216,12 @@ export const useSearchWorker = (params: {
         if (response.requestId !== requestIdRef.current || !finalizeRequest(false)) {
           return;
         }
+        finishRequestMeasure();
 
         if (response.type === "error") {
+          if (workerRef.current === currentWorker) {
+            workerSourceRevisionRef.current = null;
+          }
           setState({
             sourceRevision,
             matches: null,
@@ -218,14 +239,28 @@ export const useSearchWorker = (params: {
       }
 
       currentWorker.addEventListener("message", onMessage);
+      const sendText = !sourceAccess && workerSourceRevisionRef.current !== sourceRevision;
       currentWorker.postMessage(
-        buildSearchRequest(requestId, text, forcedFormat, sourceAccess, query, options),
+        buildSearchRequest(
+          requestId,
+          text,
+          forcedFormat,
+          sourceAccess,
+          query,
+          options,
+          sourceRevision,
+          sendText,
+        ),
       );
+      if (sendText) {
+        workerSourceRevisionRef.current = sourceRevision;
+      }
 
       timeoutId = window.setTimeout(() => {
         if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
           return;
         }
+        finishRequestMeasure();
         setState({ sourceRevision, matches: null, status: "error", errorKind: "timeout" });
       }, getSearchWorkerTimeoutMs(sourceAccess));
 
