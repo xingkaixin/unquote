@@ -11,14 +11,20 @@ import {
   getValueClassName,
 } from "../src/lib/tree-display";
 
-const makeNode = (kind: JsonNode["kind"], overrides: Partial<JsonNode> = {}): JsonNode => ({
-  kind,
-  value: null,
-  path: [],
-  wasStringified: false,
-  meta: { depth: 0, expandable: false, restorable: false },
-  ...overrides,
-});
+const nodeSource: Record<JsonNode["kind"], string> = {
+  object: "{}",
+  array: "[]",
+  string: '""',
+  number: "0",
+  boolean: "false",
+  null: "null",
+};
+
+const makeNode = (kind: JsonNode["kind"], overrides: Partial<JsonNode> = {}): JsonNode =>
+  ({
+    ...parseInput(nodeSource[kind], { forcedFormat: "json" }).records[0]!.node!,
+    ...overrides,
+  }) as JsonNode;
 
 const makeRow = (
   overrides: Partial<TreeRow> & Pick<TreeRow, "id" | "pathText" | "depth" | "kind">,
@@ -206,7 +212,7 @@ describe("getCollapsedValue", () => {
       kind: "object",
       wasStringified: true,
       valueLabel: '"{ some truncated label }"',
-      node: makeNode("object", { wasStringified: true, rawString: '{"a":1}' }),
+      node: makeNode("object", { rawString: '{"a":1}' }),
     });
 
     expect(getCollapsedValue(row)).toBe(JSON.stringify('{"a":1}'));
@@ -221,7 +227,7 @@ describe("getCollapsedValue", () => {
       kind: "object",
       wasStringified: true,
       valueLabel: "600 chars truncated",
-      node: makeNode("object", { wasStringified: true, rawString }),
+      node: makeNode("object", { rawString }),
     });
 
     expect(getCollapsedValue(row)).toBe(JSON.stringify(rawString));
@@ -235,7 +241,7 @@ describe("getCollapsedValue", () => {
       kind: "object",
       wasStringified: true,
       valueLabel: "fallback label",
-      node: makeNode("object", { wasStringified: true }),
+      node: makeNode("object"),
     });
 
     expect(getCollapsedValue(row)).toBe("fallback label");

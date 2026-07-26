@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking (`@unquote/core`)** — `JsonNode` is now a discriminated union that stores either container children, a truncated container value, a compact preview, or a typed primitive. The redundant `path`, `wasStringified`, and `meta` fields were removed. Consumers should derive paths and depth while traversing, use the owning `JsonlRecord.lineNumber`, and migrate checks to `hasJsonNodeChildren`, `isStringifiedNode`, and `isTruncatedJsonNode`.
+
 ## [0.11.0] - 2026-07-23
 
 ### Added

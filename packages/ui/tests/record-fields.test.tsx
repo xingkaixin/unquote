@@ -1,14 +1,10 @@
+import { parseInput } from "@unquote/core";
 import type { JsonNode } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "../src/lib/record-fields";
 
-const node = (kind: JsonNode["kind"], value: unknown): JsonNode => ({
-  kind,
-  value,
-  path: [],
-  wasStringified: false,
-  meta: { depth: 0, expandable: false, restorable: false },
-});
+const node = (kind: JsonNode["kind"], value: unknown): JsonNode =>
+  parseInput(JSON.stringify(value), { forcedFormat: "json" }).records[0]!.node!;
 
 describe("record-fields", () => {
   it("normalizeKey strips separators and lowercases", () => {

@@ -8,15 +8,25 @@ export {
   restoreNode,
 } from "./parser.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";
+export { hasJsonNodeChildren, isStringifiedNode, isTruncatedJsonNode } from "./nodes.js";
 export type {
   FailedJsonlRecord,
   FormatOptions,
+  FullJsonNode,
   FullJsonlRecord,
+  JsonArrayNode,
+  JsonBooleanNode,
   JsonContainerKind,
+  JsonContainerNode,
   JsonKind,
   JsonNode,
-  JsonNodeMeta,
+  JsonNodeWithChildren,
+  JsonNullNode,
+  JsonNumberNode,
+  JsonObjectNode,
   JsonPrimitive,
+  JsonSourceStringNode,
+  JsonStringNode,
   JsonlRecord,
   JsonlRecordPreview,
   ParsedJsonlRecord,
@@ -24,7 +34,14 @@ export type {
   ParseOptions,
   ParseResult,
   ParseStats,
+  PreviewJsonArrayNode,
   PreviewJsonlRecord,
+  PreviewJsonNode,
+  PreviewJsonObjectNode,
+  PreviewStringifiedJsonNode,
+  TruncatedJsonArrayNode,
+  TruncatedJsonNode,
+  TruncatedJsonObjectNode,
 } from "./types.js";
 export { DEFAULT_MAX_DEPTH, getJsonKind, parseJson, probeJsonl } from "./utils.js";
 export type { JsonlProbeResult } from "./utils.js";

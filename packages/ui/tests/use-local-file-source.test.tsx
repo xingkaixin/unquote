@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { materializeNode } from "@unquote/core";
+import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
 import { createLocalFileAccess, type LocalFileAccess } from "../src/lib/local-file-source";
@@ -141,16 +141,8 @@ const makeDeferredRecord = (lineNumber: number) => ({
   lineNumber,
   node: {
     kind: "object" as const,
-    value: null,
-    path: ["$"],
-    wasStringified: false,
-    meta: {
-      depth: 0,
-      expandable: true,
-      restorable: false,
-      recordId: `record-${lineNumber}`,
-      sourceLine: lineNumber,
-    },
+    childCount: 0,
+    preview: true as const,
   },
   summary: "deferred",
 });
@@ -415,7 +407,7 @@ describe("useLocalFileSource", () => {
     const file = makeStreamedFile('{"a":1}\n');
     const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
-    const record = { ...makeDeferredRecord(1), status: "full" as const };
+    const record = parseJsonlRecordLine('{"a":1}', 1);
     act(() => {
       result.current.requestRecord(record);
     });

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **破坏性变更（`@unquote/core`）** — `JsonNode` 改为可判别联合，只保存容器 children、截断容器 value、紧凑 preview 或带类型的 primitive 之一；移除冗余的 `path`、`wasStringified` 与 `meta`。调用方应在遍历时推导路径和深度，使用所属 `JsonlRecord.lineNumber`，并迁移到 `hasJsonNodeChildren`、`isStringifiedNode` 与 `isTruncatedJsonNode`。
+
 ## [0.11.0] - 2026-07-23
 
 ### Added

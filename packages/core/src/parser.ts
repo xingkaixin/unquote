@@ -1,6 +1,7 @@
 import type {
   FormatOptions,
   FailedJsonlRecord,
+  FullJsonNode,
   FullJsonlRecord,
   JsonNode,
   JsonlRecord,
@@ -10,6 +11,7 @@ import type {
   ParseOptions,
   ParseResult,
   PreviewJsonlRecord,
+  PreviewJsonNode,
 } from "./types.js";
 import { isFailedRecord, isParsed } from "./records.js";
 import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils.js";
@@ -18,100 +20,73 @@ const maxPreviewStringLength = 160;
 
 const toNode = (
   value: unknown,
-  path: string[],
   depth: number,
   maxDepth: number,
-  wasStringified = false,
   rawString?: string,
-  recordId?: string,
-  sourceLine?: number,
-): JsonNode => {
-  const kind = getJsonKind(value);
-  const meta = {
-    depth,
-    expandable: false,
-    restorable: wasStringified,
-    ...(recordId ? { recordId } : {}),
-    ...(typeof sourceLine === "number" ? { sourceLine } : {}),
-  };
+): FullJsonNode => {
+  const source = rawString === undefined ? {} : { rawString };
 
-  if (kind === "object") {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const objectValue = value as Record<string, unknown>;
     if (depth >= maxDepth) {
       return {
-        kind,
-        value,
-        path,
-        wasStringified,
-        ...(rawString ? { rawString } : {}),
-        meta: { ...meta, expandable: true, truncated: true },
+        kind: "object",
+        value: objectValue,
+        truncated: true,
+        ...source,
       };
     }
 
-    const objectValue = value as Record<string, unknown>;
     const children = Object.fromEntries(
       Object.entries(objectValue).map(([key, childValue]) => [
         key,
-        buildNode(childValue, [...path, key], depth + 1, maxDepth, recordId, sourceLine),
+        buildNode(childValue, depth + 1, maxDepth),
       ]),
     );
 
     return {
-      kind,
-      value,
-      path,
-      wasStringified,
-      ...(rawString ? { rawString } : {}),
+      kind: "object",
       children,
-      meta: { ...meta, expandable: true },
+      ...source,
     };
   }
 
-  if (kind === "array") {
+  if (Array.isArray(value)) {
     if (depth >= maxDepth) {
       return {
-        kind,
+        kind: "array",
         value,
-        path,
-        wasStringified,
-        ...(rawString ? { rawString } : {}),
-        meta: { ...meta, expandable: true, truncated: true },
+        truncated: true,
+        ...source,
       };
     }
 
-    const arrayValue = value as unknown[];
-    const children = arrayValue.map((childValue, index) =>
-      buildNode(childValue, [...path, String(index)], depth + 1, maxDepth, recordId, sourceLine),
-    );
+    const children = value.map((childValue) => buildNode(childValue, depth + 1, maxDepth));
 
     return {
-      kind,
-      value,
-      path,
-      wasStringified,
-      ...(rawString ? { rawString } : {}),
+      kind: "array",
       children,
-      meta: { ...meta, expandable: true },
+      ...source,
     };
   }
 
-  return {
-    kind,
-    value,
-    path,
-    wasStringified,
-    ...(rawString ? { rawString } : {}),
-    meta,
-  };
+  if (value === null) {
+    return { kind: "null", value, ...source };
+  }
+  if (typeof value === "string") {
+    return { kind: "string", value, ...source };
+  }
+  if (typeof value === "number") {
+    return { kind: "number", value, ...source };
+  }
+  if (typeof value === "boolean") {
+    return { kind: "boolean", value, ...source };
+  }
+
+  throw new TypeError(`Unsupported JSON value: ${typeof value}`);
 };
 
-const maybeExpandString = (
-  value: string,
-  path: string[],
-  depth: number,
-  maxDepth: number,
-  recordId?: string,
-  sourceLine?: number,
-) => {
+const maybeExpandString = (value: string, depth: number, maxDepth: number) => {
   if (depth > maxDepth) {
     return null;
   }
@@ -123,33 +98,26 @@ const maybeExpandString = (
 
   try {
     const parsed = parseJson(trimmed);
-    return toNode(parsed, path, depth, maxDepth, true, value, recordId, sourceLine);
+    return toNode(parsed, depth, maxDepth, value);
   } catch {
     return null;
   }
 };
 
-const buildNode = (
-  value: unknown,
-  path: string[],
-  depth: number,
-  maxDepth: number,
-  recordId?: string,
-  sourceLine?: number,
-): JsonNode => {
+const buildNode = (value: unknown, depth: number, maxDepth: number): FullJsonNode => {
   if (typeof value === "string") {
-    const expanded = maybeExpandString(value, path, depth, maxDepth, recordId, sourceLine);
+    const expanded = maybeExpandString(value, depth, maxDepth);
     if (expanded) {
       return expanded;
     }
   }
 
-  return toNode(value, path, depth, maxDepth, false, undefined, recordId, sourceLine);
+  return toNode(value, depth, maxDepth);
 };
 
 const createRecord = (value: unknown, lineNumber: number, maxDepth: number): FullJsonlRecord => {
   const id = `record-${lineNumber}`;
-  const node = buildNode(value, ["$"], 0, maxDepth, id, lineNumber);
+  const node = buildNode(value, 0, maxDepth);
 
   return {
     status: "full",
@@ -171,32 +139,43 @@ const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, ke
 const truncatePreviewString = (value: string) =>
   value.length > maxPreviewStringLength ? value.slice(0, maxPreviewStringLength) : value;
 
-const projectPreviewNode = (node: JsonNode): JsonNode => {
-  const rawString = node.wasStringified ? (node.rawString ?? JSON.stringify(node.value)) : null;
-  const stringValue = rawString ?? (node.kind === "string" ? (node.value as string) : null);
-  const isContainer = node.kind === "object" || node.kind === "array";
-  const value = stringValue === null ? (isContainer ? null : node.value) : stringValue;
-  const valueLength = stringValue?.length;
+const projectPreviewNode = (node: FullJsonNode): PreviewJsonNode => {
+  if (node.rawString !== undefined) {
+    const valueLength = node.rawString.length;
+    return {
+      kind: "string",
+      value: truncatePreviewString(node.rawString),
+      stringifiedPreview: true,
+      ...(valueLength > maxPreviewStringLength ? { valueLength } : {}),
+    };
+  }
 
-  return {
-    kind: node.wasStringified ? "string" : node.kind,
-    value: typeof value === "string" ? truncatePreviewString(value) : value,
-    path: node.path,
-    wasStringified: node.wasStringified,
-    meta: {
-      depth: node.meta.depth,
-      expandable: isContainer || node.wasStringified,
-      restorable: node.wasStringified,
-      ...(node.meta.recordId ? { recordId: node.meta.recordId } : {}),
-      ...(typeof node.meta.sourceLine === "number" ? { sourceLine: node.meta.sourceLine } : {}),
-      ...(typeof valueLength === "number" && valueLength > maxPreviewStringLength
-        ? { truncated: true, valueLength }
-        : {}),
-    },
-  };
+  if (node.kind === "object") {
+    const childCount =
+      node.children === undefined
+        ? Object.keys(node.value).length
+        : Object.keys(node.children).length;
+    return { kind: "object", childCount, preview: true };
+  }
+
+  if (node.kind === "array") {
+    const childCount = node.children === undefined ? node.value.length : node.children.length;
+    return { kind: "array", childCount, preview: true };
+  }
+
+  if (node.kind === "string") {
+    const valueLength = node.value.length;
+    return {
+      kind: "string",
+      value: truncatePreviewString(node.value),
+      ...(valueLength > maxPreviewStringLength ? { valueLength } : {}),
+    };
+  }
+
+  return node;
 };
 
-const createRecordPreview = (value: unknown, recordId: string, sourceLine: number) => {
+const createRecordPreview = (value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
@@ -214,10 +193,7 @@ const createRecordPreview = (value: unknown, recordId: string, sourceLine: numbe
 
     fields[key] =
       typeof child === "string" ? truncatePreviewString(child) : (child as JsonPrimitive);
-    if (
-      typeof child === "string" &&
-      buildNode(child, ["$", key], 1, 1, recordId, sourceLine).wasStringified
-    ) {
+    if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
       nestedFieldKeys = appendNestedFieldKey(nestedFieldKeys, key);
     }
   }
@@ -235,8 +211,8 @@ const createRecordPreview = (value: unknown, recordId: string, sourceLine: numbe
 
 const createPreviewRecord = (value: unknown, lineNumber: number): PreviewJsonlRecord => {
   const id = `record-${lineNumber}`;
-  const node = projectPreviewNode(buildNode(value, ["$"], 0, 0, id, lineNumber));
-  const preview = createRecordPreview(value, id, lineNumber);
+  const node = projectPreviewNode(buildNode(value, 0, 0));
+  const preview = createRecordPreview(value);
 
   return {
     status: "preview",
@@ -425,39 +401,45 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
   return single;
 };
 
-export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode => {
-  const shouldRestore = node.wasStringified && (!paths || matchesPath(node.path, paths));
+const restoreNodeAtPath = (
+  node: JsonNode,
+  paths: string[][] | undefined,
+  path: string[],
+): JsonNode => {
+  const rawString = node.rawString;
+  const shouldRestore = rawString !== undefined && (!paths || matchesPath(path, paths));
 
   if (shouldRestore) {
     return {
       kind: "string",
-      value: node.rawString ?? JSON.stringify(node.value),
-      path: node.path,
-      wasStringified: false,
-      meta: {
-        depth: node.meta.depth,
-        expandable: false,
-        restorable: false,
-      },
+      value: rawString,
     };
   }
 
-  if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
+  if (node.kind === "object" && node.children) {
     const children = Object.fromEntries(
-      Object.entries(node.children).map(([key, child]) => [key, restoreNode(child, paths)]),
+      Object.entries(node.children).map(([key, child]) => [
+        key,
+        restoreNodeAtPath(child, paths, [...path, key]),
+      ]),
     );
     return { ...node, children };
   }
 
-  if (node.kind === "array" && Array.isArray(node.children)) {
+  if (node.kind === "array" && node.children) {
     return {
       ...node,
-      children: node.children.map((child) => restoreNode(child, paths)),
+      children: node.children.map((child, index) =>
+        restoreNodeAtPath(child, paths, [...path, String(index)]),
+      ),
     };
   }
 
   return node;
 };
+
+export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode =>
+  restoreNodeAtPath(node, paths, ["$"]);
 
 export const formatResult = (result: ParseResult, options: FormatOptions = {}) => {
   const indent = options.indent ?? 2;
@@ -478,14 +460,18 @@ export const formatResult = (result: ParseResult, options: FormatOptions = {}) =
 };
 
 export const materializeNode = (node: JsonNode): unknown => {
-  if (node.kind === "object" && node.children && !Array.isArray(node.children)) {
+  if (node.kind === "object" && node.children) {
     return Object.fromEntries(
       Object.entries(node.children).map(([key, child]) => [key, materializeNode(child)]),
     );
   }
 
-  if (node.kind === "array" && Array.isArray(node.children)) {
+  if (node.kind === "array" && node.children) {
     return node.children.map((child) => materializeNode(child));
+  }
+
+  if (node.kind === "object" || node.kind === "array") {
+    return node.preview ? null : node.value;
   }
 
   return node.value;

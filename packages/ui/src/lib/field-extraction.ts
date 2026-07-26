@@ -1,3 +1,4 @@
+import { hasJsonNodeChildren, isStringifiedNode } from "@unquote/core";
 import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
 import {
   getPreviewMaxDepth,
@@ -50,7 +51,7 @@ export interface WalkRecordFieldsOptions {
 }
 
 const getDirectChildValue = (node: JsonNode, keys: string[]) => {
-  if (node.kind !== "object" || !node.children || Array.isArray(node.children)) {
+  if (node.kind !== "object" || !hasJsonNodeChildren(node)) {
     return null;
   }
 
@@ -78,8 +79,8 @@ const walkNodeBranch = (
   onContainer?: (candidate: ContainerCandidate) => void,
 ) => {
   walkJsonNode(root, (ctx) => {
-    metrics.maxDepth = Math.max(metrics.maxDepth, ctx.node.meta.depth);
-    if (ctx.node.wasStringified) {
+    metrics.maxDepth = Math.max(metrics.maxDepth, ctx.pathSegments.length);
+    if (isStringifiedNode(ctx.node)) {
       metrics.nestedCount += 1;
       if (trackNestedPaths) {
         addCount(metrics.nestedPaths, ctx.jsonPath);
