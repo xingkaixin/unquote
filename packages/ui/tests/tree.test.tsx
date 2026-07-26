@@ -250,6 +250,37 @@ describe("tree paths", () => {
     expect(payload?.node.value).toBe(longValue);
   });
 
+  it("aligns long-value search ranges with the rendered label", () => {
+    const value = `${"a".repeat(500)}visible${"b".repeat(5)}edge${"c".repeat(100)}deep`;
+    const key = `${value.length} chars`;
+    const pathText = `$["${key}"]`;
+    const result = parseInput(JSON.stringify({ [key]: value }));
+    const record = result.records[0]!;
+    const row = buildRecordRows(record, new Set()).find(
+      (candidate) => candidate.pathText === pathText,
+    )!;
+    const options = { regex: false, caseSensitive: true, jq: false };
+
+    const visibleMatch = searchRecords(result.records, "visible", options);
+    const boundaryMatch = searchRecords(result.records, "edge", options);
+    const deepMatch = searchRecords(result.records, "deep", options);
+    const decorationMatch = searchRecords(result.records, key, options);
+
+    expect(visibleMatch).toHaveLength(1);
+    expect(
+      visibleMatch![0]!.valueRanges.map((range) => row.valueLabel.slice(range.start, range.end)),
+    ).toEqual(["visible"]);
+    expect(boundaryMatch).toEqual([expect.objectContaining({ pathText, valueRanges: [] })]);
+    expect(deepMatch).toEqual([expect.objectContaining({ pathText, valueRanges: [] })]);
+    expect(decorationMatch).toEqual([
+      expect.objectContaining({
+        pathText,
+        keyRanges: [{ start: 0, end: key.length }],
+        valueRanges: [],
+      }),
+    ]);
+  });
+
   it("rejects invalid path syntax", () => {
     expect(parseTreePath("$.payload[abc]")).toBeNull();
     expect(resolveTreePath([], "$.payload[abc]")).toEqual({ ok: false, reason: "invalid" });
