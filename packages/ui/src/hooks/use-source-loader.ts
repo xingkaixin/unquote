@@ -24,7 +24,6 @@ type SourceState =
 
 interface UseSourceLoaderParams {
   initialInput: string;
-  onReadFile?: ((file: File) => Promise<string>) | undefined;
   onRequestOpenFile?:
     | (() => Promise<File | string | null> | File | string | null | void)
     | undefined;
@@ -39,7 +38,6 @@ interface UseSourceLoaderParams {
 
 export const useSourceLoader = ({
   initialInput,
-  onReadFile,
   onRequestOpenFile,
   onCollapseSource,
   onError,
@@ -109,7 +107,7 @@ export const useSourceLoader = ({
     setSourceState({
       kind: "reading",
       file,
-      progress: onReadFile ? null : 0,
+      progress: 0,
       previousSource: publishedSource,
     });
 
@@ -121,15 +119,13 @@ export const useSourceLoader = ({
     let text: string;
     try {
       const access = createLocalFileAccess(file);
-      text = onReadFile
-        ? await onReadFile(file)
-        : await access.readText((nextProgress) => {
-            if (fileImportIdRef.current === requestId) {
-              setSourceState((prev) =>
-                prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
-              );
-            }
-          });
+      text = await access.readText((nextProgress) => {
+        if (fileImportIdRef.current === requestId) {
+          setSourceState((prev) =>
+            prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
+          );
+        }
+      });
     } catch (error) {
       if (fileImportIdRef.current !== requestId) {
         return;

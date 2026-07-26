@@ -9,6 +9,7 @@ import { memorySearchDebounceMs } from "../src/hooks/use-query-interaction";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
+import { createControlledStreamFile, createFailingStreamFile } from "./helpers/stub-file";
 
 const maxTransferStringLength = 4096;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
@@ -1205,16 +1206,10 @@ describe("UnquoteApp", () => {
   });
 
   it("keeps the previous source text visible while a dropped file is being read", async () => {
-    let resolveRead: ((value: string) => void) | undefined;
-    const onReadFile = vi.fn(
-      () =>
-        new Promise<string>((resolve) => {
-          resolveRead = resolve;
-        }),
-    );
+    const controlled = createControlledStreamFile('{"new":true}', "payload.json");
     render(
       <I18nProvider>
-        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+        <UnquoteApp initialInput={'{"old":true}'} />
       </I18nProvider>,
     );
 
@@ -1223,28 +1218,27 @@ describe("UnquoteApp", () => {
     )[0]!;
     expect(sourceInput).toHaveValue('{"old":true}');
 
-    const file = new File(['{"new":true}'], "payload.json", { type: "application/json" });
     fireEvent.paste(sourceInput, {
-      clipboardData: { files: [file], items: [], types: ["Files"] },
+      clipboardData: { files: [controlled.file], items: [], types: ["Files"] },
     });
 
     // While reading, the reading state carries prevText so the prior source text
     // stays visible instead of collapsing to the file-preview overlay.
-    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(controlled.stream).toHaveBeenCalledTimes(1));
     expect(sourceInput).toHaveValue('{"old":true}');
 
     await act(async () => {
-      resolveRead?.('{"new":true}');
+      controlled.complete();
     });
     await waitFor(() => expect(sourceInput).toHaveValue('{"new":true}'));
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 
   it("surfaces an error toast and restores prior text when a file read fails", async () => {
-    const onReadFile = vi.fn().mockRejectedValue(new Error("boom"));
+    const failure = createFailingStreamFile(new Error("boom"), "payload.json");
     render(
       <I18nProvider>
-        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+        <UnquoteApp initialInput={'{"old":true}'} />
       </I18nProvider>,
     );
 
@@ -1252,33 +1246,24 @@ describe("UnquoteApp", () => {
       "Paste JSON / JSONL, or drop a file here.",
     )[0]!;
 
-    const file = new File(['{"new":true}'], "payload.json", { type: "application/json" });
     fireEvent.paste(sourceInput, {
-      clipboardData: { files: [file], items: [], types: ["Files"] },
+      clipboardData: { files: [failure.file], items: [], types: ["Files"] },
     });
 
     // The read rejects: an error toast surfaces (the hook no longer rethrows, so
     // there is no unhandled rejection) and the prior source text is restored.
-    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(failure.stream).toHaveBeenCalledTimes(1));
     expect((await screen.findAllByText("Failed to read file")).length).toBeGreaterThan(0);
     await waitFor(() => expect(sourceInput).toHaveValue('{"old":true}'));
   });
 
   it("ignores a read failure after a newer file import succeeds", async () => {
     const toastError = vi.spyOn(toast, "error");
-    const pendingReads = new Map<
-      string,
-      { resolve: (text: string) => void; reject: (error: Error) => void }
-    >();
-    const onReadFile = vi.fn(
-      (file: File) =>
-        new Promise<string>((resolve, reject) => {
-          pendingReads.set(file.name, { resolve, reject });
-        }),
-    );
+    const stale = createControlledStreamFile("a", "a.json");
+    const current = createControlledStreamFile('{"current":true}', "b.json");
     render(
       <I18nProvider>
-        <UnquoteApp initialInput={'{"old":true}'} onReadFile={onReadFile} />
+        <UnquoteApp initialInput={'{"old":true}'} />
       </I18nProvider>,
     );
 
@@ -1290,13 +1275,16 @@ describe("UnquoteApp", () => {
         clipboardData: { files: [file], items: [], types: ["Files"] },
       });
 
-    pasteFile(new File(["a"], "a.json", { type: "application/json" }));
-    pasteFile(new File(["b"], "b.json", { type: "application/json" }));
-    await waitFor(() => expect(onReadFile).toHaveBeenCalledTimes(2));
+    pasteFile(stale.file);
+    pasteFile(current.file);
+    await waitFor(() => {
+      expect(stale.stream).toHaveBeenCalledTimes(1);
+      expect(current.stream).toHaveBeenCalledTimes(1);
+    });
 
-    await act(async () => pendingReads.get("b.json")?.resolve('{"current":true}'));
+    await act(async () => current.complete());
     await waitFor(() => expect(sourceInput).toHaveValue('{"current":true}'));
-    await act(async () => pendingReads.get("a.json")?.reject(new Error("stale failure")));
+    await act(async () => stale.fail(new Error("stale failure")));
 
     expect(sourceInput).toHaveValue('{"current":true}');
     expect(toastError).not.toHaveBeenCalled();

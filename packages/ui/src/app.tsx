@@ -57,14 +57,12 @@ export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
   onOpenFile?: () => Promise<File | string | null> | File | string | null | void;
-  onReadFile?: (file: File) => Promise<string>;
 }
 
 export const UnquoteApp = ({
   initialInput = "",
   chromeWebStoreUrl,
   onOpenFile,
-  onReadFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
   const isDesktopWorkspace = useDesktopWorkspace();
@@ -84,7 +82,6 @@ export const UnquoteApp = ({
     onCopyRawLine: handleCopyRawLine,
   } = useSourceLoader({
     initialInput,
-    onReadFile,
     onRequestOpenFile: onOpenFile,
     onCollapseSource: () => setSourceCollapsed(true),
     onError: () => toast.error(t("input.readFailed")),
