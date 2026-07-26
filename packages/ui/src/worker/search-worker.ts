@@ -1,15 +1,27 @@
 import type { JsonlRecord } from "@unquote/core";
 import { createLocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
+import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/tree";
 import type { SearchMatch, SearchOptions } from "../lib/tree";
+
+type TextSearchSource =
+  | {
+      kind: "content";
+      sourceRevision: SourceRevision;
+      text: string;
+      forcedFormat?: "json" | "jsonl";
+    }
+  | {
+      kind: "cached";
+      sourceRevision: SourceRevision;
+    };
 
 export type SearchRequest =
   | {
       type: "search-text";
       requestId: number;
-      text: string;
-      forcedFormat?: "json" | "jsonl";
+      source: TextSearchSource;
       query: string;
       options: SearchOptions;
     }
@@ -26,34 +38,31 @@ export type SearchWorkerResponse =
   | { type: "error"; requestId: number; message: string };
 
 interface TextRecordsCache {
-  text: string;
-  forcedFormat?: "json" | "jsonl";
+  sourceRevision: SourceRevision;
   records: JsonlRecord[];
 }
 
 let textRecordsCache: TextRecordsCache | null = null;
 
-const recordsForText = (text: string, forcedFormat?: "json" | "jsonl"): JsonlRecord[] => {
-  if (
-    textRecordsCache &&
-    textRecordsCache.text === text &&
-    textRecordsCache.forcedFormat === forcedFormat
-  ) {
+const recordsForSource = (source: TextSearchSource): JsonlRecord[] => {
+  if (source.kind === "cached") {
+    if (textRecordsCache?.sourceRevision !== source.sourceRevision) {
+      throw new Error("Search source revision is unavailable");
+    }
     return textRecordsCache.records;
   }
 
-  const result = parseTextResult(text, forcedFormat);
-  textRecordsCache = { text, records: result.records, ...(forcedFormat ? { forcedFormat } : {}) };
+  const result = parseTextResult(source.text, source.forcedFormat);
+  textRecordsCache = { sourceRevision: source.sourceRevision, records: result.records };
   return result.records;
 };
 
 const searchText = ({
-  text,
-  forcedFormat,
+  source,
   query,
   options,
 }: Extract<SearchRequest, { type: "search-text" }>): SearchMatch[] | null =>
-  searchRecords(recordsForText(text, forcedFormat), query, options);
+  searchRecords(recordsForSource(source), query, options);
 
 // Cancellation is handled by the main thread terminating this worker on
 // timeout, so this signal never needs to fire.

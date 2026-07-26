@@ -62,8 +62,12 @@ describe("search worker", () => {
     dispatch(workerScope, {
       type: "search-text",
       requestId: 1,
-      text: '{"a":"hello"}',
-      forcedFormat: "json",
+      source: {
+        kind: "content",
+        sourceRevision: 1,
+        text: '{"a":"hello"}',
+        forcedFormat: "json",
+      },
       query: "hello",
       options: defaultOptions,
     });
@@ -78,21 +82,48 @@ describe("search worker", () => {
     const core = await import("@unquote/core");
     const parseSpy = vi.spyOn(core, "parseInput");
     const workerScope = await loadWorker();
-    const request = (requestId: number, query: string) => ({
-      type: "search-text" as const,
-      requestId,
-      text: '{"a":"hello","b":"world"}',
-      forcedFormat: "json" as const,
-      query,
+
+    dispatch(workerScope, {
+      type: "search-text",
+      requestId: 1,
+      source: {
+        kind: "content",
+        sourceRevision: 1,
+        text: '{"a":"hello","b":"world"}',
+        forcedFormat: "json",
+      },
+      query: "hello",
       options: defaultOptions,
     });
-
-    dispatch(workerScope, request(1, "hello"));
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
-    dispatch(workerScope, request(2, "world"));
+    dispatch(workerScope, {
+      type: "search-text",
+      requestId: 2,
+      source: { kind: "cached", sourceRevision: 1 },
+      query: "world",
+      options: defaultOptions,
+    });
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(2));
 
     expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a cached revision that was not loaded", async () => {
+    const workerScope = await loadWorker();
+    dispatch(workerScope, {
+      type: "search-text",
+      requestId: 1,
+      source: { kind: "cached", sourceRevision: 9 },
+      query: "hello",
+      options: defaultOptions,
+    });
+
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
+    expect(workerScope.postMessage).toHaveBeenCalledWith({
+      type: "error",
+      requestId: 1,
+      message: "Error",
+    });
   });
 
   it("returns null matches for an invalid regex instead of erroring", async () => {
@@ -100,8 +131,12 @@ describe("search worker", () => {
     dispatch(workerScope, {
       type: "search-text",
       requestId: 1,
-      text: '{"a":"hello"}',
-      forcedFormat: "json",
+      source: {
+        kind: "content",
+        sourceRevision: 1,
+        text: '{"a":"hello"}',
+        forcedFormat: "json",
+      },
       query: "(",
       options: { ...defaultOptions, regex: true },
     });
@@ -163,8 +198,12 @@ describe("search worker", () => {
     dispatch(workerScope, {
       type: "search-text",
       requestId: 1,
-      text: '{"secret":"leak-me"}',
-      forcedFormat: "json",
+      source: {
+        kind: "content",
+        sourceRevision: 1,
+        text: '{"secret":"leak-me"}',
+        forcedFormat: "json",
+      },
       query: "leak-me",
       options: defaultOptions,
     });

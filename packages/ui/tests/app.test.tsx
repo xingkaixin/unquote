@@ -107,6 +107,11 @@ Object.assign(globalThis, {
   Worker: class {
     chunks = "";
     isSearchWorker: boolean;
+    searchSource: {
+      sourceRevision: number;
+      text: string;
+      forcedFormat?: "json" | "jsonl";
+    } | null = null;
     constructor(...args: unknown[]) {
       this.isSearchWorker = String(args[0]).includes("search-worker");
     }
@@ -184,18 +189,38 @@ Object.assign(globalThis, {
       chunk?: string;
       done?: boolean;
       file?: File;
-      text?: string;
+      source?:
+        | {
+            kind: "content";
+            sourceRevision: number;
+            text: string;
+            forcedFormat?: "json" | "jsonl";
+          }
+        | { kind: "cached"; sourceRevision: number };
       query?: string;
       options?: unknown;
     }) {
       if (payload.type === "search-text") {
-        if (!this.isSearchWorker) {
+        if (!this.isSearchWorker || !payload.source) {
+          return;
+        }
+        if (payload.source.kind === "content") {
+          this.searchSource = {
+            sourceRevision: payload.source.sourceRevision,
+            text: payload.source.text,
+            ...(payload.source.forcedFormat ? { forcedFormat: payload.source.forcedFormat } : {}),
+          };
+        }
+        if (this.searchSource?.sourceRevision !== payload.source.sourceRevision) {
+          this.onmessage?.({
+            data: { type: "error", requestId: payload.requestId, message: "search failed" },
+          } as MessageEvent);
           return;
         }
         this.completeSearch(
           payload.requestId,
-          payload.text ?? "",
-          payload.forcedFormat,
+          this.searchSource.text,
+          this.searchSource.forcedFormat,
           payload.query ?? "",
           payload.options,
         );
