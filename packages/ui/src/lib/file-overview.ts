@@ -69,7 +69,7 @@ const addCount = (counts: Map<string, number>, key: string, count = 1) => {
 
 const classifyOverviewField = (
   key: string,
-  pathSegments: TreePathSegment[],
+  pathSegments: readonly TreePathSegment[],
 ): OverviewField | null => {
   const normalized = normalizeKey(key, false);
   if (normalized === "event" || normalized === "action") {

@@ -3,6 +3,7 @@ import type { JsonNode } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { walkJsonNode, walkRawJsonValue } from "../src/lib/json-walk";
 import type { JsonWalkContext } from "../src/lib/json-walk";
+import type { TreePathSegment } from "../src/lib/path-codec";
 
 const nodeFrom = (text: string): JsonNode =>
   parseInput(text, { forcedFormat: "json" }).records[0]!.node!;
@@ -17,13 +18,11 @@ describe("walkJsonNode", () => {
     const rawContexts: unknown[] = [];
     const selectContext = (ctx: {
       jsonPath: string;
-      jqPath: string;
       kind: string;
       childCount: number;
       stringifiedChain: string[];
     }) => ({
       jsonPath: ctx.jsonPath,
-      jqPath: ctx.jqPath,
       kind: ctx.kind,
       childCount: ctx.childCount,
       stringifiedChain: ctx.stringifiedChain,
@@ -39,14 +38,13 @@ describe("walkJsonNode", () => {
     expect(rawContexts).toEqual(nodeContexts);
   });
 
-  it("visits every node depth-first with json and jq paths", () => {
+  it("visits every node depth-first with JSON paths", () => {
     const node = nodeFrom('{"a":1,"b":[10,20]}');
-    const seen: { json: string; jq: string }[] = [];
+    const paths: string[] = [];
     walkJsonNode(node, (ctx) => {
-      seen.push({ json: ctx.jsonPath, jq: ctx.jqPath });
+      paths.push(ctx.jsonPath);
     });
-    expect(seen.map((s) => s.json)).toEqual(["$", "$.a", "$.b", "$.b[0]", "$.b[1]"]);
-    expect(seen.map((s) => s.jq)).toEqual([".", ".a", ".b", ".b[0]", ".b[1]"]);
+    expect(paths).toEqual(["$", "$.a", "$.b", "$.b[0]", "$.b[1]"]);
   });
 
   it("accumulates the stringified chain across nested stringified JSON", () => {
@@ -77,14 +75,19 @@ describe("walkJsonNode", () => {
   it("honors a non-root start path", () => {
     const node = nodeFrom("[5,6]");
     const paths: string[] = [];
+    const segmentPaths: string[][] = [];
+    const pathSegments = [{ kind: "key", value: "items" }] satisfies TreePathSegment[];
     walkJsonNode(
       node,
       (ctx) => {
         paths.push(ctx.jsonPath);
+        segmentPaths.push(ctx.pathSegments.map((segment) => segment.value));
       },
-      { jsonPath: "$.items", jqPath: ".items" },
+      { jsonPath: "$.items", pathSegments },
     );
     expect(paths).toEqual(["$.items", "$.items[0]", "$.items[1]"]);
+    expect(segmentPaths).toEqual([["items"], ["items", "0"], ["items", "1"]]);
+    expect(pathSegments).toEqual([{ kind: "key", value: "items" }]);
   });
 
   it("exposes path segments whose last kind distinguishes object vs array members", () => {

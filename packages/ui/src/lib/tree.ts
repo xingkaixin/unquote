@@ -19,7 +19,6 @@ export interface TreeRow {
   path: string[];
   pathText: string;
   jsonPath: string;
-  jqPath: string;
   stringifiedPathChain: string[];
   sourceState: NodeSourceState;
   depth: number;
@@ -47,7 +46,6 @@ const pushRows = (
   expandedStringifiedPaths: ReadonlySet<string>,
   recordId: string,
   jsonPath = "$",
-  jqPath = ".",
   stringifiedAncestors: string[] = [],
   parentKeyLabel = "$",
   depthOffset = 0,
@@ -69,7 +67,6 @@ const pushRows = (
         path,
         pathText: ctx.jsonPath,
         jsonPath: ctx.jsonPath,
-        jqPath: ctx.jqPath,
         stringifiedPathChain: [...ctx.stringifiedChain],
         sourceState,
         depth: Math.max(0, ctx.pathSegments.length - depthOffset),
@@ -83,7 +80,7 @@ const pushRows = (
       });
       return expanded;
     },
-    { jsonPath, jqPath, stringifiedAncestors },
+    { jsonPath, stringifiedAncestors },
   );
 };
 
@@ -128,7 +125,6 @@ const buildFocusedRecordRows = (
     expandedStringifiedPaths,
     record.id,
     resolved.target.jsonPath,
-    resolved.target.jqPath,
     stringifiedAncestors,
     resolved.target.rawKey,
     Math.max(0, resolved.target.path.length - 1),

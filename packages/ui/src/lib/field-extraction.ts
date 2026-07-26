@@ -17,7 +17,8 @@ import { getPrimitiveValue, normalizeKey } from "./record-fields";
 
 export interface FieldCandidate {
   key: string;
-  pathSegments: TreePathSegment[];
+  // Walk-scoped for parsed nodes; copy before retaining the candidate.
+  pathSegments: readonly TreePathSegment[];
   pathText: string;
   // null for object/array nodes; see ContainerCandidate for those.
   primitiveValue: string | null;
@@ -25,7 +26,8 @@ export interface FieldCandidate {
 
 export interface ContainerCandidate {
   key: string;
-  pathSegments: TreePathSegment[];
+  // Walk-scoped for parsed nodes; copy before retaining the candidate.
+  pathSegments: readonly TreePathSegment[];
   pathText: string;
   kind: "object" | "array";
   // Returns the primitive value of the first direct child whose normalized

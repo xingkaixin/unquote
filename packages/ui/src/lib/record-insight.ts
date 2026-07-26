@@ -73,7 +73,7 @@ const getErrorContainerFallback = (candidate: ContainerCandidate) => {
 
 const classifyInsightField = (
   key: string,
-  pathSegments: TreePathSegment[],
+  pathSegments: readonly TreePathSegment[],
 ): RecordInsightField | null => {
   const normalized = normalizeKey(key);
 
@@ -164,7 +164,7 @@ const addPrimitiveInsightHits = (
   key: string,
   value: string,
   pathText: string,
-  pathSegments: TreePathSegment[],
+  pathSegments: readonly TreePathSegment[],
 ) => {
   const field = classifyInsightField(key, pathSegments);
   if (!field) {

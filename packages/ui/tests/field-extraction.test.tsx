@@ -9,8 +9,10 @@ const walk = (record: JsonlRecord, trackNestedPaths = false) => {
   const containers: ContainerCandidate[] = [];
   const metrics = walkRecordFields(record, {
     trackNestedPaths,
-    onField: (candidate) => fields.push(candidate),
-    onContainer: (candidate) => containers.push(candidate),
+    onField: (candidate) =>
+      fields.push({ ...candidate, pathSegments: [...candidate.pathSegments] }),
+    onContainer: (candidate) =>
+      containers.push({ ...candidate, pathSegments: [...candidate.pathSegments] }),
   });
   return { fields, containers, metrics };
 };
@@ -49,6 +51,10 @@ describe("field-extraction", () => {
         expect.objectContaining({ key: "items", pathText: "$.items", kind: "array" }),
       ]),
     );
+    expect(fields.find((field) => field.pathText === "$.error.message")?.pathSegments).toEqual([
+      { kind: "key", value: "error" },
+      { kind: "key", value: "message" },
+    ]);
   });
 
   it("resolves a node container's direct child value by key, else null", () => {

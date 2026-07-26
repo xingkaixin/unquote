@@ -5,7 +5,7 @@ import {
   isStringifiedNode,
 } from "@unquote/core";
 import type { JsonKind, JsonNode } from "@unquote/core";
-import { appendJsonPathSegment, appendJqSelectorSegment } from "./path-codec";
+import { appendJsonPathSegment } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 
 interface ResolvedJsonValue<T> {
@@ -27,9 +27,9 @@ export interface JsonValueWalkContext<T> {
   childCount: number;
   valueLength?: number;
   jsonPath: string;
-  jqPath: string;
   stringifiedChain: string[];
-  pathSegments: TreePathSegment[];
+  // Shared walk-scoped view; copy before retaining it beyond the visitor call.
+  pathSegments: readonly TreePathSegment[];
 }
 
 export type JsonWalkContext = JsonValueWalkContext<JsonNode>;
@@ -38,9 +38,8 @@ type RawJsonValueVisitor = (ctx: JsonValueWalkContext<unknown>) => boolean | voi
 
 export interface JsonWalkStart {
   jsonPath?: string;
-  jqPath?: string;
   stringifiedAncestors?: string[];
-  pathSegments?: TreePathSegment[];
+  pathSegments?: readonly TreePathSegment[];
 }
 
 const childCountFor = (kind: JsonKind, value: unknown) => {
@@ -210,14 +209,9 @@ const walkJsonValue = <T>(
   visit: (ctx: JsonValueWalkContext<T>) => boolean | void,
   start: JsonWalkStart,
 ) => {
-  const walk = (
-    node: T,
-    jsonPath: string,
-    jqPath: string,
-    stringifiedAncestors: string[],
-    pathSegments: TreePathSegment[],
-    depth: number,
-  ) => {
+  const pathSegments = [...(start.pathSegments ?? [])];
+
+  function walk(node: T, jsonPath: string, stringifiedAncestors: string[], depth: number) {
     const resolved = resolveValue(node, depth);
     const stringifiedChain = resolved.wasStringified
       ? [...stringifiedAncestors, jsonPath]
@@ -229,7 +223,6 @@ const walkJsonValue = <T>(
       childCount: resolved.childCount,
       ...(typeof resolved.valueLength === "number" ? { valueLength: resolved.valueLength } : {}),
       jsonPath,
-      jqPath,
       stringifiedChain,
       pathSegments,
     } satisfies JsonValueWalkContext<T>;
@@ -241,39 +234,22 @@ const walkJsonValue = <T>(
     if (Array.isArray(resolved.children)) {
       resolved.children.forEach((child, index) => {
         const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-        walk(
-          child,
-          appendJsonPathSegment(jsonPath, segment),
-          appendJqSelectorSegment(jqPath, segment),
-          stringifiedChain,
-          [...pathSegments, segment],
-          depth + 1,
-        );
+        pathSegments.push(segment);
+        walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+        pathSegments.pop();
       });
       return;
     }
 
     for (const [key, child] of Object.entries(resolved.children)) {
       const segment = { kind: "key", value: key } satisfies TreePathSegment;
-      walk(
-        child,
-        appendJsonPathSegment(jsonPath, segment),
-        appendJqSelectorSegment(jqPath, segment),
-        stringifiedChain,
-        [...pathSegments, segment],
-        depth + 1,
-      );
+      pathSegments.push(segment);
+      walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+      pathSegments.pop();
     }
-  };
+  }
 
-  walk(
-    root,
-    start.jsonPath ?? "$",
-    start.jqPath ?? ".",
-    start.stringifiedAncestors ?? [],
-    start.pathSegments ?? [],
-    0,
-  );
+  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? [], 0);
 };
 
 const formatStringLabel = (
