@@ -19,7 +19,6 @@ const buildEntry = (index: number): AgentConversationEntry => ({
     id: `event-${index}`,
     recordId: `record-${index}`,
     lineNumber: index + 1,
-    rawLine: `{"index":${index}}`,
     category: "assistant",
     kind: "message",
     label: `Event ${index}`,

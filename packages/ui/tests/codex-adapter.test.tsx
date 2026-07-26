@@ -6,7 +6,6 @@ import type { ParsedAgentLine } from "../src/lib/agent-session";
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
-  raw: JSON.stringify(data),
 });
 
 const conversationItems = (session: AgentSession) =>

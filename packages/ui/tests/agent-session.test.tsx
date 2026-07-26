@@ -8,7 +8,6 @@ import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
   lineNumber,
-  raw: JSON.stringify(data),
   data,
 });
 
@@ -32,17 +31,18 @@ describe("createAgentSessionTracker", () => {
     tracker.pushParseWarning(2);
     tracker.pushParsedLine({
       lineNumber: 4,
-      raw: sessionMeta,
       data: JSON.parse(sessionMeta) as unknown,
     });
 
-    expect(tracker.finish()).toMatchObject({
+    const session = tracker.finish();
+    expect(session).toMatchObject({
       fileType: "Codex",
       fileName: "stream.jsonl",
       meta: { sessionId: "stream-session", eventCount: 1 },
-      events: [{ lineNumber: 4, rawLine: sessionMeta }],
+      events: [{ lineNumber: 4 }],
       parseWarnings: [{ lineNumber: 2, message: "Invalid JSON on this line" }],
     });
+    expect(session?.events[0]).not.toHaveProperty("rawLine");
   });
 
   it("locks in confident detection after twenty samples", () => {
@@ -158,7 +158,6 @@ describe("agent session", () => {
       "tool_call",
       "tool_result",
     ]);
-    expect(session?.events[4]?.rawLine).toContain(`"call_id":"${callId}"`);
     expect(items[2]?.block).toMatchObject({
       toolName: "exec_command",
       toolCallId: callId,
@@ -216,7 +215,9 @@ describe("agent session", () => {
       ),
     ];
 
-    const session = createAgentSessionFromText(samples.map((sample) => sample.raw).join("\n"));
+    const session = createAgentSessionFromText(
+      samples.map((sample) => JSON.stringify(sample.data)).join("\n"),
+    );
     expect(session).toMatchObject({
       fileType: "Claude Code",
       meta: {

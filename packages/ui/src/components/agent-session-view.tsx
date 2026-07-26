@@ -36,6 +36,7 @@ interface AgentSessionViewProps {
   recordView: RecordViewModel;
   detailSelection: AgentDetailSelection | null;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
+  readRawLine?: (lineNumber: number, signal: AbortSignal) => Promise<string>;
 }
 
 const metricItems = (
@@ -64,6 +65,7 @@ const RawJsonlPanel = ({
   focusedPath,
   onCollapse,
   actions,
+  readRawLine,
 }: {
   event: AgentTimelineEvent;
   item: AgentConversationItem | undefined;
@@ -74,6 +76,7 @@ const RawJsonlPanel = ({
   focusedPath: { recordId: string; pathText: string } | null;
   onCollapse: () => void;
   actions: RecordViewActions;
+  readRawLine: ((lineNumber: number, signal: AbortSignal) => Promise<string>) | undefined;
 }) => {
   const { locale, t } = useTranslation();
   const role = item ? roleConfig(item.role, t) : null;
@@ -82,6 +85,27 @@ const RawJsonlPanel = ({
   const CategoryIcon = category.icon;
   const recordId = event.recordId;
   const timestamp = formatTimestamp(event.timestamp, event.timestampLabel, locale);
+  const [loadedRawLine, setLoadedRawLine] = useState<{ eventId: string; text: string } | null>(
+    null,
+  );
+  const rawLine = loadedRawLine?.eventId === event.id ? loadedRawLine.text : event.preview;
+  const rawLinePending = !record && Boolean(readRawLine) && loadedRawLine?.eventId !== event.id;
+
+  useEffect(() => {
+    if (record || !readRawLine) {
+      return;
+    }
+
+    const controller = new AbortController();
+    void readRawLine(event.lineNumber, controller.signal)
+      .then((text) => {
+        if (!controller.signal.aborted) {
+          setLoadedRawLine({ eventId: event.id, text });
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [event.id, event.lineNumber, readRawLine, record]);
 
   return (
     <section
@@ -136,8 +160,11 @@ const RawJsonlPanel = ({
             actions={actions}
           />
         ) : (
-          <pre className="max-h-[64vh] min-h-[12rem] overflow-auto border border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary">
-            {event.rawLine}
+          <pre
+            aria-busy={rawLinePending}
+            className="max-h-[64vh] min-h-[12rem] overflow-auto border border-border bg-surface-50 px-3 py-2 font-mono text-[11.5px] leading-5 text-text-primary"
+          >
+            {rawLine}
           </pre>
         )}
       </div>
@@ -151,6 +178,7 @@ export const AgentSessionView = ({
   recordView,
   detailSelection,
   onDetailSelectionChange,
+  readRawLine,
 }: AgentSessionViewProps) => {
   const {
     state: {
@@ -286,6 +314,7 @@ export const AgentSessionView = ({
       focusedPath={focusedPath}
       onCollapse={() => setDetailOpen(false)}
       actions={actions}
+      readRawLine={readRawLine}
     />
   ) : null;
 

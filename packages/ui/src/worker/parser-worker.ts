@@ -145,7 +145,6 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
   if ("value" in parsedLine) {
     session.agentTracker.pushParsedLine({
       lineNumber: session.lineNumber,
-      raw: line,
       data: parsedLine.value,
     });
   } else {

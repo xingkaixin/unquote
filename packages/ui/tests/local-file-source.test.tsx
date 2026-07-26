@@ -64,7 +64,7 @@ describe("local-file-source", () => {
 
   it("resolves preview records and raw copy text through the source interface", async () => {
     const access = createLocalFileAccess(
-      makeStreamedFile('{"value":1}\ninvalid json\n', "records.jsonl"),
+      makeStreamedFile(' { "value": 1 } \ninvalid json\n', "records.jsonl"),
     );
     const preview = parsePreviewJsonlRecordLine('{"value":1}', 1);
     const failedPreview = parsePreviewJsonlRecordLine("invalid json", 2);
@@ -74,6 +74,8 @@ describe("local-file-source", () => {
     expect(resolved.map((record) => record.status)).toEqual(["full", "failed"]);
     await expect(access.readRecordText(preview)).resolves.toBe('{"value":1}');
     await expect(access.readRecordText(failedPreview)).resolves.toBe("invalid json");
+    await expect(access.readRecordTextByLine(1)).resolves.toBe(' { "value": 1 } ');
+    await expect(access.readRecordTextByLine(2)).resolves.toBe("invalid json");
   });
 
   it("returns an empty map when no lines are requested", async () => {

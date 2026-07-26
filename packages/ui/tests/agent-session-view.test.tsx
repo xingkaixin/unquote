@@ -1,5 +1,5 @@
 import { parseInput } from "@unquote/core";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionView } from "../src/components/agent-session-view";
@@ -31,7 +31,6 @@ const session: AgentSession = {
       id: "event-1",
       recordId: "record-1",
       lineNumber: 1,
-      rawLine: rawLines[0]!,
       category: "meta",
       kind: "session_meta",
       label: "Session metadata",
@@ -43,7 +42,6 @@ const session: AgentSession = {
       id: "event-2",
       recordId: "record-2",
       lineNumber: 2,
-      rawLine: rawLines[1]!,
       category: "user",
       kind: "message",
       label: "User message",
@@ -62,7 +60,6 @@ const session: AgentSession = {
       id: "event-3",
       recordId: "record-3",
       lineNumber: 3,
-      rawLine: rawLines[2]!,
       category: "unknown",
       kind: "invalid",
       label: "Invalid line",
@@ -258,7 +255,8 @@ describe("AgentSessionView", () => {
     );
   });
 
-  it("falls back to the event raw line when its record is unavailable", () => {
+  it("loads the raw line on demand when its record is unavailable", async () => {
+    const readRawLine = vi.fn().mockResolvedValue(rawLines[2]);
     renderView(
       {
         detailSelection: { kind: "event", id: "event-3", recordId: "record-3" },
@@ -266,11 +264,17 @@ describe("AgentSessionView", () => {
           ["record-1", records[0]!],
           ["record-2", records[1]!],
         ]),
+        readRawLine,
       },
       { selectedPath: null, focusedPath: null },
     );
 
-    expect(screen.getByRole("complementary", { name: "Raw JSONL" })).toHaveTextContent("not json");
+    await waitFor(() =>
+      expect(screen.getByRole("complementary", { name: "Raw JSONL" })).toHaveTextContent(
+        "not json",
+      ),
+    );
+    expect(readRawLine).toHaveBeenCalledWith(3, expect.any(AbortSignal));
     expect(screen.queryByRole("button", { name: "Copy raw line" })).not.toBeInTheDocument();
   });
 

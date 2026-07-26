@@ -99,7 +99,6 @@ export const createBaseEvent = (
   id: `line-${line.lineNumber}`,
   recordId: getRecordId(line.lineNumber),
   lineNumber: line.lineNumber,
-  rawLine: line.raw,
   category,
   kind,
   label,

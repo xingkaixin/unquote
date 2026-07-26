@@ -106,7 +106,7 @@ export const createAgentSessionTracker = (fileName?: string) => {
       }
 
       try {
-        pushParsedLine({ lineNumber, raw, data: JSON.parse(raw) as unknown });
+        pushParsedLine({ lineNumber, data: JSON.parse(raw) as unknown });
       } catch {
         pushParseWarning(lineNumber);
       }
