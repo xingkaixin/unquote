@@ -29,6 +29,22 @@ const isJsonContainer = (value: unknown) => value !== null && typeof value === "
 
 export const parseJson = (input: string) => JSON.parse(input) as unknown;
 
+const isHighSurrogate = (codeUnit: number) => codeUnit >= 0xd800 && codeUnit <= 0xdbff;
+const isLowSurrogate = (codeUnit: number) => codeUnit >= 0xdc00 && codeUnit <= 0xdfff;
+
+export const truncateAtCodePointBoundary = (value: string, maxLength: number) => {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  if (maxLength <= 0) {
+    return "";
+  }
+
+  const splitsSurrogatePair =
+    isHighSurrogate(value.charCodeAt(maxLength - 1)) && isLowSurrogate(value.charCodeAt(maxLength));
+  return value.slice(0, splitsSurrogatePair ? maxLength - 1 : maxLength);
+};
+
 export interface JsonlProbeResult {
   sampledLines: number;
   parsableLines: number;
@@ -88,7 +104,7 @@ export const extractSummary = (value: unknown) => {
   const parts = SUMMARY_KEYS.flatMap((key) => {
     const field = objectValue[key];
     if (typeof field === "string" && field.trim()) {
-      return `${key}:${field.trim().slice(0, 48)}`;
+      return `${key}:${truncateAtCodePointBoundary(field.trim(), 48)}`;
     }
     if (typeof field === "number" || typeof field === "boolean") {
       return `${key}:${String(field)}`;
@@ -102,7 +118,7 @@ export const extractSummary = (value: unknown) => {
 
   for (const [key, field] of Object.entries(objectValue)) {
     if (typeof field === "string" && field.trim()) {
-      return `${key}:${field.trim().slice(0, 72)}`;
+      return `${key}:${truncateAtCodePointBoundary(field.trim(), 72)}`;
     }
     if (typeof field === "number" || typeof field === "boolean") {
       return `${key}:${String(field)}`;
@@ -122,7 +138,7 @@ const summarizePrimitive = (value: unknown) => {
   }
 
   if (typeof value === "string") {
-    return value.slice(0, 72) || '""';
+    return truncateAtCodePointBoundary(value, 72) || '""';
   }
 
   return String(value);

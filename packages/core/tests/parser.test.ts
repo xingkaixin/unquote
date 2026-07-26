@@ -61,6 +61,13 @@ describe("parseInput", () => {
     expect(result.records[1]?.error).toBeTruthy();
   });
 
+  it("does not split surrogate pairs in failed-record summaries", () => {
+    const prefix = "a".repeat(71);
+    const result = parseInput(`${prefix}😀{`, { forcedFormat: "jsonl" });
+
+    expect(result.records[0]?.summary).toBe(prefix);
+  });
+
   it("keeps forced json as a single error record for jsonl-shaped input", () => {
     const result = parseInput('{"a":1}\n{"a":2}', { forcedFormat: "json" });
     expect(result.format).toBe("json");
@@ -81,6 +88,14 @@ describe("parseInput", () => {
     expect(record?.rawLine).toBe(" bad");
     expect(record?.errorMeta?.context).toContain("2 |  bad");
     expect(record?.errorMeta?.context).toContain("^");
+  });
+
+  it("does not split surrogate pairs in parse-error context lines", () => {
+    const prefix = "a".repeat(155);
+    const previousLine = `"${prefix}😀tail",`;
+    const result = parseInput(`[\n${previousLine}\n bad\n]`);
+
+    expect(JSON.stringify(result.records[0]?.errorMeta?.context)).not.toContain("\\ud83d");
   });
 
   it("returns jsonl failure metadata and keeps valid records in auto mode", () => {
@@ -147,6 +162,21 @@ describe("parseInput", () => {
     expect(record.summary).toBe("event:two");
   });
 
+  it("does not split surrogate pairs in record summaries", () => {
+    const preferredPrefix = "a".repeat(47);
+    const fallbackPrefix = "b".repeat(71);
+
+    expect(
+      parseJsonlRecordLine(JSON.stringify({ message: `${preferredPrefix}😀tail` }), 1).summary,
+    ).toBe(`message:${preferredPrefix}`);
+    expect(
+      parseJsonlRecordLine(JSON.stringify({ description: `${fallbackPrefix}😀tail` }), 2).summary,
+    ).toBe(`description:${fallbackPrefix}`);
+    expect(parseJsonlRecordLine(JSON.stringify(`${fallbackPrefix}😀tail`), 3).summary).toBe(
+      fallbackPrefix,
+    );
+  });
+
   it("returns parsed JSONL values with full and preview records", () => {
     const line = '{"event":"two","count":2}';
     const full = parseJsonlRecordLineWithValue(line, 7);
@@ -196,6 +226,18 @@ describe("parseInput", () => {
     expect(isStringifiedNode(hydrated.node.children.nested!)).toBe(true);
     expect(isStringifiedNode(hydrated.node.children.primitive!)).toBe(true);
     expect(isStringifiedNode(hydrated.node.children.invalid!)).toBe(false);
+  });
+
+  it("does not split a surrogate pair in Preview Record fields", () => {
+    const prefix = "a".repeat(159);
+    const preview = parsePreviewJsonlRecordLine(JSON.stringify({ message: `${prefix}😀tail` }), 7);
+    const message = preview.preview?.fields.message;
+    if (typeof message !== "string") {
+      throw new Error("Expected a string preview field");
+    }
+
+    expect(JSON.stringify(message)).not.toContain("\\ud83d");
+    expect(message).toBe(prefix);
   });
 
   it("keeps Preview Record root string semantics aligned with Full Records", () => {

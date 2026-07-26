@@ -14,7 +14,14 @@ import type {
   PreviewJsonNode,
 } from "./types.js";
 import { isFailedRecord, isParsed } from "./records.js";
-import { DEFAULT_MAX_DEPTH, extractSummary, getJsonKind, parseJson, probeJsonl } from "./utils.js";
+import {
+  DEFAULT_MAX_DEPTH,
+  extractSummary,
+  getJsonKind,
+  parseJson,
+  probeJsonl,
+  truncateAtCodePointBoundary,
+} from "./utils.js";
 
 const maxPreviewStringLength = 160;
 
@@ -137,7 +144,7 @@ const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, ke
 };
 
 const truncatePreviewString = (value: string) =>
-  value.length > maxPreviewStringLength ? value.slice(0, maxPreviewStringLength) : value;
+  truncateAtCodePointBoundary(value, maxPreviewStringLength);
 
 const projectPreviewNode = (node: FullJsonNode): PreviewJsonNode => {
   if (node.rawString !== undefined) {
@@ -238,7 +245,7 @@ const createParseErrorRecord = (
     error: getErrorMessage(error),
     errorMeta,
     rawLine: line,
-    summary: line.slice(0, 72),
+    summary: truncateAtCodePointBoundary(line, 72),
   };
 };
 
@@ -562,20 +569,30 @@ const getContextLine = (line: string, column?: number) => {
   }
 
   if (typeof column !== "number") {
-    return { text: `${line.slice(0, contextLineLength - 3)}...`, column };
+    return {
+      text: `${truncateAtCodePointBoundary(line, contextLineLength - 3)}...`,
+      column,
+    };
   }
 
   const zeroColumn = Math.max(0, column - 1);
-  const start = Math.min(
+  const initialStart = Math.min(
     Math.max(0, zeroColumn - contextLineRadius),
     Math.max(0, line.length - contextLineLength),
   );
-  const end = Math.min(line.length, start + contextLineLength);
+  const startsInsideSurrogatePair =
+    initialStart > 0 && (line.codePointAt(initialStart - 1) ?? 0) > 0xffff;
+  const start = startsInsideSurrogatePair ? initialStart + 1 : initialStart;
+  const visibleLine = truncateAtCodePointBoundary(
+    line.slice(start, start + contextLineLength + 1),
+    contextLineLength,
+  );
+  const end = start + visibleLine.length;
   const prefix = start > 0 ? "..." : "";
   const suffix = end < line.length ? "..." : "";
 
   return {
-    text: `${prefix}${line.slice(start, end)}${suffix}`,
+    text: `${prefix}${visibleLine}${suffix}`,
     column: column - start + prefix.length,
   };
 };
