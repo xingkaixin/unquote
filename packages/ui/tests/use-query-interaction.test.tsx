@@ -56,6 +56,10 @@ describe("useQueryInteraction", () => {
       recordFilter: "matches",
       matchCount: 2,
       currentMatchIndex: 0,
+      activeSearchMatch: {
+        recordId: "record-1",
+        pathText: "$.payload",
+      },
     });
     expect(query.current.snapshot.visibleRecords).toHaveLength(2);
     onNavigate.mockClear();
@@ -65,6 +69,10 @@ describe("useQueryInteraction", () => {
     expect(onNavigate).toHaveBeenLastCalledWith({
       sourceRevision: 0,
       kind: "search",
+      recordId: "record-2",
+      pathText: "$.payload",
+    });
+    expect(query.current.snapshot.activeSearchMatch).toMatchObject({
       recordId: "record-2",
       pathText: "$.payload",
     });
@@ -106,6 +114,7 @@ describe("useQueryInteraction", () => {
     const { result: query } = renderQuery(onNavigate);
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
+    expect(query.current.snapshot.activeSearchMatch).toBeNull();
     expect(onNavigate).toHaveBeenLastCalledWith({
       sourceRevision: 0,
       kind: "path",

@@ -151,27 +151,6 @@ describe("reduceWorkspaceSelection", () => {
     expect(state).toBe(current);
   });
 
-  it("resets transient selection while retaining the active record", () => {
-    const state = reduceWorkspaceSelection(createPopulatedState(), {
-      type: "resetTransientSelection",
-    });
-
-    expect(state).toEqual({
-      activeRecordId: "record-1",
-      detailSelection: null,
-      selectedPath: null,
-      focusedPath: null,
-      scrollIntent: null,
-    });
-  });
-
-  it("preserves state when transient selection is already reset", () => {
-    const current = createInitialWorkspaceSelectionState();
-    const state = reduceWorkspaceSelection(current, { type: "resetTransientSelection" });
-
-    expect(state).toBe(current);
-  });
-
   it("clears focus and scroll intents independently", () => {
     const withoutFocus = reduceWorkspaceSelection(createPopulatedState(), {
       type: "clearFocusedPath",

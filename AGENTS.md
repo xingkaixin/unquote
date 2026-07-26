@@ -150,11 +150,13 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-local-file-source.ts` | Browse-time state for local JSONL files: batched Preview-to-Full Record requests, Full Record cache eviction, copy/export resolution, and abort handling. |
 | `hooks/use-global-shortcuts.ts` | Owns document-level command palette, search navigation, expansion, and escape-key shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
+| `hooks/use-output-view.ts` | Owns Agent/JSON output selection and resets it when the detected Agent session identity changes. |
 | `hooks/use-search-worker.ts` | Runs search off the main thread with cancellation and a time budget for superseded queries, with an in-process fallback when workers are unavailable. |
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
 | `hooks/use-record-pipeline.ts` | Derives record lookup, insight, overview, filtered records and stats, plus visible search matches from a parse result and query state. |
-| `hooks/use-workspace-session.ts` | Owns record/node/Agent-detail selection, focus and scroll intent, plus user and search-driven Stringified JSON expansion state. |
+| `hooks/use-workspace-query-binding.ts` | Synchronizes query matches and visible records into the workspace while preserving focus semantics. |
+| `hooks/use-workspace-session.ts` | Owns revision-scoped record/node/Agent-detail selection, focus, scroll intent, query navigation, and Stringified JSON expansion state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
 ### Tree Utilities (`lib/tree.ts`)

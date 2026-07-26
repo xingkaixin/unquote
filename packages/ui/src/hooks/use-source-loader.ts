@@ -2,6 +2,7 @@ import { useCallback, useReducer, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { writeClipboardText } from "../lib/clipboard";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
+import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -27,8 +28,6 @@ interface UseSourceLoaderParams {
   onRequestOpenFile?:
     | (() => Promise<File | string | null> | File | string | null | void)
     | undefined;
-  // Reset source-scoped workspace state before publishing the new source.
-  onReset: () => void;
   onCollapseSource: () => void;
   // Called when a file read fails, so the caller can surface it (e.g. a toast).
   // The hook does not rethrow — InputPane invokes onFileDrop fire-and-forget,
@@ -42,7 +41,6 @@ export const useSourceLoader = ({
   initialInput,
   onReadFile,
   onRequestOpenFile,
-  onReset,
   onCollapseSource,
   onError,
   onCopyError,
@@ -51,6 +49,7 @@ export const useSourceLoader = ({
   const [mode, setMode] = useState<SourceMode>("auto");
   const modeRef = useRef<SourceMode>(mode);
   const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
+  const sourceRevisionRef = useRef<SourceRevision>(sourceRevision);
   const fileImportIdRef = useRef(0);
 
   const publishedSource = sourceState.kind === "reading" ? sourceState.previousSource : sourceState;
@@ -74,17 +73,21 @@ export const useSourceLoader = ({
     (sourceMode === "jsonl" ||
       (sourceMode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
 
+  const publishSourceRevision = () => {
+    sourceRevisionRef.current += 1;
+    incrementSourceRevision();
+    return sourceRevisionRef.current;
+  };
+
   const publishStreamingFile = (file: File) => {
     setSourceState({ kind: "streaming", access: createLocalFileAccess(file) });
-    onReset();
-    incrementSourceRevision();
+    publishSourceRevision();
     onCollapseSource();
   };
 
   const publishImportedFile = (file: File, text: string) => {
     setSourceState({ kind: "imported", file, text });
-    onReset();
-    incrementSourceRevision();
+    publishSourceRevision();
     if (text.length > largeSourceCollapseBytes) {
       onCollapseSource();
     }
@@ -93,11 +96,11 @@ export const useSourceLoader = ({
   const onSourceChange = (value: string) => {
     fileImportIdRef.current += 1;
     setSourceState({ kind: "text", text: value });
-    onReset();
-    incrementSourceRevision();
+    const nextRevision = publishSourceRevision();
     if (value.length > largeSourceCollapseBytes) {
       onCollapseSource();
     }
+    return nextRevision;
   };
 
   const onFileDrop = async (file: File) => {
@@ -171,8 +174,7 @@ export const useSourceLoader = ({
       return;
     }
 
-    onReset();
-    incrementSourceRevision();
+    publishSourceRevision();
   };
 
   const onOpenFile = async () => {

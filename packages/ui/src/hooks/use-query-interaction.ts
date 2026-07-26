@@ -13,26 +13,19 @@ import type {
   QueryInteractionState,
   SearchOptionKind,
 } from "../lib/query-interaction";
+import type { QueryNavigationTarget } from "../lib/query-navigation";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { resolveTreePathMatches } from "../lib/tree";
-import type { ResolvedTreePath, SearchOptions } from "../lib/tree";
+import type { SearchOptions } from "../lib/tree";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
 export const memorySearchDebounceMs = 120;
 export const localFileSearchDebounceMs = 250;
 
-export type QueryNavigationTarget =
-  | { sourceRevision: SourceRevision; kind: "clear" }
-  | { sourceRevision: SourceRevision; kind: "path"; target: ResolvedTreePath }
-  | {
-      sourceRevision: SourceRevision;
-      kind: "search";
-      recordId: string;
-      pathText: string;
-    };
+export type { QueryNavigationTarget } from "../lib/query-navigation";
 
 interface UseQueryInteractionOptions {
   sourceRevision: SourceRevision;
@@ -335,6 +328,7 @@ export const useQueryInteraction = ({
       pathMatches: state.pathMatches,
       currentPathMatchIndex: state.currentPathMatchIndex,
       currentMatchIndex,
+      activeSearchMatch,
       mode,
       searchStatus: revisionsAligned ? searchWorker.status : state.searchQuery ? "pending" : "idle",
       searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,
