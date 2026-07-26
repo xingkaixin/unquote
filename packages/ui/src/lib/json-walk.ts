@@ -28,7 +28,8 @@ export interface JsonValueWalkContext<T> {
   valueLength?: number;
   jsonPath: string;
   stringifiedChain: string[];
-  pathSegments: TreePathSegment[];
+  // Shared walk-scoped view; copy before retaining it beyond the visitor call.
+  pathSegments: readonly TreePathSegment[];
 }
 
 export type JsonWalkContext = JsonValueWalkContext<JsonNode>;
@@ -38,7 +39,7 @@ type RawJsonValueVisitor = (ctx: JsonValueWalkContext<unknown>) => boolean | voi
 export interface JsonWalkStart {
   jsonPath?: string;
   stringifiedAncestors?: string[];
-  pathSegments?: TreePathSegment[];
+  pathSegments?: readonly TreePathSegment[];
 }
 
 const childCountFor = (kind: JsonKind, value: unknown) => {
@@ -208,13 +209,9 @@ const walkJsonValue = <T>(
   visit: (ctx: JsonValueWalkContext<T>) => boolean | void,
   start: JsonWalkStart,
 ) => {
-  const walk = (
-    node: T,
-    jsonPath: string,
-    stringifiedAncestors: string[],
-    pathSegments: TreePathSegment[],
-    depth: number,
-  ) => {
+  const pathSegments = [...(start.pathSegments ?? [])];
+
+  function walk(node: T, jsonPath: string, stringifiedAncestors: string[], depth: number) {
     const resolved = resolveValue(node, depth);
     const stringifiedChain = resolved.wasStringified
       ? [...stringifiedAncestors, jsonPath]
@@ -237,30 +234,22 @@ const walkJsonValue = <T>(
     if (Array.isArray(resolved.children)) {
       resolved.children.forEach((child, index) => {
         const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-        walk(
-          child,
-          appendJsonPathSegment(jsonPath, segment),
-          stringifiedChain,
-          [...pathSegments, segment],
-          depth + 1,
-        );
+        pathSegments.push(segment);
+        walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+        pathSegments.pop();
       });
       return;
     }
 
     for (const [key, child] of Object.entries(resolved.children)) {
       const segment = { kind: "key", value: key } satisfies TreePathSegment;
-      walk(
-        child,
-        appendJsonPathSegment(jsonPath, segment),
-        stringifiedChain,
-        [...pathSegments, segment],
-        depth + 1,
-      );
+      pathSegments.push(segment);
+      walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+      pathSegments.pop();
     }
-  };
+  }
 
-  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? [], start.pathSegments ?? [], 0);
+  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? [], 0);
 };
 
 const formatStringLabel = (

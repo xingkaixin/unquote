@@ -16,5 +16,5 @@ export const getPrimitiveValue = (node: JsonNode): string | null => {
 
 // A bare `name` field denotes a tool/function when its path passes through a
 // tool/function-ish segment.
-export const isToolContext = (segments: TreePathSegment[]) =>
+export const isToolContext = (segments: readonly TreePathSegment[]) =>
   segments.some((segment) => /tool|function/i.test(segment.value));

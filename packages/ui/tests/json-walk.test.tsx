@@ -3,6 +3,7 @@ import type { JsonNode } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { walkJsonNode, walkRawJsonValue } from "../src/lib/json-walk";
 import type { JsonWalkContext } from "../src/lib/json-walk";
+import type { TreePathSegment } from "../src/lib/path-codec";
 
 const nodeFrom = (text: string): JsonNode =>
   parseInput(text, { forcedFormat: "json" }).records[0]!.node!;
@@ -74,14 +75,19 @@ describe("walkJsonNode", () => {
   it("honors a non-root start path", () => {
     const node = nodeFrom("[5,6]");
     const paths: string[] = [];
+    const segmentPaths: string[][] = [];
+    const pathSegments = [{ kind: "key", value: "items" }] satisfies TreePathSegment[];
     walkJsonNode(
       node,
       (ctx) => {
         paths.push(ctx.jsonPath);
+        segmentPaths.push(ctx.pathSegments.map((segment) => segment.value));
       },
-      { jsonPath: "$.items" },
+      { jsonPath: "$.items", pathSegments },
     );
     expect(paths).toEqual(["$.items", "$.items[0]", "$.items[1]"]);
+    expect(segmentPaths).toEqual([["items"], ["items", "0"], ["items", "1"]]);
+    expect(pathSegments).toEqual([{ kind: "key", value: "items" }]);
   });
 
   it("exposes path segments whose last kind distinguishes object vs array members", () => {
