@@ -8,11 +8,19 @@ const largeSourceCollapseBytes = 1_000_000;
 
 type SourceMode = "auto" | "json" | "jsonl";
 
-type SourceState =
+type PublishedSourceState =
   | { kind: "text"; text: string }
-  | { kind: "reading"; file: File; progress: number | null; prevText: string }
   | { kind: "imported"; file: File; text: string }
   | { kind: "streaming"; file: File };
+
+type SourceState =
+  | PublishedSourceState
+  | {
+      kind: "reading";
+      file: File;
+      progress: number | null;
+      previousSource: PublishedSourceState;
+    };
 
 interface UseSourceLoaderParams {
   initialInput: string;
@@ -21,8 +29,6 @@ interface UseSourceLoaderParams {
     | (() => Promise<File | string | null> | File | string | null | void)
     | undefined;
   // Reset source-scoped workspace state before publishing the new source.
-  // Query state observes sourceRevision because its pipeline is initialized
-  // downstream from this hook.
   onReset: () => void;
   onCollapseSource: () => void;
   // Called when a file read fails, so the caller can surface it (e.g. a toast).
@@ -48,13 +54,12 @@ export const useSourceLoader = ({
   const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
   const fileImportIdRef = useRef(0);
 
+  const publishedSource = sourceState.kind === "reading" ? sourceState.previousSource : sourceState;
   const sourceText =
-    sourceState.kind === "text" || sourceState.kind === "imported"
-      ? sourceState.text
-      : sourceState.kind === "reading"
-        ? sourceState.prevText
-        : "";
-  const sourceFile = sourceState.kind === "streaming" ? sourceState.file : null;
+    publishedSource.kind === "text" || publishedSource.kind === "imported"
+      ? publishedSource.text
+      : "";
+  const sourceFile = publishedSource.kind === "streaming" ? publishedSource.file : null;
   const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
@@ -99,8 +104,12 @@ export const useSourceLoader = ({
   const onFileDrop = async (file: File) => {
     const requestId = fileImportIdRef.current + 1;
     fileImportIdRef.current = requestId;
-    const prevText = sourceText;
-    setSourceState({ kind: "reading", file, progress: onReadFile ? null : 0, prevText });
+    setSourceState({
+      kind: "reading",
+      file,
+      progress: onReadFile ? null : 0,
+      previousSource: publishedSource,
+    });
 
     if (shouldStreamFile(file, modeRef.current)) {
       publishStreamingFile(file);
@@ -123,9 +132,7 @@ export const useSourceLoader = ({
         return;
       }
 
-      setSourceState((prev) =>
-        prev.kind === "reading" ? { kind: "text", text: prev.prevText } : prev,
-      );
+      setSourceState((prev) => (prev.kind === "reading" ? prev.previousSource : prev));
       onError(error);
       return;
     }
@@ -143,18 +150,26 @@ export const useSourceLoader = ({
   };
 
   const setSourceMode = (nextMode: SourceMode) => {
-    modeRef.current = nextMode;
-    setMode(nextMode);
-
-    if (sourceState.kind === "streaming" && !shouldStreamFile(sourceState.file, nextMode)) {
-      void onFileDrop(sourceState.file);
+    if (modeRef.current === nextMode) {
       return;
     }
 
-    if (sourceState.kind === "imported" && shouldStreamFile(sourceState.file, nextMode)) {
-      fileImportIdRef.current += 1;
-      publishStreamingFile(sourceState.file);
+    modeRef.current = nextMode;
+    setMode(nextMode);
+
+    if (publishedSource.kind === "streaming" && !shouldStreamFile(publishedSource.file, nextMode)) {
+      void onFileDrop(publishedSource.file);
+      return;
     }
+
+    if (publishedSource.kind === "imported" && shouldStreamFile(publishedSource.file, nextMode)) {
+      fileImportIdRef.current += 1;
+      publishStreamingFile(publishedSource.file);
+      return;
+    }
+
+    onReset();
+    incrementSourceRevision();
   };
 
   const onOpenFile = async () => {

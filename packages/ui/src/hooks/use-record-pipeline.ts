@@ -6,10 +6,12 @@ import { hasUnchangedArrayPrefix } from "../lib/partial-record-cache";
 import { createRecordDerivationState, updateRecordDerivations } from "../lib/record-derivation";
 import type { RecordInsight } from "../lib/record-insight";
 import type { QueryInteractionState } from "../lib/query-interaction";
+import type { SourceRevision } from "../lib/source-revision";
 import { filterRecords } from "../lib/tree";
 import type { SearchMatch } from "../lib/tree";
 
 export interface RecordPipelineParams {
+  sourceRevision: SourceRevision;
   result: ParseResult;
   // Search matches from the search worker — covers both in-memory text search
   // and whole-file search, and is null while idle, pending, or errored.
@@ -18,6 +20,7 @@ export interface RecordPipelineParams {
 }
 
 export interface RecordPipeline {
+  sourceRevision: SourceRevision;
   matches: SearchMatch[] | null;
   recordInsights: Map<string, RecordInsight>;
   recordsById: Map<string, JsonlRecord>;
@@ -44,6 +47,7 @@ const getRecordStats = (records: JsonlRecord[]) => {
  * parse → pipeline → interaction callbacks.
  */
 export const useRecordPipeline = ({
+  sourceRevision,
   result,
   searchMatches,
   recordFilter,
@@ -103,6 +107,7 @@ export const useRecordPipeline = ({
   const matchCount = visibleMatches?.length ?? 0;
 
   return {
+    sourceRevision,
     matches,
     recordInsights,
     recordsById,

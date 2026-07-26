@@ -4,6 +4,8 @@ import { probeJsonl } from "@unquote/core";
 import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
+import { belongsToSourceRevision } from "../lib/source-revision";
+import type { SourceRevision } from "../lib/source-revision";
 import { createStreamPublisher } from "../lib/stream-publisher";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
@@ -23,6 +25,24 @@ const idleProgress: ParserProgress = {
 
 const workerChunkSize = 256 * 1024;
 
+export interface ParserSnapshot {
+  sourceRevision: SourceRevision;
+  result: ParseResult;
+  progress: ParserProgress;
+  agentSession: ParsedText["agentSession"];
+}
+
+const pendingSnapshot = (
+  sourceRevision: SourceRevision,
+  forcedFormat: "json" | "jsonl" | undefined,
+  sourceFile: File | null | undefined,
+): ParserSnapshot => ({
+  sourceRevision,
+  result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
+  progress: { ...idleProgress, done: false },
+  agentSession: null,
+});
+
 const parseFileOnMainThread = async (file: File): Promise<ParsedText> => {
   const text = await file.text();
   return parseText(text, { forcedFormat: "jsonl", fileName: file.name });
@@ -39,17 +59,25 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
   return probeJsonl(input).isLikelyJsonl;
 };
 
-export const useParser = (
-  input: string,
-  forcedFormat?: "json" | "jsonl",
-  sourceFile?: File | null,
-  onFileReadError?: () => void,
-) => {
-  const [parserState, setParserState] = useState(() => {
-    const { result, agentSession } = parseText(input, { forcedFormat });
-    return { result, agentSession };
+export interface UseParserOptions {
+  input: string;
+  forcedFormat?: "json" | "jsonl" | undefined;
+  sourceFile?: File | null | undefined;
+  onFileReadError?: (() => void) | undefined;
+  sourceRevision: SourceRevision;
+}
+
+export const useParser = ({
+  input,
+  forcedFormat,
+  sourceFile,
+  onFileReadError,
+  sourceRevision,
+}: UseParserOptions) => {
+  const [parserState, setParserState] = useState<ParserSnapshot>(() => {
+    const { result, agentSession, progress } = parseText(input, { forcedFormat });
+    return { sourceRevision, result, progress, agentSession };
   });
-  const [progress, setProgress] = useState<ParserProgress>(idleProgress);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
   const onFileReadErrorRef = useRef(onFileReadError);
@@ -62,10 +90,11 @@ export const useParser = (
     if (typeof Worker === "undefined") {
       const applyMainThreadParse = ({ result, agentSession, progress }: ParsedText) => {
         setParserState({
+          sourceRevision,
           result,
           agentSession,
+          progress,
         });
-        setProgress(progress);
       };
 
       if (sourceFile) {
@@ -77,7 +106,10 @@ export const useParser = (
           })
           .catch(() => {
             if (requestIdRef.current === requestId) {
-              setProgress(idleProgress);
+              setParserState({
+                ...pendingSnapshot(sourceRevision, forcedFormat, sourceFile),
+                progress: idleProgress,
+              });
               onFileReadErrorRef.current?.();
             }
           });
@@ -93,20 +125,19 @@ export const useParser = (
     });
 
     const currentWorker = workerRef.current;
-    setParserState({
-      result: sourceFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
-      agentSession: null,
-    });
-    setProgress({ ...idleProgress, done: false });
+    setParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceFile));
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
 
     const publisher = createStreamPublisher<ParseResult["stats"], ParserProgress>(
       (records, stats, progress) => {
-        setProgress(progress);
         setParserState((current) => ({
+          sourceRevision,
           result: { format: "jsonl", records, stats },
-          agentSession: current.agentSession,
+          agentSession: belongsToSourceRevision(sourceRevision, current)
+            ? current.agentSession
+            : null,
+          progress,
         }));
       },
     );
@@ -177,10 +208,11 @@ export const useParser = (
       if (message.type === "error") {
         markPerf("parse:error");
         measurePerf("parse:error", "parse:start", "parse:error");
-        setProgress(message.progress);
         setParserState((current) => ({
+          sourceRevision,
           result: { ...current.result, format: "jsonl", stats: message.stats },
           agentSession: null,
+          progress: message.progress,
         }));
         onFileReadErrorRef.current?.();
         return;
@@ -188,18 +220,21 @@ export const useParser = (
 
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
-      setProgress(message.progress);
       if (message.result) {
         setParserState({
+          sourceRevision,
           result: message.result!,
           agentSession: message.agentSession ?? null,
+          progress: message.progress,
         });
         return;
       }
       if (message.stats) {
         setParserState((current) => ({
+          sourceRevision,
           result: { ...current.result, format: "jsonl", stats: message.stats! },
           agentSession: message.agentSession ?? null,
+          progress: message.progress,
         }));
       }
     };
@@ -213,7 +248,7 @@ export const useParser = (
       publisher.cancel();
       currentWorker.removeEventListener("message", onMessage);
     };
-  }, [forcedFormat, input, sourceFile]);
+  }, [forcedFormat, input, sourceFile, sourceRevision]);
 
   // Terminate the worker thread when the hook's owner unmounts; the per-request
   // cleanup above only detaches listeners and timers.
@@ -225,9 +260,7 @@ export const useParser = (
     [],
   );
 
-  return {
-    result: parserState.result,
-    progress,
-    agentSession: parserState.agentSession,
-  };
+  return belongsToSourceRevision(sourceRevision, parserState)
+    ? parserState
+    : pendingSnapshot(sourceRevision, forcedFormat, sourceFile);
 };

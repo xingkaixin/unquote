@@ -14,6 +14,8 @@ import type {
   SearchOptionKind,
 } from "../lib/query-interaction";
 import { fileSearchDebounceMs } from "../lib/local-file-source";
+import { shareSourceRevision } from "../lib/source-revision";
+import type { SourceRevision } from "../lib/source-revision";
 import { resolveTreePathMatches } from "../lib/tree";
 import type { ResolvedTreePath, SearchOptions } from "../lib/tree";
 import { useRecordPipeline } from "./use-record-pipeline";
@@ -22,11 +24,18 @@ import { useSearchWorker } from "./use-search-worker";
 export const memorySearchDebounceMs = 120;
 
 export type QueryNavigationTarget =
-  | { kind: "clear" }
-  | { kind: "path"; target: ResolvedTreePath }
-  | { kind: "search"; recordId: string; pathText: string };
+  | { sourceRevision: SourceRevision; kind: "clear" }
+  | { sourceRevision: SourceRevision; kind: "path"; target: ResolvedTreePath }
+  | {
+      sourceRevision: SourceRevision;
+      kind: "search";
+      recordId: string;
+      pathText: string;
+    };
 
 interface UseQueryInteractionOptions {
+  sourceRevision: SourceRevision;
+  resultRevision: SourceRevision;
   result: ParseResult;
   sourceText: string;
   sourceFile: File | null;
@@ -35,7 +44,37 @@ interface UseQueryInteractionOptions {
   onNavigate: (target: QueryNavigationTarget) => void;
 }
 
+interface RevisionedQueryState {
+  sourceRevision: SourceRevision;
+  state: QueryInteractionState;
+}
+
+interface RevisionedQueryAction {
+  sourceRevision: SourceRevision;
+  action: QueryInteractionAction;
+}
+
+const createRevisionedQueryState = (sourceRevision: SourceRevision): RevisionedQueryState => ({
+  sourceRevision,
+  state: createInitialQueryInteractionState(),
+});
+
+const reduceRevisionedQueryState = (
+  current: RevisionedQueryState,
+  envelope: RevisionedQueryAction,
+): RevisionedQueryState => ({
+  sourceRevision: envelope.sourceRevision,
+  state: reduceQueryInteraction(
+    current.sourceRevision === envelope.sourceRevision
+      ? current.state
+      : createInitialQueryInteractionState(),
+    envelope.action,
+  ),
+});
+
 export const useQueryInteraction = ({
+  sourceRevision,
+  resultRevision,
   result,
   sourceText,
   sourceFile,
@@ -43,10 +82,16 @@ export const useQueryInteraction = ({
   translateError,
   onNavigate,
 }: UseQueryInteractionOptions) => {
-  const [state, dispatch] = useReducer(
-    reduceQueryInteraction,
-    undefined,
-    createInitialQueryInteractionState,
+  const [storedQuery, dispatchToRevision] = useReducer(
+    reduceRevisionedQueryState,
+    sourceRevision,
+    createRevisionedQueryState,
+  );
+  const initialState = useMemo(createInitialQueryInteractionState, [sourceRevision]);
+  const state = storedQuery.sourceRevision === sourceRevision ? storedQuery.state : initialState;
+  const dispatch = useCallback(
+    (action: QueryInteractionAction) => dispatchToRevision({ sourceRevision, action }),
+    [sourceRevision],
   );
   const resolvePathQuery = useCallback(
     (records: JsonlRecord[], value: string): PathResolution | null => {
@@ -77,12 +122,19 @@ export const useQueryInteraction = ({
     sourceFile,
     query: state.searchQuery,
     options: searchOptions,
+    sourceRevision,
     debounceMs: sourceFile ? fileSearchDebounceMs : memorySearchDebounceMs,
     ...(forcedFormat ? { forcedFormat } : {}),
   });
+  const revisionsAligned = shareSourceRevision(
+    sourceRevision,
+    { sourceRevision: resultRevision },
+    searchWorker,
+  );
   const pipeline = useRecordPipeline({
+    sourceRevision,
     result,
-    searchMatches: searchWorker.matches,
+    searchMatches: revisionsAligned ? searchWorker.matches : null,
     recordFilter: state.recordFilter,
   });
 
@@ -101,13 +153,17 @@ export const useQueryInteraction = ({
     }
 
     onNavigate({
+      sourceRevision,
       kind: "search",
       recordId: activeSearchRecordId,
       pathText: activeSearchPathText,
     });
-  }, [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate]);
+  }, [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate, sourceRevision]);
 
-  const invalidateNavigation = useCallback(() => onNavigate({ kind: "clear" }), [onNavigate]);
+  const invalidateNavigation = useCallback(
+    () => onNavigate({ sourceRevision, kind: "clear" }),
+    [onNavigate, sourceRevision],
+  );
 
   const navigate = useCallback(
     (action: QueryInteractionAction) => {
@@ -120,7 +176,7 @@ export const useQueryInteraction = ({
         const target =
           nextState.pathMatches[nextState.currentPathMatchIndex] ?? nextState.pathMatches[0];
         if (target) {
-          onNavigate({ kind: "path", target });
+          onNavigate({ sourceRevision, kind: "path", target });
         }
         return;
       }
@@ -131,13 +187,21 @@ export const useQueryInteraction = ({
         activeSearchPathText
       ) {
         onNavigate({
+          sourceRevision,
           kind: "search",
           recordId: activeSearchRecordId,
           pathText: activeSearchPathText,
         });
       }
     },
-    [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate, state],
+    [
+      activeSearchPathText,
+      activeSearchRecordId,
+      currentMatchIndex,
+      onNavigate,
+      sourceRevision,
+      state,
+    ],
   );
 
   const changeToolbarQuery = useCallback(
@@ -205,9 +269,9 @@ export const useQueryInteraction = ({
   );
   const changeCommandInput = useCallback(
     (value: string) => dispatch({ type: "setCommandInput", value }),
-    [],
+    [dispatch],
   );
-  const prepareCommandInput = useCallback(() => dispatch({ type: "seedCommandInput" }), []);
+  const prepareCommandInput = useCallback(() => dispatch({ type: "seedCommandInput" }), [dispatch]);
   const previousResult = useCallback(
     () =>
       mode === "path"
@@ -222,7 +286,7 @@ export const useQueryInteraction = ({
         : navigate({ type: "nextMatch", matchCount: pipeline.matchCount }),
     [mode, navigate, pipeline.matchCount],
   );
-  const reset = useCallback(() => dispatch({ type: "resetAll" }), []);
+  const reset = useCallback(() => dispatch({ type: "resetAll" }), [dispatch]);
 
   const intent = useMemo(
     () => ({
@@ -271,8 +335,8 @@ export const useQueryInteraction = ({
       currentPathMatchIndex: state.currentPathMatchIndex,
       currentMatchIndex,
       mode,
-      searchStatus: searchWorker.status,
-      searchErrorKind: searchWorker.errorKind,
+      searchStatus: revisionsAligned ? searchWorker.status : state.searchQuery ? "pending" : "idle",
+      searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,
       ...pipeline,
     },
     intent,

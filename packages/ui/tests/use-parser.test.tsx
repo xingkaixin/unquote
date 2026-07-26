@@ -169,12 +169,13 @@ const Probe = ({
   sourceFile?: File;
   onFileReadError?: () => void;
 }) => {
-  const { result, progress, agentSession } = useParser(
+  const { result, progress, agentSession } = useParser({
+    sourceRevision: 0,
     input,
     forcedFormat,
     sourceFile,
     onFileReadError,
-  );
+  });
   return (
     <div>
       <div data-testid="records">{result.records.map((record) => record.summary).join(",")}</div>
