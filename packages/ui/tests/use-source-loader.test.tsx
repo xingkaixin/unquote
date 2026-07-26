@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { parseInput } from "@unquote/core";
+import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +27,8 @@ vi.mock("../src/lib/clipboard", () => ({
 import { useSourceLoader } from "../src/hooks/use-source-loader";
 
 const largeFile = (name: string) => new File(["x".repeat(1_000_001)], name);
+const previewRecord = (lineNumber: number) =>
+  parsePreviewJsonlRecordLine('{"value":"preview"}', lineNumber);
 
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
   const callbacks = {
@@ -203,70 +205,27 @@ describe("useSourceLoader", () => {
     expect(parsedRecord).toBeDefined();
     mocks.readJsonlRecordsByLine.mockResolvedValue(new Map([[1, parsedRecord]]));
 
-    await act(() =>
-      result.current.onCopyRawLine({
-        id: "record-1",
-        lineNumber: 1,
-        node: null,
-        deferred: true,
-        summary: "deferred",
-      }),
-    );
+    await act(() => result.current.onCopyRawLine(previewRecord(1)));
     expect(mocks.writeClipboardText).toHaveBeenCalledWith('{"value":1}');
 
     mocks.readJsonlRecordsByLine.mockResolvedValue(
-      new Map<number, JsonlRecord>([
-        [
-          2,
-          {
-            id: "record-2",
-            lineNumber: 2,
-            node: null,
-            rawLine: "raw line",
-            summary: "raw line",
-          },
-        ],
-      ]),
+      new Map<number, JsonlRecord>([[2, parseJsonlRecordLine("raw line", 2)]]),
     );
     mocks.writeClipboardText.mockResolvedValue(false);
-    await act(() =>
-      result.current.onCopyRawLine({
-        id: "record-2",
-        lineNumber: 2,
-        node: null,
-        deferred: true,
-        summary: "deferred",
-      }),
-    );
+    await act(() => result.current.onCopyRawLine(previewRecord(2)));
     expect(mocks.writeClipboardText).toHaveBeenLastCalledWith("raw line");
     expect(callbacks.onCopyError).toHaveBeenCalledTimes(1);
 
     const readError = new Error("record read failed");
     mocks.readJsonlRecordsByLine.mockRejectedValue(readError);
-    await act(() =>
-      result.current.onCopyRawLine({
-        id: "record-3",
-        lineNumber: 3,
-        node: null,
-        deferred: true,
-        summary: "deferred",
-      }),
-    );
+    await act(() => result.current.onCopyRawLine(previewRecord(3)));
     expect(callbacks.onError).toHaveBeenCalledWith(readError);
   });
 
   it("copies inline record text without resolving a file", async () => {
     const { result } = setup();
 
-    await act(() =>
-      result.current.onCopyRawLine({
-        id: "record-1",
-        lineNumber: 1,
-        node: null,
-        errorMeta: { line: 1, column: 1, rawLine: "invalid raw line", context: "invalid" },
-        summary: "invalid",
-      }),
-    );
+    await act(() => result.current.onCopyRawLine(parseJsonlRecordLine("invalid raw line", 1)));
 
     expect(mocks.readJsonlRecordsByLine).not.toHaveBeenCalled();
     expect(mocks.writeClipboardText).toHaveBeenCalledWith("invalid raw line");

@@ -170,7 +170,7 @@ export const useSourceLoader = ({
   };
 
   const onCopyRawLine = useCallback(async (record: JsonlRecord) => {
-    let text = record.rawLine ?? record.errorMeta?.rawLine ?? record.summary;
+    let text = record.status === "failed" ? record.rawLine : record.summary;
     const currentSourceFile = sourceFileRef.current;
     if (currentSourceFile) {
       let fullRecord: JsonlRecord | undefined;
@@ -185,9 +185,9 @@ export const useSourceLoader = ({
         onErrorRef.current(error);
         return;
       }
-      if (fullRecord?.node) {
+      if (fullRecord?.status === "full") {
         text = JSON.stringify(getCopyValue(fullRecord));
-      } else if (fullRecord?.rawLine) {
+      } else if (fullRecord?.status === "failed") {
         text = fullRecord.rawLine;
       }
     }

@@ -1,4 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
+import { isParsed } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 import type {
   ContainerCandidate,
@@ -392,7 +393,7 @@ const createRecordInsightFromHits = (
 };
 
 export const createRecordInsight = (record: JsonlRecord): RecordInsight | null => {
-  if (!record.node) {
+  if (!isParsed(record)) {
     return null;
   }
 

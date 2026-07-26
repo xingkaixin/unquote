@@ -4,9 +4,9 @@ import {
   getPreviewNestedFieldKeys,
   getPreviewPath,
   getPreviewPathSegments,
-} from "../src/lib/deferred-record-preview";
+} from "../src/lib/record-preview";
 
-describe("deferred record preview", () => {
+describe("record preview", () => {
   it("formats preview keys as JSON paths", () => {
     expect(getPreviewPathSegments("payload.value")).toEqual([
       { kind: "key", value: "payload.value" },

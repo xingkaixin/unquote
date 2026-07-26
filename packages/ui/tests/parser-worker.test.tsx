@@ -106,7 +106,7 @@ describe("parser worker file dispatch", () => {
       .find((message) => message.type === "batch");
     const record = batch.records[0];
     expect(record).toMatchObject({
-      deferred: true,
+      status: "preview",
       preview: {
         fields: { type: "message", message: "ready", payload: '{"nested":true}' },
         nestedFieldKeys: "payload",
@@ -170,7 +170,7 @@ describe("parser worker file dispatch", () => {
     });
     expect(records[5]).not.toHaveProperty("preview");
     expect(records[6]?.node).toBeNull();
-    expect(records[6]?.deferred).toBeUndefined();
+    expect(records[6]?.status).toBe("failed");
   });
 
   it("streams JSONL chunks, skips blank lines, and completes with failure stats", async () => {

@@ -1,5 +1,5 @@
 import type { ParseResult } from "@unquote/core";
-import { isParsed } from "@unquote/core";
+import { isParsed, parseInput } from "@unquote/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
@@ -16,6 +16,13 @@ const resultFromRecords = (records: ParseResult["records"]): ParseResult => ({
     success: records.filter(isParsed).length,
     failed: records.filter((record) => !isParsed(record)).length,
   },
+});
+
+const failedRecord = (lineNumber: number, summary: string): ParseResult["records"][number] => ({
+  ...parseInput("not-json", { forcedFormat: "jsonl" }).records[0]!,
+  id: `record-${lineNumber}`,
+  lineNumber,
+  summary,
 });
 
 class MockWorker {
@@ -88,15 +95,7 @@ class MockWorker {
           data: {
             type: "complete",
             requestId: payload.requestId,
-            result: resultFromRecords([
-              {
-                id: "record-1",
-                lineNumber: 1,
-                node: null,
-                error: "old",
-                summary: "old",
-              },
-            ]),
+            result: resultFromRecords([failedRecord(1, "old")]),
             progress: {
               processedLines: 1,
               success: 0,
@@ -115,15 +114,7 @@ class MockWorker {
         data: {
           type: "batch",
           requestId: payload.requestId,
-          records: [
-            {
-              id: "record-1",
-              lineNumber: 1,
-              node: null,
-              error: "new-1",
-              summary: "new-1",
-            },
-          ],
+          records: [failedRecord(1, "new-1")],
           stats: { total: 1, success: 0, failed: 1 },
           progress: {
             processedLines: 1,
@@ -138,15 +129,7 @@ class MockWorker {
         data: {
           type: "batch",
           requestId: payload.requestId,
-          records: [
-            {
-              id: "record-2",
-              lineNumber: 2,
-              node: null,
-              error: "new-2",
-              summary: "new-2",
-            },
-          ],
+          records: [failedRecord(2, "new-2")],
           stats: { total: 2, success: 0, failed: 2 },
           progress: {
             processedLines: 2,

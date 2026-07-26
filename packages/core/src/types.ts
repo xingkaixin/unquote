@@ -35,17 +35,41 @@ export interface JsonlRecordPreview {
   nestedFieldKeys?: string | string[];
 }
 
-export interface JsonlRecord {
+interface JsonlRecordBase {
   id: string;
   lineNumber: number;
-  node: JsonNode | null;
-  deferred?: boolean;
-  preview?: JsonlRecordPreview;
-  error?: string;
-  errorMeta?: ParseErrorMeta;
-  rawLine?: string;
   summary: string;
 }
+
+export interface FullJsonlRecord extends JsonlRecordBase {
+  status: "full";
+  node: JsonNode;
+  preview?: never;
+  error?: never;
+  errorMeta?: never;
+  rawLine?: never;
+}
+
+export interface PreviewJsonlRecord extends JsonlRecordBase {
+  status: "preview";
+  node: JsonNode;
+  preview?: JsonlRecordPreview;
+  error?: never;
+  errorMeta?: never;
+  rawLine?: never;
+}
+
+export interface FailedJsonlRecord extends JsonlRecordBase {
+  status: "failed";
+  node: null;
+  preview?: never;
+  error: string;
+  errorMeta: ParseErrorMeta;
+  rawLine: string;
+}
+
+export type ParsedJsonlRecord = FullJsonlRecord | PreviewJsonlRecord;
+export type JsonlRecord = ParsedJsonlRecord | FailedJsonlRecord;
 
 export interface ParseStats {
   total: number;

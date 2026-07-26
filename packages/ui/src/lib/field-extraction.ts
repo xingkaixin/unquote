@@ -4,7 +4,7 @@ import {
   getPreviewNestedFieldKeys,
   getPreviewPath,
   getPreviewPathSegments,
-} from "./deferred-record-preview";
+} from "./record-preview";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, normalizeKey } from "./record-fields";
@@ -150,13 +150,13 @@ const walkPreviewBranch = (
 };
 
 export const walkRecordFields = (
-  record: Pick<JsonlRecord, "node" | "preview">,
+  record: JsonlRecord,
   options: WalkRecordFieldsOptions,
 ): FieldExtractionMetrics => {
   const metrics: FieldExtractionMetrics = { maxDepth: 0, nestedCount: 0, nestedPaths: new Map() };
   const trackNestedPaths = options.trackNestedPaths ?? false;
 
-  if (record.preview) {
+  if (record.status === "preview" && record.preview) {
     walkPreviewBranch(
       record.preview,
       metrics,
@@ -164,7 +164,7 @@ export const walkRecordFields = (
       options.onField,
       options.onContainer,
     );
-  } else if (record.node) {
+  } else if (record.status !== "failed") {
     walkNodeBranch(record.node, metrics, trackNestedPaths, options.onField, options.onContainer);
   }
 

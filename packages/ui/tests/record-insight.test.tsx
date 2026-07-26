@@ -185,7 +185,7 @@ describe("record insight", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,
-      deferred: true,
+      status: "preview",
       node: {
         kind: "object",
         value: null,

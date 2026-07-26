@@ -17,9 +17,8 @@ const createMatch = (recordId: string): SearchMatch => ({
 });
 
 const rec = (id: string): JsonlRecord => ({
+  ...parseInput("not-json", { forcedFormat: "jsonl" }).records[0]!,
   id,
-  lineNumber: 1,
-  node: null,
   summary: id,
 });
 

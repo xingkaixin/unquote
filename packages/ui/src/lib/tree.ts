@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { isParsed, materializeNode } from "@unquote/core";
-import { getPreviewNestedFieldKeys, getPreviewPath } from "./deferred-record-preview";
+import { getPreviewNestedFieldKeys, getPreviewPath } from "./record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 import { formatJsonValueLabel, walkJsonNode, walkRawJsonValue } from "./json-walk";
@@ -84,7 +84,7 @@ export const buildRecordRows = (
   expandedStringifiedPaths: ReadonlySet<string>,
   focusedPath?: string | null,
 ) => {
-  if (!record.node) {
+  if (!isParsed(record)) {
     return [];
   }
 
@@ -130,12 +130,11 @@ const buildFocusedRecordRows = (
 };
 
 export const materializeRecord = (record: JsonlRecord) => {
-  const node = record.node;
-  if (!node) {
+  if (!isParsed(record)) {
     return null;
   }
 
-  return materializeNode(node);
+  return materializeNode(record.node);
 };
 
 const collectPaths = (
@@ -160,21 +159,20 @@ export const collectStringifiedPaths = (
   record: JsonlRecord,
   expandedStringifiedPaths: ReadonlySet<string>,
 ) => {
-  // A deferred record's projected node carries no children, so walking it finds
+  // A Preview Record's projected node carries no children, so walking it finds
   // nothing. Its preview already records which top-level fields hold nested
   // JSON — the same source recordContainsStringifiedJson reads. Deeper levels
   // surface once the record hydrates and the walk below takes over.
-  if (record.preview) {
+  if (record.status === "preview" && record.preview) {
     return getPreviewNestedFieldKeys(record.preview).map(getPreviewPath);
   }
 
-  const node = record.node;
-  if (!node) {
+  if (!isParsed(record)) {
     return [];
   }
 
   const output = new Set<string>();
-  collectPaths(node, expandedStringifiedPaths, output);
+  collectPaths(record.node, expandedStringifiedPaths, output);
   return [...output];
 };
 
@@ -193,10 +191,9 @@ const containsStringifiedNode = (node: JsonNode): boolean => {
 };
 
 const recordContainsStringifiedJson = (record: JsonlRecord) =>
-  Boolean(
-    (record.preview && getPreviewNestedFieldKeys(record.preview).length > 0) ||
-    (record.node && containsStringifiedNode(record.node)),
-  );
+  record.status === "preview" && record.preview
+    ? getPreviewNestedFieldKeys(record.preview).length > 0
+    : isParsed(record) && containsStringifiedNode(record.node);
 
 export interface TextRange {
   start: number;
@@ -329,7 +326,7 @@ const searchRecord = (
   pattern: RegExp,
   options: SearchOptions,
 ): SearchMatch[] => {
-  if (!record.node) {
+  if (!isParsed(record)) {
     return [];
   }
 
@@ -454,7 +451,7 @@ const resolvePathInRecord = (
   record: JsonlRecord,
   requestedSegments: TreePathSegment[],
 ): ResolvedTreePath | null => {
-  if (!record.node) {
+  if (!isParsed(record)) {
     return null;
   }
 

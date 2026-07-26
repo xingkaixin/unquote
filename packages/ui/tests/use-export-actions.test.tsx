@@ -121,7 +121,7 @@ describe("useExportActions", () => {
     expect(writeText).toHaveBeenCalledWith(JSON.stringify({ ok: true }, null, 2));
   });
 
-  it("copies parse errors with and without structured metadata", async () => {
+  it("copies parse errors with structured diagnostics", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -131,16 +131,9 @@ describe("useExportActions", () => {
 
     await act(async () => {
       await result.current.onCopyRecordError(failedRecord);
-      await result.current.onCopyRecordError({
-        id: "record-2",
-        lineNumber: 2,
-        node: null,
-        summary: "failed",
-      });
     });
 
     expect(writeText.mock.calls[0]?.[0]).toContain("Line 1, column 2");
     expect(writeText.mock.calls[0]?.[0]).toContain("Raw line:");
-    expect(writeText.mock.calls[1]?.[0]).toBe("Error: Parse failed");
   });
 });

@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { parseDeferredJsonlRecordLine } from "@unquote/core";
+import { parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +75,7 @@ const compactResultForTransfer = (input: string, stats: ParseResult["stats"]): P
   const records: JsonlRecord[] = [];
   input.split(/\r?\n/).forEach((line, index) => {
     if (line.trim()) {
-      records.push(parseDeferredJsonlRecordLine(line, index + 1));
+      records.push(parsePreviewJsonlRecordLine(line, index + 1));
     }
   });
 

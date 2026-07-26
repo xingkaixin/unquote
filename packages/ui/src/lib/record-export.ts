@@ -9,21 +9,17 @@ export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
   recordCount > copyRecordLimit || bytes > copyBytesLimit;
 
 export const getCopyValue = (record: JsonlRecord) => {
-  if (record.node) {
+  if (record.status !== "failed") {
     return materializeRecord(record);
   }
 
   return {
     lineNumber: record.lineNumber,
-    error: record.error ?? "Parse error",
-    ...(record.errorMeta
-      ? {
-          line: record.errorMeta.line,
-          column: record.errorMeta.column,
-          rawLine: record.rawLine ?? record.errorMeta.rawLine,
-          context: record.errorMeta.context,
-        }
-      : {}),
+    error: record.error,
+    line: record.errorMeta.line,
+    column: record.errorMeta.column,
+    rawLine: record.rawLine,
+    context: record.errorMeta.context,
     summary: record.summary,
   };
 };

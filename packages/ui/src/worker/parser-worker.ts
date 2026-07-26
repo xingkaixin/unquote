@@ -1,5 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { isParsed, parseDeferredJsonlRecordLine, parseJsonlRecordLine } from "@unquote/core";
+import { isParsed, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { createAgentSessionTracker, type AgentSession } from "../lib/agent-session";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 import { parseText, type ParserProgress } from "../lib/parse-text";
@@ -137,7 +137,7 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
 
   session.agentTracker.pushRawLine(line, session.lineNumber);
   const record = session.compactForTransfer
-    ? parseDeferredJsonlRecordLine(line, session.lineNumber)
+    ? parsePreviewJsonlRecordLine(line, session.lineNumber)
     : parseJsonlRecordLine(line, session.lineNumber);
   session.processedLines += 1;
   session.lineNumber += 1;

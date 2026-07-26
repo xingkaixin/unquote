@@ -28,13 +28,12 @@ describe("record-export", () => {
     expect(value.lineNumber).toBe(1);
   });
 
-  it("getCopyValue falls back to default error and metadata raw-line values", () => {
+  it("getCopyValue preserves required failed-record diagnostics", () => {
     const [failed] = recordsFrom("{bad}", "jsonl");
-    const { error: _error, rawLine: _rawLine, ...record } = failed!;
 
-    expect(getCopyValue(record)).toMatchObject({
-      error: "Parse error",
-      rawLine: record.errorMeta?.rawLine,
+    expect(getCopyValue(failed!)).toMatchObject({
+      error: failed?.error,
+      rawLine: failed?.rawLine,
     });
   });
 

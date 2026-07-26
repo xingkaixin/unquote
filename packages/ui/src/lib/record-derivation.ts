@@ -28,8 +28,7 @@ export interface RecordDerivationState {
 }
 
 export const deriveRecord = (record: JsonlRecord): RecordDerivation => {
-  // A record with no tree to walk (an unparsed line, or a deferred record
-  // without a projected node) has no insight and a fixed overview summary.
+  // A Failed Record has no tree to walk and contributes only its error summary.
   const unwalkableOverview = summarizeUnwalkableRecord(record);
   if (unwalkableOverview) {
     return { insight: null, overview: unwalkableOverview };
