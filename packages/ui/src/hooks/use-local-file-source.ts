@@ -1,26 +1,26 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { hydratedFileRecordLimit, readJsonlRecordsByLine } from "../lib/local-file-source";
+import { hydratedFileRecordLimit, type LocalFileAccess } from "../lib/local-file-source";
 
 export interface LocalFileSource {
-  hydratedRecords: ReadonlyMap<number, JsonlRecord>;
-  hydrateRecord: (record: JsonlRecord) => void;
-  getFullRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
+  resolveRecord: (record: JsonlRecord) => JsonlRecord;
+  requestRecord: (record: JsonlRecord) => void;
+  resolveRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
 }
 
 interface HydrationGeneration {
-  sourceFile: File | null;
+  access: LocalFileAccess | null;
   controller: AbortController;
   inFlightLines: Set<number>;
-  // Lines queued by `hydrateRecord` calls in the current tick; merged into a
+  // Lines queued by `requestRecord` calls in the current tick; merged into a
   // single scan when the microtask flush runs. Lives on the generation (not a
   // standalone ref) so a source switch discards any not-yet-flushed batch too.
   pendingLines: Set<number>;
   flushScheduled: boolean;
 }
 
-const createHydrationGeneration = (sourceFile: File | null): HydrationGeneration => ({
-  sourceFile,
+const createHydrationGeneration = (access: LocalFileAccess | null): HydrationGeneration => ({
+  access,
   controller: new AbortController(),
   inFlightLines: new Set(),
   pendingLines: new Set(),
@@ -34,11 +34,11 @@ const createHydrationGeneration = (sourceFile: File | null): HydrationGeneration
  *  - deferred-record hydration cache (with in-flight de-dup + FIFO eviction)
  *  - full-record resolution for copy / export
  *
- * Whole-file search has moved to `useSearchWorker`, which reads the file
- * directly for search rather than routing through this hook.
+ * Whole-file search uses the same `LocalFileAccess` capability through
+ * `useSearchWorker`; this hook owns only browse-time record state.
  */
 export const useLocalFileSource = (
-  sourceFile: File | null,
+  access: LocalFileAccess | null,
   // Called when a hydration read fails, so the caller can surface it. Read
   // through a ref: identity is not a dependency.
   onError: (error: unknown) => void,
@@ -46,7 +46,7 @@ export const useLocalFileSource = (
   const [hydratedFileRecords, setHydratedFileRecords] = useState<Map<number, JsonlRecord>>(
     new Map(),
   );
-  const hydrationGenerationRef = useRef<HydrationGeneration>(createHydrationGeneration(sourceFile));
+  const hydrationGenerationRef = useRef<HydrationGeneration>(createHydrationGeneration(access));
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
@@ -54,14 +54,14 @@ export const useLocalFileSource = (
   // records from a newly committed source.
   useLayoutEffect(() => {
     const previous = hydrationGenerationRef.current;
-    if (previous.sourceFile === sourceFile) {
+    if (previous.access === access) {
       return;
     }
 
     previous.controller.abort();
-    hydrationGenerationRef.current = createHydrationGeneration(sourceFile);
+    hydrationGenerationRef.current = createHydrationGeneration(access);
     setHydratedFileRecords(new Map());
-  }, [sourceFile]);
+  }, [access]);
 
   useEffect(
     () => () => {
@@ -71,7 +71,7 @@ export const useLocalFileSource = (
   );
 
   // Runs once per tick per generation: collects every line queued by
-  // `hydrateRecord` since the last flush and resolves them with one scan
+  // `requestRecord` since the last flush and resolves them with one scan
   // instead of one per record.
   const flushHydrationGeneration = useCallback((generation: HydrationGeneration) => {
     generation.flushScheduled = false;
@@ -82,7 +82,7 @@ export const useLocalFileSource = (
 
     const batch = generation.pendingLines;
     generation.pendingLines = new Set();
-    if (batch.size === 0 || !generation.sourceFile) {
+    if (batch.size === 0 || !generation.access) {
       return;
     }
 
@@ -90,7 +90,8 @@ export const useLocalFileSource = (
       generation.inFlightLines.add(lineNumber);
     }
 
-    void readJsonlRecordsByLine(generation.sourceFile, batch, generation.controller.signal)
+    void generation.access
+      .readRecords(batch, generation.controller.signal)
       .then((records) => {
         if (hydrationGenerationRef.current !== generation || generation.controller.signal.aborted) {
           return;
@@ -150,16 +151,16 @@ export const useLocalFileSource = (
       });
   }, []);
 
-  const hydrateRecord = useCallback(
+  const requestRecord = useCallback(
     (record: JsonlRecord) => {
-      if (!sourceFile || record.status !== "preview") {
+      if (!access || record.status !== "preview") {
         return;
       }
 
       const lineNumber = record.lineNumber;
       const generation = hydrationGenerationRef.current;
       if (
-        generation.sourceFile !== sourceFile ||
+        generation.access !== access ||
         hydratedFileRecords.has(lineNumber) ||
         generation.inFlightLines.has(lineNumber) ||
         generation.pendingLines.has(lineNumber)
@@ -173,27 +174,23 @@ export const useLocalFileSource = (
         queueMicrotask(() => flushHydrationGeneration(generation));
       }
     },
-    [hydratedFileRecords, sourceFile, flushHydrationGeneration],
+    [access, hydratedFileRecords, flushHydrationGeneration],
   );
 
-  const getFullRecords = useCallback(
-    async (records: JsonlRecord[]) => {
-      if (!sourceFile) {
-        return records;
-      }
+  const resolveRecord = useCallback(
+    (record: JsonlRecord) => hydratedFileRecords.get(record.lineNumber) ?? record,
+    [hydratedFileRecords],
+  );
 
-      const fullRecords = await readJsonlRecordsByLine(
-        sourceFile,
-        new Set(records.map((record) => record.lineNumber)),
-      );
-      return records.map((record) => fullRecords.get(record.lineNumber) ?? record);
-    },
-    [sourceFile],
+  const resolveRecords = useCallback(
+    (records: JsonlRecord[]) =>
+      access ? access.resolveRecords(records) : Promise.resolve(records),
+    [access],
   );
 
   return {
-    hydratedRecords: hydratedFileRecords,
-    hydrateRecord,
-    getFullRecords,
+    resolveRecord,
+    requestRecord,
+    resolveRecords,
   };
 };

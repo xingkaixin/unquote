@@ -1,11 +1,10 @@
-import type { JsonlRecord } from "@unquote/core";
-import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
+import { parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  readFileText: vi.fn(),
-  readJsonlRecordsByLine: vi.fn(),
+  readText: vi.fn(),
+  readRecordText: vi.fn(),
   writeClipboardText: vi.fn(),
 }));
 
@@ -15,8 +14,16 @@ vi.mock("../src/lib/local-file-source", async () => {
   );
   return {
     ...actual,
-    readFileText: mocks.readFileText,
-    readJsonlRecordsByLine: mocks.readJsonlRecordsByLine,
+    createLocalFileAccess: (file: File) => ({
+      name: file.name,
+      size: file.size,
+      getFile: () => file,
+      readText: mocks.readText,
+      readRecords: vi.fn(),
+      resolveRecords: vi.fn(),
+      readRecordText: mocks.readRecordText,
+      search: vi.fn(),
+    }),
   };
 });
 
@@ -94,7 +101,7 @@ describe("useSourceLoader", () => {
     });
 
     expect(result.current.sourceText).toBe('{"current":true}');
-    expect(result.current.sourceFile).toBeNull();
+    expect(result.current.sourceAccess).toBeNull();
     expect(result.current.sourceRevision).toBe(currentRevision);
 
     await act(async () => resolveRead?.('{"replacement":true}'));
@@ -129,7 +136,7 @@ describe("useSourceLoader", () => {
 
   it("reports read progress and ignores an obsolete read failure", async () => {
     let rejectRead: ((error: Error) => void) | undefined;
-    mocks.readFileText.mockImplementation((_file: File, onProgress: (progress: number) => void) => {
+    mocks.readText.mockImplementation((onProgress: (progress: number) => void) => {
       onProgress(0.5);
       return new Promise<string>((_resolve, reject) => {
         rejectRead = reject;
@@ -182,7 +189,7 @@ describe("useSourceLoader", () => {
     const { result, callbacks } = setup({ onReadFile });
 
     await act(() => result.current.onFileDrop(file));
-    expect(result.current.sourceFile).toBe(file);
+    expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(result.current.sourceText).toBe("");
     expect(onReadFile).not.toHaveBeenCalled();
 
@@ -192,7 +199,7 @@ describe("useSourceLoader", () => {
     expect(result.current.sourceText).toBe('{"loaded":true}');
 
     act(() => result.current.setMode("jsonl"));
-    expect(result.current.sourceFile).toBe(file);
+    expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(callbacks.onCollapseSource).toHaveBeenCalledTimes(2);
   });
 
@@ -215,7 +222,7 @@ describe("useSourceLoader", () => {
     await act(async () => resolveRead?.('{"loaded":true}'));
     await readPromise;
 
-    expect(result.current.sourceFile).toBe(file);
+    expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(result.current.importedFile).toBeNull();
   });
 
@@ -244,23 +251,19 @@ describe("useSourceLoader", () => {
     const file = largeFile("large.jsonl");
     const { result, callbacks } = setup();
     await act(() => result.current.onFileDrop(file));
-    const parsedRecord = parseInput('{"value":1}').records[0];
-    expect(parsedRecord).toBeDefined();
-    mocks.readJsonlRecordsByLine.mockResolvedValue(new Map([[1, parsedRecord]]));
+    mocks.readRecordText.mockResolvedValue('{"value":1}');
 
     await act(() => result.current.onCopyRawLine(previewRecord(1)));
     expect(mocks.writeClipboardText).toHaveBeenCalledWith('{"value":1}');
 
-    mocks.readJsonlRecordsByLine.mockResolvedValue(
-      new Map<number, JsonlRecord>([[2, parseJsonlRecordLine("raw line", 2)]]),
-    );
+    mocks.readRecordText.mockResolvedValue("raw line");
     mocks.writeClipboardText.mockResolvedValue(false);
     await act(() => result.current.onCopyRawLine(previewRecord(2)));
     expect(mocks.writeClipboardText).toHaveBeenLastCalledWith("raw line");
     expect(callbacks.onCopyError).toHaveBeenCalledTimes(1);
 
     const readError = new Error("record read failed");
-    mocks.readJsonlRecordsByLine.mockRejectedValue(readError);
+    mocks.readRecordText.mockRejectedValue(readError);
     await act(() => result.current.onCopyRawLine(previewRecord(3)));
     expect(callbacks.onError).toHaveBeenCalledWith(readError);
   });
@@ -270,7 +273,7 @@ describe("useSourceLoader", () => {
 
     await act(() => result.current.onCopyRawLine(parseJsonlRecordLine("invalid raw line", 1)));
 
-    expect(mocks.readJsonlRecordsByLine).not.toHaveBeenCalled();
+    expect(mocks.readRecordText).not.toHaveBeenCalled();
     expect(mocks.writeClipboardText).toHaveBeenCalledWith("invalid raw line");
   });
 });

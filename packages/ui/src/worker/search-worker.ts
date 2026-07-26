@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { searchJsonlFile } from "../lib/local-file-source";
+import { createLocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import { searchRecords } from "../lib/tree";
 import type { SearchMatch, SearchOptions } from "../lib/tree";
@@ -62,7 +62,7 @@ const searchFile = ({
   query,
   options,
 }: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchMatch[] | null> =>
-  searchJsonlFile(file, query, options, new AbortController().signal);
+  createLocalFileAccess(file).search(query, options, new AbortController().signal);
 
 // Never include the raw error, input text, or query in the posted message —
 // the worker must not echo user input back through unrelated channels.

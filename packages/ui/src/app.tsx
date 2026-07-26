@@ -32,7 +32,6 @@ import { formatFileSize } from "./lib/format";
 import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
-import { resolveHydratedRecord } from "./lib/record-resolution";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -83,7 +82,7 @@ export const UnquoteApp = ({
     mode,
     setMode,
     sourceText,
-    sourceFile,
+    sourceAccess,
     readingFile,
     readProgress,
     importedFile,
@@ -107,7 +106,7 @@ export const UnquoteApp = ({
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
   const outputRef = useRef<HTMLDivElement>(null);
   const outputViewSessionKeyRef = useRef<string | null>(null);
-  const forcedFormat = sourceFile ? "jsonl" : mode === "auto" ? undefined : mode;
+  const forcedFormat = sourceAccess ? "jsonl" : mode === "auto" ? undefined : mode;
   const {
     sourceRevision: resultRevision,
     result,
@@ -116,7 +115,7 @@ export const UnquoteApp = ({
   } = useParser({
     input: sourceText,
     forcedFormat,
-    sourceFile,
+    sourceAccess,
     onFileReadError: () => toast.error(t("input.readFailed")),
     sourceRevision,
   });
@@ -157,7 +156,7 @@ export const UnquoteApp = ({
     resultRevision,
     result,
     sourceText,
-    sourceFile,
+    sourceAccess,
     forcedFormat,
     translateError,
     onNavigate: handleQueryNavigation,
@@ -250,10 +249,12 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const localFileSource = useLocalFileSource(sourceFile, () => toast.error(t("input.readFailed")));
+  const localFileSource = useLocalFileSource(sourceAccess, () =>
+    toast.error(t("input.readFailed")),
+  );
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
   // main thread on large strings. Export streams via Blob and stays available.
-  const estimatedSourceBytes = sourceFile?.size ?? sourceText.length;
+  const estimatedSourceBytes = sourceAccess?.size ?? sourceText.length;
   const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
 
   useEffect(() => {
@@ -337,7 +338,7 @@ export const UnquoteApp = ({
     onCopyRecordError,
   } = useExportActions({
     visibleRecords,
-    getFullRecords: localFileSource.getFullRecords,
+    resolveRecords: localFileSource.resolveRecords,
     format: result.format,
     isCopyBlocked,
   });
@@ -348,12 +349,12 @@ export const UnquoteApp = ({
       copyRawLine: handleCopyRawLine,
       copyError: onCopyRecordError,
       selectNode: workspace.selectNode,
-      hydrateRecord: localFileSource.hydrateRecord,
+      hydrateRecord: localFileSource.requestRecord,
       clearFocus: workspace.clearFocus,
     }),
     [
       handleCopyRawLine,
-      localFileSource.hydrateRecord,
+      localFileSource.requestRecord,
       onCopyRecord,
       onCopyRecordError,
       workspace.clearFocus,
@@ -365,7 +366,7 @@ export const UnquoteApp = ({
     () => ({
       state: {
         recordInsights,
-        hydratedRecords: localFileSource.hydratedRecords,
+        resolveRecord: localFileSource.resolveRecord,
         expandedStringifiedPathsByRecord: displayedExpandedStringifiedPathsByRecord,
         selectedPath,
         focusedPath,
@@ -375,7 +376,7 @@ export const UnquoteApp = ({
     [
       displayedExpandedStringifiedPathsByRecord,
       focusedPath,
-      localFileSource.hydratedRecords,
+      localFileSource.resolveRecord,
       recordInsights,
       recordViewActions,
       selectedPath,
@@ -387,9 +388,7 @@ export const UnquoteApp = ({
     // preview only lists top-level nested fields, so stringified JSON sitting
     // under a plain container would otherwise be unreachable from here.
     workspace.expandAll(
-      visibleRecords.map((record) =>
-        resolveHydratedRecord(record, localFileSource.hydratedRecords),
-      ),
+      visibleRecords.map(localFileSource.resolveRecord),
       displayedExpandedStringifiedPathsByRecord,
     );
   };
@@ -404,7 +403,7 @@ export const UnquoteApp = ({
     }
 
     const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
-    const [copyRecord] = record ? await localFileSource.getFullRecords([record]) : [];
+    const [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
     const resolved = copyRecord?.node ? resolveTreePath([copyRecord], selectedPath.pathText) : null;
 
     return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
@@ -476,7 +475,7 @@ export const UnquoteApp = ({
     workspace.selectRecord(record);
   };
 
-  const statusFile = sourceFile ?? importedFile;
+  const statusFile = sourceAccess ?? importedFile;
   const sourceFileStatus = readingFile
     ? t("input.readingFile", {
         name: readingFile.name,
@@ -639,7 +638,7 @@ export const UnquoteApp = ({
     <TooltipProvider delay={600} closeDelay={0}>
       <div
         className="uq-shell pb-8"
-        data-source-file={sourceFile?.name ?? ""}
+        data-source-file={sourceAccess?.name ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
         data-output-view={agentSession ? outputView : "json"}

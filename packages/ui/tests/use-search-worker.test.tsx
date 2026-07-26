@@ -1,10 +1,12 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   largeFileSearchWorkerTimeoutMs,
   searchWorkerTimeoutMs,
   useSearchWorker,
 } from "../src/hooks/use-search-worker";
+import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { SearchMatch } from "../src/lib/tree";
 
 interface Listener {
@@ -75,9 +77,13 @@ const Probe = ({
   debounceMs?: number;
   options?: typeof defaultOptions;
 }) => {
+  const sourceAccess = useMemo(
+    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
+    [sourceFile],
+  );
   const result = useSearchWorker({
     text,
-    sourceFile,
+    sourceAccess,
     query,
     options,
     debounceMs,

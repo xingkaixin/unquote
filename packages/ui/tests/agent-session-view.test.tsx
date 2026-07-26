@@ -134,7 +134,7 @@ const renderView = (
     recordsById: recordMap,
     recordView: {
       state: {
-        hydratedRecords: new Map(),
+        resolveRecord: (record) => record,
         recordInsights: new Map(),
         expandedStringifiedPathsByRecord: new Map(),
         selectedPath: { recordId: "record-1", pathText: "$" },

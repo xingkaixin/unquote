@@ -1,8 +1,10 @@
 import type { ParseResult } from "@unquote/core";
 import { isParsed, parseInput } from "@unquote/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
+import { createLocalFileAccess } from "../src/lib/local-file-source";
 
 interface Listener {
   (event: MessageEvent): void;
@@ -169,11 +171,15 @@ const Probe = ({
   sourceFile?: File;
   onFileReadError?: () => void;
 }) => {
+  const sourceAccess = useMemo(
+    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
+    [sourceFile],
+  );
   const { result, progress, agentSession } = useParser({
     sourceRevision: 0,
     input,
     forcedFormat,
-    sourceFile,
+    sourceAccess,
     onFileReadError,
   });
   return (

@@ -39,7 +39,7 @@ const renderActions = ({
     () =>
       useExportActions({
         visibleRecords: validRecords,
-        getFullRecords,
+        resolveRecords: getFullRecords,
         format: "json",
         isCopyBlocked,
       }),

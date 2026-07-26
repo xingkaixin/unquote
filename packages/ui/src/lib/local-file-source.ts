@@ -1,10 +1,9 @@
-import { parseJson, parseJsonlRecordLine } from "@unquote/core";
+import { materializeNode, parseJson, parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 import { buildSearchPattern, searchJsonValue } from "./tree";
 import type { SearchMatch, SearchOptions } from "./tree";
 
-export const fileSearchDebounceMs = 250;
 export const hydratedFileRecordLimit = 500;
 
 const lineCheckpointInterval = 128;
@@ -73,7 +72,7 @@ const readFileWithFileReader = (file: File, onProgress: (progress: number) => vo
     reader.readAsText(file);
   });
 
-export const readFileText = async (file: File, onProgress: (progress: number) => void) => {
+const readFileText = async (file: File, onProgress: (progress: number) => void) => {
   if (typeof file.stream !== "function") {
     if (typeof file.text === "function") {
       const text = await file.text();
@@ -179,7 +178,7 @@ const readJsonlFileLines = async (
   }
 };
 
-export const readJsonlRecordsByLine = async (
+const readJsonlRecordsByLine = async (
   file: File,
   lineNumbers: Set<number>,
   signal?: AbortSignal,
@@ -289,7 +288,7 @@ export const readJsonlRecordsByLine = async (
   return records;
 };
 
-export const searchJsonlFile = async (
+const searchJsonlFile = async (
   file: File,
   query: string,
   options: SearchOptions,
@@ -328,3 +327,50 @@ export const searchJsonlFile = async (
 
   return signal.aborted ? null : matches;
 };
+
+export interface LocalFileAccess {
+  readonly name: string;
+  readonly size: number;
+  getFile: () => File;
+  readText: (onProgress: (progress: number) => void) => Promise<string>;
+  readRecords: (
+    lineNumbers: ReadonlySet<number>,
+    signal?: AbortSignal,
+  ) => Promise<Map<number, JsonlRecord>>;
+  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
+  readRecordText: (record: JsonlRecord, signal?: AbortSignal) => Promise<string>;
+  search: (
+    query: string,
+    options: SearchOptions,
+    signal: AbortSignal,
+  ) => Promise<SearchMatch[] | null>;
+}
+
+export const createLocalFileAccess = (file: File): LocalFileAccess => ({
+  name: file.name,
+  size: file.size,
+  getFile: () => file,
+  readText: (onProgress) => readFileText(file, onProgress),
+  readRecords: (lineNumbers, signal) => readJsonlRecordsByLine(file, new Set(lineNumbers), signal),
+  resolveRecords: async (records, signal) => {
+    const resolved = await readJsonlRecordsByLine(
+      file,
+      new Set(records.map((record) => record.lineNumber)),
+      signal,
+    );
+    return records.map((record) => resolved.get(record.lineNumber) ?? record);
+  },
+  readRecordText: async (record, signal) => {
+    const resolved = (await readJsonlRecordsByLine(file, new Set([record.lineNumber]), signal)).get(
+      record.lineNumber,
+    );
+    if (resolved?.status === "failed") {
+      return resolved.rawLine;
+    }
+    if (resolved) {
+      return JSON.stringify(materializeNode(resolved.node));
+    }
+    return record.status === "failed" ? record.rawLine : record.summary;
+  },
+  search: (query, options, signal) => searchJsonlFile(file, query, options, signal),
+});

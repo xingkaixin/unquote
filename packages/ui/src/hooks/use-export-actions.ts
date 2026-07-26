@@ -16,14 +16,14 @@ import {
 
 interface UseExportActionsParams {
   visibleRecords: JsonlRecord[];
-  getFullRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
+  resolveRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
   format: "json" | "jsonl";
   isCopyBlocked: boolean;
 }
 
 export const useExportActions = ({
   visibleRecords,
-  getFullRecords,
+  resolveRecords,
   format,
   isCopyBlocked,
 }: UseExportActionsParams) => {
@@ -43,13 +43,13 @@ export const useExportActions = ({
   const resolveCopyRecords = useCallback(
     async (records: JsonlRecord[]) => {
       try {
-        return await getFullRecords(records);
+        return await resolveRecords(records);
       } catch {
         toast.error(t("input.readFailed"));
         return null;
       }
     },
-    [getFullRecords, t],
+    [resolveRecords, t],
   );
 
   const onCopyJsonl = useCallback(async () => {
@@ -79,7 +79,7 @@ export const useExportActions = ({
   const onExportJsonl = useCallback(() => {
     toast.promise(
       (async () => {
-        const records = await getFullRecords(visibleRecords);
+        const records = await resolveRecords(visibleRecords);
         await yieldToMain();
         const parts = await formatRecordsAsJsonlParts(records);
         downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
@@ -90,12 +90,12 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  }, [getFullRecords, t, visibleRecords]);
+  }, [resolveRecords, t, visibleRecords]);
 
   const onExportFormattedJson = useCallback(() => {
     toast.promise(
       (async () => {
-        const records = await getFullRecords(visibleRecords);
+        const records = await resolveRecords(visibleRecords);
         await yieldToMain();
         const parts = await formatRecordsAsJsonParts(records, format);
         downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
@@ -106,7 +106,7 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  }, [format, getFullRecords, t, visibleRecords]);
+  }, [format, resolveRecords, t, visibleRecords]);
 
   const onCopyRecord = useCallback(
     async (record: JsonlRecord) => {

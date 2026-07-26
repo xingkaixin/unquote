@@ -2,8 +2,27 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { materializeNode } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
+import { createLocalFileAccess, type LocalFileAccess } from "../src/lib/local-file-source";
 
 const noopError = () => {};
+const accessCache = new WeakMap<File, LocalFileAccess>();
+const accessFor = (file: File | null) => {
+  if (!file) {
+    return null;
+  }
+
+  const cached = accessCache.get(file);
+  if (cached) {
+    return cached;
+  }
+
+  const access = createLocalFileAccess(file);
+  accessCache.set(file, access);
+  return access;
+};
+
+const isResolved = (source: ReturnType<typeof useLocalFileSource>, lineNumber: number) =>
+  source.resolveRecord(makeDeferredRecord(lineNumber)).status !== "preview";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   const file = new File([contents], name, { type: "application/jsonl" });
@@ -140,34 +159,42 @@ describe("useLocalFileSource", () => {
   it("keeps current hydration when a previous source resolves last", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
-    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
-      initialProps: { file: sourceA.file as File },
-    });
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      {
+        initialProps: { file: sourceA.file as File },
+      },
+    );
 
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
     rerender({ file: sourceB.file });
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source B
     expect(sourceA.reads[0]?.cancel).toHaveBeenCalledTimes(1);
 
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
-    expect(materializeNode(result.current.hydratedRecords.get(1)!.node!)).toEqual({ source: "B" });
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+      source: "B",
+    });
 
     await act(async () => sourceA.resolve());
-    expect(materializeNode(result.current.hydratedRecords.get(1)!.node!)).toEqual({ source: "B" });
+    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+      source: "B",
+    });
   });
 
   it("does not report hydration failures from a previous source", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const onError = vi.fn();
-    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, onError), {
-      initialProps: { file: sourceA.file as File },
-    });
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(accessFor(file), onError),
+      { initialProps: { file: sourceA.file as File } },
+    );
 
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
     rerender({ file: sourceB.file });
     await act(async () => sourceA.reject(new Error("stale failure")));
@@ -178,87 +205,91 @@ describe("useLocalFileSource", () => {
   it("does not let stale cleanup clear the current source in-flight line", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
-    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
-      initialProps: { file: sourceA.file as File },
-    });
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      {
+        initialProps: { file: sourceA.file as File },
+      },
+    );
 
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
     rerender({ file: sourceB.file });
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source B
 
     await act(async () => sourceA.resolve());
-    expect(result.current.hydratedRecords.size).toBe(0);
-    act(() => result.current.hydrateRecord(makeDeferredRecord(1)));
+    expect(isResolved(result.current, 1)).toBe(false);
+    act(() => result.current.requestRecord(makeDeferredRecord(1)));
     expect(sourceB.stream).toHaveBeenCalledTimes(1);
 
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
   });
 
   it("clears the hydration cache when the source file changes", async () => {
     const fileA = makeStreamedFile('{"a":1}\n');
     const fileB = makeStreamedFile('{"b":2}\n');
 
-    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
-      initialProps: { file: fileA as File | null },
-    });
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      { initialProps: { file: fileA as File | null } },
+    );
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
     });
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
 
     rerender({ file: fileB as File | null });
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(0));
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(false));
   });
 
   it("de-duplicates in-flight hydration for the same line", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     const record = makeDeferredRecord(1);
     act(() => {
-      result.current.hydrateRecord(record);
+      result.current.requestRecord(record);
       // Call again before the read resolves — must not double-read.
-      result.current.hydrateRecord(record);
+      result.current.requestRecord(record);
     });
 
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
-    expect(result.current.hydratedRecords.get(1)?.lineNumber).toBe(1);
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    expect(result.current.resolveRecord(record).lineNumber).toBe(1);
   });
 
   it("merges same-tick hydration requests into a single file scan", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n{"n":4}\n{"n":5}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
-      result.current.hydrateRecord(makeDeferredRecord(3));
-      result.current.hydrateRecord(makeDeferredRecord(5));
+      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(3));
+      result.current.requestRecord(makeDeferredRecord(5));
     });
 
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(3));
+    await waitFor(() => expect(isResolved(result.current, 5)).toBe(true));
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(1);
-    expect(result.current.hydratedRecords.has(1)).toBe(true);
-    expect(result.current.hydratedRecords.has(3)).toBe(true);
-    expect(result.current.hydratedRecords.has(5)).toBe(true);
+    expect(isResolved(result.current, 1)).toBe(true);
+    expect(isResolved(result.current, 3)).toBe(true);
+    expect(isResolved(result.current, 5)).toBe(true);
   });
 
   it("issues a separate file scan for hydration requests in a later tick", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
     });
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(3));
+      result.current.requestRecord(makeDeferredRecord(3));
     });
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(2));
+    await waitFor(() => expect(isResolved(result.current, 3)).toBe(true));
 
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(2);
   });
@@ -266,14 +297,14 @@ describe("useLocalFileSource", () => {
   it("stops a merged scan at the farthest requested line instead of reading the whole file", async () => {
     const lineByteLength = 11; // `{"n":"01"}\n`
     const chunked = makeChunkedFile(50, 8);
-    const { result } = renderHook(() => useLocalFileSource(chunked.file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(chunked.file), noopError));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(2));
-      result.current.hydrateRecord(makeDeferredRecord(45));
+      result.current.requestRecord(makeDeferredRecord(2));
+      result.current.requestRecord(makeDeferredRecord(45));
     });
 
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(2));
+    await waitFor(() => expect(isResolved(result.current, 45)).toBe(true));
     expect(chunked.stream).toHaveBeenCalledTimes(1);
     expect(chunked.bytesPulled()).toBeGreaterThanOrEqual(45 * lineByteLength);
     expect(chunked.bytesPulled()).toBeLessThan(chunked.totalBytes);
@@ -282,45 +313,50 @@ describe("useLocalFileSource", () => {
   it("discards a pending batch entirely when the source switches before it flushes", async () => {
     const sourceA = makeControlledFile('{"n":1}\n{"n":2}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"n":9}\n', "b.jsonl");
-    const { result, rerender } = renderHook(({ file }) => useLocalFileSource(file, noopError), {
-      initialProps: { file: sourceA.file as File },
-    });
+    const { result, rerender } = renderHook(
+      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      {
+        initialProps: { file: sourceA.file as File },
+      },
+    );
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
-      result.current.hydrateRecord(makeDeferredRecord(2));
+      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(2));
     });
     // Switch sources before the microtask flush for source A's batch runs.
     rerender({ file: sourceB.file });
     await act(async () => {});
 
     expect(sourceA.stream).not.toHaveBeenCalled();
-    expect(result.current.hydratedRecords.size).toBe(0);
+    expect(isResolved(result.current, 1)).toBe(false);
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
     });
     await act(async () => {}); // flush the microtask-batched read for source B
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(1));
-    expect(materializeNode(result.current.hydratedRecords.get(1)!.node!)).toEqual({ n: 9 });
+    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+      n: 9,
+    });
   });
 
   it("reports one error for a failed batch and lets the whole batch retry", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(file, onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), onError));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
-      result.current.hydrateRecord(makeDeferredRecord(2));
+      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(2));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(result.current.hydratedRecords.size).toBe(0);
+    expect(isResolved(result.current, 1)).toBe(false);
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
-      result.current.hydrateRecord(makeDeferredRecord(2));
+      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(2));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
@@ -331,18 +367,19 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
-        result.current.hydrateRecord(makeDeferredRecord(lineNumber));
+        result.current.requestRecord(makeDeferredRecord(lineNumber));
       }
     });
 
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(500));
+    await waitFor(() => expect(isResolved(result.current, lineCount)).toBe(true));
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(1);
-    expect(result.current.hydratedRecords.has(1)).toBe(false);
-    expect(result.current.hydratedRecords.has(lineCount)).toBe(true);
+    expect(isResolved(result.current, 1)).toBe(false);
+    expect(isResolved(result.current, 6)).toBe(true);
+    expect(isResolved(result.current, lineCount)).toBe(true);
   });
 
   it("evicts by insertion order even for a just-requested record", async () => {
@@ -351,50 +388,49 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= 500; lineNumber += 1) {
-        result.current.hydrateRecord(makeDeferredRecord(lineNumber));
+        result.current.requestRecord(makeDeferredRecord(lineNumber));
       }
     });
-    await waitFor(() => expect(result.current.hydratedRecords.size).toBe(500));
+    await waitFor(() => expect(isResolved(result.current, 500)).toBe(true));
 
     act(() => {
       // Already cached, so this is a no-op that does not move line 1 to the
       // back of the map. A true LRU would keep it alive past the next batch.
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
       for (let lineNumber = 501; lineNumber <= lineCount; lineNumber += 1) {
-        result.current.hydrateRecord(makeDeferredRecord(lineNumber));
+        result.current.requestRecord(makeDeferredRecord(lineNumber));
       }
     });
-    await waitFor(() => expect(result.current.hydratedRecords.has(lineCount)).toBe(true));
+    await waitFor(() => expect(isResolved(result.current, lineCount)).toBe(true));
 
-    expect(result.current.hydratedRecords.size).toBe(500);
-    expect(result.current.hydratedRecords.has(1)).toBe(false);
-    expect(result.current.hydratedRecords.has(6)).toBe(true);
+    expect(isResolved(result.current, 1)).toBe(false);
+    expect(isResolved(result.current, 6)).toBe(true);
   });
 
   it("does not hydrate non-deferred records", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     const record = { ...makeDeferredRecord(1), status: "full" as const };
     act(() => {
-      result.current.hydrateRecord(record);
+      result.current.requestRecord(record);
     });
 
     // Give any pending read a chance to settle; the cache must stay empty.
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(result.current.hydratedRecords.size).toBe(0);
+    expect(vi.mocked(file.stream)).not.toHaveBeenCalled();
   });
 
-  it("getFullRecords returns full records for a streamed source", async () => {
+  it("resolveRecords returns full records for a streamed source", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n');
-    const { result } = renderHook(() => useLocalFileSource(file, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
 
     const full = await act(async () => {
-      return result.current.getFullRecords([makeDeferredRecord(2)]);
+      return result.current.resolveRecords([makeDeferredRecord(2)]);
     });
 
     expect(full.length).toBe(1);
@@ -404,27 +440,27 @@ describe("useLocalFileSource", () => {
   it("reports hydration read failures and clears the in-flight mark", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(file, onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), onError));
 
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(result.current.hydratedRecords.size).toBe(0);
+    expect(isResolved(result.current, 1)).toBe(false);
 
     // The in-flight mark is cleared, so the same line can retry.
     act(() => {
-      result.current.hydrateRecord(makeDeferredRecord(1));
+      result.current.requestRecord(makeDeferredRecord(1));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
 
-  it("getFullRecords passes records through when there is no source file", async () => {
+  it("resolveRecords passes records through when there is no source file", async () => {
     const { result } = renderHook(() => useLocalFileSource(null, noopError));
 
     const record = makeDeferredRecord(1);
     const full = await act(async () => {
-      return result.current.getFullRecords([record]);
+      return result.current.resolveRecords([record]);
     });
 
     expect(full).toEqual([record]);

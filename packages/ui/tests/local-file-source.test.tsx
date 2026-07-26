@@ -1,10 +1,6 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { describe, expect, it } from "vitest";
-import {
-  readFileText,
-  readJsonlRecordsByLine,
-  searchJsonlFile,
-} from "../src/lib/local-file-source";
+import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { searchRecords } from "../src/lib/tree";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
@@ -58,7 +54,7 @@ describe("local-file-source", () => {
   it("reads full records for the requested line numbers", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n{"c":3}\n');
 
-    const records = await readJsonlRecordsByLine(file, new Set([1, 3]));
+    const records = await createLocalFileAccess(file).readRecords(new Set([1, 3]));
 
     expect(records.size).toBe(2);
     expect(records.get(1)?.lineNumber).toBe(1);
@@ -66,16 +62,30 @@ describe("local-file-source", () => {
     expect(records.has(2)).toBe(false);
   });
 
+  it("resolves preview records and raw copy text through the source interface", async () => {
+    const access = createLocalFileAccess(
+      makeStreamedFile('{"value":1}\ninvalid json\n', "records.jsonl"),
+    );
+    const preview = parsePreviewJsonlRecordLine('{"value":1}', 1);
+    const failedPreview = parsePreviewJsonlRecordLine("invalid json", 2);
+
+    const resolved = await access.resolveRecords([preview, failedPreview]);
+
+    expect(resolved.map((record) => record.status)).toEqual(["full", "failed"]);
+    await expect(access.readRecordText(preview)).resolves.toBe('{"value":1}');
+    await expect(access.readRecordText(failedPreview)).resolves.toBe("invalid json");
+  });
+
   it("returns an empty map when no lines are requested", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    await expect(readJsonlRecordsByLine(file, new Set())).resolves.toEqual(new Map());
+    await expect(createLocalFileAccess(file).readRecords(new Set())).resolves.toEqual(new Map());
   });
 
   it("accepts export-sized line-number sets", async () => {
     const file = makeStreamedFile('{"a":1}');
     const lineNumbers = new Set(Array.from({ length: 100_000 }, (_, index) => index + 1));
 
-    const records = await readJsonlRecordsByLine(file, lineNumbers);
+    const records = await createLocalFileAccess(file).readRecords(lineNumbers);
 
     expect(records.get(1)?.lineNumber).toBe(1);
   });
@@ -84,8 +94,9 @@ describe("local-file-source", () => {
     const contents = Array.from({ length: 1_000 }, (_, index) => `{"i":${index}}`).join("\n");
     const { file, sliceStarts } = makeMeasuredFile(contents);
 
-    await readJsonlRecordsByLine(file, new Set([250]));
-    await readJsonlRecordsByLine(file, new Set([500]));
+    const access = createLocalFileAccess(file);
+    await access.readRecords(new Set([250]));
+    await access.readRecords(new Set([500]));
 
     expect(sliceStarts[0]).toBe(0);
     expect(sliceStarts[1]).toBeGreaterThan(0);
@@ -95,8 +106,8 @@ describe("local-file-source", () => {
     const first = makeMeasuredFile('{"source":1}\n{"source":1}');
     const second = makeMeasuredFile('{"source":2}\n{"source":2}');
 
-    await readJsonlRecordsByLine(first.file, new Set([2]));
-    await readJsonlRecordsByLine(second.file, new Set([2]));
+    await createLocalFileAccess(first.file).readRecords(new Set([2]));
+    await createLocalFileAccess(second.file).readRecords(new Set([2]));
 
     expect(first.sliceStarts[0]).toBe(0);
     expect(second.sliceStarts[0]).toBe(0);
@@ -108,8 +119,9 @@ describe("local-file-source", () => {
       5,
     );
 
-    await readJsonlRecordsByLine(file, new Set([2]));
-    const records = await readJsonlRecordsByLine(file, new Set([4]));
+    const access = createLocalFileAccess(file);
+    await access.readRecords(new Set([2]));
+    const records = await access.readRecords(new Set([4]));
 
     expect(records.get(4)?.node?.children).toMatchObject({
       message: expect.objectContaining({ value: "四" }),
@@ -120,8 +132,9 @@ describe("local-file-source", () => {
     const contents = Array.from({ length: 800 }, (_, index) => `{"i":${index}}`).join("\n");
     const { file, sliceStarts } = makeMeasuredFile(contents);
 
-    await readJsonlRecordsByLine(file, new Set([700]));
-    const records = await readJsonlRecordsByLine(file, new Set([300]));
+    const access = createLocalFileAccess(file);
+    await access.readRecords(new Set([700]));
+    const records = await access.readRecords(new Set([300]));
 
     expect(sliceStarts[1]).toBeGreaterThan(0);
     expect(records.get(300)?.lineNumber).toBe(300);
@@ -131,8 +144,9 @@ describe("local-file-source", () => {
     const contents = Array.from({ length: 10_000 }, (_, index) => `{"i":${index}}`).join("\n");
     const { file } = makeMeasuredFile(contents);
 
-    await readJsonlRecordsByLine(file, new Set([10_000]));
-    const records = await readJsonlRecordsByLine(file, new Set([100]));
+    const access = createLocalFileAccess(file);
+    await access.readRecords(new Set([10_000]));
+    const records = await access.readRecords(new Set([100]));
 
     expect(records.get(100)?.lineNumber).toBe(100);
   });
@@ -142,17 +156,16 @@ describe("local-file-source", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(readJsonlRecordsByLine(file, new Set([2]), controller.signal)).resolves.toEqual(
-      new Map(),
-    );
+    await expect(
+      createLocalFileAccess(file).readRecords(new Set([2]), controller.signal),
+    ).resolves.toEqual(new Map());
   });
 
   it("searches raw lines and reports matches across them", async () => {
     const file = makeStreamedFile('{"message":"needle"}\n{"message":"hay"}\n');
     const controller = new AbortController();
 
-    const matches = await searchJsonlFile(
-      file,
+    const matches = await createLocalFileAccess(file).search(
       "needle",
       { regex: false, caseSensitive: false, jq: false },
       controller.signal,
@@ -179,8 +192,7 @@ describe("local-file-source", () => {
       options,
     );
 
-    const matches = await searchJsonlFile(
-      makeStreamedFile(contents),
+    const matches = await createLocalFileAccess(makeStreamedFile(contents)).search(
       "needle",
       options,
       controller.signal,
@@ -202,8 +214,7 @@ describe("local-file-source", () => {
     const file = makeStreamedFile(contents);
     const controller = new AbortController();
 
-    const matches = await searchJsonlFile(
-      file,
+    const matches = await createLocalFileAccess(file).search(
       "needle",
       { regex: false, caseSensitive: true, jq: false },
       controller.signal,
@@ -217,8 +228,7 @@ describe("local-file-source", () => {
     const controller = new AbortController();
     controller.abort();
 
-    const matches = await searchJsonlFile(
-      file,
+    const matches = await createLocalFileAccess(file).search(
       "needle",
       { regex: false, caseSensitive: false, jq: false },
       controller.signal,
@@ -231,8 +241,7 @@ describe("local-file-source", () => {
     const file = makeStreamedFile('{"message":"needle"}\n');
     const controller = new AbortController();
 
-    const matches = await searchJsonlFile(
-      file,
+    const matches = await createLocalFileAccess(file).search(
       "",
       { regex: false, caseSensitive: false, jq: false },
       controller.signal,
@@ -245,7 +254,7 @@ describe("local-file-source", () => {
     const file = makeStreamedFile('{"streamed":true}\n');
     const progress: number[] = [];
 
-    const text = await readFileText(file, (value) => progress.push(value));
+    const text = await createLocalFileAccess(file).readText((value) => progress.push(value));
 
     expect(text).toBe('{"streamed":true}\n');
     expect(progress.at(-1)).toBe(1);
@@ -260,7 +269,7 @@ describe("local-file-source", () => {
     Object.defineProperty(file, "text", { configurable: true, value: undefined });
     const progress: number[] = [];
 
-    const text = await readFileText(file, (value) => progress.push(value));
+    const text = await createLocalFileAccess(file).readText((value) => progress.push(value));
 
     expect(text).toBe('{"pasted":true}');
     // FileReader reports progress through onprogress and finishes with onProgress(1).

@@ -140,13 +140,13 @@ Object.assign(globalThis, {
       );
     }
     completeSearchFile(requestId: number, file: File, query: string, options: unknown) {
-      import("../src/lib/local-file-source").then(({ searchJsonlFile }) => {
-        searchJsonlFile(
-          file,
-          query,
-          options as { regex: boolean; caseSensitive: boolean; jq: boolean },
-          new AbortController().signal,
-        )
+      import("../src/lib/local-file-source").then(({ createLocalFileAccess }) => {
+        createLocalFileAccess(file)
+          .search(
+            query,
+            options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+            new AbortController().signal,
+          )
           .then((matches) => {
             this.onmessage?.({
               data: { type: "result", requestId, matches },
