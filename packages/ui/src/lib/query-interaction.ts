@@ -1,5 +1,5 @@
 import type { RecordFilterMode } from "./record-filter";
-import type { ResolvedTreePath } from "./tree-path";
+import type { TreePathMatch } from "./tree-path";
 
 export type QueryModeState =
   | { mode: "idle" }
@@ -8,7 +8,7 @@ export type QueryModeState =
       mode: "path";
       query: string;
       error: string | null;
-      matches: ResolvedTreePath[];
+      matches: TreePathMatch[];
       currentIndex: number;
     };
 
@@ -43,7 +43,7 @@ export type SearchOptionKind = "regex" | "caseSensitive" | "jq";
 // dispatch time — so it happens in the hook callback and the reducer receives
 // the outcome, staying a pure state transition.
 export type PathResolution =
-  | { query: string; ok: true; targets: ResolvedTreePath[] }
+  | { query: string; ok: true; targets: TreePathMatch[] }
   | { query: string; ok: false; error: string };
 
 export type QueryInteractionAction =

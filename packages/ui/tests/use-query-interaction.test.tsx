@@ -133,6 +133,41 @@ describe("useQueryInteraction", () => {
     ]);
   });
 
+  it("stores lightweight path matches and resolves only the active navigation target", () => {
+    const onNavigate = vi.fn();
+    const { result: query } = renderQuery(onNavigate);
+
+    act(() => query.current.intent.submitToolbarQuery("$.payload"));
+
+    expect(query.current.snapshot.pathMatches).toEqual([
+      { recordId: "record-1", pathText: "$.payload" },
+      { recordId: "record-2", pathText: "$.payload" },
+    ]);
+    expect(onNavigate).toHaveBeenLastCalledWith({
+      sourceRevision: 0,
+      kind: "path",
+      target: expect.objectContaining({
+        recordId: "record-1",
+        pathText: "$.payload",
+        rawKey: "payload",
+        node: expect.objectContaining({ value: "needle" }),
+      }),
+    });
+
+    onNavigate.mockClear();
+    act(() => query.current.intent.nextResult());
+
+    expect(query.current.snapshot.currentPathMatchIndex).toBe(1);
+    expect(onNavigate).toHaveBeenLastCalledWith({
+      sourceRevision: 0,
+      kind: "path",
+      target: expect.objectContaining({
+        recordId: "record-2",
+        pathText: "$.payload",
+      }),
+    });
+  });
+
   it("keeps regex and jq mutually exclusive through option intents", () => {
     const { result: query } = renderQuery();
 
