@@ -3,7 +3,12 @@ import { hasJsonNodeChildren, isParsed, isStringifiedNode, materializeNode } fro
 import { getPreviewNestedFieldKeys, getPreviewPath } from "./record-preview";
 import { formatJsonPath, formatJqSelector, parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
-import { formatJsonValueLabel, walkJsonNode, walkRawJsonValue } from "./json-walk";
+import {
+  formatJsonValueLabel,
+  getSearchableJsonValueLabelLength,
+  walkJsonNode,
+  walkRawJsonValue,
+} from "./json-walk";
 import type { JsonValueWalkContext } from "./json-walk";
 import type { RecordInsight } from "./record-insight";
 
@@ -258,10 +263,15 @@ const addSearchMatch = (
   const keySegment = context.pathSegments.at(-1);
   const valueLabel = formatJsonValueLabel(context);
   const keyRanges = keySegment?.kind === "key" ? findRanges(keySegment.value, pattern) : [];
-  const valueRanges = findRanges(valueLabel, pattern);
+  const allValueRanges = findRanges(valueLabel, pattern);
+  const searchableValueLabelLength = getSearchableJsonValueLabelLength(
+    context,
+    maxStringValueLabelLength,
+  );
+  const valueRanges = allValueRanges.filter((range) => range.end <= searchableValueLabelLength);
   const pathRanges = options.jq ? findRanges(context.jsonPath, pattern) : [];
 
-  if (keyRanges.length > 0 || valueRanges.length > 0 || pathRanges.length > 0) {
+  if (keyRanges.length > 0 || allValueRanges.length > 0 || pathRanges.length > 0) {
     matches.push({
       recordId,
       pathText: context.jsonPath,

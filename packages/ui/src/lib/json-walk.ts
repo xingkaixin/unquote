@@ -288,10 +288,12 @@ const formatStringLabel = (
   return `${JSON.stringify(`${value.slice(0, maxLength)}...`)} (${originalLength} chars)`;
 };
 
-export const formatJsonValueLabel = (
-  value: Pick<JsonValueWalkContext<unknown>, "kind" | "value" | "childCount" | "valueLength">,
-  maxStringLength?: number,
-) => {
+type JsonValueLabelInput = Pick<
+  JsonValueWalkContext<unknown>,
+  "kind" | "value" | "childCount" | "valueLength"
+>;
+
+export const formatJsonValueLabel = (value: JsonValueLabelInput, maxStringLength?: number) => {
   switch (value.kind) {
     case "object":
       return `{${value.childCount}}`;
@@ -308,6 +310,24 @@ export const formatJsonValueLabel = (
     default:
       return String(value.value);
   }
+};
+
+export const getSearchableJsonValueLabelLength = (
+  value: JsonValueLabelInput,
+  maxStringLength: number,
+) => {
+  const label = formatJsonValueLabel(value, maxStringLength);
+  if (value.kind !== "string") {
+    return label.length;
+  }
+
+  const stringValue = value.value as string;
+  const originalLength = value.valueLength ?? stringValue.length;
+  if (stringValue.length <= maxStringLength && stringValue.length === originalLength) {
+    return label.length;
+  }
+
+  return JSON.stringify(stringValue.slice(0, maxStringLength)).length - 1;
 };
 
 export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) =>
