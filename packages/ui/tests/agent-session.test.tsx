@@ -29,8 +29,12 @@ describe("createAgentSessionTracker", () => {
     });
 
     tracker.pushRawLine("", 1);
-    tracker.pushRawLine("{bad}", 2);
-    tracker.pushRawLine(sessionMeta, 4);
+    tracker.pushParseWarning(2);
+    tracker.pushParsedLine({
+      lineNumber: 4,
+      raw: sessionMeta,
+      data: JSON.parse(sessionMeta) as unknown,
+    });
 
     expect(tracker.finish()).toMatchObject({
       fileType: "Codex",

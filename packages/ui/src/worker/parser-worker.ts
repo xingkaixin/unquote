@@ -1,5 +1,9 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { isParsed, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
+import {
+  isParsed,
+  parseJsonlRecordLineWithValue,
+  parsePreviewJsonlRecordLineWithValue,
+} from "@unquote/core";
 import { createAgentSessionTracker, type AgentSession } from "../lib/agent-session";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 import { parseText, type ParserProgress } from "../lib/parse-text";
@@ -135,10 +139,19 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
     return;
   }
 
-  session.agentTracker.pushRawLine(line, session.lineNumber);
-  const record = session.compactForTransfer
-    ? parsePreviewJsonlRecordLine(line, session.lineNumber)
-    : parseJsonlRecordLine(line, session.lineNumber);
+  const parsedLine = session.compactForTransfer
+    ? parsePreviewJsonlRecordLineWithValue(line, session.lineNumber)
+    : parseJsonlRecordLineWithValue(line, session.lineNumber);
+  if ("value" in parsedLine) {
+    session.agentTracker.pushParsedLine({
+      lineNumber: session.lineNumber,
+      raw: line,
+      data: parsedLine.value,
+    });
+  } else {
+    session.agentTracker.pushParseWarning(session.lineNumber);
+  }
+  const { record } = parsedLine;
   session.processedLines += 1;
   session.lineNumber += 1;
   if (isParsed(record)) {

@@ -4,7 +4,9 @@ export {
   parseDeferredJsonlRecordLine,
   parseInput,
   parseJsonlRecordLine,
+  parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
+  parsePreviewJsonlRecordLineWithValue,
   restoreNode,
 } from "./parser.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";

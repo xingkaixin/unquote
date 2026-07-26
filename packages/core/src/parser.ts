@@ -242,30 +242,52 @@ const createParseErrorRecord = (
   };
 };
 
+type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
+  | { record: T; value: unknown }
+  | { record: FailedJsonlRecord };
+
+const parseJsonlRecordLineWith = <T extends FullJsonlRecord | PreviewJsonlRecord>(
+  line: string,
+  lineNumber: number,
+  createParsedRecord: (value: unknown) => T,
+): JsonlRecordLineResult<T> => {
+  try {
+    const value = parseJson(line);
+    return { record: createParsedRecord(value), value };
+  } catch (error) {
+    return { record: createParseErrorRecord(line, lineNumber, error) };
+  }
+};
+
+export const parseJsonlRecordLineWithValue = (
+  line: string,
+  lineNumber: number,
+  options: ParseOptions = {},
+): JsonlRecordLineResult<FullJsonlRecord> => {
+  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+  return parseJsonlRecordLineWith(line, lineNumber, (value) =>
+    createRecord(value, lineNumber, maxDepth),
+  );
+};
+
 export const parseJsonlRecordLine = (
   line: string,
   lineNumber: number,
   options: ParseOptions = {},
-): FullJsonlRecord | FailedJsonlRecord => {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+): FullJsonlRecord | FailedJsonlRecord =>
+  parseJsonlRecordLineWithValue(line, lineNumber, options).record;
 
-  try {
-    return createRecord(parseJson(line), lineNumber, maxDepth);
-  } catch (error) {
-    return createParseErrorRecord(line, lineNumber, error);
-  }
-};
+export const parsePreviewJsonlRecordLineWithValue = (
+  line: string,
+  lineNumber: number,
+): JsonlRecordLineResult<PreviewJsonlRecord> =>
+  parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewRecord(value, lineNumber));
 
 export const parsePreviewJsonlRecordLine = (
   line: string,
   lineNumber: number,
-): PreviewJsonlRecord | FailedJsonlRecord => {
-  try {
-    return createPreviewRecord(parseJson(line), lineNumber);
-  } catch (error) {
-    return createParseErrorRecord(line, lineNumber, error);
-  }
-};
+): PreviewJsonlRecord | FailedJsonlRecord =>
+  parsePreviewJsonlRecordLineWithValue(line, lineNumber).record;
 
 /** @deprecated Use parsePreviewJsonlRecordLine. */
 export const parseDeferredJsonlRecordLine = parsePreviewJsonlRecordLine;

@@ -7,7 +7,9 @@ import {
   materializeNode,
   parseInput,
   parseJsonlRecordLine,
+  parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
+  parsePreviewJsonlRecordLineWithValue,
   probeJsonl,
   restoreNode,
 } from "../src";
@@ -143,6 +145,26 @@ describe("parseInput", () => {
     expect(record.id).toBe("record-7");
     expect(record.lineNumber).toBe(7);
     expect(record.summary).toBe("event:two");
+  });
+
+  it("returns parsed JSONL values with full and preview records", () => {
+    const line = '{"event":"two","count":2}';
+    const full = parseJsonlRecordLineWithValue(line, 7);
+    const preview = parsePreviewJsonlRecordLineWithValue(line, 7);
+    const failed = parseJsonlRecordLineWithValue("{bad}", 8);
+
+    expect(full).toMatchObject({
+      value: { event: "two", count: 2 },
+      record: { status: "full", id: "record-7" },
+    });
+    expect(preview).toMatchObject({
+      value: { event: "two", count: 2 },
+      record: { status: "preview", id: "record-7" },
+    });
+    expect(failed).toMatchObject({
+      record: { status: "failed", id: "record-8" },
+    });
+    expect(failed).not.toHaveProperty("value");
   });
 
   it("projects Preview Records from the same stringified JSON semantics", () => {
