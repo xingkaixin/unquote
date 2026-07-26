@@ -1,11 +1,6 @@
 import { hasJsonNodeChildren, isStringifiedNode } from "@unquote/core";
 import type { JsonNode, JsonlRecord, JsonlRecordPreview } from "@unquote/core";
-import {
-  getPreviewMaxDepth,
-  getPreviewNestedFieldKeys,
-  getPreviewPath,
-  getPreviewPathSegments,
-} from "./record-preview";
+import { getPreviewMaxDepth, getPreviewPath, getPreviewPathSegments } from "./record-preview";
 import type { TreePathSegment } from "./path-codec";
 import { walkJsonNode } from "./json-walk";
 import { getPrimitiveValue, normalizeKey } from "./record-fields";
@@ -122,7 +117,7 @@ const walkPreviewBranch = (
   onContainer?: (candidate: ContainerCandidate) => void,
 ) => {
   metrics.maxDepth = getPreviewMaxDepth(preview);
-  const nestedFieldKeys = getPreviewNestedFieldKeys(preview);
+  const nestedFieldKeys = preview.nestedFieldKeys ?? [];
   metrics.nestedCount = nestedFieldKeys.length;
   if (trackNestedPaths) {
     for (const key of nestedFieldKeys) {

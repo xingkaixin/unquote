@@ -133,7 +133,7 @@ describe("parser worker dispatch", () => {
       status: "preview",
       preview: {
         fields: { type: "message", message: "ready", payload: '{"nested":true}' },
-        nestedFieldKeys: "payload",
+        nestedFieldKeys: ["payload"],
       },
     });
     expect(record.node?.children).toBeUndefined();

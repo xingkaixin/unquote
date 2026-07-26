@@ -1,4 +1,10 @@
-import type { FullJsonNode, JsonlRecord, JsonNode, PreviewJsonNode } from "../src";
+import type {
+  FullJsonNode,
+  JsonlRecord,
+  JsonlRecordPreview,
+  JsonNode,
+  PreviewJsonNode,
+} from "../src";
 
 declare const node: FullJsonNode;
 declare const previewNode: PreviewJsonNode;
@@ -30,6 +36,17 @@ const failed = {
   errorMeta: { line: 1, column: 1, rawLine: "bad", context: "bad" },
   rawLine: "bad",
 } satisfies JsonlRecord;
+
+const _previewWithNestedFields: JsonlRecordPreview = {
+  fields: {},
+  nestedFieldKeys: ["payload"],
+};
+
+const _previewWithSingularNestedField: JsonlRecordPreview = {
+  fields: {},
+  // @ts-expect-error Nested Preview fields use one array representation.
+  nestedFieldKeys: "payload",
+};
 
 // @ts-expect-error Full Records cannot carry preview data.
 const _fullWithPreview: JsonlRecord = { ...full, preview: { fields: {} } };

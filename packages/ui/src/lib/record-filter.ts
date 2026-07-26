@@ -1,6 +1,5 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { hasJsonNodeChildren, isParsed, isStringifiedNode } from "@unquote/core";
-import { getPreviewNestedFieldKeys } from "./record-preview";
 import type { RecordInsight } from "./record-insight";
 import type { SearchMatch } from "./record-search";
 
@@ -29,7 +28,7 @@ const containsStringifiedNode = (node: JsonNode): boolean => {
 
 const recordContainsStringifiedJson = (record: JsonlRecord) =>
   record.status === "preview" && record.preview
-    ? getPreviewNestedFieldKeys(record.preview).length > 0
+    ? (record.preview.nestedFieldKeys?.length ?? 0) > 0
     : isParsed(record) && containsStringifiedNode(record.node);
 
 export const filterRecords = (

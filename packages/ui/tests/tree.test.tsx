@@ -342,7 +342,7 @@ describe("tree paths", () => {
       },
       preview: {
         fields: { event: "tool_call", tool: "billing.search" },
-        nestedFieldKeys: "args",
+        nestedFieldKeys: ["args"],
       },
       summary: "event:tool_call",
     } satisfies JsonlRecord;

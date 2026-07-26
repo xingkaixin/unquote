@@ -111,7 +111,7 @@ describe("field-extraction", () => {
       preview: {
         fields: { event: "tool_call", tool: "billing.search" },
         containers: { error: "object" },
-        nestedFieldKeys: "payload",
+        nestedFieldKeys: ["payload"],
       },
       summary: "event:tool_call",
     } satisfies JsonlRecord;

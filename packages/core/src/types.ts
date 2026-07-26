@@ -145,7 +145,7 @@ export interface ParseErrorMeta {
 export interface JsonlRecordPreview {
   fields: Record<string, JsonPrimitive>;
   containers?: Record<string, JsonContainerKind>;
-  nestedFieldKeys?: string | string[];
+  nestedFieldKeys?: readonly string[];
 }
 
 interface JsonlRecordBase {
