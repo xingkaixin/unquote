@@ -1,7 +1,6 @@
 export {
   formatResult,
   materializeNode,
-  parseDeferredJsonlRecordLine,
   parseInput,
   parseJsonlRecordLine,
   parseJsonlRecordLineWithValue,

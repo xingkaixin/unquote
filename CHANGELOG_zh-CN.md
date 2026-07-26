@@ -5,6 +5,7 @@
 ### Changed
 
 - **破坏性变更（`@unquote/core`）** — `JsonNode` 改为可判别联合，只保存容器 children、截断容器 value、紧凑 preview 或带类型的 primitive 之一；移除冗余的 `path`、`wasStringified` 与 `meta`。调用方应在遍历时推导路径和深度，使用所属 `JsonlRecord.lineNumber`，并迁移到 `hasJsonNodeChildren`、`isStringifiedNode` 与 `isTruncatedJsonNode`。
+- **破坏性变更（`@unquote/core`）** — 移除已弃用的 `parseDeferredJsonlRecordLine` 别名，请改用 `parsePreviewJsonlRecordLine`。
 - Agent Session 的 Conversation Item 现在直接归属于对应的 timeline Event；专用领域 model 通过唯一的 Event → Record 关联统一解析 timeline、conversation 与 Record 选择。
 
 ## [0.11.0] - 2026-07-23

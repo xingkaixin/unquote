@@ -296,9 +296,6 @@ export const parsePreviewJsonlRecordLine = (
 ): PreviewJsonlRecord | FailedJsonlRecord =>
   parsePreviewJsonlRecordLineWithValue(line, lineNumber).record;
 
-/** @deprecated Use parsePreviewJsonlRecordLine. */
-export const parseDeferredJsonlRecordLine = parsePreviewJsonlRecordLine;
-
 type StrictJsonlAttempt =
   | { kind: "complete"; records: JsonlRecord[]; nextLineIndex: number }
   | { kind: "failed"; records: JsonlRecord[]; nextLineIndex: number };
