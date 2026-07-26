@@ -12,7 +12,11 @@ import {
 } from "../lib/agent-session";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordInsight } from "../lib/record-insight";
-import type { RecordViewActions, RecordViewModel } from "../lib/record-view";
+import {
+  narrowPathToRecord,
+  type RecordViewActions,
+  type RecordViewModel,
+} from "../lib/record-view";
 import type { SearchMatch } from "../lib/record-search";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { categoryConfig, formatTimestamp, roleConfig } from "./agent-session-format";
@@ -153,10 +157,10 @@ const RawJsonlPanel = ({
             expandedStringifiedPaths={expandedStringifiedPaths}
             eager
             searchMatches={noSearchMatches}
-            activeMatch={null}
+            activeMatchPath={null}
             scrollIntent={null}
-            selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
-            focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
+            selectedPath={narrowPathToRecord(selectedPath, record.id)}
+            focusedPath={narrowPathToRecord(focusedPath, record.id)}
             actions={actions}
           />
         ) : (

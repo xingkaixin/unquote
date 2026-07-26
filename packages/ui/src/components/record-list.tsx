@@ -3,7 +3,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
-import type { RecordViewModel } from "../lib/record-view";
+import { narrowPathToRecord, type RecordViewModel } from "../lib/record-view";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 import type { SearchMatch } from "../lib/record-search";
 import { JsonTree } from "./json-tree";
@@ -173,10 +173,10 @@ export const RecordList = memo(function RecordList({
         )}
         eager={index < 6}
         searchMatches={searchMatchesByRecord.get(record.id) ?? noSearchMatches}
-        activeMatch={activeMatch?.recordId === record.id ? activeMatch : null}
+        activeMatchPath={narrowPathToRecord(activeMatch, renderedRecord.id)}
         scrollIntent={scrollIntent}
-        selectedPath={selectedPath?.recordId === record.id ? selectedPath : null}
-        focusedPath={focusedPath?.recordId === record.id ? focusedPath : null}
+        selectedPath={narrowPathToRecord(selectedPath, renderedRecord.id)}
+        focusedPath={narrowPathToRecord(focusedPath, renderedRecord.id)}
         actions={actions}
       />
     );

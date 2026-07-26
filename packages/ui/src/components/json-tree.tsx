@@ -36,10 +36,10 @@ interface JsonTreeProps {
   expandedStringifiedPaths: ReadonlySet<string>;
   eager?: boolean;
   searchMatches: SearchMatch[];
-  activeMatch: { recordId: string; pathText: string } | null;
+  activeMatchPath: string | null;
   scrollIntent: ScrollIntent | null;
-  selectedPath: { recordId: string; pathText: string } | null;
-  focusedPath: { recordId: string; pathText: string } | null;
+  selectedPath: string | null;
+  focusedPath: string | null;
   actions: RecordViewActions;
 }
 
@@ -49,7 +49,7 @@ export const JsonTree = memo(function JsonTree({
   expandedStringifiedPaths,
   eager = false,
   searchMatches,
-  activeMatch,
+  activeMatchPath,
   scrollIntent,
   selectedPath,
   focusedPath,
@@ -59,15 +59,14 @@ export const JsonTree = memo(function JsonTree({
   const cardRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const [hydrated, setHydrated] = useState(eager);
-  const focusedPathText = focusedPath?.recordId === record.id ? focusedPath.pathText : null;
   const rows = useMemo(
     () =>
       hydrated
         ? measurePerfFn("recordRows:build", () =>
-            buildRecordRows(record, expandedStringifiedPaths, focusedPathText),
+            buildRecordRows(record, expandedStringifiedPaths, focusedPath),
           )
         : [],
-    [expandedStringifiedPaths, focusedPathText, hydrated, record],
+    [expandedStringifiedPaths, focusedPath, hydrated, record],
   );
   const displayRows = useMemo(() => buildDisplayRows(rows), [rows]);
   const interactiveRows = useMemo(
@@ -345,17 +344,17 @@ export const JsonTree = memo(function JsonTree({
             <span className="shrink-0 font-mono text-[10px] text-text-muted">
               {t("tree.nodes", { count: rows.length })}
             </span>
-            {focusedPathText ? (
+            {focusedPath ? (
               <span className="inline-flex min-w-0 items-center gap-1 border border-accent bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] text-accent">
                 <Focus className="size-3 shrink-0" />
-                <span className="truncate">{t("tree.focused", { path: focusedPathText })}</span>
+                <span className="truncate">{t("tree.focused", { path: focusedPath })}</span>
               </span>
             ) : null}
           </div>
           {insight ? <RecordInsightSummary insight={insight} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {focusedPathText ? (
+          {focusedPath ? (
             <Button
               variant="ghost"
               size="sm"
@@ -401,12 +400,11 @@ export const JsonTree = memo(function JsonTree({
 
               const searchMatch =
                 row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive =
-                row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
+              const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
               const isSelected = selectedPath
-                ? isPathWithin(row.source.pathText, selectedPath.pathText)
+                ? isPathWithin(row.source.pathText, selectedPath)
                 : false;
-              const isSelectedAnchor = selectedPath?.pathText === row.source.pathText;
+              const isSelectedAnchor = selectedPath === row.source.pathText;
 
               return (
                 <RowItem
@@ -436,12 +434,11 @@ export const JsonTree = memo(function JsonTree({
             {displayRows.map((row) => {
               const searchMatch =
                 row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive =
-                row.kind !== "close" && activeMatch?.pathText === row.source.pathText;
+              const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
               const isSelected = selectedPath
-                ? isPathWithin(row.source.pathText, selectedPath.pathText)
+                ? isPathWithin(row.source.pathText, selectedPath)
                 : false;
-              const isSelectedAnchor = selectedPath?.pathText === row.source.pathText;
+              const isSelectedAnchor = selectedPath === row.source.pathText;
               return (
                 <RowItem
                   key={row.id}
