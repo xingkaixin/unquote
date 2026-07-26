@@ -32,7 +32,7 @@ describe("useRecordPipeline", () => {
   it("preserves core stats for the unfiltered record set", () => {
     const matches = [createMatch("record-1"), createMatch("record-2")];
     const { result: pipeline } = renderHook(() =>
-      useRecordPipeline({ result, searchMatches: matches, recordFilter: "all" }),
+      useRecordPipeline({ sourceRevision: 0, result, searchMatches: matches, recordFilter: "all" }),
     );
 
     expect(pipeline.current.visibleRecords).toEqual(result.records);
@@ -44,7 +44,12 @@ describe("useRecordPipeline", () => {
   it("recalculates stats and matches from filtered records", () => {
     const matches = [createMatch("record-1"), createMatch("record-2")];
     const { result: pipeline } = renderHook(() =>
-      useRecordPipeline({ result, searchMatches: matches, recordFilter: "errors" }),
+      useRecordPipeline({
+        sourceRevision: 0,
+        result,
+        searchMatches: matches,
+        recordFilter: "errors",
+      }),
     );
 
     expect(pipeline.current.visibleRecords.map((record) => record.id)).toEqual(["record-2"]);
@@ -55,7 +60,12 @@ describe("useRecordPipeline", () => {
 
   it("keeps idle search results nullable", () => {
     const { result: pipeline } = renderHook(() =>
-      useRecordPipeline({ result, searchMatches: null, recordFilter: "matches" }),
+      useRecordPipeline({
+        sourceRevision: 0,
+        result,
+        searchMatches: null,
+        recordFilter: "matches",
+      }),
     );
 
     expect(pipeline.current.visibleRecords).toEqual([]);
@@ -68,7 +78,12 @@ describe("useRecordPipeline", () => {
     const r2 = rec("r2");
     const { result: pipeline, rerender } = renderHook(
       ({ result: streamed }: { result: ParseResult }) =>
-        useRecordPipeline({ result: streamed, searchMatches: null, recordFilter: "all" }),
+        useRecordPipeline({
+          sourceRevision: 0,
+          result: streamed,
+          searchMatches: null,
+          recordFilter: "all",
+        }),
       { initialProps: { result: buildResult([r1, r2]) } },
     );
 
@@ -92,7 +107,12 @@ describe("useRecordPipeline", () => {
     const r2 = rec("r2");
     const { result: pipeline, rerender } = renderHook(
       ({ result: streamed }: { result: ParseResult }) =>
-        useRecordPipeline({ result: streamed, searchMatches: null, recordFilter: "all" }),
+        useRecordPipeline({
+          sourceRevision: 0,
+          result: streamed,
+          searchMatches: null,
+          recordFilter: "all",
+        }),
       { initialProps: { result: buildResult([r1, r2]) } },
     );
 

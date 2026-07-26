@@ -107,10 +107,19 @@ export const UnquoteApp = ({
   const [outputView, setOutputView] = useState<"agent" | "json">("json");
   const outputRef = useRef<HTMLDivElement>(null);
   const outputViewSessionKeyRef = useRef<string | null>(null);
-  const forcedFormat = mode === "auto" ? undefined : mode;
-  const { result, progress, agentSession } = useParser(sourceText, forcedFormat, sourceFile, () =>
-    toast.error(t("input.readFailed")),
-  );
+  const forcedFormat = sourceFile ? "jsonl" : mode === "auto" ? undefined : mode;
+  const {
+    sourceRevision: resultRevision,
+    result,
+    progress,
+    agentSession,
+  } = useParser({
+    input: sourceText,
+    forcedFormat,
+    sourceFile,
+    onFileReadError: () => toast.error(t("input.readFailed")),
+    sourceRevision,
+  });
 
   const translateError = useCallback(
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
@@ -118,6 +127,10 @@ export const UnquoteApp = ({
   );
   const handleQueryNavigation = useCallback(
     (navigation: QueryNavigationTarget) => {
+      if (navigation.sourceRevision !== sourceRevision) {
+        return;
+      }
+
       if (navigation.kind === "clear") {
         workspace.clearScrollIntent();
         return;
@@ -137,9 +150,11 @@ export const UnquoteApp = ({
         navigation.target.stringifiedPathChain,
       );
     },
-    [workspace.clearScrollIntent, workspace.scrollToPath, workspace.selectPath],
+    [sourceRevision, workspace.clearScrollIntent, workspace.scrollToPath, workspace.selectPath],
   );
   const query = useQueryInteraction({
+    sourceRevision,
+    resultRevision,
     result,
     sourceText,
     sourceFile,
@@ -171,10 +186,6 @@ export const UnquoteApp = ({
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
-  const { reset: resetQuery } = queryIntent;
-  useEffect(() => {
-    resetQuery();
-  }, [resetQuery, sourceRevision]);
 
   const agentSessionKey = agentSession
     ? [

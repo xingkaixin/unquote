@@ -9,6 +9,8 @@ const result = parseInput(source, { forcedFormat: "jsonl" });
 const renderQuery = (onNavigate = vi.fn()) =>
   renderHook(() =>
     useQueryInteraction({
+      sourceRevision: 0,
+      resultRevision: 0,
       result,
       sourceText: source,
       sourceFile: null,
@@ -61,6 +63,7 @@ describe("useQueryInteraction", () => {
     act(() => query.current.intent.nextResult());
     expect(query.current.snapshot.currentMatchIndex).toBe(1);
     expect(onNavigate).toHaveBeenLastCalledWith({
+      sourceRevision: 0,
       kind: "search",
       recordId: "record-2",
       pathText: "$.payload",
@@ -75,6 +78,8 @@ describe("useQueryInteraction", () => {
     const { result: query, rerender } = renderHook(
       ({ parseResult }) =>
         useQueryInteraction({
+          sourceRevision: 0,
+          resultRevision: 0,
           result: parseResult,
           sourceText: "",
           sourceFile: null,
@@ -102,6 +107,7 @@ describe("useQueryInteraction", () => {
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
     expect(onNavigate).toHaveBeenLastCalledWith({
+      sourceRevision: 0,
       kind: "path",
       target: expect.objectContaining({
         recordId: "record-1",

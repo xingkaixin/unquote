@@ -60,6 +60,49 @@ describe("useSourceLoader", () => {
     expect(result.current.onCopyRawLine).toBe(onCopyRawLine);
   });
 
+  it("publishes parsing-mode changes as new Source Revisions", () => {
+    const { result, callbacks } = setup();
+
+    act(() => result.current.setMode("json"));
+    expect(result.current.sourceRevision).toBe(1);
+    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.setMode("json"));
+    expect(result.current.sourceRevision).toBe(1);
+    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.setMode("jsonl"));
+    expect(result.current.sourceRevision).toBe(2);
+    expect(callbacks.onReset).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the published Source stable while a replacement file is read", async () => {
+    let resolveRead: ((text: string) => void) | undefined;
+    const onReadFile = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const { result } = setup({ onReadFile });
+    let readPromise: Promise<void> | undefined;
+
+    act(() => result.current.onSourceChange('{"current":true}'));
+    const currentRevision = result.current.sourceRevision;
+    act(() => {
+      readPromise = result.current.onFileDrop(new File([], "replacement.json"));
+    });
+
+    expect(result.current.sourceText).toBe('{"current":true}');
+    expect(result.current.sourceFile).toBeNull();
+    expect(result.current.sourceRevision).toBe(currentRevision);
+
+    await act(async () => resolveRead?.('{"replacement":true}'));
+    await readPromise;
+    expect(result.current.sourceText).toBe('{"replacement":true}');
+    expect(result.current.sourceRevision).toBe(currentRevision + 1);
+  });
+
   it("publishes text and imported files while restoring text after a read failure", async () => {
     const readError = new Error("read failed");
     const onReadFile = vi

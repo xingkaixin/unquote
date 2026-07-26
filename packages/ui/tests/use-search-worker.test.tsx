@@ -75,7 +75,14 @@ const Probe = ({
   debounceMs?: number;
   options?: typeof defaultOptions;
 }) => {
-  const result = useSearchWorker({ text, sourceFile, query, options, debounceMs });
+  const result = useSearchWorker({
+    text,
+    sourceFile,
+    query,
+    options,
+    debounceMs,
+    sourceRevision: 0,
+  });
   renderLog.push({
     query,
     text,
