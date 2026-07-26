@@ -99,7 +99,7 @@ export const JsonTree = memo(function JsonTree({
 
   useEffect(() => {
     if (record.status === "preview" && hydrated) {
-      actions.hydrateRecord(record);
+      actions.requestFullRecord(record);
     }
   }, [actions, hydrated, record]);
   const searchMatchMap = useMemo(() => {
@@ -130,7 +130,7 @@ export const JsonTree = memo(function JsonTree({
   const toggleRow = useCallback(
     (row: DisplayTreeRow) => {
       if (record.status === "preview") {
-        actions.hydrateRecord(record);
+        actions.requestFullRecord(record);
       }
       actions.togglePath(record.id, row.source.pathText);
     },

@@ -1,25 +1,37 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { hydratedFileRecordLimit, type LocalFileAccess } from "../lib/local-file-source";
+import { fullRecordCacheLimit, type LocalFileAccess } from "../lib/local-file-source";
+import { belongsToSourceRevision } from "../lib/source-revision";
+import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
 
 export interface LocalFileSource {
   resolveRecord: (record: JsonlRecord) => JsonlRecord;
-  requestRecord: (record: JsonlRecord) => void;
+  requestFullRecord: (record: JsonlRecord) => void;
   resolveRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
 }
 
-interface HydrationGeneration {
+interface FullRecordScope extends SourceRevisionOwned {
   access: LocalFileAccess | null;
   controller: AbortController;
   inFlightLines: Set<number>;
-  // Lines queued by `requestRecord` calls in the current tick; merged into a
-  // single scan when the microtask flush runs. Lives on the generation (not a
+  // Lines queued by `requestFullRecord` calls in the current tick; merged into
+  // one scan when the microtask flush runs. Lives on the scope (not a
   // standalone ref) so a source switch discards any not-yet-flushed batch too.
   pendingLines: Set<number>;
   flushScheduled: boolean;
 }
 
-const createHydrationGeneration = (access: LocalFileAccess | null): HydrationGeneration => ({
+interface FullRecordCache extends SourceRevisionOwned {
+  recordsByLine: Map<number, JsonlRecord>;
+}
+
+const emptyFullRecordsByLine: ReadonlyMap<number, JsonlRecord> = new Map();
+
+const createFullRecordScope = (
+  access: LocalFileAccess | null,
+  sourceRevision: SourceRevision,
+): FullRecordScope => ({
+  sourceRevision,
   access,
   controller: new AbortController(),
   inFlightLines: new Set(),
@@ -27,159 +39,176 @@ const createHydrationGeneration = (access: LocalFileAccess | null): HydrationGen
   flushScheduled: false,
 });
 
+const createFullRecordCache = (sourceRevision: SourceRevision): FullRecordCache => ({
+  sourceRevision,
+  recordsByLine: new Map(),
+});
+
 /**
  * Deep module for local JSONL file source access.
  *
  * Owns the source-access concerns that leaked out of `UnquoteApp`:
- *  - deferred-record hydration cache (with in-flight de-dup + FIFO eviction)
- *  - full-record resolution for copy / export
+ *  - Preview-to-Full Record cache (with in-flight de-dup + FIFO eviction)
+ *  - Full Record resolution for copy / export
  *
  * Whole-file search uses the same `LocalFileAccess` capability through
  * `useSearchWorker`; this hook owns only browse-time record state.
  */
 export const useLocalFileSource = (
   access: LocalFileAccess | null,
-  // Called when a hydration read fails, so the caller can surface it. Read
+  sourceRevision: SourceRevision,
+  // Called when a Full Record read fails, so the caller can surface it. Read
   // through a ref: identity is not a dependency.
   onError: (error: unknown) => void,
 ): LocalFileSource => {
-  const [hydratedFileRecords, setHydratedFileRecords] = useState<Map<number, JsonlRecord>>(
-    new Map(),
+  const [fullRecordCache, setFullRecordCache] = useState<FullRecordCache>(() =>
+    createFullRecordCache(sourceRevision),
   );
-  const hydrationGenerationRef = useRef<HydrationGeneration>(createHydrationGeneration(access));
+  // A revision-changing render runs before the layout-effect reset, so reject
+  // the previous revision's cache on the read path too.
+  const fullRecordsByLine = belongsToSourceRevision(sourceRevision, fullRecordCache)
+    ? fullRecordCache.recordsByLine
+    : emptyFullRecordsByLine;
+  const fullRecordScopeRef = useRef<FullRecordScope>(createFullRecordScope(access, sourceRevision));
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
-  // Replace the whole hydration generation before browser events can request
-  // records from a newly committed source.
+  // Replace the whole scope before browser events can request Full Records from
+  // a newly committed source.
   useLayoutEffect(() => {
-    const previous = hydrationGenerationRef.current;
-    if (previous.access === access) {
+    const previous = fullRecordScopeRef.current;
+    if (belongsToSourceRevision(sourceRevision, previous) && previous.access === access) {
       return;
     }
 
     previous.controller.abort();
-    hydrationGenerationRef.current = createHydrationGeneration(access);
-    setHydratedFileRecords(new Map());
-  }, [access]);
+    fullRecordScopeRef.current = createFullRecordScope(access, sourceRevision);
+    setFullRecordCache(createFullRecordCache(sourceRevision));
+  }, [access, sourceRevision]);
 
   useEffect(
     () => () => {
-      hydrationGenerationRef.current.controller.abort();
+      fullRecordScopeRef.current.controller.abort();
     },
     [],
   );
 
-  // Runs once per tick per generation: collects every line queued by
-  // `requestRecord` since the last flush and resolves them with one scan
+  // Runs once per tick per scope: collects every line queued by
+  // `requestFullRecord` since the last flush and resolves them with one scan
   // instead of one per record.
-  const flushHydrationGeneration = useCallback((generation: HydrationGeneration) => {
-    generation.flushScheduled = false;
-    if (hydrationGenerationRef.current !== generation || generation.controller.signal.aborted) {
-      generation.pendingLines.clear();
+  const flushFullRecordScope = useCallback((scope: FullRecordScope) => {
+    scope.flushScheduled = false;
+    if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
+      scope.pendingLines.clear();
       return;
     }
 
-    const batch = generation.pendingLines;
-    generation.pendingLines = new Set();
-    if (batch.size === 0 || !generation.access) {
+    const batch = scope.pendingLines;
+    scope.pendingLines = new Set();
+    if (batch.size === 0 || !scope.access) {
       return;
     }
 
     for (const lineNumber of batch) {
-      generation.inFlightLines.add(lineNumber);
+      scope.inFlightLines.add(lineNumber);
     }
 
-    void generation.access
-      .readRecords(batch, generation.controller.signal)
+    void scope.access
+      .readRecords(batch, scope.controller.signal)
       .then((records) => {
-        if (hydrationGenerationRef.current !== generation || generation.controller.signal.aborted) {
+        if (fullRecordScopeRef.current !== scope || scope.controller.signal.aborted) {
           return;
         }
 
-        setHydratedFileRecords((current) => {
-          if (hydrationGenerationRef.current !== generation) {
+        setFullRecordCache((current) => {
+          if (fullRecordScopeRef.current !== scope) {
             return current;
           }
 
-          let next = current;
+          const currentCacheBelongsToScope = belongsToSourceRevision(scope.sourceRevision, current);
+          const currentRecords = currentCacheBelongsToScope
+            ? current.recordsByLine
+            : new Map<number, JsonlRecord>();
+          let next = currentRecords;
           for (const lineNumber of batch) {
-            const hydrated = records.get(lineNumber);
-            if (!hydrated || next.has(lineNumber)) {
+            const fullRecord = records.get(lineNumber);
+            if (!fullRecord || next.has(lineNumber)) {
               continue;
             }
-            if (next === current) {
-              next = new Map(current);
+            if (next === currentRecords) {
+              next = new Map(currentRecords);
             }
-            next.set(lineNumber, hydrated);
+            next.set(lineNumber, fullRecord);
           }
           // Eviction is FIFO, not LRU: `Map.keys()` yields insertion order and
-          // the cache is only written on hydration, never on read, so a
-          // repeatedly viewed record does not move to the back. That is a
+          // the cache is only written when a Full Record resolves. Reads never
+          // move a repeatedly viewed record to the back. That is a
           // deliberate trade — making it a true LRU would mean touching the
           // cache from the read path, which is a pure lookup today and would
           // otherwise re-render the whole record list on every scroll. Under
           // one-directional scrolling the two policies agree; the cost of the
           // difference is one extra scan when scrolling back past the limit,
           // after which the record is re-inserted at the back.
-          while (next.size > hydratedFileRecordLimit) {
+          while (next.size > fullRecordCacheLimit) {
             const firstInserted = next.keys().next().value;
             if (typeof firstInserted !== "number") {
               break;
             }
             next.delete(firstInserted);
           }
-          return next;
+          if (currentCacheBelongsToScope && next === current.recordsByLine) {
+            return current;
+          }
+
+          return { sourceRevision: scope.sourceRevision, recordsByLine: next };
         });
       })
       .catch((error) => {
-        if (
-          hydrationGenerationRef.current === generation &&
-          !generation.controller.signal.aborted
-        ) {
+        if (fullRecordScopeRef.current === scope && !scope.controller.signal.aborted) {
           onErrorRef.current(error);
         }
       })
       .finally(() => {
-        if (hydrationGenerationRef.current === generation) {
+        if (fullRecordScopeRef.current === scope) {
           // Clearing the in-flight marks also lets failed lines retry when
           // they scroll back into view.
           for (const lineNumber of batch) {
-            generation.inFlightLines.delete(lineNumber);
+            scope.inFlightLines.delete(lineNumber);
           }
         }
       });
   }, []);
 
-  const requestRecord = useCallback(
+  const requestFullRecord = useCallback(
     (record: JsonlRecord) => {
       if (!access || record.status !== "preview") {
         return;
       }
 
       const lineNumber = record.lineNumber;
-      const generation = hydrationGenerationRef.current;
+      const scope = fullRecordScopeRef.current;
       if (
-        generation.access !== access ||
-        hydratedFileRecords.has(lineNumber) ||
-        generation.inFlightLines.has(lineNumber) ||
-        generation.pendingLines.has(lineNumber)
+        !belongsToSourceRevision(sourceRevision, scope) ||
+        scope.access !== access ||
+        fullRecordsByLine.has(lineNumber) ||
+        scope.inFlightLines.has(lineNumber) ||
+        scope.pendingLines.has(lineNumber)
       ) {
         return;
       }
 
-      generation.pendingLines.add(lineNumber);
-      if (!generation.flushScheduled) {
-        generation.flushScheduled = true;
-        queueMicrotask(() => flushHydrationGeneration(generation));
+      scope.pendingLines.add(lineNumber);
+      if (!scope.flushScheduled) {
+        scope.flushScheduled = true;
+        queueMicrotask(() => flushFullRecordScope(scope));
       }
     },
-    [access, hydratedFileRecords, flushHydrationGeneration],
+    [access, flushFullRecordScope, fullRecordsByLine, sourceRevision],
   );
 
   const resolveRecord = useCallback(
-    (record: JsonlRecord) => hydratedFileRecords.get(record.lineNumber) ?? record,
-    [hydratedFileRecords],
+    (record: JsonlRecord) => fullRecordsByLine.get(record.lineNumber) ?? record,
+    [fullRecordsByLine],
   );
 
   const resolveRecords = useCallback(
@@ -190,7 +219,7 @@ export const useLocalFileSource = (
 
   return {
     resolveRecord,
-    requestRecord,
+    requestFullRecord,
     resolveRecords,
   };
 };

@@ -26,7 +26,7 @@ const renderTree = (expandedStringifiedPaths: ReadonlySet<string> = new Set()) =
           copyRawLine: vi.fn(),
           copyError: vi.fn(),
           selectNode: onSelectNode,
-          hydrateRecord: vi.fn(),
+          requestFullRecord: vi.fn(),
           clearFocus: vi.fn(),
         }}
       />

@@ -74,7 +74,7 @@ describe("parser worker file dispatch", () => {
     );
   });
 
-  it("transfers deferred records as a compact preview", async () => {
+  it("transfers Preview Records in compact form", async () => {
     const reader = {
       read: vi
         .fn()

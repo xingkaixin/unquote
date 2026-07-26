@@ -53,7 +53,7 @@ const renderWideTree = () => {
           copyRawLine: vi.fn(),
           copyError: vi.fn(),
           selectNode: vi.fn(),
-          hydrateRecord: vi.fn(),
+          requestFullRecord: vi.fn(),
           clearFocus: vi.fn(),
         }}
       />

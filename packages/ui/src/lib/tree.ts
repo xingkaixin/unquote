@@ -153,7 +153,7 @@ export const collectStringifiedPaths = (
 ) => {
   // A Preview Record's projected node carries no children, so walking it finds
   // nothing. Its preview already records which top-level fields hold nested
-  // JSON. Deeper levels surface once the record hydrates and the walk below
+  // JSON. Deeper levels surface once the Full Record resolves and the walk below
   // takes over.
   if (record.status === "preview" && record.preview) {
     return getPreviewNestedFieldKeys(record.preview).map(getPreviewPath);

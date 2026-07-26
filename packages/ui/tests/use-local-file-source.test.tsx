@@ -21,8 +21,8 @@ const accessFor = (file: File | null) => {
   return access;
 };
 
-const isResolved = (source: ReturnType<typeof useLocalFileSource>, lineNumber: number) =>
-  source.resolveRecord(makeDeferredRecord(lineNumber)).status !== "preview";
+const isFullRecordResolved = (source: ReturnType<typeof useLocalFileSource>, lineNumber: number) =>
+  source.resolveRecord(makePreviewRecord(lineNumber)).status !== "preview";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   const file = new File([contents], name, { type: "application/jsonl" });
@@ -135,7 +135,7 @@ const makeControlledFile = (contents: string, name: string) => {
   };
 };
 
-const makeDeferredRecord = (lineNumber: number) => ({
+const makePreviewRecord = (lineNumber: number) => ({
   status: "preview" as const,
   id: `record-${lineNumber}`,
   lineNumber,
@@ -144,51 +144,51 @@ const makeDeferredRecord = (lineNumber: number) => ({
     childCount: 0,
     preview: true as const,
   },
-  summary: "deferred",
+  summary: "preview",
 });
 
 describe("useLocalFileSource", () => {
-  it("keeps current hydration when a previous source resolves last", async () => {
+  it("keeps the current Full Record when a previous source resolves last", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
       {
-        initialProps: { file: sourceA.file as File },
+        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
       },
     );
 
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
-    rerender({ file: sourceB.file });
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    rerender({ file: sourceB.file, sourceRevision: 1 });
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source B
     expect(sourceA.reads[0]?.cancel).toHaveBeenCalledTimes(1);
 
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
-    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
+    expect(materializeNode(result.current.resolveRecord(makePreviewRecord(1)).node!)).toEqual({
       source: "B",
     });
 
     await act(async () => sourceA.resolve());
-    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+    expect(materializeNode(result.current.resolveRecord(makePreviewRecord(1)).node!)).toEqual({
       source: "B",
     });
   });
 
-  it("does not report hydration failures from a previous source", async () => {
+  it("does not report Full Record failures from a previous source", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const onError = vi.fn();
     const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(accessFor(file), onError),
-      { initialProps: { file: sourceA.file as File } },
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, onError),
+      { initialProps: { file: sourceA.file as File, sourceRevision: 0 } },
     );
 
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
-    rerender({ file: sourceB.file });
+    rerender({ file: sourceB.file, sourceRevision: 1 });
     await act(async () => sourceA.reject(new Error("stale failure")));
 
     expect(onError).not.toHaveBeenCalled();
@@ -198,90 +198,115 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
       {
-        initialProps: { file: sourceA.file as File },
+        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
       },
     );
 
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source A
-    rerender({ file: sourceB.file });
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    rerender({ file: sourceB.file, sourceRevision: 1 });
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     await act(async () => {}); // flush the microtask-batched read for source B
 
     await act(async () => sourceA.resolve());
-    expect(isResolved(result.current, 1)).toBe(false);
-    act(() => result.current.requestRecord(makeDeferredRecord(1)));
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
+    act(() => result.current.requestFullRecord(makePreviewRecord(1)));
     expect(sourceB.stream).toHaveBeenCalledTimes(1);
 
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
   });
 
-  it("clears the hydration cache when the source file changes", async () => {
+  it("clears the Full Record cache when the source file changes", async () => {
     const fileA = makeStreamedFile('{"a":1}\n');
     const fileB = makeStreamedFile('{"b":2}\n');
 
     const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(accessFor(file), noopError),
-      { initialProps: { file: fileA as File | null } },
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
+      { initialProps: { file: fileA as File | null, sourceRevision: 0 } },
     );
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
     });
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
 
-    rerender({ file: fileB as File | null });
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(false));
+    rerender({ file: fileB as File | null, sourceRevision: 1 });
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(false));
   });
 
-  it("de-duplicates in-flight hydration for the same line", async () => {
+  it("invalidates Full Records when the Source Revision changes for the same access", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const access = accessFor(file);
+    const previewRecord = makePreviewRecord(1);
+    const { result, rerender } = renderHook(
+      ({ sourceRevision }) => useLocalFileSource(access, sourceRevision, noopError),
+      { initialProps: { sourceRevision: 0 } },
+    );
 
-    const record = makeDeferredRecord(1);
     act(() => {
-      result.current.requestRecord(record);
+      result.current.requestFullRecord(previewRecord);
+    });
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
+
+    rerender({ sourceRevision: 1 });
+
+    expect(result.current.resolveRecord(previewRecord)).toBe(previewRecord);
+
+    act(() => {
+      result.current.requestFullRecord(previewRecord);
+    });
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
+    expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(2);
+  });
+
+  it("de-duplicates in-flight Full Record requests for the same line", async () => {
+    const file = makeStreamedFile('{"a":1}\n');
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+
+    const record = makePreviewRecord(1);
+    act(() => {
+      result.current.requestFullRecord(record);
       // Call again before the read resolves — must not double-read.
-      result.current.requestRecord(record);
+      result.current.requestFullRecord(record);
     });
 
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
     expect(result.current.resolveRecord(record).lineNumber).toBe(1);
   });
 
-  it("merges same-tick hydration requests into a single file scan", async () => {
+  it("merges same-tick Full Record requests into a single file scan", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n{"n":4}\n{"n":5}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
-      result.current.requestRecord(makeDeferredRecord(3));
-      result.current.requestRecord(makeDeferredRecord(5));
+      result.current.requestFullRecord(makePreviewRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(3));
+      result.current.requestFullRecord(makePreviewRecord(5));
     });
 
-    await waitFor(() => expect(isResolved(result.current, 5)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 5)).toBe(true));
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(1);
-    expect(isResolved(result.current, 1)).toBe(true);
-    expect(isResolved(result.current, 3)).toBe(true);
-    expect(isResolved(result.current, 5)).toBe(true);
+    expect(isFullRecordResolved(result.current, 1)).toBe(true);
+    expect(isFullRecordResolved(result.current, 3)).toBe(true);
+    expect(isFullRecordResolved(result.current, 5)).toBe(true);
   });
 
-  it("issues a separate file scan for hydration requests in a later tick", async () => {
+  it("issues a separate file scan for Full Record requests in a later tick", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
     });
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(3));
+      result.current.requestFullRecord(makePreviewRecord(3));
     });
-    await waitFor(() => expect(isResolved(result.current, 3)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 3)).toBe(true));
 
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(2);
   });
@@ -289,14 +314,14 @@ describe("useLocalFileSource", () => {
   it("stops a merged scan at the farthest requested line instead of reading the whole file", async () => {
     const lineByteLength = 11; // `{"n":"01"}\n`
     const chunked = makeChunkedFile(50, 8);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(chunked.file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(chunked.file), 0, noopError));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(2));
-      result.current.requestRecord(makeDeferredRecord(45));
+      result.current.requestFullRecord(makePreviewRecord(2));
+      result.current.requestFullRecord(makePreviewRecord(45));
     });
 
-    await waitFor(() => expect(isResolved(result.current, 45)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 45)).toBe(true));
     expect(chunked.stream).toHaveBeenCalledTimes(1);
     expect(chunked.bytesPulled()).toBeGreaterThanOrEqual(45 * lineByteLength);
     expect(chunked.bytesPulled()).toBeLessThan(chunked.totalBytes);
@@ -306,30 +331,30 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"n":1}\n{"n":2}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"n":9}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file }) => useLocalFileSource(accessFor(file), noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
       {
-        initialProps: { file: sourceA.file as File },
+        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
       },
     );
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
-      result.current.requestRecord(makeDeferredRecord(2));
+      result.current.requestFullRecord(makePreviewRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(2));
     });
     // Switch sources before the microtask flush for source A's batch runs.
-    rerender({ file: sourceB.file });
+    rerender({ file: sourceB.file, sourceRevision: 1 });
     await act(async () => {});
 
     expect(sourceA.stream).not.toHaveBeenCalled();
-    expect(isResolved(result.current, 1)).toBe(false);
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
     });
     await act(async () => {}); // flush the microtask-batched read for source B
     await act(async () => sourceB.resolve());
-    await waitFor(() => expect(isResolved(result.current, 1)).toBe(true));
-    expect(materializeNode(result.current.resolveRecord(makeDeferredRecord(1)).node!)).toEqual({
+    await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
+    expect(materializeNode(result.current.resolveRecord(makePreviewRecord(1)).node!)).toEqual({
       n: 9,
     });
   });
@@ -337,41 +362,41 @@ describe("useLocalFileSource", () => {
   it("reports one error for a failed batch and lets the whole batch retry", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, onError));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
-      result.current.requestRecord(makeDeferredRecord(2));
+      result.current.requestFullRecord(makePreviewRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(2));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(isResolved(result.current, 1)).toBe(false);
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
-      result.current.requestRecord(makeDeferredRecord(2));
+      result.current.requestFullRecord(makePreviewRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(2));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
 
-  it("caps a merged batch at hydratedFileRecordLimit via FIFO eviction", async () => {
+  it("caps a merged batch at fullRecordCacheLimit via FIFO eviction", async () => {
     const lineCount = 505;
     const contents = Array.from({ length: lineCount }, (_, index) => `{"n":${index + 1}}`).join(
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
-        result.current.requestRecord(makeDeferredRecord(lineNumber));
+        result.current.requestFullRecord(makePreviewRecord(lineNumber));
       }
     });
 
-    await waitFor(() => expect(isResolved(result.current, lineCount)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, lineCount)).toBe(true));
     expect(vi.mocked(file.stream)).toHaveBeenCalledTimes(1);
-    expect(isResolved(result.current, 1)).toBe(false);
-    expect(isResolved(result.current, 6)).toBe(true);
-    expect(isResolved(result.current, lineCount)).toBe(true);
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
+    expect(isFullRecordResolved(result.current, 6)).toBe(true);
+    expect(isFullRecordResolved(result.current, lineCount)).toBe(true);
   });
 
   it("evicts by insertion order even for a just-requested record", async () => {
@@ -380,36 +405,36 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= 500; lineNumber += 1) {
-        result.current.requestRecord(makeDeferredRecord(lineNumber));
+        result.current.requestFullRecord(makePreviewRecord(lineNumber));
       }
     });
-    await waitFor(() => expect(isResolved(result.current, 500)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, 500)).toBe(true));
 
     act(() => {
       // Already cached, so this is a no-op that does not move line 1 to the
       // back of the map. A true LRU would keep it alive past the next batch.
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
       for (let lineNumber = 501; lineNumber <= lineCount; lineNumber += 1) {
-        result.current.requestRecord(makeDeferredRecord(lineNumber));
+        result.current.requestFullRecord(makePreviewRecord(lineNumber));
       }
     });
-    await waitFor(() => expect(isResolved(result.current, lineCount)).toBe(true));
+    await waitFor(() => expect(isFullRecordResolved(result.current, lineCount)).toBe(true));
 
-    expect(isResolved(result.current, 1)).toBe(false);
-    expect(isResolved(result.current, 6)).toBe(true);
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
+    expect(isFullRecordResolved(result.current, 6)).toBe(true);
   });
 
-  it("does not hydrate non-deferred records", async () => {
+  it("does not request Full Records for non-Preview records", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     const record = parseJsonlRecordLine('{"a":1}', 1);
     act(() => {
-      result.current.requestRecord(record);
+      result.current.requestFullRecord(record);
     });
 
     // Give any pending read a chance to settle; the cache must stay empty.
@@ -419,38 +444,38 @@ describe("useLocalFileSource", () => {
 
   it("resolveRecords returns full records for a streamed source", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
 
     const full = await act(async () => {
-      return result.current.resolveRecords([makeDeferredRecord(2)]);
+      return result.current.resolveRecords([makePreviewRecord(2)]);
     });
 
     expect(full.length).toBe(1);
     expect(full[0]?.lineNumber).toBe(2);
   });
 
-  it("reports hydration read failures and clears the in-flight mark", async () => {
+  it("reports Full Record read failures and clears the in-flight mark", async () => {
     const file = makeFailingFile();
     const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, onError));
 
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(isResolved(result.current, 1)).toBe(false);
+    expect(isFullRecordResolved(result.current, 1)).toBe(false);
 
     // The in-flight mark is cleared, so the same line can retry.
     act(() => {
-      result.current.requestRecord(makeDeferredRecord(1));
+      result.current.requestFullRecord(makePreviewRecord(1));
     });
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
   });
 
   it("resolveRecords passes records through when there is no source file", async () => {
-    const { result } = renderHook(() => useLocalFileSource(null, noopError));
+    const { result } = renderHook(() => useLocalFileSource(null, 0, noopError));
 
-    const record = makeDeferredRecord(1);
+    const record = makePreviewRecord(1);
     const full = await act(async () => {
       return result.current.resolveRecords([record]);
     });
