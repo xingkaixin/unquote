@@ -5,7 +5,6 @@ import {
   isPathLikeQuery,
   reconcileMatchIndex,
   reduceQueryInteraction,
-  resolveQueryMode,
 } from "../lib/query-interaction";
 import type {
   PathResolution,
@@ -19,11 +18,13 @@ import type { SearchOptions } from "../lib/record-search";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { resolveTreePathMatches } from "../lib/tree-path";
+import type { ResolvedTreePath } from "../lib/tree-path";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
 export const memorySearchDebounceMs = 120;
 export const localFileSearchDebounceMs = 250;
+const emptyPathMatches: ResolvedTreePath[] = [];
 
 export type { QueryNavigationTarget } from "../lib/query-navigation";
 
@@ -102,7 +103,11 @@ export const useQueryInteraction = ({
     [translateError],
   );
 
-  const mode = resolveQueryMode(state.toolbarQuery);
+  const mode = state.modeState.mode;
+  const searchQuery = mode === "search" ? state.modeState.query : "";
+  const pathError = mode === "path" ? state.modeState.error : null;
+  const pathMatches = mode === "path" ? state.modeState.matches : emptyPathMatches;
+  const currentPathMatchIndex = mode === "path" ? state.modeState.currentIndex : 0;
   const searchOptions = useMemo<SearchOptions>(
     () => ({
       regex: state.searchRegex,
@@ -114,7 +119,7 @@ export const useQueryInteraction = ({
   const searchWorker = useSearchWorker({
     text: sourceText,
     sourceAccess,
-    query: state.searchQuery,
+    query: searchQuery,
     options: searchOptions,
     sourceRevision,
     debounceMs: sourceAccess ? localFileSearchDebounceMs : memorySearchDebounceMs,
@@ -132,7 +137,10 @@ export const useQueryInteraction = ({
     recordFilter: state.recordFilter,
   });
 
-  const currentMatchIndex = reconcileMatchIndex(state.currentMatchIndex, pipeline.matchCount);
+  const currentMatchIndex = reconcileMatchIndex(
+    mode === "search" ? state.modeState.currentMatchIndex : 0,
+    pipeline.matchCount,
+  );
 
   const activeSearchMatch =
     mode === "search"
@@ -162,13 +170,19 @@ export const useQueryInteraction = ({
   const navigate = useCallback(
     (action: QueryInteractionAction) => {
       const reconciledState =
-        currentMatchIndex === state.currentMatchIndex ? state : { ...state, currentMatchIndex };
+        state.modeState.mode !== "search" || currentMatchIndex === state.modeState.currentMatchIndex
+          ? state
+          : {
+              ...state,
+              modeState: { ...state.modeState, currentMatchIndex },
+            };
       const nextState = reduceQueryInteraction(reconciledState, action);
       dispatch(action);
 
-      if (resolveQueryMode(nextState.toolbarQuery) === "path") {
+      if (nextState.modeState.mode === "path") {
         const target =
-          nextState.pathMatches[nextState.currentPathMatchIndex] ?? nextState.pathMatches[0];
+          nextState.modeState.matches[nextState.modeState.currentIndex] ??
+          nextState.modeState.matches[0];
         if (target) {
           onNavigate({ sourceRevision, kind: "path", target });
         }
@@ -176,7 +190,8 @@ export const useQueryInteraction = ({
       }
 
       if (
-        nextState.currentMatchIndex === currentMatchIndex &&
+        nextState.modeState.mode === "search" &&
+        nextState.modeState.currentMatchIndex === currentMatchIndex &&
         activeSearchRecordId &&
         activeSearchPathText
       ) {
@@ -318,19 +333,19 @@ export const useQueryInteraction = ({
   return {
     snapshot: {
       toolbarQuery: state.toolbarQuery,
-      searchQuery: state.searchQuery,
+      searchQuery,
       searchRegex: state.searchRegex,
       searchCaseSensitive: state.searchCaseSensitive,
       searchJq: state.searchJq,
       recordFilter: state.recordFilter,
       commandInput: state.commandInput,
-      pathError: state.pathError,
-      pathMatches: state.pathMatches,
-      currentPathMatchIndex: state.currentPathMatchIndex,
+      pathError,
+      pathMatches,
+      currentPathMatchIndex,
       currentMatchIndex,
       activeSearchMatch,
       mode,
-      searchStatus: revisionsAligned ? searchWorker.status : state.searchQuery ? "pending" : "idle",
+      searchStatus: revisionsAligned ? searchWorker.status : searchQuery ? "pending" : "idle",
       searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,
       ...pipeline,
     },

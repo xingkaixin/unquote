@@ -15,7 +15,7 @@ import {
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RecordFilterMode } from "../lib/record-filter";
-import { resolveQueryMode } from "../lib/query-interaction";
+import { isPathLikeQuery } from "../lib/query-interaction";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
@@ -88,7 +88,7 @@ export const CommandPalette = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [commandQuery, setCommandQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const mode = resolveQueryMode(inputValue);
+  const pathMode = isPathLikeQuery(inputValue);
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +133,7 @@ export const CommandPalette = ({
       return;
     }
 
-    if (mode === "path") {
+    if (pathMode) {
       onJumpPath(value);
     } else {
       onSearch(value);
@@ -203,7 +203,7 @@ export const CommandPalette = ({
                 className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-muted"
               />
               <span className="shrink-0 bg-surface-200 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
-                {t(mode === "path" ? "command.pathMode" : "command.searchMode")}
+                {t(pathMode ? "command.pathMode" : "command.searchMode")}
               </span>
               <Dialog.Close
                 render={
@@ -220,7 +220,7 @@ export const CommandPalette = ({
             </div>
             <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-2">
               <span className="mr-1 font-mono text-[10px] text-text-muted">
-                {mode === "path"
+                {pathMode
                   ? t("command.pathMatches", { count: pathMatchCount })
                   : t("command.searchMatches", { count: matchCount })}
               </span>
@@ -255,7 +255,7 @@ export const CommandPalette = ({
                 {t("search.caseSensitive")}
               </Button>
               <Button variant="secondary" size="sm" className="ml-auto h-7" onClick={runPrimary}>
-                {t(mode === "path" ? "path.jump" : "command.search")}
+                {t(pathMode ? "path.jump" : "command.search")}
               </Button>
             </div>
             <div className="flex items-center gap-2 px-[18px] py-2">
