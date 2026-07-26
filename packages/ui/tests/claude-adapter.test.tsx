@@ -162,6 +162,7 @@ describe("claudeTranscriptAdapter", () => {
     expect(items[1]?.block?.text).toContain("More context");
     expect(items[2]).not.toHaveProperty("block");
     expect(items[3]?.block).toMatchObject({
+      type: "tool_result",
       status: "failed",
       toolCallId: "toolu_12345😀tail",
     });
@@ -270,6 +271,10 @@ describe("claudeTranscriptAdapter", () => {
       "thinking",
       "tool_call",
     ]);
-    expect(items[5]?.block?.toolInput).toEqual({});
+    expect(items[5]?.block).toMatchObject({
+      type: "tool_use",
+      toolName: "Bash",
+      toolInput: {},
+    });
   });
 });

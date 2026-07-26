@@ -144,7 +144,7 @@ const codexResponseBlock = (
       return undefined;
     }
     return {
-      type: "text",
+      type: "tool_result",
       text,
       ...(callId ? { toolCallId: callId } : {}),
       status: isFailedCodexToolOutput(payload) ? "failed" : "completed",

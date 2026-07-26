@@ -159,11 +159,13 @@ describe("agent session", () => {
       "tool_result",
     ]);
     expect(items[2]?.block).toMatchObject({
+      type: "tool_use",
       toolName: "exec_command",
       toolCallId: callId,
       status: "pending",
     });
     expect(items[3]?.block).toMatchObject({
+      type: "tool_result",
       toolCallId: callId,
       status: "completed",
     });
@@ -281,8 +283,13 @@ describe("agent session", () => {
     const items = conversationItems(session);
     const toolCall = items.find((item) => item.role === "tool_call");
     const toolResult = items.find((item) => item.role === "tool_result");
-    expect(toolCall?.block?.toolCallId).toBe("toolu_123");
+    expect(toolCall?.block).toMatchObject({
+      type: "tool_use",
+      toolName: "Bash",
+      toolCallId: "toolu_123",
+    });
     expect(toolResult?.block).toMatchObject({
+      type: "tool_result",
       toolCallId: "toolu_123",
       status: "completed",
       text: "file.txt",

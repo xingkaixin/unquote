@@ -144,21 +144,32 @@ describe("codexRolloutAdapter", () => {
     expect(items[2]).not.toHaveProperty("block");
     expect(items[3]?.block?.text).toBe("encrypted reasoning");
     expect(items[5]?.block).toMatchObject({
+      type: "tool_use",
       toolName: "tool",
       toolInput: {},
       status: "pending",
     });
     expect(items[6]?.block).toMatchObject({
+      type: "tool_use",
       toolCallId: "short-id",
       toolInput: { raw: "not json" },
     });
-    expect(items[7]?.block?.toolInput).toEqual({ raw: "42" });
+    expect(items[7]?.block).toMatchObject({
+      type: "tool_use",
+      toolName: "scalar_tool",
+      toolInput: { raw: "42" },
+    });
     expect(session.events[8]?.label).toBe("tool_result call_123456");
-    expect(items.slice(8, 11).map((item) => item.block?.status)).toEqual([
-      "completed",
-      "failed",
-      "failed",
+    expect(items.slice(8, 11).map((item) => item.block?.type)).toEqual([
+      "tool_result",
+      "tool_result",
+      "tool_result",
     ]);
+    expect(
+      items
+        .slice(8, 11)
+        .map((item) => (item.block?.type === "tool_result" ? item.block.status : undefined)),
+    ).toEqual(["completed", "failed", "failed"]);
     expect(items[11]).not.toHaveProperty("block");
   });
 });

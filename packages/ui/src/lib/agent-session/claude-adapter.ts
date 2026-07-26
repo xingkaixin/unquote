@@ -114,28 +114,34 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
 };
 
 const claudeBlockRole = (block: AgentContentBlock): AgentConversationRole => {
-  if (block.type === "thinking") {
-    return "thinking";
+  switch (block.type) {
+    case "thinking":
+      return "thinking";
+    case "tool_use":
+      return "tool_call";
+    case "tool_result":
+      return "tool_result";
+    case "text":
+      return "assistant";
   }
-  if (block.type === "tool_use") {
-    return "tool_call";
-  }
-  return "assistant";
 };
 
 const claudeBlockLabel = (block: AgentContentBlock) => {
-  if (block.type === "tool_use") {
-    return `tool_use ${block.toolName ?? "unknown"}`;
+  switch (block.type) {
+    case "tool_use":
+      return `tool_use ${block.toolName}`;
+    case "thinking":
+      return "thinking";
+    case "tool_result":
+      return "tool_result";
+    case "text":
+      return "text";
   }
-  if (block.type === "thinking") {
-    return "thinking";
-  }
-  return "text";
 };
 
 const claudeBlockPreview = (block: AgentContentBlock) => {
   if (block.type === "tool_use") {
-    return truncatePreview(`${block.toolName ?? "tool"}: ${block.text}`);
+    return truncatePreview(`${block.toolName}: ${block.text}`);
   }
   return truncatePreview(block.text);
 };
@@ -288,7 +294,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           const text = extractClaudeUserText(record);
           const block: AgentContentBlock | undefined = text
             ? {
-                type: "text",
+                type: "tool_result",
                 text: truncateBlockText(text),
                 status: first?.is_error === true ? "failed" : "completed",
                 ...(typeof first?.tool_use_id === "string"

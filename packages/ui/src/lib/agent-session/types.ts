@@ -36,14 +36,23 @@ export interface AgentTokenUsage {
   outputTokens: number;
 }
 
-export interface AgentContentBlock {
-  type: "text" | "thinking" | "tool_use";
-  text: string;
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
-  toolCallId?: string;
-  status?: "pending" | "completed" | "failed";
-}
+export type AgentContentBlock =
+  | { type: "text"; text: string }
+  | { type: "thinking"; text: string }
+  | {
+      type: "tool_use";
+      text: string;
+      toolName: string;
+      toolInput?: Record<string, unknown>;
+      toolCallId?: string;
+      status: "pending" | "completed" | "failed";
+    }
+  | {
+      type: "tool_result";
+      text: string;
+      toolCallId?: string;
+      status: "completed" | "failed";
+    };
 
 export interface AgentTimelineEvent {
   id: string;
