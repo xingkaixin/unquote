@@ -1,6 +1,6 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { hasJsonNodeChildren, isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
-import { getPreviewNestedFieldKeys, getPreviewPath } from "./record-preview";
+import { getPreviewPath } from "./record-preview";
 import { formatJsonValueLabel, maxStringValueLabelLength, walkJsonNode } from "./json-walk";
 import { resolveTreePath } from "./tree-path";
 import type { NodeSourceState, ResolvedTreePath } from "./tree-path";
@@ -156,7 +156,7 @@ export const collectStringifiedPaths = (
   // JSON. Deeper levels surface once the Full Record resolves and the walk below
   // takes over.
   if (record.status === "preview" && record.preview) {
-    return getPreviewNestedFieldKeys(record.preview).map(getPreviewPath);
+    return (record.preview.nestedFieldKeys ?? []).map(getPreviewPath);
   }
 
   if (!isParsed(record)) {

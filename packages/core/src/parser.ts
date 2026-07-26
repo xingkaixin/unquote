@@ -135,14 +135,6 @@ const createRecord = (value: unknown, lineNumber: number, maxDepth: number): Ful
   };
 };
 
-const appendNestedFieldKey = (nestedFieldKeys: string | string[] | undefined, key: string) => {
-  if (!nestedFieldKeys) {
-    return key;
-  }
-
-  return Array.isArray(nestedFieldKeys) ? [...nestedFieldKeys, key] : [nestedFieldKeys, key];
-};
-
 const truncatePreviewString = (value: string) =>
   truncateAtCodePointBoundary(value, maxPreviewStringLength);
 
@@ -189,7 +181,7 @@ const createRecordPreview = (value: unknown) => {
 
   const fields: JsonlRecordPreview["fields"] = {};
   const containers: NonNullable<JsonlRecordPreview["containers"]> = {};
-  let nestedFieldKeys: string | string[] | undefined;
+  const nestedFieldKeys: string[] = [];
 
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     const kind = getJsonKind(child);
@@ -201,7 +193,7 @@ const createRecordPreview = (value: unknown) => {
     fields[key] =
       typeof child === "string" ? truncatePreviewString(child) : (child as JsonPrimitive);
     if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
-      nestedFieldKeys = appendNestedFieldKey(nestedFieldKeys, key);
+      nestedFieldKeys.push(key);
     }
   }
 
@@ -212,7 +204,7 @@ const createRecordPreview = (value: unknown) => {
   return {
     fields,
     ...(Object.keys(containers).length > 0 ? { containers } : {}),
-    ...(nestedFieldKeys ? { nestedFieldKeys } : {}),
+    ...(nestedFieldKeys.length > 0 ? { nestedFieldKeys } : {}),
   };
 };
 

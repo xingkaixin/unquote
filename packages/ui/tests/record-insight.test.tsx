@@ -205,7 +205,7 @@ describe("record insight", () => {
           tool_name: "billing.search",
           message: "ready",
         },
-        nestedFieldKeys: "payload",
+        nestedFieldKeys: ["payload"],
       },
       summary: "type:tool_call",
     } satisfies JsonlRecord;
