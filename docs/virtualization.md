@@ -12,7 +12,7 @@ behavioral invariants to justify one interface.
 | Agent conversation | Window | More than 160 items | Dynamic, 96px estimate, 12px gap | Selected item center | Maintains window scroll margin and non-virtual item refs |
 | Agent timeline | Element | More than 160 events | Dynamic, 54/76px estimate, 4px gap | None | Estimate depends on preview presence |
 | Table of contents | Element | More than 160 records | Dynamic, 64px estimate, 4px gap | None | Lives in a constrained flex scroll container |
-| JSON tree | Element | More than 180 eligible rows | Dynamic, 38px estimate | Keyboard auto; search center | Disables virtualization for long or multiline values and coordinates hydration |
+| JSON tree | Element | More than 180 eligible rows | Dynamic, 38px estimate | Keyboard auto; search center | Disables virtualization for long or multiline values, lazily mounts rows, and requests Full Records for Preview Records |
 
 All five collections use `@tanstack/react-virtual`, render a total-size spacer, position visible rows
 with `translateY`, and measure mounted rows. These are library usage details rather than a product
@@ -29,7 +29,7 @@ A shared `VirtualCollection` module is rejected. Its interface would need to exp
 - stable item identity;
 - start, center, and auto navigation alignment;
 - virtual and non-virtual selection behavior;
-- active-record observation, keyboard navigation, and deferred hydration hooks.
+- active-record observation, keyboard navigation, and Preview-to-Full Record requests.
 
 The deletion test fails: deleting such a module would restore only the spacer, transform, and
 measurement boilerplate, while removing its interface would eliminate most of the configuration
@@ -59,6 +59,6 @@ Virtualization changes must preserve the existing characterization coverage for:
 - window and element scrolling;
 - selected-item and search-target navigation;
 - active-record tracking;
-- JSON Tree keyboard navigation and deferred hydration.
+- JSON Tree keyboard navigation, lazy DOM mounting, and Preview-to-Full Record replacement.
 
 Run `pnpm --filter @unquote/ui test` for focused validation and `pnpm check` before merging.

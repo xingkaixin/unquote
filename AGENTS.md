@@ -19,7 +19,7 @@ apps/extension         WXT + React Chrome extension (MV3)
 | Package Manager | pnpm 11.11.0 (workspace protocol `workspace:*`) |
 | Build / Dev | Turbo, Vite, tsup |
 | Frontend | React 19, TypeScript 7, Tailwind CSS v4 |
-| Component Primitives | Base UI (dropdown, scroll-area, tabs, tooltip, separator) |
+| Component Primitives | Base UI (dialog, menu, tabs, tooltip, separator) |
 | Virtualization | `@tanstack/react-virtual` |
 | Icons | `lucide-react` |
 | Testing | Vitest, `@testing-library/react`, jsdom |
@@ -31,24 +31,51 @@ apps/extension         WXT + React Chrome extension (MV3)
 ### Key Types
 
 ```typescript
-interface JsonNode {
-  kind: "object" | "array" | "string" | "number" | "boolean" | "null";
-  value: unknown;
-  path: string[];           // e.g. ["", "payload", "items", "0"]
-  wasStringified: boolean;  // true if this node came from a JSON string value
-  children?: Record<string, JsonNode> | JsonNode[];
-  meta: { depth, expandable, restorable, recordId?, sourceLine?, truncated?, valueLength? };
-}
+type JsonNode = FullJsonNode | PreviewJsonNode;
 
-interface JsonlRecord {
+type FullJsonNode =
+  | JsonObjectNode
+  | JsonArrayNode
+  | TruncatedJsonObjectNode
+  | TruncatedJsonArrayNode
+  | JsonSourceStringNode
+  | JsonNumberNode
+  | JsonBooleanNode
+  | JsonNullNode;
+
+type PreviewJsonNode =
+  | PreviewJsonObjectNode
+  | PreviewJsonArrayNode
+  | JsonStringNode
+  | JsonNumberNode
+  | JsonBooleanNode
+  | JsonNullNode;
+
+type JsonlRecord = FullJsonlRecord | PreviewJsonlRecord | FailedJsonlRecord;
+
+interface JsonlRecordBase {
   id: string;
   lineNumber: number;
-  node: JsonNode | null;
-  deferred?: boolean;       // true for local-file preview records hydrated on demand
-  error?: string;
-  errorMeta?: ParseErrorMeta;
-  rawLine?: string;
   summary: string;
+}
+
+interface FullJsonlRecord extends JsonlRecordBase {
+  status: "full";
+  node: FullJsonNode;
+}
+
+interface PreviewJsonlRecord extends JsonlRecordBase {
+  status: "preview";
+  node: PreviewJsonNode;
+  preview?: JsonlRecordPreview;
+}
+
+interface FailedJsonlRecord extends JsonlRecordBase {
+  status: "failed";
+  node: null;
+  error: string;
+  errorMeta: ParseErrorMeta;
+  rawLine: string;
 }
 
 interface ParseResult {
@@ -57,6 +84,17 @@ interface ParseResult {
   stats: { total, success, failed };
 }
 ```
+
+Normal container nodes own `children`; truncated containers own `value` plus
+`truncated: true`; Preview container nodes own `childCount` plus `preview: true`.
+Expanded Stringified JSON is represented by `rawString`, while a Preview Record
+can mark it with `stringifiedPreview: true`. String nodes carry `valueLength`
+directly when the displayed value is truncated. Path, depth, and Record ownership
+belong to traversal context rather than `JsonNode`.
+
+Use the guards exported by `packages/core/src/records.ts` instead of rebuilding
+record-state checks: `isParsed`, `isFullRecord`, `isPreviewRecord`, and
+`isFailedRecord`.
 
 ### Parser Behavior
 
@@ -93,10 +131,10 @@ CSS variables defined in `src/styles.css`:
 
 | File | Purpose |
 |---|---|
-| `app.tsx` | Root `UnquoteApp` component. Coordinates top-level UI state (source text, theme, output view, query interaction, expanded paths, selection, focus, local-file source, agent session switching). |
+| `app.tsx` | Root `UnquoteApp` composition root. Connects source loading, parsing, query interaction, local-file access, workspace selection, export actions, theme, and Agent/JSON output switching. |
 | `components/agent-session-view.tsx` | Agent log lens for detected Codex / Claude Code JSONL sessions. Shows session metadata, conversation turns, timeline events, and the matching raw JSONL record. |
-| `components/json-tree.tsx` | Renders a single `JsonlRecord` as a tree. Lazy hydration via `IntersectionObserver`. Virtual list auto-enabled at >180 rows. |
-| `components/record-list.tsx` | Maps `records` → `JsonTree[]`, applies record virtualization, and swaps in hydrated local-file records. |
+| `components/json-tree.tsx` | Renders one `JsonlRecord`. Uses `IntersectionObserver` to lazily mount tree rows, requests a Full Record when a Preview Record enters the render frontier, and enables row virtualization above 180 eligible rows. |
+| `components/record-list.tsx` | Maps `records` to `JsonTree` components, virtualizes long record lists, and substitutes resolved Full Records for their Preview Records. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
 | `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand/Collapse All, and overflow copy/export actions. |
 | `components/input-pane.tsx` | Textarea input + mode selector (auto/json/jsonl) + file drop zone. |
@@ -109,32 +147,36 @@ CSS variables defined in `src/styles.css`:
 |---|---|
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
 | `hooks/use-desktop-workspace.ts` | Tracks the desktop workspace media query for responsive input and output layout. |
-| `hooks/use-local-file-source.ts` | Stateful access layer for local JSONL files: deferred full-record hydration, search, copy/export resolution, cache eviction, and abort handling. |
+| `hooks/use-local-file-source.ts` | Browse-time state for local JSONL files: batched Preview-to-Full Record requests, Full Record cache eviction, copy/export resolution, and abort handling. |
 | `hooks/use-global-shortcuts.ts` | Owns document-level command palette, search navigation, expansion, and escape-key shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
 | `hooks/use-search-worker.ts` | Runs search off the main thread with cancellation and a time budget for superseded queries, with an in-process fallback when workers are unavailable. |
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
-| `hooks/use-record-pipeline.ts` | Combines parser output, local-file hydration, agent session detection, search, filters, expansion helpers, and visible record derivation. |
-| `hooks/use-workspace-session.ts` | Owns workspace-level source, output, selection, focus, and agent-session view state. |
+| `hooks/use-record-pipeline.ts` | Derives record lookup, insight, overview, filtered records and stats, plus visible search matches from a parse result and query state. |
+| `hooks/use-workspace-session.ts` | Owns record/node/Agent-detail selection, focus and scroll intent, plus user and search-driven Stringified JSON expansion state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
 ### Tree Utilities (`lib/tree.ts`)
 
 - `buildRecordRows(record, expandedPaths, focusedPath?)` → `TreeRow[]` — flattens `JsonNode` tree into renderable rows.
 - `searchRecords(records, query, options)` → `SearchMatch[] | null` — searches across key, value, and path (when `jq: true`).
-- `collectStringifiedPaths(record, ...)` — finds all `wasStringified` nodes for Expand/Collapse All.
+- `collectStringifiedPaths(record, ...)` — finds reachable Stringified JSON boundaries; nested boundaries become reachable as their ancestors expand.
 - `materializeRecord(record)` — converts the expanded tree back to a plain JSON value for copy/export.
 
 ### UI Utility Modules
 
-- `lib/local-file-source.ts` — pure local-file line reading, deferred hydration, abortable whole-file search, and full-record lookup for copy/export.
-- `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts, split into Codex / Claude adapters plus shared builders and types for the `AgentSession` conversation, timeline, metadata, and parse-warning model.
+- `lib/local-file-source.ts` — local-file capability for line scanning, Preview and Full Record parsing, whole-file search, and record resolution for copy/export.
+- `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts; adapters build sessions and the domain model resolves timeline/conversation selection back to canonical events and Records.
 - `lib/json-walk.ts` — shared `JsonNode` tree traversal used by tree rendering, search, overview, and record insight code.
-- `lib/field-extraction.ts` — shared full-record and deferred-preview traversal for file overview and record insight field candidates and nested metrics.
+- `lib/jsonl-lines.ts` — shared incremental JSONL line scanner with CRLF handling and early-stop support.
+- `lib/field-extraction.ts` — shared Full Record and Preview Record traversal for file overview and record-insight field candidates and nested metrics.
 - `lib/partial-record-cache.ts` — shared incremental cache for file overview and record insight aggregation while records stream in.
+- `lib/record-derivation.ts` — drives record insight and file overview through one field traversal per Record and incrementally reuses prior results.
+- `lib/record-expansion.ts` — immutable per-Record Stringified JSON expansion state and batched update helpers.
 - `lib/record-export.ts` — pure copy/export formatting, filename, blob download, and large-copy threshold helpers.
 - `lib/record-fields.ts` — shared field extraction helpers for overview and insight classification.
+- `lib/source-revision.ts` — Source Revision ownership type and stale-result guards.
 - `lib/stream-publisher.ts` — batches streamed parser records before React state updates.
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
 - `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
@@ -165,7 +207,7 @@ Search result (`SearchMatch`):
 Active match auto-scroll:
 - Virtualized: `rowVirtualizer.scrollToIndex(index, { align: "center" })`
 - Non-virtualized: `element.scrollIntoView({ block: "center", behavior: "smooth" })`
-- If record not yet hydrated, auto-sets `hydrated = true` first.
+- If the target is still a Preview Record, requests its Full Record before scrolling to the match.
 
 ### Internationalization
 
