@@ -153,6 +153,36 @@ describe("tree paths", () => {
     );
   });
 
+  it("searches object keys without treating roots or array indexes as keys", () => {
+    const result = parseInput('{"0":"object-key","items":[10,20,30]}');
+    const options = { regex: false, caseSensitive: true, jq: false };
+    const matches = searchRecords(result.records, "0", options);
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        pathText: '$["0"]',
+        keyRanges: [{ start: 0, end: 1 }],
+        valueRanges: [],
+      }),
+      expect.objectContaining({
+        pathText: "$.items[0]",
+        keyRanges: [],
+        valueRanges: [{ start: 1, end: 2 }],
+      }),
+      expect.objectContaining({
+        pathText: "$.items[1]",
+        keyRanges: [],
+        valueRanges: [{ start: 1, end: 2 }],
+      }),
+      expect.objectContaining({
+        pathText: "$.items[2]",
+        keyRanges: [],
+        valueRanges: [{ start: 1, end: 2 }],
+      }),
+    ]);
+    expect(searchRecords(result.records, "$", options)).toEqual([]);
+  });
+
   // Takes ~5s on slow CI runners, right at the default 5000ms timeout.
   it(
     "aggregates a record with more matches than the function argument limit",

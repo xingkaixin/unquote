@@ -255,9 +255,9 @@ const addSearchMatch = (
   options: SearchOptions,
   matches: SearchMatch[],
 ) => {
-  const keyLabel = context.pathSegments.at(-1)?.value ?? "$";
+  const keySegment = context.pathSegments.at(-1);
   const valueLabel = formatJsonValueLabel(context);
-  const keyRanges = findRanges(keyLabel, pattern);
+  const keyRanges = keySegment?.kind === "key" ? findRanges(keySegment.value, pattern) : [];
   const valueRanges = findRanges(valueLabel, pattern);
   const pathRanges = options.jq ? findRanges(context.jsonPath, pattern) : [];
 
