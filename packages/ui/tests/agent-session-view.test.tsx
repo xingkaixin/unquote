@@ -117,7 +117,7 @@ const renderView = (
     onTogglePath: vi.fn(),
     onCopyRecord: vi.fn(),
     onCopyRawLine: vi.fn(),
-    onCopyError: vi.fn(),
+    copyError: vi.fn(),
     onSelectNode: vi.fn(),
     onRequestFullRecord: vi.fn(),
     onClearFocus: vi.fn(),
@@ -138,7 +138,7 @@ const renderView = (
         togglePath: callbacks.onTogglePath,
         copyRecord: callbacks.onCopyRecord,
         copyRawLine: callbacks.onCopyRawLine,
-        copyError: callbacks.onCopyError,
+        copyError: callbacks.copyError,
         selectNode: callbacks.onSelectNode,
         requestFullRecord: callbacks.onRequestFullRecord,
         clearFocus: callbacks.onClearFocus,
@@ -234,7 +234,7 @@ describe("AgentSessionView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy error" }));
 
     expect(callbacks.onCopyRawLine).toHaveBeenCalledWith(records[2]);
-    expect(callbacks.onCopyError).toHaveBeenCalledWith(records[2]);
+    expect(callbacks.copyError).toHaveBeenCalledWith(records[2]);
   });
 
   it("shows the role and record linked from a conversation selection", () => {

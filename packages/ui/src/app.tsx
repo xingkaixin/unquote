@@ -16,6 +16,7 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
+import { useCopyToClipboard } from "./hooks/use-copy-to-clipboard";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
@@ -27,7 +28,6 @@ import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
-import { writeClipboardText } from "./lib/clipboard";
 import { formatFileSize } from "./lib/format";
 import { isArrayElementPath } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
@@ -65,6 +65,7 @@ export const UnquoteApp = ({
   onOpenFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
+  const copyToClipboard = useCopyToClipboard();
   const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const {
@@ -84,8 +85,6 @@ export const UnquoteApp = ({
     initialInput,
     onRequestOpenFile: onOpenFile,
     onCollapseSource: () => setSourceCollapsed(true),
-    onError: () => toast.error(t("input.readFailed")),
-    onCopyError: () => toast.error(t("copy.failed")),
   });
   const workspace = useWorkspaceSession(sourceRevision);
   const {
@@ -111,7 +110,6 @@ export const UnquoteApp = ({
     input: sourceText,
     forcedFormat,
     sourceAccess,
-    onFileReadError: () => toast.error(t("input.readFailed")),
     sourceRevision,
   });
   const hasMultipleJsonlRecords = result.format === "jsonl" && result.records.length > 1;
@@ -200,9 +198,7 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const localFileSource = useLocalFileSource(sourceAccess, sourceRevision, () =>
-    toast.error(t("input.readFailed")),
-  );
+  const localFileSource = useLocalFileSource(sourceAccess, sourceRevision);
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
   // main thread on large strings. Export streams via Blob and stays available.
   const estimatedSourceBytes = sourceAccess?.size ?? sourceText.length;
@@ -348,9 +344,7 @@ export const UnquoteApp = ({
     }
 
     const text = formatSelectionCopy(selectedPath, materializeNode(context.target.node));
-    if (!(await writeClipboardText(text))) {
-      toast.error(t("copy.failed"));
-    }
+    await copyToClipboard(text);
   };
 
   // Global shortcut command table. Shortcuts are read via a ref inside the

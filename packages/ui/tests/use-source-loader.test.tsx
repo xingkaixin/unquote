@@ -1,6 +1,8 @@
 import { parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../src/i18n/context";
 import {
   createControlledStreamFile,
   createFailingStreamFile,
@@ -10,34 +12,38 @@ import {
 const mocks = vi.hoisted(() => ({
   writeClipboardText: vi.fn(),
 }));
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+}));
 
 vi.mock("../src/lib/clipboard", () => ({
   writeClipboardText: mocks.writeClipboardText,
 }));
+vi.mock("sonner", () => ({ toast: toastMocks }));
 
 import { useSourceLoader } from "../src/hooks/use-source-loader";
 
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
 const previewRecord = (lineNumber: number) =>
   parsePreviewJsonlRecordLine('{"value":"preview"}', lineNumber);
+const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
   const callbacks = {
     onCollapseSource: vi.fn(),
-    onError: vi.fn(),
-    onCopyError: vi.fn(),
   };
   const params = {
     initialInput: "initial",
     ...callbacks,
     ...overrides,
   };
-  return { callbacks, ...renderHook(() => useSourceLoader(params)) };
+  return { callbacks, ...renderHook(() => useSourceLoader(params), { wrapper }) };
 };
 
 describe("useSourceLoader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mocks.writeClipboardText.mockResolvedValue(true);
   });
 
@@ -104,7 +110,7 @@ describe("useSourceLoader", () => {
     const readError = new Error("read failed");
     const imported = createStreamFile('{"imported":true}', "small.json");
     const broken = createFailingStreamFile(readError, "broken.json");
-    const { result, callbacks } = setup();
+    const { result } = setup();
 
     act(() => result.current.onSourceChange("edited"));
     expect(result.current.sourceText).toBe("edited");
@@ -119,12 +125,12 @@ describe("useSourceLoader", () => {
     expect(broken.stream).toHaveBeenCalledTimes(1);
     expect(result.current.sourceText).toBe('{"imported":true}');
     expect(result.current.readingFile).toBeNull();
-    expect(callbacks.onError).toHaveBeenCalledWith(readError);
+    expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
   });
 
   it("reports read progress and ignores an obsolete read failure", async () => {
     const controlled = createControlledStreamFile("slow", "slow.json");
-    const { result, callbacks } = setup();
+    const { result } = setup();
     let readPromise: Promise<void> | undefined;
 
     act(() => {
@@ -142,7 +148,7 @@ describe("useSourceLoader", () => {
     });
 
     expect(result.current.sourceText).toBe("replacement");
-    expect(callbacks.onError).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("collapses oversized text and ignores an obsolete successful import", async () => {
@@ -233,7 +239,7 @@ describe("useSourceLoader", () => {
       `{"value":1}\nraw line\n${"x".repeat(1_000_001)}`,
       "large.jsonl",
     );
-    const { result, callbacks } = setup();
+    const { result } = setup();
     await act(() => result.current.onFileDrop(file));
 
     await act(() => result.current.onCopyRawLine(previewRecord(1)));
@@ -242,13 +248,13 @@ describe("useSourceLoader", () => {
     mocks.writeClipboardText.mockResolvedValue(false);
     await act(() => result.current.onCopyRawLine(previewRecord(2)));
     expect(mocks.writeClipboardText).toHaveBeenLastCalledWith("raw line");
-    expect(callbacks.onCopyError).toHaveBeenCalledTimes(1);
+    expect(toastMocks.error).toHaveBeenLastCalledWith("Copy failed");
 
     const readError = new Error("record read failed");
     const failure = createFailingStreamFile(readError, "broken.jsonl", "x".repeat(1_000_001));
     await act(() => result.current.onFileDrop(failure.file));
     await act(() => result.current.onCopyRawLine(previewRecord(3)));
-    expect(callbacks.onError).toHaveBeenCalledWith(readError);
+    expect(toastMocks.error).toHaveBeenLastCalledWith("Failed to read file");
   });
 
   it("copies inline record text without resolving a file", async () => {

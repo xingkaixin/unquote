@@ -1,10 +1,18 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
+import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../src/lib/local-file-source";
 
-const noopError = () => {};
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: toastMocks }));
+
+const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 const accessCache = new WeakMap<File, LocalFileAccess>();
 const accessFor = (file: File | null) => {
   if (!file) {
@@ -148,13 +156,19 @@ const makePreviewRecord = (lineNumber: number) => ({
 });
 
 describe("useLocalFileSource", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
   it("keeps the current Full Record when a previous source resolves last", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
       {
         initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        wrapper,
       },
     );
 
@@ -180,10 +194,9 @@ describe("useLocalFileSource", () => {
   it("does not report Full Record failures from a previous source", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
-    const onError = vi.fn();
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, onError),
-      { initialProps: { file: sourceA.file as File, sourceRevision: 0 } },
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
+      { initialProps: { file: sourceA.file as File, sourceRevision: 0 }, wrapper },
     );
 
     act(() => result.current.requestFullRecord(makePreviewRecord(1)));
@@ -191,16 +204,17 @@ describe("useLocalFileSource", () => {
     rerender({ file: sourceB.file, sourceRevision: 1 });
     await act(async () => sourceA.reject(new Error("stale failure")));
 
-    expect(onError).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("does not let stale cleanup clear the current source in-flight line", async () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
       {
         initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        wrapper,
       },
     );
 
@@ -224,8 +238,8 @@ describe("useLocalFileSource", () => {
     const fileB = makeStreamedFile('{"b":2}\n');
 
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
-      { initialProps: { file: fileA as File | null, sourceRevision: 0 } },
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
+      { initialProps: { file: fileA as File | null, sourceRevision: 0 }, wrapper },
     );
 
     act(() => {
@@ -242,8 +256,8 @@ describe("useLocalFileSource", () => {
     const access = accessFor(file);
     const previewRecord = makePreviewRecord(1);
     const { result, rerender } = renderHook(
-      ({ sourceRevision }) => useLocalFileSource(access, sourceRevision, noopError),
-      { initialProps: { sourceRevision: 0 } },
+      ({ sourceRevision }) => useLocalFileSource(access, sourceRevision),
+      { initialProps: { sourceRevision: 0 }, wrapper },
     );
 
     act(() => {
@@ -264,7 +278,7 @@ describe("useLocalFileSource", () => {
 
   it("de-duplicates in-flight Full Record requests for the same line", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     const record = makePreviewRecord(1);
     act(() => {
@@ -279,7 +293,7 @@ describe("useLocalFileSource", () => {
 
   it("merges same-tick Full Record requests into a single file scan", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n{"n":4}\n{"n":5}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
@@ -296,7 +310,7 @@ describe("useLocalFileSource", () => {
 
   it("issues a separate file scan for Full Record requests in a later tick", async () => {
     const file = makeStreamedFile('{"n":1}\n{"n":2}\n{"n":3}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
@@ -314,7 +328,9 @@ describe("useLocalFileSource", () => {
   it("stops a merged scan at the farthest requested line instead of reading the whole file", async () => {
     const lineByteLength = 11; // `{"n":"01"}\n`
     const chunked = makeChunkedFile(50, 8);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(chunked.file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(chunked.file), 0), {
+      wrapper,
+    });
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(2));
@@ -331,9 +347,10 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"n":1}\n{"n":2}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"n":9}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision, noopError),
+      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
       {
         initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        wrapper,
       },
     );
 
@@ -361,21 +378,21 @@ describe("useLocalFileSource", () => {
 
   it("reports one error for a failed batch and lets the whole batch retry", async () => {
     const file = makeFailingFile();
-    const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
       result.current.requestFullRecord(makePreviewRecord(2));
     });
-    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(1));
+    expect(toastMocks.error).toHaveBeenLastCalledWith("Failed to read file");
     expect(isFullRecordResolved(result.current, 1)).toBe(false);
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
       result.current.requestFullRecord(makePreviewRecord(2));
     });
-    await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(2));
   });
 
   it("caps a merged batch at fullRecordCacheLimit via FIFO eviction", async () => {
@@ -384,7 +401,7 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
@@ -405,7 +422,7 @@ describe("useLocalFileSource", () => {
       "\n",
     );
     const file = makeStreamedFile(`${contents}\n`);
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       for (let lineNumber = 1; lineNumber <= 500; lineNumber += 1) {
@@ -430,7 +447,7 @@ describe("useLocalFileSource", () => {
 
   it("does not request Full Records for non-Preview records", async () => {
     const file = makeStreamedFile('{"a":1}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     const record = parseJsonlRecordLine('{"a":1}', 1);
     act(() => {
@@ -444,7 +461,7 @@ describe("useLocalFileSource", () => {
 
   it("resolveRecords returns full records for a streamed source", async () => {
     const file = makeStreamedFile('{"a":1}\n{"b":2}\n');
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     const full = await act(async () => {
       return result.current.resolveRecords([makePreviewRecord(2)]);
@@ -456,24 +473,24 @@ describe("useLocalFileSource", () => {
 
   it("reports Full Record read failures and clears the in-flight mark", async () => {
     const file = makeFailingFile();
-    const onError = vi.fn();
-    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0, onError));
+    const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
 
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
     });
-    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(1));
+    expect(toastMocks.error).toHaveBeenLastCalledWith("Failed to read file");
     expect(isFullRecordResolved(result.current, 1)).toBe(false);
 
     // The in-flight mark is cleared, so the same line can retry.
     act(() => {
       result.current.requestFullRecord(makePreviewRecord(1));
     });
-    await waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(2));
   });
 
   it("resolveRecords passes records through when there is no source file", async () => {
-    const { result } = renderHook(() => useLocalFileSource(null, 0, noopError));
+    const { result } = renderHook(() => useLocalFileSource(null, 0), { wrapper });
 
     const record = makePreviewRecord(1);
     const full = await act(async () => {
