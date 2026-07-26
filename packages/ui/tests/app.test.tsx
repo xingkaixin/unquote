@@ -172,7 +172,7 @@ Object.assign(globalThis, {
           : parsed.result;
         this.onmessage?.({
           data: {
-            type: "complete",
+            type: "complete-result",
             requestId,
             result,
             agentSession: parsed.agentSession,

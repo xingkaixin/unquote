@@ -40,11 +40,17 @@ export type ParserWorkerResponse =
       progress: ParserProgress;
     }
   | {
-      type: "complete";
+      type: "complete-result";
       requestId: number;
-      result?: ParseResult;
-      stats?: ParseResult["stats"];
-      agentSession?: AgentSession | null;
+      result: ParseResult;
+      agentSession: AgentSession | null;
+      progress: ParserProgress;
+    }
+  | {
+      type: "complete-stats";
+      requestId: number;
+      stats: ParseResult["stats"];
+      agentSession: AgentSession | null;
       progress: ParserProgress;
     }
   | {
@@ -101,7 +107,7 @@ const progressFromSession = (session: JsonlSession, done: boolean): ParserProgre
 
 const postSessionComplete = (requestId: number, session: JsonlSession) => {
   self.postMessage({
-    type: "complete",
+    type: "complete-stats",
     requestId,
     stats: statsFromSession(session),
     agentSession: session.agentTracker.finish(),
@@ -186,7 +192,7 @@ const parseJson = ({
 }: Extract<ParserRequest, { type: "parse" }>) => {
   const { result, agentSession, progress } = parseText(input, { forcedFormat });
   self.postMessage({
-    type: "complete",
+    type: "complete-result",
     requestId,
     result,
     agentSession,

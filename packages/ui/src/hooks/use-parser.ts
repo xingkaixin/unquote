@@ -222,23 +222,22 @@ export const useParser = ({
 
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
-      if (message.result) {
+      if (message.type === "complete-result") {
         setParserState({
           sourceRevision,
-          result: message.result!,
-          agentSession: message.agentSession ?? null,
+          result: message.result,
+          agentSession: message.agentSession,
           progress: message.progress,
         });
         return;
       }
-      if (message.stats) {
-        setParserState((current) => ({
-          sourceRevision,
-          result: { ...current.result, format: "jsonl", stats: message.stats! },
-          agentSession: message.agentSession ?? null,
-          progress: message.progress,
-        }));
-      }
+
+      setParserState((current) => ({
+        sourceRevision,
+        result: { ...current.result, format: "jsonl", stats: message.stats },
+        agentSession: message.agentSession,
+        progress: message.progress,
+      }));
     };
 
     currentWorker.addEventListener("message", onMessage);

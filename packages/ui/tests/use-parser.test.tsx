@@ -95,9 +95,10 @@ class MockWorker {
       setTimeout(() => {
         this.listener?.({
           data: {
-            type: "complete",
+            type: "complete-result",
             requestId: payload.requestId,
             result: resultFromRecords([failedRecord(1, "old")]),
+            agentSession: null,
             progress: {
               processedLines: 1,
               success: 0,
@@ -144,9 +145,10 @@ class MockWorker {
       } as MessageEvent);
       this.listener?.({
         data: {
-          type: "complete",
+          type: "complete-stats",
           requestId: payload.requestId,
           stats: { total: 2, success: 0, failed: 2 },
+          agentSession: null,
           progress: {
             processedLines: 2,
             success: 0,

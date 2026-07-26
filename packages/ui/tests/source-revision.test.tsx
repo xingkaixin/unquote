@@ -118,7 +118,7 @@ const Probe = ({
 const completeParser = (worker: ControlledWorker, requestId: number, text: string) => {
   const result = parseInput(text, { forcedFormat: "json" });
   worker.respond({
-    type: "complete",
+    type: "complete-result",
     requestId,
     result,
     agentSession: null,
