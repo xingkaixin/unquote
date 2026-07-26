@@ -156,13 +156,13 @@ export const useSearchWorker = (params: {
             .search(query, options, controller.signal)
             .then((matches) => {
               finishRequestMeasure();
-              if (requestIdRef.current === requestId) {
+              if (!controller.signal.aborted && requestIdRef.current === requestId) {
                 setState({ sourceRevision, matches, status: "complete", errorKind: null });
               }
             })
             .catch(() => {
               finishRequestMeasure();
-              if (requestIdRef.current === requestId) {
+              if (!controller.signal.aborted && requestIdRef.current === requestId) {
                 setState({
                   sourceRevision,
                   matches: null,
