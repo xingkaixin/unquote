@@ -1,9 +1,10 @@
 import { parseInput } from "@unquote/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   copyBytesLimit,
   copyRecordLimit,
   createExportFilename,
+  downloadBlob,
   formatRecordsAsJson,
   formatRecordsAsJsonParts,
   formatRecordsAsJsonl,
@@ -92,5 +93,35 @@ describe("record-export", () => {
   it("createExportFilename produces a timestamped name without colons or dots", () => {
     const name = createExportFilename("jsonl");
     expect(name).toMatch(/^unquote-visible-[\dTZ-]+\.jsonl$/);
+  });
+
+  it("defers download cleanup until a later task", () => {
+    vi.useFakeTimers();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:export"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+
+    try {
+      downloadBlob(["payload"], "payload.jsonl", "application/jsonl");
+
+      expect(click).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      expect(document.querySelector('a[download="payload.jsonl"]')).toBeInTheDocument();
+
+      vi.runAllTimers();
+
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
+      expect(document.querySelector('a[download="payload.jsonl"]')).not.toBeInTheDocument();
+    } finally {
+      document.querySelector('a[download="payload.jsonl"]')?.remove();
+      vi.useRealTimers();
+    }
   });
 });

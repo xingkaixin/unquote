@@ -98,8 +98,11 @@ export const downloadBlob = (parts: BlobPart[], filename: string, type: string) 
   anchor.download = filename;
   document.body.append(anchor);
   anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  // Firefox and WebKit acquire Blob downloads asynchronously after the click.
+  setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
 };
 
 export const createExportFilename = (extension: "json" | "jsonl") => {
