@@ -24,8 +24,13 @@ export type ResolveTreePathResult =
   | { ok: true; target: ResolvedTreePath }
   | { ok: false; reason: "invalid" | "not-found" };
 
+export interface TreePathMatch {
+  recordId: string;
+  pathText: string;
+}
+
 export type ResolveTreePathMatchesResult =
-  | { ok: true; targets: ResolvedTreePath[] }
+  | { ok: true; targets: TreePathMatch[] }
   | { ok: false; reason: "invalid" | "not-found" };
 
 const getRecordSearchOrder = (records: JsonlRecord[], preferredRecordId?: string) => {
@@ -68,17 +73,16 @@ const createResolvedTreePath = (
   };
 };
 
-const resolvePathInRecord = (
+const findPathNodeInRecord = (
   record: JsonlRecord,
   requestedSegments: TreePathSegment[],
-): ResolvedTreePath | null => {
+  onStep?: (node: JsonNode, segment: TreePathSegment) => void,
+): JsonNode | null => {
   if (!isParsed(record)) {
     return null;
   }
 
   let node = record.node;
-  const actualSegments: TreePathSegment[] = [];
-  let stringifiedPathChain = isStringifiedNode(node) ? [formatJsonPath(actualSegments)] : [];
 
   for (const requested of requestedSegments) {
     if (!hasJsonNodeChildren(node)) {
@@ -101,7 +105,7 @@ const resolvePathInRecord = (
       }
 
       node = child;
-      actualSegments.push({ kind: "index", value: String(index) });
+      onStep?.(node, { kind: "index", value: String(index) });
     } else {
       if (requested.kind !== "key") {
         return null;
@@ -113,12 +117,28 @@ const resolvePathInRecord = (
       }
 
       node = child;
-      actualSegments.push({ kind: "key", value: requested.value });
+      onStep?.(node, requested);
     }
+  }
 
-    if (isStringifiedNode(node)) {
-      stringifiedPathChain = [...stringifiedPathChain, formatJsonPath(actualSegments)];
+  return node;
+};
+
+const resolvePathInRecord = (
+  record: JsonlRecord,
+  requestedSegments: TreePathSegment[],
+): ResolvedTreePath | null => {
+  const actualSegments: TreePathSegment[] = [];
+  const stringifiedPathChain =
+    isParsed(record) && isStringifiedNode(record.node) ? [formatJsonPath(actualSegments)] : [];
+  const node = findPathNodeInRecord(record, requestedSegments, (resolvedNode, segment) => {
+    actualSegments.push(segment);
+    if (isStringifiedNode(resolvedNode)) {
+      stringifiedPathChain.push(formatJsonPath(actualSegments));
     }
+  });
+  if (!node) {
+    return null;
   }
 
   return createResolvedTreePath(record, node, actualSegments, stringifiedPathChain);
@@ -153,11 +173,11 @@ export const resolveTreePathMatches = (
     return { ok: false, reason: "invalid" };
   }
 
-  const targets: ResolvedTreePath[] = [];
+  const pathText = formatJsonPath(requestedSegments);
+  const targets: TreePathMatch[] = [];
   for (const record of records) {
-    const target = resolvePathInRecord(record, requestedSegments);
-    if (target) {
-      targets.push(target);
+    if (findPathNodeInRecord(record, requestedSegments)) {
+      targets.push({ recordId: record.id, pathText });
     }
   }
 

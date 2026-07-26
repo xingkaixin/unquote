@@ -38,8 +38,10 @@ describe("tree paths", () => {
       return;
     }
 
-    expect(resolved.targets.map((target) => target.recordLine)).toEqual([1, 2]);
-    expect(resolved.targets.map((target) => target.node.value)).toEqual(["request", "response"]);
+    expect(resolved.targets).toEqual([
+      { recordId: "record-1", pathText: "$.payload.type" },
+      { recordId: "record-2", pathText: "$.payload.type" },
+    ]);
   });
 
   it("serializes numeric object keys as quoted keys", () => {

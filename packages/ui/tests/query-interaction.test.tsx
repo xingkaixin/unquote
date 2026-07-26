@@ -6,9 +6,9 @@ import {
   reduceQueryInteraction,
 } from "../src/lib/query-interaction";
 import type { PathResolution, QueryInteractionState } from "../src/lib/query-interaction";
-import type { ResolvedTreePath } from "../src/lib/tree-path";
+import type { TreePathMatch } from "../src/lib/tree-path";
 
-const okPath = (query: string, targets: ResolvedTreePath[]): PathResolution => ({
+const okPath = (query: string, targets: TreePathMatch[]): PathResolution => ({
   query,
   ok: true,
   targets,
@@ -28,7 +28,7 @@ const searchState = (query = "needle", currentMatchIndex = 0): QueryInteractionS
 
 const pathState = (
   query = "$.payload",
-  matches: ResolvedTreePath[] = [],
+  matches: TreePathMatch[] = [],
   currentIndex = 0,
   error: string | null = null,
 ): QueryInteractionState => ({
@@ -40,8 +40,7 @@ const pathState = (
 const target = {
   recordId: "rec-1",
   pathText: "$.payload",
-  stringifiedPathChain: [],
-} as unknown as ResolvedTreePath;
+} satisfies TreePathMatch;
 
 describe("query-interaction", () => {
   it("detects path-like input", () => {

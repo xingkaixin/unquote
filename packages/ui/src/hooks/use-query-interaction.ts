@@ -17,14 +17,14 @@ import type { LocalFileAccess } from "../lib/local-file-source";
 import type { SearchOptions } from "../lib/record-search";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
-import { resolveTreePathMatches } from "../lib/tree-path";
-import type { ResolvedTreePath } from "../lib/tree-path";
+import { resolveTreePath, resolveTreePathMatches } from "../lib/tree-path";
+import type { TreePathMatch } from "../lib/tree-path";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 
 export const memorySearchDebounceMs = 120;
 export const localFileSearchDebounceMs = 250;
-const emptyPathMatches: ResolvedTreePath[] = [];
+const emptyPathMatches: TreePathMatch[] = [];
 
 export type { QueryNavigationTarget } from "../lib/query-navigation";
 
@@ -180,11 +180,13 @@ export const useQueryInteraction = ({
       dispatch(action);
 
       if (nextState.modeState.mode === "path") {
-        const target =
+        const match =
           nextState.modeState.matches[nextState.modeState.currentIndex] ??
           nextState.modeState.matches[0];
-        if (target) {
-          onNavigate({ sourceRevision, kind: "path", target });
+        const record = match ? pipeline.recordsById.get(match.recordId) : undefined;
+        const resolved = match && record ? resolveTreePath([record], match.pathText) : null;
+        if (resolved?.ok) {
+          onNavigate({ sourceRevision, kind: "path", target: resolved.target });
         }
         return;
       }
@@ -208,6 +210,7 @@ export const useQueryInteraction = ({
       activeSearchRecordId,
       currentMatchIndex,
       onNavigate,
+      pipeline.recordsById,
       sourceRevision,
       state,
     ],
