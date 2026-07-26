@@ -144,6 +144,16 @@ describe("search parity between memory and file search paths", () => {
     ]);
   });
 
+  it("does not treat record roots or array indexes as searchable keys", async () => {
+    const options: SearchOptions = { regex: false, caseSensitive: true, jq: false };
+
+    const indexMatches = await expectParity("0", options);
+    const rootMatches = await expectParity("$", options);
+
+    expect(indexMatches.memoryMatches).toEqual([]);
+    expect(rootMatches.memoryMatches).toEqual([]);
+  });
+
   it("returns no matches on both paths for a non-matching query", async () => {
     const { memoryMatches, fileMatches } = await expectParity("zzz-not-present", {
       regex: false,
