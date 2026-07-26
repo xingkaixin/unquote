@@ -92,7 +92,7 @@ describe("local-file-source", () => {
     expect(records.get(1)?.lineNumber).toBe(1);
   });
 
-  it("reuses indexed byte offsets across sequential hydration reads", async () => {
+  it("reuses indexed byte offsets across sequential Full Record reads", async () => {
     const contents = Array.from({ length: 1_000 }, (_, index) => `{"i":${index}}`).join("\n");
     const { file, sliceStarts } = makeMeasuredFile(contents);
 

@@ -203,7 +203,7 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const localFileSource = useLocalFileSource(sourceAccess, () =>
+  const localFileSource = useLocalFileSource(sourceAccess, sourceRevision, () =>
     toast.error(t("input.readFailed")),
   );
   // Copy is disabled above a record/byte threshold: the clipboard API freezes the
@@ -278,12 +278,12 @@ export const UnquoteApp = ({
       copyRawLine: handleCopyRawLine,
       copyError: onCopyRecordError,
       selectNode: workspace.selectNode,
-      hydrateRecord: localFileSource.requestRecord,
+      requestFullRecord: localFileSource.requestFullRecord,
       clearFocus: workspace.clearFocus,
     }),
     [
       handleCopyRawLine,
-      localFileSource.requestRecord,
+      localFileSource.requestFullRecord,
       onCopyRecord,
       onCopyRecordError,
       workspace.clearFocus,
@@ -313,8 +313,8 @@ export const UnquoteApp = ({
   );
 
   const handleExpandAll = () => {
-    // Expand from the hydrated record where one exists: a deferred record's
-    // preview only lists top-level nested fields, so stringified JSON sitting
+    // Expand from the Full Record where one exists: a Preview Record only lists
+    // top-level nested fields, so stringified JSON sitting
     // under a plain container would otherwise be unreachable from here.
     workspace.expandAll(
       visibleRecords.map(localFileSource.resolveRecord),

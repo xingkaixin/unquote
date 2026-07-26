@@ -68,9 +68,9 @@ const getToolbarInput = () => {
 };
 
 // Mirrors parser-worker.ts's compactForTransfer branch: the worker builds
-// deferred records straight from the source lines via core, so this mock must
+// Preview Records straight from the source lines via core, so this mock must
 // too. Re-deriving the projection here once let the mock drift from the real
-// deferred shape (children retained, no preview), which hid UQ-120.
+// Preview shape (children retained, no preview marker), which hid UQ-120.
 const compactResultForTransfer = (input: string, stats: ParseResult["stats"]): ParseResult => {
   const records: JsonlRecord[] = [];
   input.split(/\r?\n/).forEach((line, index) => {
@@ -625,14 +625,14 @@ describe("UnquoteApp", () => {
     expect(screen.queryByText(formatTimestamp("en"))).not.toBeInTheDocument();
   });
 
-  it("hydrates Raw JSONL records for streamed Agent files", async () => {
+  it("resolves Full Records for streamed Agent files", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText },
     });
-    const fullValueMarker = "visible-after-hydration";
+    const fullValueMarker = "visible-in-full-record";
     const fullOutput = `${"a".repeat(256)}${fullValueMarker}${"b".repeat(1_000_000)}`;
     const fileContents = [
       JSON.stringify({
@@ -1626,17 +1626,17 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
   });
 
-  it("Expand All reaches nested JSON in a deferred local-file record", async () => {
+  it("Expand All reaches nested JSON in a local-file Preview Record", async () => {
     const user = userEvent.setup();
     // Only a .jsonl file above largeSourceCollapseBytes takes the streamed
-    // file-source path that produces deferred records, so pad past 1MB with
+    // file-source path that produces Preview Records, so pad past 1MB with
     // filler lines while keeping the record under test first and eager.
     const filler = `${JSON.stringify({ filler: "x".repeat(60_000) })}\n`;
     const fileContents = `${JSON.stringify({
       level: "info",
       payload: JSON.stringify({ nested: true }),
     })}\n${filler.repeat(20)}`;
-    const file = new File([fileContents], "deferred.jsonl", { type: "application/jsonl" });
+    const file = new File([fileContents], "preview.jsonl", { type: "application/jsonl" });
     expect(file.size).toBeGreaterThan(1_000_000);
     const { container } = render(
       <I18nProvider>
@@ -1653,11 +1653,11 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
-    await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "deferred.jsonl"));
+    await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "preview.jsonl"));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("nested")).toHaveLength(0);
 
-    // A deferred record's projected node has no children, so this only works
+    // A Preview Record's projected node has no children, so this only works
     // if the expansion is collected from the record's preview.
     const toggle = screen
       .getAllByRole("button", { name: /^Expand All$/i })
@@ -1674,10 +1674,10 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
   });
 
-  it("Expand All reaches nested JSON below a container in a hydrated file record", async () => {
+  it("Expand All reaches nested JSON below a container in a Full Record", async () => {
     const user = userEvent.setup();
-    // A deferred preview only records top-level fields, so `$.meta.payload` is
-    // invisible to it — this record can only be expanded from its hydrated
+    // A Preview Record only records top-level fields, so `$.meta.payload` is
+    // invisible to it — this path can only be expanded from the Full Record
     // tree. Same padding requirement as the test above.
     const filler = `${JSON.stringify({ filler: "x".repeat(60_000) })}\n`;
     const fileContents = `${JSON.stringify({

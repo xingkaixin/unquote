@@ -22,7 +22,7 @@ export interface RecordViewActions {
   copyRawLine: (record: JsonlRecord) => void;
   copyError: (record: JsonlRecord) => void;
   selectNode: (record: JsonlRecord, row: TreeRow) => void;
-  hydrateRecord: (record: JsonlRecord) => void;
+  requestFullRecord: (record: JsonlRecord) => void;
   clearFocus: () => void;
 }
 

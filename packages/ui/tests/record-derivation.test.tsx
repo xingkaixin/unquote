@@ -70,7 +70,7 @@ describe("record derivation", () => {
     ]);
   });
 
-  it("derives deferred preview records without a full node tree", () => {
+  it("derives Preview Records without a full node tree", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,

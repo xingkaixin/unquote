@@ -102,7 +102,7 @@ describe("tree paths", () => {
   });
 
   it("collects a Preview Record's nested fields", () => {
-    // The projected node of a deferred record carries no children, so the tree
+    // The projected node of a Preview Record carries no children, so the tree
     // walk finds nothing; the preview is the only record of what is nested.
     const line = '{"type":"response_item","payload":"{\\"a\\":1}","note":"plain"}';
     const parsed = parseInput(line, { forcedFormat: "jsonl" }).records[0]!;
@@ -328,7 +328,7 @@ describe("tree paths", () => {
     ]);
   });
 
-  it("keeps overview fields and nested paths for deferred previews", () => {
+  it("keeps overview fields and nested paths for Preview Records", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,

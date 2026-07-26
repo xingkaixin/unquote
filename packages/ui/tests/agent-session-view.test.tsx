@@ -119,7 +119,7 @@ const renderView = (
     onCopyRawLine: vi.fn(),
     onCopyError: vi.fn(),
     onSelectNode: vi.fn(),
-    onHydrateRecord: vi.fn(),
+    onRequestFullRecord: vi.fn(),
     onClearFocus: vi.fn(),
   };
   const props: ComponentProps<typeof AgentSessionView> = {
@@ -140,7 +140,7 @@ const renderView = (
         copyRawLine: callbacks.onCopyRawLine,
         copyError: callbacks.onCopyError,
         selectNode: callbacks.onSelectNode,
-        hydrateRecord: callbacks.onHydrateRecord,
+        requestFullRecord: callbacks.onRequestFullRecord,
         clearFocus: callbacks.onClearFocus,
       },
     },

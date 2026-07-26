@@ -5,7 +5,7 @@ import { measurePerfAsync } from "./perf";
 import { buildSearchPattern, searchJsonValue } from "./record-search";
 import type { SearchMatch, SearchOptions } from "./record-search";
 
-export const hydratedFileRecordLimit = 500;
+export const fullRecordCacheLimit = 500;
 
 const lineCheckpointInterval = 128;
 const lineCheckpointLimit = 64;

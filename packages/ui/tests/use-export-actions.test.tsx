@@ -106,7 +106,7 @@ describe("useExportActions", () => {
     expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
   });
 
-  it("falls back to the requested record when hydration returns no records", async () => {
+  it("falls back to the requested record when Full Record resolution returns no records", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

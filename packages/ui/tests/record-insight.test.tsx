@@ -190,7 +190,7 @@ describe("record insight", () => {
     expect(createRecordInsight(result.records[0]!)?.title).toBe(`${prefix}...`);
   });
 
-  it("derives the same filter fields from a deferred preview", () => {
+  it("derives the same filter fields from a Preview Record", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,

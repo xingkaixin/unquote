@@ -98,7 +98,7 @@ describe("field-extraction", () => {
     expect(metrics.maxDepth).toBe(4);
   });
 
-  it("derives candidates from a deferred preview instead of the node tree", () => {
+  it("derives candidates from a Preview Record instead of the node tree", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,
