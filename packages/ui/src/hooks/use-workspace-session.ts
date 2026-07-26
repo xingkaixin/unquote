@@ -13,10 +13,11 @@ import {
   toggleExpandedStringifiedPath,
   type ExpandedStringifiedPathsByRecord,
 } from "../lib/record-expansion";
+import type { SearchMatch } from "../lib/record-search";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
 import { collectStringifiedPaths } from "../lib/tree";
-import type { SearchMatch, TreeRow } from "../lib/tree";
+import type { TreeRow } from "../lib/tree";
 import {
   createInitialWorkspaceSelectionState,
   reduceWorkspaceSelection,

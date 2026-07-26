@@ -2,7 +2,7 @@ import { parseInput } from "@unquote/core";
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useWorkspaceQueryBinding } from "../src/hooks/use-workspace-query-binding";
-import type { SearchMatch } from "../src/lib/tree";
+import type { SearchMatch } from "../src/lib/record-search";
 
 const activeMatch: SearchMatch = {
   recordId: "record-2",

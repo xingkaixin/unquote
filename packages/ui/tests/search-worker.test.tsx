@@ -54,7 +54,7 @@ describe("search worker", () => {
     vi.unstubAllGlobals();
     vi.resetModules();
     vi.restoreAllMocks();
-    vi.doUnmock("../src/lib/tree");
+    vi.doUnmock("../src/lib/record-search");
   });
 
   it("finds matches in text input", async () => {
@@ -184,8 +184,8 @@ describe("search worker", () => {
   });
 
   it("keeps error responses free of the input text and query", async () => {
-    vi.doMock("../src/lib/tree", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("../src/lib/tree")>();
+    vi.doMock("../src/lib/record-search", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("../src/lib/record-search")>();
       return {
         ...actual,
         searchRecords: () => {

@@ -3,8 +3,8 @@ import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
-import { searchRecords } from "../lib/tree";
-import type { SearchMatch, SearchOptions } from "../lib/tree";
+import { searchRecords } from "../lib/record-search";
+import type { SearchMatch, SearchOptions } from "../lib/record-search";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
 export const searchWorkerTimeoutMs = 5000;

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RecordFilterMode } from "../lib/tree";
+import type { RecordFilterMode } from "../lib/record-filter";
 import { resolveQueryMode } from "../lib/query-interaction";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";

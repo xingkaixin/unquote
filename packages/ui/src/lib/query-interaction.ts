@@ -1,4 +1,5 @@
-import type { ResolvedTreePath } from "./tree";
+import type { RecordFilterMode } from "./record-filter";
+import type { ResolvedTreePath } from "./tree-path";
 
 export type QueryMode = "search" | "path";
 
@@ -13,7 +14,7 @@ export interface QueryInteractionState {
   pathMatches: ResolvedTreePath[];
   currentPathMatchIndex: number;
   currentMatchIndex: number;
-  recordFilter: "all" | "matches" | "errors" | "nested" | "tool" | "message" | "events";
+  recordFilter: RecordFilterMode;
   commandInput: string;
 }
 

@@ -15,10 +15,10 @@ import type {
 } from "../lib/query-interaction";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
 import type { LocalFileAccess } from "../lib/local-file-source";
+import type { SearchOptions } from "../lib/record-search";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
-import { resolveTreePathMatches } from "../lib/tree";
-import type { SearchOptions } from "../lib/tree";
+import { resolveTreePathMatches } from "../lib/tree-path";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 

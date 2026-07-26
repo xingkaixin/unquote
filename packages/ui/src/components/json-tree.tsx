@@ -8,6 +8,7 @@ import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
 import type { RecordInsight } from "../lib/record-insight";
+import type { SearchMatch, TextRange } from "../lib/record-search";
 import type { RecordViewActions } from "../lib/record-view";
 import {
   resolvePathScrollIndex,
@@ -17,7 +18,7 @@ import {
 import { buildDisplayRows, getDisplayValueClassName } from "../lib/tree-display";
 import type { DisplayTreeRow } from "../lib/tree-display";
 import { buildRecordRows } from "../lib/tree";
-import type { SearchMatch, TextRange, TreeRow } from "../lib/tree";
+import type { TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";

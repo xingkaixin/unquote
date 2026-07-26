@@ -5,7 +5,7 @@ import { preferredScrollBehavior } from "../lib/motion-preference";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
 import type { RecordViewModel } from "../lib/record-view";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
-import type { SearchMatch } from "../lib/tree";
+import type { SearchMatch } from "../lib/record-search";
 import { JsonTree } from "./json-tree";
 
 export const recordVirtualizationThreshold = 160;

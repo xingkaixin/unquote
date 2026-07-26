@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ResolvedTreePath } from "../src/lib/tree";
+import type { ResolvedTreePath } from "../src/lib/tree-path";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,

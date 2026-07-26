@@ -2,8 +2,8 @@ import type { JsonlRecord } from "@unquote/core";
 import { createLocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import type { SourceRevision } from "../lib/source-revision";
-import { searchRecords } from "../lib/tree";
-import type { SearchMatch, SearchOptions } from "../lib/tree";
+import { searchRecords } from "../lib/record-search";
+import type { SearchMatch, SearchOptions } from "../lib/record-search";
 
 type TextSearchSource =
   | {

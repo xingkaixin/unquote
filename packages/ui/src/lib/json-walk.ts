@@ -37,6 +37,8 @@ export type JsonWalkContext = JsonValueWalkContext<JsonNode>;
 export type JsonNodeVisitor = (ctx: JsonWalkContext) => boolean | void;
 type RawJsonValueVisitor = (ctx: JsonValueWalkContext<unknown>) => boolean | void;
 
+export const maxStringValueLabelLength = 512;
+
 export interface JsonWalkStart {
   jsonPath?: string;
   stringifiedAncestors?: string[];

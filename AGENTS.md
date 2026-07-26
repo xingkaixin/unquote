@@ -162,7 +162,6 @@ CSS variables defined in `src/styles.css`:
 ### Tree Utilities (`lib/tree.ts`)
 
 - `buildRecordRows(record, expandedPaths, focusedPath?)` → `TreeRow[]` — flattens `JsonNode` tree into renderable rows.
-- `searchRecords(records, query, options)` → `SearchMatch[] | null` — searches across key, value, and path (when `jq: true`).
 - `collectStringifiedPaths(record, ...)` — finds reachable Stringified JSON boundaries; nested boundaries become reachable as their ancestors expand.
 - `materializeRecord(record)` — converts the expanded tree back to a plain JSON value for copy/export.
 
@@ -177,7 +176,9 @@ CSS variables defined in `src/styles.css`:
 - `lib/record-derivation.ts` — drives record insight and file overview through one field traversal per Record and incrementally reuses prior results.
 - `lib/record-expansion.ts` — immutable per-Record Stringified JSON expansion state and batched update helpers.
 - `lib/record-export.ts` — pure copy/export formatting, filename, blob download, and large-copy threshold helpers.
+- `lib/record-filter.ts` — the canonical record-filter mode and Record classification logic.
 - `lib/record-fields.ts` — shared field extraction helpers for overview and insight classification.
+- `lib/record-search.ts` — searches Record keys, values, and paths and owns search match types.
 - `lib/source-revision.ts` — Source Revision ownership type and stale-result guards.
 - `lib/stream-publisher.ts` — batches streamed parser records before React state updates.
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
@@ -185,6 +186,7 @@ CSS variables defined in `src/styles.css`:
 - `lib/source-samples.ts` — sample payloads used by the input pane, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
 - `lib/toolbar-summary.ts` — derives localized toolbar status and progress summaries from parser, file, search, and filter state.
 - `lib/tree-display.ts` — converts flattened tree rows into display rows and syntax classes for `JsonTree`.
+- `lib/tree-path.ts` — resolves JSONPath / jq selectors to canonical Record tree paths.
 - `lib/workspace-selection.ts` — pure selection reconciliation for record replacement and streamed record appends.
 
 ### Agent Session Feature

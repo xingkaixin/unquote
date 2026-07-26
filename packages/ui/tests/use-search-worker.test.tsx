@@ -7,7 +7,7 @@ import {
   useSearchWorker,
 } from "../src/hooks/use-search-worker";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
-import type { SearchMatch } from "../src/lib/tree";
+import type { SearchMatch } from "../src/lib/record-search";
 
 interface Listener {
   (event: MessageEvent): void;
