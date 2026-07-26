@@ -21,7 +21,7 @@ const BlockText = ({ block }: { block: AgentContentBlock | undefined }) => {
     return null;
   }
 
-  const codeLike = block.type === "tool_use" || block.toolCallId;
+  const codeLike = block.type === "tool_use" || block.type === "tool_result";
   return (
     <pre
       className={`mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border px-3 py-2 text-[12px] leading-5 ${
@@ -69,8 +69,12 @@ const ConversationItem = ({
             <Icon className="mr-1 size-3" />
             {config.label}
           </Badge>
-          {item.block?.toolName ? <Badge variant="warning">{item.block.toolName}</Badge> : null}
-          {item.block?.status ? <Badge>{item.block.status}</Badge> : null}
+          {item.block?.type === "tool_use" ? (
+            <Badge variant="warning">{item.block.toolName}</Badge>
+          ) : null}
+          {item.block?.type === "tool_use" || item.block?.type === "tool_result" ? (
+            <Badge>{item.block.status}</Badge>
+          ) : null}
           {item.turnIndex ? <Badge>{t("agent.turn", { turn: item.turnIndex })}</Badge> : null}
           <span className="inline-flex items-center gap-1 text-[11px] text-text-muted">
             <Hash className="size-3" />

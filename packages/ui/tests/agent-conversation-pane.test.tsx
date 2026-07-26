@@ -10,10 +10,14 @@ import type { AgentConversationEntry, AgentDetailSelection } from "../src/lib/ag
 const measuredRowHeight = 96;
 const containerTop = 40;
 
-const buildEntry = (index: number): AgentConversationEntry => ({
+const buildEntry = (
+  index: number,
+  block?: AgentConversationEntry["item"]["block"],
+): AgentConversationEntry => ({
   item: {
     id: `item-${index}`,
     role: index % 2 === 0 ? "user" : "assistant",
+    ...(block ? { block } : {}),
   },
   event: {
     id: `event-${index}`,
@@ -117,6 +121,20 @@ describe("AgentConversationPane", () => {
 
     fireEvent.click(buttons[0]!);
     expect(onSelectItem).toHaveBeenCalledWith("item-0");
+  });
+
+  it("styles Tool Result content as code without treating plain text as code", () => {
+    renderPane([
+      buildEntry(0, { type: "text", text: "Plain response" }),
+      buildEntry(1, {
+        type: "tool_result",
+        text: '{"ok":true}',
+        status: "completed",
+      }),
+    ]);
+
+    expect(screen.getByText("Plain response")).toHaveClass("font-sans");
+    expect(screen.getByText('{"ok":true}')).toHaveClass("font-mono");
   });
 
   it("re-scrolls to the same item when it is selected again below the threshold", () => {
