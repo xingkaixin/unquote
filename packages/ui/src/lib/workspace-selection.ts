@@ -34,7 +34,6 @@ export type WorkspaceSelectionAction =
   | { type: "selectPath"; selection: SelectedPath }
   | { type: "selectRecord"; recordId: string }
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
-  | { type: "resetTransientSelection" }
   | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
   | { type: "recordsAppended"; firstRecordId: string | null }
   | { type: "clearFocusedPath" }
@@ -136,23 +135,6 @@ export const reduceWorkspaceSelection = (
         activeRecordId: action.selection.recordId,
         detailSelection: action.selection,
         focusedPath: retainFocusForRecord(state.focusedPath, action.selection.recordId),
-      };
-
-    case "resetTransientSelection":
-      if (
-        !state.detailSelection &&
-        !state.selectedPath &&
-        !state.focusedPath &&
-        !state.scrollIntent
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        detailSelection: null,
-        selectedPath: null,
-        focusedPath: null,
-        scrollIntent: null,
       };
 
     case "recordsVisibilityChanged":

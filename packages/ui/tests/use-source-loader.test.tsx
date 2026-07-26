@@ -41,7 +41,6 @@ const previewRecord = (lineNumber: number) =>
 
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
   const callbacks = {
-    onReset: vi.fn(),
     onCollapseSource: vi.fn(),
     onError: vi.fn(),
     onCopyError: vi.fn(),
@@ -70,19 +69,29 @@ describe("useSourceLoader", () => {
   });
 
   it("publishes parsing-mode changes as new Source Revisions", () => {
-    const { result, callbacks } = setup();
+    const { result } = setup();
 
     act(() => result.current.setMode("json"));
     expect(result.current.sourceRevision).toBe(1);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
 
     act(() => result.current.setMode("json"));
     expect(result.current.sourceRevision).toBe(1);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
 
     act(() => result.current.setMode("jsonl"));
     expect(result.current.sourceRevision).toBe(2);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the exact revision assigned to a text source", () => {
+    const { result } = setup();
+    let publishedRevision = -1;
+
+    act(() => {
+      result.current.setMode("json");
+      publishedRevision = result.current.onSourceChange("sample");
+    });
+
+    expect(publishedRevision).toBe(2);
+    expect(result.current.sourceRevision).toBe(2);
   });
 
   it("keeps the published Source stable while a replacement file is read", async () => {
@@ -133,7 +142,6 @@ describe("useSourceLoader", () => {
     expect(result.current.sourceText).toBe('{"imported":true}');
     expect(result.current.readingFile).toBeNull();
     expect(callbacks.onError).toHaveBeenCalledWith(readError);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(2);
   });
 
   it("reports read progress and ignores an obsolete read failure", async () => {

@@ -1,7 +1,7 @@
 import { materializeNode } from "@unquote/core";
 import { toast } from "sonner";
 import { PanelLeftOpen, Store } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CommandPalette } from "./components/command-palette";
 import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
@@ -19,17 +19,18 @@ import { useTranslation } from "./i18n/context";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
+import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
 import { useQueryInteraction } from "./hooks/use-query-interaction";
-import type { QueryNavigationTarget } from "./hooks/use-query-interaction";
 import { useExportActions } from "./hooks/use-export-actions";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
+import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { hasJsonlRecords, resolveTreePath } from "./lib/tree";
 import { writeClipboardText } from "./lib/clipboard";
 import { formatFileSize } from "./lib/format";
-import { isArrayElementPath, isPathWithin } from "./lib/path-codec";
+import { isArrayElementPath } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
@@ -68,16 +69,6 @@ export const UnquoteApp = ({
   const { t } = useTranslation();
   const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
-  const workspace = useWorkspaceSession();
-  const {
-    activeRecordId,
-    detailSelection,
-    expandedPaths: expandedStringifiedPathsByRecord,
-    searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
-    selectedPath,
-    focusedPath,
-    scrollIntent,
-  } = workspace.state;
   const {
     mode,
     setMode,
@@ -95,17 +86,24 @@ export const UnquoteApp = ({
     initialInput,
     onReadFile,
     onRequestOpenFile: onOpenFile,
-    onReset: workspace.reset,
     onCollapseSource: () => setSourceCollapsed(true),
     onError: () => toast.error(t("input.readFailed")),
     onCopyError: () => toast.error(t("copy.failed")),
   });
+  const workspace = useWorkspaceSession(sourceRevision);
+  const {
+    activeRecordId,
+    detailSelection,
+    expandedPaths: expandedStringifiedPathsByRecord,
+    searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
+    selectedPath,
+    focusedPath,
+    scrollIntent,
+  } = workspace.state;
   const selectedRecordId = detailSelection?.recordId ?? null;
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [outputView, setOutputView] = useState<"agent" | "json">("json");
   const outputRef = useRef<HTMLDivElement>(null);
-  const outputViewSessionKeyRef = useRef<string | null>(null);
   const forcedFormat = sourceAccess ? "jsonl" : mode === "auto" ? undefined : mode;
   const {
     sourceRevision: resultRevision,
@@ -124,33 +122,6 @@ export const UnquoteApp = ({
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
-  const handleQueryNavigation = useCallback(
-    (navigation: QueryNavigationTarget) => {
-      if (navigation.sourceRevision !== sourceRevision) {
-        return;
-      }
-
-      if (navigation.kind === "clear") {
-        workspace.clearScrollIntent();
-        return;
-      }
-
-      if (navigation.kind === "search") {
-        workspace.scrollToPath(navigation.recordId, navigation.pathText);
-        return;
-      }
-
-      workspace.selectPath(
-        {
-          recordId: navigation.target.recordId,
-          pathText: navigation.target.pathText,
-          rawKey: navigation.target.rawKey,
-        },
-        navigation.target.stringifiedPathChain,
-      );
-    },
-    [sourceRevision, workspace.clearScrollIntent, workspace.scrollToPath, workspace.selectPath],
-  );
   const query = useQueryInteraction({
     sourceRevision,
     resultRevision,
@@ -159,7 +130,7 @@ export const UnquoteApp = ({
     sourceAccess,
     forcedFormat,
     translateError,
-    onNavigate: handleQueryNavigation,
+    onNavigate: workspace.navigate,
   });
   const {
     searchQuery,
@@ -185,32 +156,7 @@ export const UnquoteApp = ({
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
-
-  const agentSessionConversationCount = useMemo(
-    () =>
-      agentSession
-        ? agentSession.events.reduce((count, event) => count + event.conversationItems.length, 0)
-        : 0,
-    [agentSession],
-  );
-  const agentSessionKey = agentSession
-    ? [
-        agentSession.fileType,
-        agentSession.fileName ?? "",
-        agentSession.meta.sessionId ?? "",
-        agentSession.events.length,
-        agentSessionConversationCount,
-      ].join(":")
-    : null;
-
-  useEffect(() => {
-    if (outputViewSessionKeyRef.current === agentSessionKey) {
-      return;
-    }
-
-    outputViewSessionKeyRef.current = agentSessionKey;
-    setOutputView(agentSession ? "agent" : "json");
-  }, [agentSession, agentSessionKey]);
+  const { outputView, setOutputView } = useOutputView(agentSession);
 
   const sourceParseError = useMemo<SourceParseError | null>(() => {
     const record = result.records[0];
@@ -264,9 +210,10 @@ export const UnquoteApp = ({
   const estimatedSourceBytes = sourceAccess?.size ?? sourceText.length;
   const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
 
-  useEffect(() => {
-    workspace.synchronizeSearchExpansions(visibleMatches ?? []);
-  }, [visibleMatches, workspace.synchronizeSearchExpansions]);
+  const activeMatch = useWorkspaceQueryBinding({
+    query: query.snapshot,
+    workspace,
+  });
 
   const displayedExpandedStringifiedPathsByRecord = useMemo(
     () =>
@@ -296,44 +243,18 @@ export const UnquoteApp = ({
     );
   }, [displayedExpandedStringifiedPathsByRecord, visibleRecords]);
 
-  const activeMatch = useMemo(() => {
-    if (!visibleMatches || visibleMatches.length === 0) return null;
-    const match = visibleMatches[currentMatchIndex] ?? visibleMatches[0]!;
-    return {
-      recordId: match.recordId,
-      pathText: match.pathText,
-    };
-  }, [visibleMatches, currentMatchIndex]);
-
-  useEffect(() => {
-    if (
-      !focusedPath ||
-      !activeMatch ||
-      (focusedPath.recordId === activeMatch.recordId &&
-        isPathWithin(activeMatch.pathText, focusedPath.pathText))
-    ) {
-      return;
-    }
-
-    workspace.clearFocus();
-  }, [activeMatch, focusedPath, workspace.clearFocus]);
-
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
     setCommandPaletteOpen(true);
   }, [queryIntent]);
-
-  useEffect(() => {
-    workspace.reconcileVisibleRecords(visibleRecords);
-  }, [visibleRecords, workspace.reconcileVisibleRecords]);
 
   const handleSampleSelect = (sample: {
     value: string;
     expandedPathsByRecord: readonly { recordId: string; paths: readonly string[] }[];
   }) => {
     setMode("auto");
-    handleSourceChange(sample.value);
-    workspace.setSampleExpansions(sample.expandedPathsByRecord);
+    const nextRevision = handleSourceChange(sample.value);
+    workspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
   };
 
   const {
