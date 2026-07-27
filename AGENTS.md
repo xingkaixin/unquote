@@ -1,6 +1,6 @@
 # Unquote — Agent Reference
 
-Unquote is a local JSON / JSONL viewer that recursively expands stringified JSON and adds a session lens for recognized agent JSONL logs. It is a pnpm monorepo with four packages.
+Unquote is a local JSON / JSONL viewer that recursively expands stringified JSON and adds a session lens for recognized agent JSONL logs. It is a pnpm monorepo with four packages, plus an Xcode project that ships the same extension to Safari.
 
 ## Architecture
 
@@ -9,6 +9,7 @@ packages/core          Pure TypeScript parser library (ESM + CJS, no framework d
 packages/ui            React component library + app logic + design system
 apps/web               Vite + React web app
 apps/extension         WXT + React Chrome extension (MV3)
+apps/safari            Xcode host app that ships the extension to Safari (macOS)
 ```
 
 ## Technology Stack
@@ -240,6 +241,17 @@ Active match auto-scroll:
   - Stores selected text in `browser.storage.session`, extension reads it on open
 - **i18n:** Manifest uses `__MSG_appName__` / `__MSG_appDescription__` with `_locales/en/messages.json` and `zh_CN/messages.json`
 
+## Safari Extension (`apps/safari`)
+
+Safari extensions ship inside a native macOS app, so `apps/safari` holds an Xcode project that `xcrun safari-web-extension-converter` generated once and that is version-controlled from then on. Re-running the converter is not part of the workflow: the extension target reads its `Resources` directory, and `pnpm build:safari` is what rebuilds and refills it.
+
+- **Bundle identifiers:** `com.xingkaixin.unquote` (app) and `com.xingkaixin.unquote.extension` (extension). App Store Connect requires the extension identifier to nest under the app's.
+- **Deployment target:** macOS 12. Selection handoff needs `storage.session` (Safari 16.4+), which macOS 12 users can install; on older Safari the handoff opens an empty editor instead of failing.
+- **Manifest differences:** the Safari build drops `clipboardRead`, which Safari does not support. `wxt.safari.config.ts` only overrides the output directory — `wxt.config.ts` owns the browser-conditional manifest.
+- **Ignored paths:** `Unquote Extension/Resources` is a build output and `xcuserdata` is local state; neither belongs in git.
+- **Host app window:** `Unquote/Resources/Base.lproj/Main.html` is the app's entire interface and therefore what App Review judges. `Script.js` rewrites the `.state-*` paragraphs, so keep those elements text-only.
+- **Release:** open the project in Xcode, pick a signing team, bump `CURRENT_PROJECT_VERSION`, then Archive and upload to the Mac App Store. `MARKETING_VERSION` syncs from the extension manifest during `pnpm build:safari`.
+
 ## TypeScript Configuration
 
 - Base: `tsconfig.base.json` — `strict: true`, `exactOptionalPropertyTypes: true`, `noUncheckedIndexedAccess: true`
@@ -274,6 +286,7 @@ Active match auto-scroll:
 | `pnpm benchmark:case4-fixture` | Generate high-record-count JSONL release/stress fixtures |
 | `pnpm deploy:cf` | Build web + deploy to Cloudflare Pages |
 | `pnpm zip-extension` | Build + zip extension for store upload |
+| `pnpm build:safari` | Build the Safari extension and sync it into the Xcode project |
 
 ## Development Guidelines
 

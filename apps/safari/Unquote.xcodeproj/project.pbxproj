@@ -1,0 +1,607 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 110;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A969E8930178B5F000E5B1F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A969E8830178B5F000E5B1F /* AppDelegate.swift */; };
+		0A969E8D30178B5F000E5B1F /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E8B30178B5F000E5B1F /* Main.html */; };
+		0A969E8F30178B5F000E5B1F /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E8E30178B5F000E5B1F /* Icon.png */; };
+		0A969E9130178B5F000E5B1F /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E9030178B5F000E5B1F /* Style.css */; };
+		0A969E9330178B5F000E5B1F /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E9230178B5F000E5B1F /* Script.js */; };
+		0A969E9530178B5F000E5B1F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A969E9430178B5F000E5B1F /* ViewController.swift */; };
+		0A969E9830178B5F000E5B1F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E9630178B5F000E5B1F /* Main.storyboard */; };
+		0A969E9A30178B60000E5B1F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A969E9930178B60000E5B1F /* Assets.xcassets */; };
+		0A969EA130178B60000E5B1F /* Unquote Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0A969EA030178B60000E5B1F /* Unquote Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0A969EA630178B60000E5B1F /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A969EA530178B60000E5B1F /* SafariWebExtensionHandler.swift */; };
+		0A969EBB30178B60000E5B1F /* icon16.png in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB230178B60000E5B1F /* icon16.png */; };
+		0A969EBC30178B60000E5B1F /* background.js in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB330178B60000E5B1F /* background.js */; };
+		0A969EBD30178B60000E5B1F /* icon48.png in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB430178B60000E5B1F /* icon48.png */; };
+		0A969EBE30178B60000E5B1F /* icon128.png in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB530178B60000E5B1F /* icon128.png */; };
+		0A969EBF30178B60000E5B1F /* chunks in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB630178B60000E5B1F /* chunks */; };
+		0A969EC030178B60000E5B1F /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB730178B60000E5B1F /* manifest.json */; };
+		0A969EC130178B60000E5B1F /* options.html in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB830178B60000E5B1F /* options.html */; };
+		0A969EC230178B60000E5B1F /* _locales in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB930178B60000E5B1F /* _locales */; };
+		0A969EC330178B60000E5B1F /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EBA30178B60000E5B1F /* assets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0A969EA230178B60000E5B1F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A969E7D30178B5F000E5B1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A969E9F30178B60000E5B1F;
+			remoteInfo = "Unquote Extension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0A969EAD30178B60000E5B1F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				0A969EA130178B60000E5B1F /* Unquote Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0A969E8530178B5F000E5B1F /* Unquote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Unquote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A969E8830178B5F000E5B1F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0A969E8C30178B5F000E5B1F /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Base; path = Base.lproj/Main.html; sourceTree = "<group>"; };
+		0A969E8E30178B5F000E5B1F /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
+		0A969E9030178B5F000E5B1F /* Style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = Style.css; sourceTree = "<group>"; };
+		0A969E9230178B5F000E5B1F /* Script.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Script.js; sourceTree = "<group>"; };
+		0A969E9430178B5F000E5B1F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		0A969E9730178B5F000E5B1F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		0A969E9930178B60000E5B1F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0A969E9B30178B60000E5B1F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0A969EA030178B60000E5B1F /* Unquote Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Unquote Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A969EA530178B60000E5B1F /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		0A969EA730178B60000E5B1F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0A969EB230178B60000E5B1F /* icon16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = icon16.png; path = Resources/icon16.png; sourceTree = "<group>"; };
+		0A969EB330178B60000E5B1F /* background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = background.js; path = Resources/background.js; sourceTree = "<group>"; };
+		0A969EB430178B60000E5B1F /* icon48.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = icon48.png; path = Resources/icon48.png; sourceTree = "<group>"; };
+		0A969EB530178B60000E5B1F /* icon128.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = icon128.png; path = Resources/icon128.png; sourceTree = "<group>"; };
+		0A969EB630178B60000E5B1F /* chunks */ = {isa = PBXFileReference; lastKnownFileType = folder; name = chunks; path = Resources/chunks; sourceTree = "<group>"; };
+		0A969EB730178B60000E5B1F /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = Resources/manifest.json; sourceTree = "<group>"; };
+		0A969EB830178B60000E5B1F /* options.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = options.html; path = Resources/options.html; sourceTree = "<group>"; };
+		0A969EB930178B60000E5B1F /* _locales */ = {isa = PBXFileReference; lastKnownFileType = folder; name = _locales; path = Resources/_locales; sourceTree = "<group>"; };
+		0A969EBA30178B60000E5B1F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = Resources/assets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0A969E8230178B5F000E5B1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		0A969E9D30178B60000E5B1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A969E7C30178B5F000E5B1F = {
+			isa = PBXGroup;
+			children = (
+				0A969E8730178B5F000E5B1F /* Unquote */,
+				0A969EA430178B60000E5B1F /* Unquote Extension */,
+				0A969E8630178B5F000E5B1F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0A969E8630178B5F000E5B1F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0A969E8530178B5F000E5B1F /* Unquote.app */,
+				0A969EA030178B60000E5B1F /* Unquote Extension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0A969E8730178B5F000E5B1F /* Unquote */ = {
+			isa = PBXGroup;
+			children = (
+				0A969E8830178B5F000E5B1F /* AppDelegate.swift */,
+				0A969E9430178B5F000E5B1F /* ViewController.swift */,
+				0A969E9630178B5F000E5B1F /* Main.storyboard */,
+				0A969E9930178B60000E5B1F /* Assets.xcassets */,
+				0A969E9B30178B60000E5B1F /* Info.plist */,
+				0A969E8A30178B5F000E5B1F /* Resources */,
+			);
+			path = Unquote;
+			sourceTree = "<group>";
+		};
+		0A969E8A30178B5F000E5B1F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0A969E8B30178B5F000E5B1F /* Main.html */,
+				0A969E8E30178B5F000E5B1F /* Icon.png */,
+				0A969E9030178B5F000E5B1F /* Style.css */,
+				0A969E9230178B5F000E5B1F /* Script.js */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		0A969EA430178B60000E5B1F /* Unquote Extension */ = {
+			isa = PBXGroup;
+			children = (
+				0A969EB130178B60000E5B1F /* Resources */,
+				0A969EA530178B60000E5B1F /* SafariWebExtensionHandler.swift */,
+				0A969EA730178B60000E5B1F /* Info.plist */,
+			);
+			path = "Unquote Extension";
+			sourceTree = "<group>";
+		};
+		0A969EB130178B60000E5B1F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0A969EB230178B60000E5B1F /* icon16.png */,
+				0A969EB330178B60000E5B1F /* background.js */,
+				0A969EB430178B60000E5B1F /* icon48.png */,
+				0A969EB530178B60000E5B1F /* icon128.png */,
+				0A969EB630178B60000E5B1F /* chunks */,
+				0A969EB730178B60000E5B1F /* manifest.json */,
+				0A969EB830178B60000E5B1F /* options.html */,
+				0A969EB930178B60000E5B1F /* _locales */,
+				0A969EBA30178B60000E5B1F /* assets */,
+			);
+			name = Resources;
+			path = "Unquote Extension";
+			sourceTree = SOURCE_ROOT;
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0A969E8430178B5F000E5B1F /* Unquote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A969EAE30178B60000E5B1F /* Build configuration list for PBXNativeTarget "Unquote" */;
+			buildPhases = (
+				0A969E8130178B5F000E5B1F /* Sources */,
+				0A969E8230178B5F000E5B1F /* Frameworks */,
+				0A969E8330178B5F000E5B1F /* Resources */,
+				0A969EAD30178B60000E5B1F /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0A969EA330178B60000E5B1F /* PBXTargetDependency */,
+			);
+			name = Unquote;
+			productName = Unquote;
+			productReference = 0A969E8530178B5F000E5B1F /* Unquote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		0A969E9F30178B60000E5B1F /* Unquote Extension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A969EAA30178B60000E5B1F /* Build configuration list for PBXNativeTarget "Unquote Extension" */;
+			buildPhases = (
+				0A969E9C30178B60000E5B1F /* Sources */,
+				0A969E9D30178B60000E5B1F /* Frameworks */,
+				0A969E9E30178B60000E5B1F /* Resources */,
+			);
+			buildRules = (
+			);
+			name = "Unquote Extension";
+			productName = "Unquote Extension";
+			productReference = 0A969EA030178B60000E5B1F /* Unquote Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0A969E7D30178B5F000E5B1F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					0A969E8430178B5F000E5B1F = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					0A969E9F30178B60000E5B1F = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = 0A969E8030178B5F000E5B1F /* Build configuration list for PBXProject "Unquote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0A969E7C30178B5F000E5B1F;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0A969E8630178B5F000E5B1F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0A969E8430178B5F000E5B1F /* Unquote */,
+				0A969E9F30178B60000E5B1F /* Unquote Extension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0A969E8330178B5F000E5B1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0A969E8F30178B5F000E5B1F /* Icon.png in Resources */,
+				0A969E9830178B5F000E5B1F /* Main.storyboard in Resources */,
+				0A969E9330178B5F000E5B1F /* Script.js in Resources */,
+				0A969E8D30178B5F000E5B1F /* Main.html in Resources */,
+				0A969E9A30178B60000E5B1F /* Assets.xcassets in Resources */,
+				0A969E9130178B5F000E5B1F /* Style.css in Resources */,
+			);
+		};
+		0A969E9E30178B60000E5B1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0A969EC130178B60000E5B1F /* options.html in Resources */,
+				0A969EBF30178B60000E5B1F /* chunks in Resources */,
+				0A969EC230178B60000E5B1F /* _locales in Resources */,
+				0A969EC330178B60000E5B1F /* assets in Resources */,
+				0A969EBC30178B60000E5B1F /* background.js in Resources */,
+				0A969EBB30178B60000E5B1F /* icon16.png in Resources */,
+				0A969EBE30178B60000E5B1F /* icon128.png in Resources */,
+				0A969EC030178B60000E5B1F /* manifest.json in Resources */,
+				0A969EBD30178B60000E5B1F /* icon48.png in Resources */,
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0A969E8130178B5F000E5B1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0A969E9530178B5F000E5B1F /* ViewController.swift in Sources */,
+				0A969E8930178B5F000E5B1F /* AppDelegate.swift in Sources */,
+			);
+		};
+		0A969E9C30178B60000E5B1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0A969EA630178B60000E5B1F /* SafariWebExtensionHandler.swift in Sources */,
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0A969EA330178B60000E5B1F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A969E9F30178B60000E5B1F /* Unquote Extension */;
+			targetProxy = 0A969EA230178B60000E5B1F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		0A969E8B30178B5F000E5B1F /* Main.html */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0A969E8C30178B5F000E5B1F /* Base */,
+			);
+			name = Main.html;
+			sourceTree = "<group>";
+		};
+		0A969E9630178B5F000E5B1F /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0A969E9730178B5F000E5B1F /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		0A969EA830178B60000E5B1F /* Debug configuration for PBXProject "Unquote" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		0A969EA930178B60000E5B1F /* Release configuration for PBXProject "Unquote" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		0A969EAB30178B60000E5B1F /* Debug configuration for PBXNativeTarget "Unquote Extension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Unquote Extension/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Unquote Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 0.12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote.extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		0A969EAC30178B60000E5B1F /* Release configuration for PBXNativeTarget "Unquote Extension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Unquote Extension/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Unquote Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 0.12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote.extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		0A969EAF30178B60000E5B1F /* Debug configuration for PBXNativeTarget "Unquote" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Unquote/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Unquote;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		0A969EB030178B60000E5B1F /* Release configuration for PBXNativeTarget "Unquote" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Unquote/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Unquote;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0A969E8030178B5F000E5B1F /* Build configuration list for PBXProject "Unquote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A969EA830178B60000E5B1F /* Debug configuration for PBXProject "Unquote" */,
+				0A969EA930178B60000E5B1F /* Release configuration for PBXProject "Unquote" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0A969EAA30178B60000E5B1F /* Build configuration list for PBXNativeTarget "Unquote Extension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A969EAB30178B60000E5B1F /* Debug configuration for PBXNativeTarget "Unquote Extension" */,
+				0A969EAC30178B60000E5B1F /* Release configuration for PBXNativeTarget "Unquote Extension" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0A969EAE30178B60000E5B1F /* Build configuration list for PBXNativeTarget "Unquote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A969EAF30178B60000E5B1F /* Debug configuration for PBXNativeTarget "Unquote" */,
+				0A969EB030178B60000E5B1F /* Release configuration for PBXNativeTarget "Unquote" */,
+			);
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0A969E7D30178B5F000E5B1F /* Project object */;
+	validationLevel = 1;
+}

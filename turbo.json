@@ -17,6 +17,10 @@
       "dependsOn": ["^build"],
       "outputs": ["../../dist/extension/**"]
     },
+    "@unquote/extension#build:safari": {
+      "dependsOn": ["^build"],
+      "outputs": ["../../dist/extension-safari/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
