@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wxt --config wxt.dev.config.ts",
     "build": "wxt build",
+    "build:safari": "wxt build -b safari -c wxt.safari.config.ts",
     "zip": "wxt zip",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
