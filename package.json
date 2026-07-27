@@ -18,7 +18,8 @@
     "benchmark:fixtures": "node benchmark/generate-case2-fixtures.mjs",
     "benchmark:case4-fixture": "node benchmark/generate-case4-fixture.mjs",
     "deploy:cf": "pnpm --filter @unquote/web build && wrangler pages deploy dist/web --project-name=unquote",
-    "zip-extension": "pnpm --filter @unquote/extension zip"
+    "zip-extension": "pnpm --filter @unquote/extension zip",
+    "build:safari": "turbo run build:safari --filter=@unquote/extension && node scripts/sync-safari-extension.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
