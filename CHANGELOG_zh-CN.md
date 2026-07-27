@@ -1,12 +1,30 @@
 # Changelog
 
-## [Unreleased]
+## [0.12.0] - 2026-07-27
+
+### Added
+
+- 新增 Chrome Web Store 与 Edge Add-ons 的提交说明和上架素材，位于 `assets/`。
 
 ### Changed
 
+- **破坏性变更（`@unquote/core`）** — `JsonlRecord` 改为 Full / Preview / Failed 可判别联合，并要求 `status` 字段。调用方应迁移到 `isFullRecord`、`isPreviewRecord`、`isFailedRecord` 与 `isParsed`。
 - **破坏性变更（`@unquote/core`）** — `JsonNode` 改为可判别联合，只保存容器 children、截断容器 value、紧凑 preview 或带类型的 primitive 之一；移除冗余的 `path`、`wasStringified` 与 `meta`。调用方应在遍历时推导路径和深度，使用所属 `JsonlRecord.lineNumber`，并迁移到 `hasJsonNodeChildren`、`isStringifiedNode` 与 `isTruncatedJsonNode`。
 - **破坏性变更（`@unquote/core`）** — 移除已弃用的 `parseDeferredJsonlRecordLine` 别名，请改用 `parsePreviewJsonlRecordLine`。
+- 大型 JSONL 工作流在持续导入、搜索、Agent 会话和展开路径上更流畅，并降低内存占用：流式 insight / overview 推导不再回扫既有记录，本地文件搜索会预过滤行并复用 Source Revision，Agent 会话复用顶层 JSON 并按需加载原始行，Expand All 与展开映射按次批量更新，树键盘导航改用索引表。
+- 解析、搜索、查询、Agent 输出和导航现在共享同一 Source Revision，切换文件或任务被取代时会在渲染前拒绝过期结果。
 - Agent Session 的 Conversation Item 现在直接归属于对应的 timeline Event；专用领域 model 通过唯一的 Event → Record 关联统一解析 timeline、conversation 与 Record 选择。
+- CI 性能门禁现在会在预算超标时失败；延迟预算按三次采样的中位数判定，并跟踪 Expand Path 与 Expand All 就绪时间。
+- 本地文件访问、树工具、工作区 session 绑定及相关 hooks 收敛到更清晰的模块边界并补充专门测试，降低维护与发布风险。
+- Web 和扩展应用版本升级到 `0.12.0`。
+
+### Fixed
+
+- Expand All 现在可作用于本地文件 Preview Record，并会在一次点击中展开每一层嵌套的字符串化 JSON。
+- 展示与 preview 截断现在会保留 Unicode 代理对，不再把 emoji 等多单元字符截断拆开。
+- 搜索不再报告树中不可见的 key 匹配；长截断值的高亮范围也会与显示文本对齐。
+- 被中止的进程内回退搜索不再覆盖当前查询结果。
+- 文件导出下载不再在浏览器完成下载前撤销 Blob URL。
 
 ## [0.11.0] - 2026-07-23
 

@@ -1,6 +1,6 @@
 # Unquote Chrome Web Store Submission Materials (English)
 
-> Target version: 0.11.0  
+> Target version: 0.12.0  
 > Extension ID: `ohcepfneflaihakpkkgmnbdgjhnmcjeg`  
 > Default locale: English.
 

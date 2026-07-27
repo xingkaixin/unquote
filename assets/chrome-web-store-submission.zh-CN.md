@@ -1,6 +1,6 @@
 # Unquote Chrome Web Store 提交材料（简体中文）
 
-> 对应版本：0.11.0  
+> 对应版本：0.12.0  
 > 扩展 ID：`ohcepfneflaihakpkkgmnbdgjhnmcjeg`  
 > 默认语言：英文；本文件用于 Chrome Web Store 的简体中文本地化条目。
 
