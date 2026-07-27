@@ -17,6 +17,10 @@ packages/*/.turbo
 apps/extension/.output
 apps/extension/.wxt
 
+# safari xcode project
+apps/safari/Unquote Extension/Resources
+apps/safari/**/xcuserdata
+
 # system files
 .DS_Store
 

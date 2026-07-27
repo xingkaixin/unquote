@@ -6,6 +6,7 @@
     "**/.output/**",
     "**/.wxt/**",
     "**/.turbo/**",
-    "**/coverage/**"
+    "**/coverage/**",
+    "**/*.xcassets/**"
   ]
 }
