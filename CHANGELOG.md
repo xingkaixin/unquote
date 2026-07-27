@@ -1,12 +1,30 @@
 # Changelog
 
-## [Unreleased]
+## [0.12.0] - 2026-07-27
+
+### Added
+
+- Chrome Web Store and Edge Add-ons submission guides and listing assets under `assets/`.
 
 ### Changed
 
+- **Breaking (`@unquote/core`)** — `JsonlRecord` is now a discriminated union of Full, Preview, and Failed records with a required `status` field. Migrate consumers to `isFullRecord`, `isPreviewRecord`, `isFailedRecord`, and `isParsed`.
 - **Breaking (`@unquote/core`)** — `JsonNode` is now a discriminated union that stores either container children, a truncated container value, a compact preview, or a typed primitive. The redundant `path`, `wasStringified`, and `meta` fields were removed. Consumers should derive paths and depth while traversing, use the owning `JsonlRecord.lineNumber`, and migrate checks to `hasJsonNodeChildren`, `isStringifiedNode`, and `isTruncatedJsonNode`.
 - **Breaking (`@unquote/core`)** — The deprecated `parseDeferredJsonlRecordLine` alias was removed. Use `parsePreviewJsonlRecordLine` instead.
+- Large JSONL workflows stay more responsive and retain less memory: streamed insight and overview derivation no longer rescans prior records, local-file search prefilters lines and reuses source revisions, Agent session parsing reuses top-level JSON and loads raw lines on demand, Expand All and expansion-map updates batch per call, and tree keyboard navigation uses index maps instead of full scans.
+- Parser, search, query, Agent output, and navigation now share one Source Revision so file switches and superseded work reject stale results before render.
 - Agent Session conversation items now belong directly to their timeline event, while a dedicated domain model resolves timeline, conversation, and Record selections through one canonical event-to-Record association.
+- The CI performance gate now fails on budget overruns, gating latency budgets on the median of three samples and tracking Expand Path and Expand All readiness.
+- Local-file access, tree utilities, workspace session bindings, and related hooks were consolidated into clearer module boundaries with dedicated tests, reducing maintenance and release risk.
+- Web and extension app versions bumped to `0.12.0`.
+
+### Fixed
+
+- Expand All now works for local-file Preview Records and expands every nested stringified JSON level in one click.
+- Display and preview truncation now preserves Unicode surrogate pairs instead of splitting emoji and other multi-unit characters.
+- Search no longer reports key matches that are not visible in the tree, and long truncated values keep highlight ranges aligned with the displayed text.
+- Aborted in-process fallback searches no longer overwrite the active query results.
+- File export downloads no longer revoke the Blob URL before the browser finishes the download.
 
 ## [0.11.0] - 2026-07-23
 
