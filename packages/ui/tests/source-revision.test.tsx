@@ -9,6 +9,7 @@ import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch } from "../src/lib/record-search";
+import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const options = { regex: false, caseSensitive: false, jq: false };
 
@@ -21,13 +22,13 @@ const match = (): SearchMatch => ({
   stringifiedPathChain: [],
 });
 
-class ControlledWorker {
+class ControlledWorker extends MockWorkerEvents {
   static parserWorkers: ControlledWorker[] = [];
   static searchWorkers: ControlledWorker[] = [];
-  listener: ((event: MessageEvent) => void) | null = null;
   messages: Array<{ type: string; requestId: number }> = [];
 
   constructor(url: URL) {
+    super();
     if (String(url).includes("search-worker")) {
       ControlledWorker.searchWorkers.push(this);
     } else {
@@ -35,26 +36,12 @@ class ControlledWorker {
     }
   }
 
-  addEventListener(_type: string, listener: (event: MessageEvent) => void) {
-    this.listener = listener;
-  }
-
-  removeEventListener(_type: string, listener: (event: MessageEvent) => void) {
-    if (this.listener === listener) {
-      this.listener = null;
-    }
-  }
-
   terminate() {
-    this.listener = null;
+    this.clearListeners();
   }
 
   postMessage(message: { type: string; requestId: number }) {
     this.messages.push(message);
-  }
-
-  respond(data: unknown) {
-    this.listener?.({ data } as MessageEvent);
   }
 }
 

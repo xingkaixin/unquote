@@ -115,12 +115,14 @@ const postSessionComplete = (requestId: number, session: JsonlSession) => {
   } satisfies ParserWorkerResponse);
 };
 
-const postSessionError = (requestId: number, session: JsonlSession) => {
+const postRequestError = (requestId: number, session: JsonlSession | null) => {
   self.postMessage({
     type: "error",
     requestId,
-    stats: statsFromSession(session),
-    progress: progressFromSession(session, true),
+    stats: session ? statsFromSession(session) : { total: 0, success: 0, failed: 0 },
+    progress: session
+      ? progressFromSession(session, true)
+      : { processedLines: 0, success: 0, failed: 0, elapsedMs: 0, done: true },
   } satisfies ParserWorkerResponse);
 };
 
@@ -233,13 +235,11 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
   }
 
   if (failed && requestId === latestRequestId) {
-    postSessionError(requestId, session);
+    postRequestError(requestId, session);
   }
 };
 
-self.onmessage = (event: MessageEvent<ParserRequest>) => {
-  const message = event.data;
-
+const handleRequest = (message: ParserRequest) => {
   if (message.type === "parse") {
     latestRequestId = message.requestId;
     parseJson(message);
@@ -268,5 +268,17 @@ self.onmessage = (event: MessageEvent<ParserRequest>) => {
   if (message.done) {
     postSessionComplete(message.requestId, jsonlSession);
     jsonlSession = null;
+  }
+};
+
+self.onmessage = (event: MessageEvent<ParserRequest>) => {
+  try {
+    handleRequest(event.data);
+  } catch {
+    // Without this the failure surfaces as an uncaught worker exception and
+    // the request never reaches a terminal state on the main thread.
+    const session = jsonlSession;
+    jsonlSession = null;
+    postRequestError(event.data.requestId, session);
   }
 };

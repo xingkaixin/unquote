@@ -6,16 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
-
-interface Listener {
-  (event: MessageEvent): void;
-}
 
 const resultFromRecords = (records: ParseResult["records"]): ParseResult => ({
   format: "jsonl",
@@ -34,34 +31,34 @@ const failedRecord = (lineNumber: number, summary: string): ParseResult["records
   summary,
 });
 
-class MockWorker {
+class MockWorker extends MockWorkerEvents {
   static instances: MockWorker[] = [];
-  listener: Listener | null = null;
+  static failConstruction = false;
+  // 1-based index of the first postMessage call that should throw.
+  static postMessageFailsFrom: number | null = null;
   messages: Array<{
     type: string;
     requestId: number;
     input?: string;
     chunk?: string;
+    done?: boolean;
     file?: File;
     forcedFormat?: string;
   }> = [];
+  postMessageCalls = 0;
   terminateCalls = 0;
 
   constructor(..._args: unknown[]) {
+    super();
+    if (MockWorker.failConstruction) {
+      throw new Error("worker script failed to load");
+    }
     MockWorker.instances.push(this);
-  }
-
-  addEventListener(_type: string, listener: Listener) {
-    this.listener = listener;
-  }
-
-  removeEventListener() {
-    this.listener = null;
   }
 
   terminate() {
     this.terminateCalls += 1;
-    this.listener = null;
+    this.clearListeners();
   }
 
   postMessage(payload: {
@@ -69,30 +66,42 @@ class MockWorker {
     requestId: number;
     input?: string;
     chunk?: string;
+    done?: boolean;
     file?: File;
     forcedFormat?: string;
   }) {
+    this.postMessageCalls += 1;
+    if (
+      MockWorker.postMessageFailsFrom !== null &&
+      this.postMessageCalls >= MockWorker.postMessageFailsFrom
+    ) {
+      throw new DOMException("payload could not be cloned", "DataCloneError");
+    }
     this.messages.push(payload);
     if (payload.type === "start-jsonl") {
+      return;
+    }
+    // Mirrors the real worker, which only reports a terminal response once the
+    // stream is drained, and leaves "stalled" input open so failure paths can
+    // be exercised mid-parse.
+    if ((payload.type === "jsonl-chunk" && !payload.done) || payload.input === "stalled") {
       return;
     }
     if (payload.type === "file-jsonl") {
       const delay = payload.file?.name === "old.jsonl" ? 20 : 0;
       setTimeout(() => {
-        this.listener?.({
-          data: {
-            type: "error",
-            requestId: payload.requestId,
-            stats: { total: 0, success: 0, failed: 0 },
-            progress: {
-              processedLines: 0,
-              success: 0,
-              failed: 0,
-              elapsedMs: 1,
-              done: true,
-            },
+        this.respond({
+          type: "error",
+          requestId: payload.requestId,
+          stats: { total: 0, success: 0, failed: 0 },
+          progress: {
+            processedLines: 0,
+            success: 0,
+            failed: 0,
+            elapsedMs: 1,
+            done: true,
           },
-        } as MessageEvent);
+        });
       }, delay);
       return;
     }
@@ -100,71 +109,63 @@ class MockWorker {
     const input = payload.input ?? payload.chunk ?? "";
     if (input === "first") {
       setTimeout(() => {
-        this.listener?.({
-          data: {
-            type: "complete-result",
-            requestId: payload.requestId,
-            result: resultFromRecords([failedRecord(1, "old")]),
-            agentSession: null,
-            progress: {
-              processedLines: 1,
-              success: 0,
-              failed: 1,
-              elapsedMs: 10,
-              done: true,
-            },
+        this.respond({
+          type: "complete-result",
+          requestId: payload.requestId,
+          result: resultFromRecords([failedRecord(1, "old")]),
+          agentSession: null,
+          progress: {
+            processedLines: 1,
+            success: 0,
+            failed: 1,
+            elapsedMs: 10,
+            done: true,
           },
-        } as MessageEvent);
+        });
       }, 20);
       return;
     }
 
     setTimeout(() => {
-      this.listener?.({
-        data: {
-          type: "batch",
-          requestId: payload.requestId,
-          records: [failedRecord(1, "new-1")],
-          stats: { total: 1, success: 0, failed: 1 },
-          progress: {
-            processedLines: 1,
-            success: 0,
-            failed: 1,
-            elapsedMs: 1,
-            done: false,
-          },
+      this.respond({
+        type: "batch",
+        requestId: payload.requestId,
+        records: [failedRecord(1, "new-1")],
+        stats: { total: 1, success: 0, failed: 1 },
+        progress: {
+          processedLines: 1,
+          success: 0,
+          failed: 1,
+          elapsedMs: 1,
+          done: false,
         },
-      } as MessageEvent);
-      this.listener?.({
-        data: {
-          type: "batch",
-          requestId: payload.requestId,
-          records: [failedRecord(2, "new-2")],
-          stats: { total: 2, success: 0, failed: 2 },
-          progress: {
-            processedLines: 2,
-            success: 0,
-            failed: 2,
-            elapsedMs: 2,
-            done: true,
-          },
+      });
+      this.respond({
+        type: "batch",
+        requestId: payload.requestId,
+        records: [failedRecord(2, "new-2")],
+        stats: { total: 2, success: 0, failed: 2 },
+        progress: {
+          processedLines: 2,
+          success: 0,
+          failed: 2,
+          elapsedMs: 2,
+          done: true,
         },
-      } as MessageEvent);
-      this.listener?.({
-        data: {
-          type: "complete-stats",
-          requestId: payload.requestId,
-          stats: { total: 2, success: 0, failed: 2 },
-          agentSession: null,
-          progress: {
-            processedLines: 2,
-            success: 0,
-            failed: 2,
-            elapsedMs: 2,
-            done: true,
-          },
+      });
+      this.respond({
+        type: "complete-stats",
+        requestId: payload.requestId,
+        stats: { total: 2, success: 0, failed: 2 },
+        agentSession: null,
+        progress: {
+          processedLines: 2,
+          success: 0,
+          failed: 2,
+          elapsedMs: 2,
+          done: true,
         },
-      } as MessageEvent);
+      });
     }, 0);
   }
 }
@@ -209,6 +210,8 @@ describe("useParser", () => {
     vi.clearAllMocks();
     localStorage.clear();
     MockWorker.instances = [];
+    MockWorker.failConstruction = false;
+    MockWorker.postMessageFailsFrom = null;
     Object.assign(globalThis, { Worker: MockWorker });
   });
 
@@ -323,6 +326,74 @@ describe("useParser", () => {
 
     unmount();
     expect(MockWorker.instances[0]?.terminateCalls).toBe(1);
+  });
+
+  it("parses on the main thread when the worker cannot be constructed", () => {
+    MockWorker.failConstruction = true;
+
+    render(<Probe input='{"value":1}' forcedFormat="json" />);
+
+    expect(MockWorker.instances).toHaveLength(0);
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
+  it("finishes the request when the worker rejects a posted message", async () => {
+    MockWorker.postMessageFailsFrom = 1;
+
+    render(<Probe input='{"value":1}' forcedFormat="json" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
+    expect(MockWorker.instances[0]?.terminateCalls).toBe(1);
+  });
+
+  it.each([
+    ["an uncaught worker error", (worker: MockWorker) => worker.fail()],
+    ["an undeserializable message", (worker: MockWorker) => worker.failDeserialization()],
+  ])("finishes a stalled parse after %s", async (_label, provokeFailure) => {
+    render(<Probe input="stalled" forcedFormat="json" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    expect(screen.getByTestId("progress")).toHaveTextContent("pending");
+
+    act(() => provokeFailure(MockWorker.instances[0]!));
+
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
+    expect(MockWorker.instances[0]?.terminateCalls).toBe(1);
+  });
+
+  it("builds a fresh worker for the request after a worker failure", async () => {
+    const { rerender } = render(<Probe input="stalled" forcedFormat="json" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    act(() => MockWorker.instances[0]!.fail());
+
+    rerender(<Probe input="second" forcedFormat="jsonl" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(screen.getByTestId("records")).toHaveTextContent("new-1,new-2");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
+  it.each([
+    ["the stream cannot be started", 1, 0],
+    ["a mid-stream chunk cannot be posted", 3, 1],
+  ])("finishes a streaming parse when %s", async (_label, failsFrom, expectedChunks) => {
+    MockWorker.postMessageFailsFrom = failsFrom;
+    render(<Probe input={`${"x".repeat(256 * 1024)}\n{}`} forcedFormat="jsonl" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    const worker = MockWorker.instances[0]!;
+    expect(worker.messages.filter((message) => message.type === "jsonl-chunk")).toHaveLength(
+      expectedChunks,
+    );
+    expect(worker.terminateCalls).toBe(1);
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
   });
 
   it("streams large JSONL input in bounded chunks", async () => {

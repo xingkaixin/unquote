@@ -9,6 +9,7 @@ import { memorySearchDebounceMs } from "../src/hooks/use-query-interaction";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
+import { MockWorkerEvents } from "./helpers/mock-worker-events";
 import { createControlledStreamFile, createFailingStreamFile } from "./helpers/stub-file";
 
 const maxTransferStringLength = 4096;
@@ -105,7 +106,7 @@ const readBlobText = (blob: Blob) =>
   });
 
 Object.assign(globalThis, {
-  Worker: class {
+  Worker: class extends MockWorkerEvents {
     chunks = "";
     isSearchWorker: boolean;
     searchSource: {
@@ -114,15 +115,11 @@ Object.assign(globalThis, {
       forcedFormat?: "json" | "jsonl";
     } | null = null;
     constructor(...args: unknown[]) {
+      super();
       this.isSearchWorker = String(args[0]).includes("search-worker");
     }
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    addEventListener(_type: string, listener: (event: MessageEvent) => void) {
-      this.onmessage = listener;
-    }
-    removeEventListener() {}
     terminate() {
-      this.onmessage = null;
+      this.clearListeners();
     }
     completeSearch(
       requestId: number,
@@ -139,9 +136,7 @@ Object.assign(globalThis, {
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
           );
-          this.onmessage?.({
-            data: { type: "result", requestId, matches },
-          } as MessageEvent);
+          this.respond({ type: "result", requestId, matches });
         },
       );
     }
@@ -154,14 +149,10 @@ Object.assign(globalThis, {
             new AbortController().signal,
           )
           .then((matches) => {
-            this.onmessage?.({
-              data: { type: "result", requestId, matches },
-            } as MessageEvent);
+            this.respond({ type: "result", requestId, matches });
           })
           .catch(() => {
-            this.onmessage?.({
-              data: { type: "error", requestId, message: "search failed" },
-            } as MessageEvent);
+            this.respond({ type: "error", requestId, message: "search failed" });
           });
       });
     }
@@ -171,15 +162,13 @@ Object.assign(globalThis, {
         const result = compact
           ? compactResultForTransfer(input, parsed.result.stats)
           : parsed.result;
-        this.onmessage?.({
-          data: {
-            type: "complete-result",
-            requestId,
-            result,
-            agentSession: parsed.agentSession,
-            progress: parsed.progress,
-          },
-        } as MessageEvent);
+        this.respond({
+          type: "complete-result",
+          requestId,
+          result,
+          agentSession: parsed.agentSession,
+          progress: parsed.progress,
+        });
       });
     }
     postMessage(payload: {
@@ -213,9 +202,7 @@ Object.assign(globalThis, {
           };
         }
         if (this.searchSource?.sourceRevision !== payload.source.sourceRevision) {
-          this.onmessage?.({
-            data: { type: "error", requestId: payload.requestId, message: "search failed" },
-          } as MessageEvent);
+          this.respond({ type: "error", requestId: payload.requestId, message: "search failed" });
           return;
         }
         this.completeSearch(
@@ -261,20 +248,18 @@ Object.assign(globalThis, {
       if (payload.type === "file-jsonl") {
         if (payload.file) {
           if (payload.file.name === "worker-failure.jsonl") {
-            this.onmessage?.({
-              data: {
-                type: "error",
-                requestId: payload.requestId,
-                stats: { total: 0, success: 0, failed: 0 },
-                progress: {
-                  processedLines: 0,
-                  success: 0,
-                  failed: 0,
-                  elapsedMs: 1,
-                  done: true,
-                },
+            this.respond({
+              type: "error",
+              requestId: payload.requestId,
+              stats: { total: 0, success: 0, failed: 0 },
+              progress: {
+                processedLines: 0,
+                success: 0,
+                failed: 0,
+                elapsedMs: 1,
+                done: true,
               },
-            } as MessageEvent);
+            });
             return;
           }
           void readMockFileText(payload.file).then((text) =>

@@ -5,6 +5,7 @@ import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/record-search";
 import type { SearchMatch, SearchOptions } from "../lib/record-search";
+import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
 export const searchWorkerTimeoutMs = 5000;
@@ -149,7 +150,9 @@ export const useSearchWorker = (params: {
       requestIdRef.current = requestId;
       const finishRequestMeasure = startPerfMeasure("search:request");
 
-      if (typeof Worker === "undefined") {
+      // Reached both when no Worker exists and when one fails to start: the
+      // request still has to settle somewhere.
+      const searchOnMainThread = () => {
         if (sourceAccess) {
           const controller = new AbortController();
           sourceAccess
@@ -184,15 +187,37 @@ export const useSearchWorker = (params: {
           status: "complete",
           errorKind: null,
         });
+      };
+
+      if (typeof Worker === "undefined") {
+        searchOnMainThread();
         return;
       }
 
-      const currentWorker =
+      const availableWorker =
         workerRef.current ??
-        new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" });
+        spawnWorker(
+          () =>
+            new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" }),
+        );
+      if (!availableWorker) {
+        searchOnMainThread();
+        return;
+      }
+      // Re-bound after the null check because the hoisted lifecycle functions
+      // below would otherwise not see the narrowed type.
+      const currentWorker: Worker = availableWorker;
       workerRef.current = currentWorker;
       let timeoutId: number | undefined;
       let settled = false;
+
+      function discardWorker() {
+        if (workerRef.current === currentWorker) {
+          workerRef.current = null;
+          workerSourceRevisionRef.current = null;
+        }
+        currentWorker.terminate();
+      }
 
       function finalizeRequest(terminateWorker: boolean) {
         if (settled) {
@@ -203,12 +228,28 @@ export const useSearchWorker = (params: {
           window.clearTimeout(timeoutId);
         }
         currentWorker.removeEventListener("message", onMessage);
-        if (terminateWorker && workerRef.current === currentWorker) {
-          workerRef.current = null;
-          workerSourceRevisionRef.current = null;
-          currentWorker.terminate();
+        currentWorker.removeEventListener("error", onWorkerFailure);
+        currentWorker.removeEventListener("messageerror", onWorkerFailure);
+        if (terminateWorker) {
+          discardWorker();
         }
         return true;
+      }
+
+      function failRequest(errorKind: "timeout" | "worker-error") {
+        if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
+          return;
+        }
+        finishRequestMeasure();
+        setState({ sourceRevision, matches: null, status: "error", errorKind });
+      }
+
+      // An uncaught worker error or an undeserializable message can leave the
+      // cached parse behind, so the instance is dropped even when this request
+      // already settled.
+      function onWorkerFailure() {
+        discardWorker();
+        failRequest("worker-error");
       }
 
       function onMessage(event: MessageEvent<SearchWorkerResponse>) {
@@ -239,8 +280,11 @@ export const useSearchWorker = (params: {
       }
 
       currentWorker.addEventListener("message", onMessage);
+      currentWorker.addEventListener("error", onWorkerFailure);
+      currentWorker.addEventListener("messageerror", onWorkerFailure);
       const sendText = !sourceAccess && workerSourceRevisionRef.current !== sourceRevision;
-      currentWorker.postMessage(
+      const posted = postToWorker(
+        currentWorker,
         buildSearchRequest(
           requestId,
           text,
@@ -252,17 +296,18 @@ export const useSearchWorker = (params: {
           sendText,
         ),
       );
+      if (!posted) {
+        failRequest("worker-error");
+        return;
+      }
       if (sendText) {
         workerSourceRevisionRef.current = sourceRevision;
       }
 
-      timeoutId = window.setTimeout(() => {
-        if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
-          return;
-        }
-        finishRequestMeasure();
-        setState({ sourceRevision, matches: null, status: "error", errorKind: "timeout" });
-      }, getSearchWorkerTimeoutMs(sourceAccess));
+      timeoutId = window.setTimeout(
+        () => failRequest("timeout"),
+        getSearchWorkerTimeoutMs(sourceAccess),
+      );
 
       dispatchCleanup = () => void finalizeRequest(true);
     };

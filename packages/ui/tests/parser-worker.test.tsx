@@ -338,4 +338,53 @@ describe("parser worker dispatch", () => {
       expect.objectContaining({ type: "error", requestId: 1 }),
     );
   });
+
+  it("turns a throwing request into a terminal error response", async () => {
+    vi.doMock("../src/lib/parse-text", async () => ({
+      ...(await vi.importActual<typeof import("../src/lib/parse-text")>("../src/lib/parse-text")),
+      parseText: () => {
+        throw new RangeError("Invalid string length");
+      },
+    }));
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, { type: "parse", requestId: 1, input: "{}" });
+
+    expect(workerScope.postMessage).toHaveBeenCalledWith({
+      type: "error",
+      requestId: 1,
+      stats: { total: 0, success: 0, failed: 0 },
+      progress: { processedLines: 0, success: 0, failed: 0, elapsedMs: 0, done: true },
+    });
+    vi.doUnmock("../src/lib/parse-text");
+  });
+
+  it("reports the streamed progress collected before a JSONL request throws", async () => {
+    const jsonlLines =
+      await vi.importActual<typeof import("../src/lib/jsonl-lines")>("../src/lib/jsonl-lines");
+    vi.doMock("../src/lib/jsonl-lines", () => ({
+      ...jsonlLines,
+      drainJsonlLines: vi
+        .fn(jsonlLines.drainJsonlLines)
+        .mockImplementationOnce(jsonlLines.drainJsonlLines)
+        .mockImplementationOnce(() => {
+          throw new RangeError("Invalid string length");
+        }),
+    }));
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, { type: "start-jsonl", requestId: 1 });
+    dispatch(workerScope, { type: "jsonl-chunk", requestId: 1, chunk: '{"a":1}\n', done: false });
+    dispatch(workerScope, { type: "jsonl-chunk", requestId: 1, chunk: '{"b":2}\n', done: false });
+
+    expect(workerScope.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "error",
+        requestId: 1,
+        stats: { total: 1, success: 1, failed: 0 },
+        progress: expect.objectContaining({ processedLines: 1, done: true }),
+      }),
+    );
+    vi.doUnmock("../src/lib/jsonl-lines");
+  });
 });

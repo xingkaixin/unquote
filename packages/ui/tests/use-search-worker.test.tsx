@@ -9,10 +9,7 @@ import {
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
 import type { SearchMatch } from "../src/lib/record-search";
-
-interface Listener {
-  (event: MessageEvent): void;
-}
+import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const defaultOptions = { regex: false, caseSensitive: false, jq: false };
 
@@ -25,31 +22,28 @@ const matchStub = (recordId: string): SearchMatch => ({
   stringifiedPathChain: [],
 });
 
-class MockWorker {
+class MockWorker extends MockWorkerEvents {
   static instances: MockWorker[] = [];
-  listener: Listener | null = null;
+  static failConstruction = false;
+  static failPostMessage = false;
   terminated = false;
-  postMessage = vi.fn();
+  postMessage = vi.fn(() => {
+    if (MockWorker.failPostMessage) {
+      throw new DOMException("payload could not be cloned", "DataCloneError");
+    }
+  });
 
   constructor(..._args: unknown[]) {
+    super();
+    if (MockWorker.failConstruction) {
+      throw new Error("worker script failed to load");
+    }
     MockWorker.instances.push(this);
-  }
-
-  addEventListener(_type: string, listener: Listener) {
-    this.listener = listener;
-  }
-
-  removeEventListener() {
-    this.listener = null;
   }
 
   terminate() {
     this.terminated = true;
-    this.listener = null;
-  }
-
-  respond(data: unknown) {
-    this.listener?.({ data } as MessageEvent);
+    this.clearListeners();
   }
 }
 
@@ -115,6 +109,8 @@ describe("useSearchWorker", () => {
     vi.useFakeTimers();
     performance.clearMeasures("unquote:search:request");
     MockWorker.instances = [];
+    MockWorker.failConstruction = false;
+    MockWorker.failPostMessage = false;
     renderLog = [];
     Object.assign(globalThis, { Worker: MockWorker });
   });
@@ -255,6 +251,59 @@ describe("useSearchWorker", () => {
         source: expect.objectContaining({ kind: "content", sourceRevision: 0, text: "text" }),
       }),
     );
+  });
+
+  it("falls back to a main-thread search when the worker cannot be constructed", () => {
+    MockWorker.failConstruction = true;
+
+    render(<Probe query="hello" text='{"a":"hello"}' />);
+
+    expect(MockWorker.instances).toHaveLength(0);
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("reports a worker error when the request cannot be posted", () => {
+    MockWorker.failPostMessage = true;
+
+    render(<Probe query="a" text="text" />);
+
+    expect(MockWorker.instances[0]?.terminated).toBe(true);
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
+  });
+
+  it.each([
+    ["an uncaught worker error", (worker: MockWorker) => worker.fail()],
+    ["an undeserializable message", (worker: MockWorker) => worker.failDeserialization()],
+  ])("reports %s before the timeout elapses", (_label, provokeFailure) => {
+    render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+
+    act(() => provokeFailure(worker));
+
+    expect(worker.terminated).toBe(true);
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
+  });
+
+  it("re-sends the source text to a fresh worker after an uncaught error", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    act(() => MockWorker.instances[0]!.fail());
+
+    rerender(<Probe query="b" text="text" />);
+
+    expect(MockWorker.instances).toHaveLength(2);
+    const recovered = MockWorker.instances[1]!;
+    expect(recovered.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: expect.objectContaining({ kind: "content", sourceRevision: 0, text: "text" }),
+      }),
+    );
+
+    act(() => recovered.respond({ type: "result", requestId: 2, matches: [matchStub("fresh")] }));
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("fresh");
   });
 
   it("stays idle and does not post a message for an empty query", () => {
