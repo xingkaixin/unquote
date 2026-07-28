@@ -406,8 +406,22 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
   // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
   const lines = input.split(/\r?\n/);
   const strict = parseStrictJsonlRecords(lines, maxDepth);
-  if (strict.kind === "complete" && strict.records.length > 1) {
-    return buildJsonlResult(strict.records);
+  if (strict.kind === "complete") {
+    if (strict.records.length > 1) {
+      return buildJsonlResult(strict.records);
+    }
+
+    // A complete strict pass over a single non-empty line means the whole input
+    // is one JSON document that already has a full node tree, so only the
+    // JSON-mode record identity is left to normalize.
+    const [only] = strict.records;
+    if (only && isParsed(only)) {
+      return {
+        format: "json",
+        records: [only.lineNumber === 1 ? only : { ...only, id: "record-1", lineNumber: 1 }],
+        stats: { total: 1, success: 1, failed: 0 },
+      };
+    }
   }
 
   const single = parseSingleJsonResult(input, maxDepth);
