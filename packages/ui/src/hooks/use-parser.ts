@@ -11,6 +11,7 @@ import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
 import { createStreamPublisher } from "../lib/stream-publisher";
+import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
@@ -94,45 +95,63 @@ export const useParser = ({
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
-    if (typeof Worker === "undefined") {
-      const applyMainThreadParse = ({ result, agentSession, progress }: ParsedText) => {
-        setParserState({
-          sourceRevision,
-          result,
-          agentSession,
-          progress,
-          recordAppend: null,
-        });
-      };
+    let settled = false;
+    const isCurrentRequest = () => !settled && requestIdRef.current === requestId;
 
+    const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
+      setParserState({
+        sourceRevision,
+        result,
+        agentSession,
+        progress,
+        recordAppend: null,
+      });
+    };
+
+    const reportUnparsedSource = () => {
+      setParserState({
+        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+        progress: idleProgress,
+      });
+      reportFileReadError();
+    };
+
+    // Reached both when no Worker exists and when one fails to start, accept a
+    // message, or stay alive: every such request needs the same recoverable
+    // terminal state instead of an unfinished parse.
+    const parseOnMainThread = () => {
+      settled = true;
       if (sourceFile) {
         void parseFileOnMainThread(sourceFile)
           .then((parsed) => {
             if (requestIdRef.current === requestId) {
-              applyMainThreadParse(parsed);
+              applyParsedText(parsed);
             }
           })
           .catch(() => {
             if (requestIdRef.current === requestId) {
-              setParserState({
-                ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
-                progress: idleProgress,
-              });
-              reportFileReadError();
+              reportUnparsedSource();
             }
           });
         return;
       }
 
-      applyMainThreadParse(parseText(input, { forcedFormat }));
+      applyParsedText(parseText(input, { forcedFormat }));
+    };
+
+    if (typeof Worker === "undefined") {
+      parseOnMainThread();
       return;
     }
 
-    workerRef.current ??= new Worker(new URL("../worker/parser-worker.ts", import.meta.url), {
-      type: "module",
-    });
+    const currentWorker = (workerRef.current ??= spawnWorker(
+      () => new Worker(new URL("../worker/parser-worker.ts", import.meta.url), { type: "module" }),
+    ));
+    if (!currentWorker) {
+      parseOnMainThread();
+      return;
+    }
 
-    const currentWorker = workerRef.current;
     setParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess));
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
@@ -151,8 +170,37 @@ export const useParser = ({
       },
     );
 
+    // A worker that refuses work, raises an uncaught error, or sends an
+    // undeserializable message is dropped so the next request builds a fresh
+    // one, while this request still reaches exactly one terminal state.
+    const abandonWorker = () => {
+      if (workerRef.current === currentWorker) {
+        workerRef.current = null;
+      }
+      currentWorker.terminate();
+      if (!isCurrentRequest()) {
+        return;
+      }
+      settled = true;
+      if (chunkTimeoutId !== null) {
+        window.clearTimeout(chunkTimeoutId);
+      }
+      publisher.cancel();
+      reportUnparsedSource();
+    };
+
+    const post = (message: ParserRequest) => {
+      if (postToWorker(currentWorker, message)) {
+        return true;
+      }
+      abandonWorker();
+      return false;
+    };
+
     const postJsonlChunks = () => {
-      currentWorker.postMessage({ type: "start-jsonl", requestId } satisfies ParserRequest);
+      if (!post({ type: "start-jsonl", requestId })) {
+        return;
+      }
       let offset = 0;
 
       const postNextChunk = () => {
@@ -161,12 +209,15 @@ export const useParser = ({
         }
 
         const end = Math.min(input.length, offset + workerChunkSize);
-        currentWorker.postMessage({
+        const posted = post({
           type: "jsonl-chunk",
           requestId,
           chunk: input.slice(offset, end),
           done: end >= input.length,
-        } satisfies ParserRequest);
+        });
+        if (!posted) {
+          return;
+        }
         offset = end;
 
         if (offset < input.length) {
@@ -179,11 +230,7 @@ export const useParser = ({
 
     const timeoutId = window.setTimeout(() => {
       if (sourceFile) {
-        currentWorker.postMessage({
-          type: "file-jsonl",
-          requestId,
-          file: sourceFile,
-        } satisfies ParserRequest);
+        post({ type: "file-jsonl", requestId, file: sourceFile });
         return;
       }
 
@@ -192,15 +239,16 @@ export const useParser = ({
         return;
       }
 
-      const message = forcedFormat
-        ? ({ type: "parse", requestId, input, forcedFormat } satisfies ParserRequest)
-        : ({ type: "parse", requestId, input } satisfies ParserRequest);
-      currentWorker.postMessage(message);
+      post(
+        forcedFormat
+          ? { type: "parse", requestId, input, forcedFormat }
+          : { type: "parse", requestId, input },
+      );
     }, 120);
 
     const onMessage = (event: MessageEvent<ParserWorkerResponse>) => {
       const message = event.data;
-      if (message.requestId !== requestIdRef.current) {
+      if (settled || message.requestId !== requestIdRef.current) {
         return;
       }
 
@@ -213,6 +261,7 @@ export const useParser = ({
         return;
       }
 
+      settled = true;
       publisher.flush();
       if (message.type === "error") {
         markPerf("parse:error");
@@ -251,6 +300,8 @@ export const useParser = ({
     };
 
     currentWorker.addEventListener("message", onMessage);
+    currentWorker.addEventListener("error", abandonWorker);
+    currentWorker.addEventListener("messageerror", abandonWorker);
     return () => {
       window.clearTimeout(timeoutId);
       if (chunkTimeoutId !== null) {
@@ -258,6 +309,8 @@ export const useParser = ({
       }
       publisher.cancel();
       currentWorker.removeEventListener("message", onMessage);
+      currentWorker.removeEventListener("error", abandonWorker);
+      currentWorker.removeEventListener("messageerror", abandonWorker);
     };
   }, [forcedFormat, input, sourceAccess, sourceRevision]);
 
