@@ -11,26 +11,10 @@ const CHROME_WEB_STORE_URL =
 initializeThemePreference();
 clearLegacySourceHash(window.location, window.history);
 
-const openFile = () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,.jsonl,application/json,text/plain";
-  return new Promise<File | null>((resolve) => {
-    input.addEventListener("change", () => resolve(input.files?.[0] ?? null), { once: true });
-    input.click();
-  });
-};
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <I18nProvider>
-      <UnquoteApp
-        chromeWebStoreUrl={CHROME_WEB_STORE_URL}
-        onOpenFile={async () => {
-          const file = await openFile();
-          return file;
-        }}
-      />
+      <UnquoteApp chromeWebStoreUrl={CHROME_WEB_STORE_URL} />
     </I18nProvider>
   </React.StrictMode>,
 );

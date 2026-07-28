@@ -201,24 +201,13 @@ describe("useSourceLoader", () => {
     expect(result.current.importedFile).toBeNull();
   });
 
-  it("opens files and text returned by the host", async () => {
+  it("imports a chosen file through the same path as a drop", async () => {
     const { file, stream } = createStreamFile('{"file":true}', "opened.json");
-    const onRequestOpenFile = vi
-      .fn<() => Promise<File | string | null>>()
-      .mockResolvedValueOnce(file)
-      .mockResolvedValueOnce('{"text":true}')
-      .mockResolvedValueOnce(null);
-    const { result } = setup({ onRequestOpenFile });
+    const { result } = setup();
 
-    await act(() => result.current.onOpenFile());
+    await act(() => result.current.onFileDrop(file));
+
     expect(stream).toHaveBeenCalledTimes(1);
     expect(result.current.importedFile).toBe(file);
-
-    await act(() => result.current.onOpenFile());
-    expect(result.current.sourceText).toBe('{"text":true}');
-    expect(result.current.importedFile).toBeNull();
-
-    await act(() => result.current.onOpenFile());
-    expect(result.current.sourceText).toBe('{"text":true}');
   });
 });
