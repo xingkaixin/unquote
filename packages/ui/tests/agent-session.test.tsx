@@ -296,6 +296,95 @@ describe("agent session", () => {
     });
   });
 
+  it("maps each Claude parallel tool_result to its own tool_use", () => {
+    const session = createAgentSessionFromText(
+      [
+        JSON.stringify({
+          type: "user",
+          uuid: "user-1",
+          promptId: "prompt-1",
+          message: { role: "user", content: "Read both files" },
+        }),
+        JSON.stringify({
+          type: "assistant",
+          uuid: "assistant-1",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "tool_use", id: "toolu_alpha", name: "Read", input: { path: "a.ts" } },
+              { type: "tool_use", id: "toolu_beta", name: "Read", input: { path: "b.ts" } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: "user",
+          uuid: "user-2",
+          promptId: "prompt-1",
+          message: {
+            role: "user",
+            content: [
+              { type: "tool_result", tool_use_id: "toolu_alpha", content: "alpha output" },
+              { type: "text", text: "note between results" },
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_beta",
+                content: "beta failed",
+                is_error: true,
+              },
+              { type: "tool_result", content: "unattributed output" },
+            ],
+          },
+        }),
+      ].join("\n"),
+      "transcript.jsonl",
+    );
+
+    const model = createAgentSessionModel(session!);
+    expect(
+      model.conversation
+        .filter(({ item }) => item.block?.type === "tool_use")
+        .map(({ item }) => item.block),
+    ).toMatchObject([{ toolCallId: "toolu_alpha" }, { toolCallId: "toolu_beta" }]);
+
+    const results = model.conversation.filter(({ item }) => item.block?.type === "tool_result");
+    expect(results.map(({ item }) => item.block)).toEqual([
+      {
+        type: "tool_result",
+        text: "alpha output",
+        status: "completed",
+        toolCallId: "toolu_alpha",
+      },
+      { type: "tool_result", text: "beta failed", status: "failed", toolCallId: "toolu_beta" },
+      { type: "tool_result", text: "unattributed output", status: "completed" },
+    ]);
+
+    // The interleaved user text stays its own item instead of being folded
+    // into a neighbouring result.
+    expect(model.conversation.map(({ item }) => item.role)).toEqual([
+      "user",
+      "tool_call",
+      "tool_call",
+      "tool_result",
+      "user",
+      "tool_result",
+      "tool_result",
+    ]);
+
+    for (const { item, event } of results) {
+      const selection = model.selectConversation(item.id);
+      expect(selection).toEqual({
+        kind: "conversation",
+        id: item.id,
+        recordId: "record-3",
+      });
+      expect(model.resolveDetail(selection)).toEqual({
+        event,
+        conversationItem: item,
+        recordId: "record-3",
+      });
+    }
+  });
+
   it("returns null for unrelated JSONL", () => {
     const session = createAgentSessionFromText(
       [

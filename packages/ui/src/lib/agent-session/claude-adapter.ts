@@ -41,12 +41,9 @@ const isClaudeToolResultUser = (record: Record<string, unknown>) => {
   }
 
   const content = record.message.content;
-  if (!Array.isArray(content) || content.length === 0) {
-    return false;
-  }
-
-  const first = content[0];
-  return isRecord(first) && first.type === "tool_result";
+  return (
+    Array.isArray(content) && content.some((part) => isRecord(part) && part.type === "tool_result")
+  );
 };
 
 const extractClaudeUserText = (record: Record<string, unknown>) => {
@@ -108,12 +105,24 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         toolCallId: part.id,
         status: "pending",
       });
+    } else if (part.type === "tool_result") {
+      // Parallel tool calls answer with one tool_result block per call, so each
+      // block keeps its own id, status, and text rather than being merged.
+      blocks.push({
+        type: "tool_result",
+        text: truncateBlockText(stringifyValue(part.content)),
+        status: part.is_error === true ? "failed" : "completed",
+        ...(typeof part.tool_use_id === "string" ? { toolCallId: part.tool_use_id } : {}),
+      });
     }
   }
   return blocks;
 };
 
-const claudeBlockRole = (block: AgentContentBlock): AgentConversationRole => {
+const claudeBlockRole = (
+  block: AgentContentBlock,
+  textRole: AgentConversationRole,
+): AgentConversationRole => {
   switch (block.type) {
     case "thinking":
       return "thinking";
@@ -122,7 +131,7 @@ const claudeBlockRole = (block: AgentContentBlock): AgentConversationRole => {
     case "tool_result":
       return "tool_result";
     case "text":
-      return "assistant";
+      return textRole;
   }
 };
 
@@ -133,10 +142,35 @@ const claudeBlockLabel = (block: AgentContentBlock) => {
     case "thinking":
       return "thinking";
     case "tool_result":
-      return "tool_result";
+      return block.toolCallId
+        ? `tool_result ${truncateAtCodePointBoundary(block.toolCallId, 12)}`
+        : "tool_result";
     case "text":
       return "text";
   }
+};
+
+const claudeBlocksLabel = (blocks: AgentContentBlock[], fallback: string) => {
+  if (blocks.length === 1) {
+    return claudeBlockLabel(blocks[0]!);
+  }
+  return blocks.length > 1 ? `${fallback} (${blocks.length} blocks)` : fallback;
+};
+
+const attachBlockItems = (
+  event: AgentTimelineEvent,
+  blocks: AgentContentBlock[],
+  turnIndex: number,
+  textRole: AgentConversationRole,
+) => {
+  blocks.forEach((block, blockIndex) => {
+    attachConversationItem(event, {
+      id: `conv-${event.lineNumber}-block-${blockIndex}`,
+      role: claudeBlockRole(block, textRole),
+      turnIndex,
+      block,
+    });
+  });
 };
 
 const claudeBlockPreview = (block: AgentContentBlock) => {
@@ -161,24 +195,13 @@ const claudeCategory = (type: string, record: Record<string, unknown>): AgentEve
 
 const claudeLabel = (type: string, record: Record<string, unknown>) => {
   if (type === "user") {
-    if (isClaudeToolResultUser(record) && isRecord(record.message)) {
-      const parts = record.message.content;
-      const first = Array.isArray(parts) && isRecord(parts[0]) ? parts[0] : undefined;
-      const toolId = typeof first?.tool_use_id === "string" ? first.tool_use_id : undefined;
-      return toolId ? `tool_result ${truncateAtCodePointBoundary(toolId, 12)}` : "tool_result";
-    }
-    return "user";
+    return isClaudeToolResultUser(record)
+      ? claudeBlocksLabel(extractClaudeContentBlocks(record), "tool_result")
+      : "user";
   }
 
   if (type === "assistant") {
-    const blocks = extractClaudeContentBlocks(record);
-    if (blocks.length === 1) {
-      return claudeBlockLabel(blocks[0]!);
-    }
-    if (blocks.length > 1) {
-      return `assistant (${blocks.length} blocks)`;
-    }
-    return "assistant";
+    return claudeBlocksLabel(extractClaudeContentBlocks(record), "assistant");
   }
 
   return type;
@@ -288,26 +311,8 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       if (type === "user") {
         lastPromptId = promptId;
-        if (isClaudeToolResultUser(record) && isRecord(record.message)) {
-          const parts = record.message.content;
-          const first = Array.isArray(parts) && isRecord(parts[0]) ? parts[0] : undefined;
-          const text = extractClaudeUserText(record);
-          const block: AgentContentBlock | undefined = text
-            ? {
-                type: "tool_result",
-                text: truncateBlockText(text),
-                status: first?.is_error === true ? "failed" : "completed",
-                ...(typeof first?.tool_use_id === "string"
-                  ? { toolCallId: first.tool_use_id }
-                  : {}),
-              }
-            : undefined;
-          attachConversationItem(event, {
-            id: `conv-${line.lineNumber}-tool-result`,
-            role: "tool_result",
-            turnIndex,
-            ...(block ? { block } : {}),
-          });
+        if (isClaudeToolResultUser(record)) {
+          attachBlockItems(event, extractClaudeContentBlocks(record), turnIndex, "user");
         } else if (!getBoolean(record, "isMeta")) {
           const text = extractClaudeUserText(record);
           const block: AgentContentBlock | undefined = text
@@ -331,14 +336,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
             turnIndex,
           });
         } else {
-          blocks.forEach((block, blockIndex) => {
-            attachConversationItem(event, {
-              id: `conv-${line.lineNumber}-block-${blockIndex}`,
-              role: claudeBlockRole(block),
-              turnIndex,
-              block,
-            });
-          });
+          attachBlockItems(event, blocks, turnIndex, "assistant");
         }
       }
 
