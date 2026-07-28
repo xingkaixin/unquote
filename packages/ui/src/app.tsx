@@ -16,7 +16,6 @@ import { Toolbar } from "./components/toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
-import { useCopyToClipboard } from "./hooks/use-copy-to-clipboard";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
@@ -65,7 +64,6 @@ export const UnquoteApp = ({
   onOpenFile,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const copyToClipboard = useCopyToClipboard();
   const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const {
@@ -80,7 +78,6 @@ export const UnquoteApp = ({
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
     onOpenFile: handleOpenFile,
-    onCopyRawLine: handleCopyRawLine,
   } = useSourceLoader({
     initialInput,
     onRequestOpenFile: onOpenFile,
@@ -254,31 +251,35 @@ export const UnquoteApp = ({
   };
 
   const {
+    copyText,
     onCopyJsonl,
     onCopyFormattedJson,
     onExportJsonl,
     onExportFormattedJson,
     onCopyRecord,
+    onCopyRawLine,
     onCopyRecordError,
   } = useExportActions({
     visibleRecords,
     resolveRecords: localFileSource.resolveRecords,
+    sourceAccess,
     format: result.format,
     isCopyBlocked,
+    sourceRevision,
   });
   const recordViewActions = useMemo<RecordViewActions>(
     () => ({
       togglePath: workspace.togglePath,
       copyRecord: onCopyRecord,
-      copyRawLine: handleCopyRawLine,
+      copyRawLine: onCopyRawLine,
       copyError: onCopyRecordError,
       selectNode: workspace.selectNode,
       requestFullRecord: localFileSource.requestFullRecord,
       clearFocus: workspace.clearFocus,
     }),
     [
-      handleCopyRawLine,
       localFileSource.requestFullRecord,
+      onCopyRawLine,
       onCopyRecord,
       onCopyRecordError,
       workspace.clearFocus,
@@ -333,21 +334,21 @@ export const UnquoteApp = ({
     return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
   };
 
-  const handleCopySelectedSubtree = async () => {
-    let context: Awaited<ReturnType<typeof getSelectedNodeContext>>;
-    try {
-      context = await getSelectedNodeContext();
-    } catch {
-      toast.error(t("input.readFailed"));
-      return;
-    }
-    if (!context || !selectedPath) {
-      return;
-    }
+  const handleCopySelectedSubtree = () =>
+    copyText(async () => {
+      let context: Awaited<ReturnType<typeof getSelectedNodeContext>>;
+      try {
+        context = await getSelectedNodeContext();
+      } catch {
+        toast.error(t("input.readFailed"));
+        return null;
+      }
+      if (!context || !selectedPath) {
+        return null;
+      }
 
-    const text = formatSelectionCopy(selectedPath, materializeNode(context.target.node));
-    await copyToClipboard(text);
-  };
+      return formatSelectionCopy(selectedPath, materializeNode(context.target.node));
+    });
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
   // hook (listener mounts once), so this array can be a fresh literal every
@@ -621,7 +622,7 @@ export const UnquoteApp = ({
                       activeRecordId={activeRecordId}
                       selectedRecordId={selectedRecordId}
                       onSelect={workspace.selectRecord}
-                      onCopyRawLine={handleCopyRawLine}
+                      onCopyRawLine={onCopyRawLine}
                     />
                   ) : null}
                 </div>

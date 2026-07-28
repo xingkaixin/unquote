@@ -1,10 +1,8 @@
-import { useCallback, useReducer, useRef, useState } from "react";
-import type { JsonlRecord } from "@unquote/core";
+import { useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
 import type { SourceRevision } from "../lib/source-revision";
-import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
 const largeSourceCollapseBytes = 1_000_000;
 
@@ -38,7 +36,6 @@ export const useSourceLoader = ({
   onCollapseSource,
 }: UseSourceLoaderParams) => {
   const { t } = useTranslation();
-  const copyToClipboard = useCopyToClipboard();
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<SourceMode>("auto");
   const modeRef = useRef<SourceMode>(mode);
@@ -55,8 +52,6 @@ export const useSourceLoader = ({
   const readingFile = sourceState.kind === "reading" ? sourceState.file : null;
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
-  const sourceAccessRef = useRef(sourceAccess);
-  sourceAccessRef.current = sourceAccess;
 
   const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
     file.size > largeSourceCollapseBytes &&
@@ -177,24 +172,6 @@ export const useSourceLoader = ({
     }
   };
 
-  const onCopyRawLine = useCallback(
-    async (record: JsonlRecord) => {
-      let text = record.status === "failed" ? record.rawLine : record.summary;
-      const currentAccess = sourceAccessRef.current;
-      if (currentAccess) {
-        try {
-          text = await currentAccess.readRecordText(record);
-        } catch {
-          toast.error(t("input.readFailed"));
-          return;
-        }
-      }
-
-      await copyToClipboard(text);
-    },
-    [copyToClipboard, t],
-  );
-
   return {
     mode,
     setMode: setSourceMode,
@@ -207,6 +184,5 @@ export const useSourceLoader = ({
     onSourceChange,
     onFileDrop,
     onOpenFile,
-    onCopyRawLine,
   };
 };

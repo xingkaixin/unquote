@@ -1,4 +1,3 @@
-import { parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,8 +23,6 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 import { useSourceLoader } from "../src/hooks/use-source-loader";
 
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
-const previewRecord = (lineNumber: number) =>
-  parsePreviewJsonlRecordLine('{"value":"preview"}', lineNumber);
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
@@ -45,15 +42,6 @@ describe("useSourceLoader", () => {
     vi.clearAllMocks();
     localStorage.clear();
     mocks.writeClipboardText.mockResolvedValue(true);
-  });
-
-  it("keeps record copy stable across source state updates", () => {
-    const { result } = setup();
-    const onCopyRawLine = result.current.onCopyRawLine;
-
-    act(() => result.current.onSourceChange("edited"));
-
-    expect(result.current.onCopyRawLine).toBe(onCopyRawLine);
   });
 
   it("publishes parsing-mode changes as new Source Revisions", () => {
@@ -232,36 +220,5 @@ describe("useSourceLoader", () => {
 
     await act(() => result.current.onOpenFile());
     expect(result.current.sourceText).toBe('{"text":true}');
-  });
-
-  it("resolves streamed records before copying and surfaces copy failures", async () => {
-    const { file } = createStreamFile(
-      `{"value":1}\nraw line\n${"x".repeat(1_000_001)}`,
-      "large.jsonl",
-    );
-    const { result } = setup();
-    await act(() => result.current.onFileDrop(file));
-
-    await act(() => result.current.onCopyRawLine(previewRecord(1)));
-    expect(mocks.writeClipboardText).toHaveBeenCalledWith('{"value":1}');
-
-    mocks.writeClipboardText.mockResolvedValue(false);
-    await act(() => result.current.onCopyRawLine(previewRecord(2)));
-    expect(mocks.writeClipboardText).toHaveBeenLastCalledWith("raw line");
-    expect(toastMocks.error).toHaveBeenLastCalledWith("Copy failed");
-
-    const readError = new Error("record read failed");
-    const failure = createFailingStreamFile(readError, "broken.jsonl", "x".repeat(1_000_001));
-    await act(() => result.current.onFileDrop(failure.file));
-    await act(() => result.current.onCopyRawLine(previewRecord(3)));
-    expect(toastMocks.error).toHaveBeenLastCalledWith("Failed to read file");
-  });
-
-  it("copies inline record text without resolving a file", async () => {
-    const { result } = setup();
-
-    await act(() => result.current.onCopyRawLine(parseJsonlRecordLine("invalid raw line", 1)));
-
-    expect(mocks.writeClipboardText).toHaveBeenCalledWith("invalid raw line");
   });
 });
