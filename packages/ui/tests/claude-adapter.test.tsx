@@ -139,7 +139,7 @@ describe("claudeTranscriptAdapter", () => {
     expect(session.events.map((event) => event.category)).toEqual([
       "meta",
       "user",
-      "user",
+      "tool",
       "user",
       "user",
       "tool",
@@ -155,18 +155,21 @@ describe("claudeTranscriptAdapter", () => {
     expect(items.map((item) => item.role)).toEqual([
       "user",
       "user",
+      "tool_result",
       "user",
       "tool_result",
       "tool_result",
     ]);
-    expect(items[1]?.block?.text).toContain("More context");
-    expect(items[2]).not.toHaveProperty("block");
-    expect(items[3]?.block).toMatchObject({
+    expect(items[1]?.block).toEqual({ type: "text", text: "More context" });
+    expect(items[2]?.block).toMatchObject({ type: "tool_result", status: "completed" });
+    expect(items[3]).not.toHaveProperty("block");
+    expect(items[4]?.block).toMatchObject({
       type: "tool_result",
       status: "failed",
       toolCallId: "toolu_12345😀tail",
     });
-    expect(items[4]).not.toHaveProperty("block");
+    expect(items[5]?.block).toEqual({ type: "tool_result", text: "", status: "completed" });
+    expect(session.events[2]?.label).toBe("tool_result (2 blocks)");
     expect(session.events[5]?.label).toBe("tool_result toolu_12345");
   });
 
