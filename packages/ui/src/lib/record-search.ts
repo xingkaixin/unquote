@@ -30,7 +30,18 @@ export interface SearchOptions {
   jq: boolean;
 }
 
-const findRanges = (text: string, pattern: RegExp): TextRange[] => {
+interface RangeScan {
+  ranges: TextRange[];
+  matched: boolean;
+}
+
+/**
+ * Scans the whole text so a match past `visibleLength` still counts, but only
+ * materializes the ranges the UI can highlight. A dense pattern over a
+ * megabyte-long value would otherwise allocate one object per match while the
+ * view shows a few hundred characters.
+ */
+const scanRanges = (text: string, pattern: RegExp, visibleLength = text.length): RangeScan => {
   const ranges: TextRange[] = [];
   const clone = new RegExp(
     pattern.source,
@@ -38,12 +49,18 @@ const findRanges = (text: string, pattern: RegExp): TextRange[] => {
   );
   let match: RegExpExecArray | null;
   while ((match = clone.exec(text)) !== null) {
-    ranges.push({ start: match.index, end: match.index + match[0].length });
+    const end = match.index + match[0].length;
+    if (end > visibleLength) {
+      // Later matches end even further out, so no more ranges can become
+      // visible and the "text matches at all" fact is already settled.
+      return { ranges, matched: true };
+    }
+    ranges.push({ start: match.index, end });
     if (match[0].length === 0) {
       clone.lastIndex++;
     }
   }
-  return ranges;
+  return { ranges, matched: ranges.length > 0 };
 };
 
 const addSearchMatch = (
@@ -54,22 +71,20 @@ const addSearchMatch = (
   matches: SearchMatch[],
 ) => {
   const keySegment = context.pathSegments.at(-1);
-  const valueLabel = formatJsonValueLabel(context);
-  const keyRanges = keySegment?.kind === "key" ? findRanges(keySegment.value, pattern) : [];
-  const allValueRanges = findRanges(valueLabel, pattern);
-  const searchableValueLabelLength = getSearchableJsonValueLabelLength(
-    context,
-    maxStringValueLabelLength,
+  const keyRanges = keySegment?.kind === "key" ? scanRanges(keySegment.value, pattern).ranges : [];
+  const value = scanRanges(
+    formatJsonValueLabel(context),
+    pattern,
+    getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
   );
-  const valueRanges = allValueRanges.filter((range) => range.end <= searchableValueLabelLength);
-  const pathRanges = options.jq ? findRanges(context.jsonPath, pattern) : [];
+  const pathRanges = options.jq ? scanRanges(context.jsonPath, pattern).ranges : [];
 
-  if (keyRanges.length > 0 || allValueRanges.length > 0 || pathRanges.length > 0) {
+  if (keyRanges.length > 0 || value.matched || pathRanges.length > 0) {
     matches.push({
       recordId,
       pathText: context.jsonPath,
       keyRanges,
-      valueRanges,
+      valueRanges: value.ranges,
       pathRanges,
       stringifiedPathChain: [...context.stringifiedChain],
     });
