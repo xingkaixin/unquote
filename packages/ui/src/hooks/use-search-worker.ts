@@ -3,6 +3,7 @@ import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
+import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
 import type { SearchMatch, SearchOptions } from "../lib/record-search";
 import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
@@ -13,12 +14,13 @@ export const largeFileSearchWorkerTimeoutMs = 15_000;
 const largeFileSearchBytes = 1_000_000;
 
 export type SearchWorkerStatus = "idle" | "pending" | "complete" | "error";
+export type SearchWorkerErrorKind = "timeout" | "worker-error" | "too-large";
 
 export interface SearchWorkerResult {
   sourceRevision: SourceRevision;
   matches: SearchMatch[] | null;
   status: SearchWorkerStatus;
-  errorKind: "timeout" | "worker-error" | null;
+  errorKind: SearchWorkerErrorKind | null;
 }
 
 const idleResult = (sourceRevision: SourceRevision): SearchWorkerResult => ({
@@ -178,6 +180,16 @@ export const useSearchWorker = (params: {
           return;
         }
 
+        // Parsing and searching in memory are both synchronous and cannot be
+        // interrupted once started, so an oversized input is refused up front
+        // instead of freezing the tab. The file path above already yields
+        // between chunks.
+        if (!isWithinMainThreadBudget(text.length)) {
+          finishRequestMeasure();
+          setState({ sourceRevision, matches: null, status: "error", errorKind: "too-large" });
+          return;
+        }
+
         const result = parseTextResult(text, forcedFormat);
         const matches = searchRecords(result.records, query, options);
         finishRequestMeasure();
@@ -236,7 +248,7 @@ export const useSearchWorker = (params: {
         return true;
       }
 
-      function failRequest(errorKind: "timeout" | "worker-error") {
+      function failRequest(errorKind: SearchWorkerErrorKind) {
         if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
           return;
         }

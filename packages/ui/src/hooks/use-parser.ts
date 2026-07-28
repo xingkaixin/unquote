@@ -10,6 +10,7 @@ import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
+import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { createStreamPublisher } from "../lib/stream-publisher";
 import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
@@ -81,6 +82,12 @@ export const useParser = ({
 }: UseParserOptions) => {
   const { t } = useTranslation();
   const [parserState, setParserState] = useState<ParserSnapshot>(() => {
+    // Mount-time parsing is synchronous too, so an oversized initial input
+    // waits for the effect below rather than blocking the first paint.
+    if (!isWithinMainThreadBudget(input.length)) {
+      return pendingSnapshot(sourceRevision, forcedFormat, sourceAccess);
+    }
+
     const { result, agentSession, progress } = parseText(input, { forcedFormat });
     return { sourceRevision, result, progress, agentSession, recordAppend: null };
   });
@@ -89,6 +96,9 @@ export const useParser = ({
   const sourceFile = sourceAccess?.getFile() ?? null;
   const reportFileReadError = useEffectEvent(() => {
     toast.error(t("input.readFailed"));
+  });
+  const reportInputTooLarge = useEffectEvent(() => {
+    toast.error(t("input.tooLargeWithoutWorker"));
   });
 
   useEffect(() => {
@@ -116,12 +126,28 @@ export const useParser = ({
       reportFileReadError();
     };
 
+    const reportUnparsedSourceTooLarge = () => {
+      setParserState({
+        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+        progress: idleProgress,
+      });
+      reportInputTooLarge();
+    };
+
     // Reached both when no Worker exists and when one fails to start, accept a
     // message, or stay alive: every such request needs the same recoverable
     // terminal state instead of an unfinished parse.
+    //
+    // A synchronous parse cannot be preempted once it begins, so an oversized
+    // input is refused before any work starts rather than freezing the tab.
     const parseOnMainThread = () => {
       settled = true;
       if (sourceFile) {
+        if (!isWithinMainThreadBudget(sourceFile.size)) {
+          reportUnparsedSourceTooLarge();
+          return;
+        }
+
         void parseFileOnMainThread(sourceFile)
           .then((parsed) => {
             if (requestIdRef.current === requestId) {
@@ -133,6 +159,11 @@ export const useParser = ({
               reportUnparsedSource();
             }
           });
+        return;
+      }
+
+      if (!isWithinMainThreadBudget(input.length)) {
+        reportUnparsedSourceTooLarge();
         return;
       }
 

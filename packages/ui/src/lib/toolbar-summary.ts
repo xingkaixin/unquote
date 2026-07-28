@@ -66,7 +66,7 @@ export interface ToolbarSummaryInput {
   recordFilter: RecordFilter;
   searchQuery: string;
   searchStatus: SearchWorkerStatus;
-  searchErrorKind: "timeout" | "worker-error" | null;
+  searchErrorKind: "timeout" | "worker-error" | "too-large" | null;
   pathError: string | null;
   matchCount: number;
 }
@@ -88,9 +88,14 @@ export const toolbarSummary = (input: ToolbarSummaryInput, t: Translator): strin
     return pathError;
   }
 
+  const searchErrorMessageKey = {
+    timeout: "search.timeout",
+    "too-large": "search.tooLargeWithoutWorker",
+    "worker-error": "search.failed",
+  } as const;
   const searchErrorLabel =
     searchQuery && searchStatus === "error"
-      ? t(searchErrorKind === "timeout" ? "search.timeout" : "search.failed")
+      ? t(searchErrorMessageKey[searchErrorKind ?? "worker-error"])
       : null;
   if (searchErrorLabel) {
     return searchErrorLabel;
