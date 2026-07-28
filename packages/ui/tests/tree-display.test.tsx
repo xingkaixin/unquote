@@ -29,15 +29,9 @@ const makeNode = (kind: JsonNode["kind"], overrides: Partial<JsonNode> = {}): Js
 const makeRow = (
   overrides: Partial<TreeRow> & Pick<TreeRow, "id" | "pathText" | "depth" | "kind">,
 ): TreeRow => ({
-  recordId: "record-1",
-  path: [],
-  jsonPath: overrides.pathText,
-  stringifiedPathChain: [],
-  sourceState: "source",
   keyLabel: "$",
   valueLabel: "",
   wasStringified: false,
-  expandable: false,
   expanded: false,
   node: makeNode(overrides.kind),
   ...overrides,

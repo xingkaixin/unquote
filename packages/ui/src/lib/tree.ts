@@ -1,24 +1,18 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { hasJsonNodeChildren, isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
+import { isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
 import { getPreviewPath } from "./record-preview";
 import { formatJsonValueLabel, maxStringValueLabelLength, walkJsonNode } from "./json-walk";
 import { resolveTreePath } from "./tree-path";
-import type { NodeSourceState, ResolvedTreePath } from "./tree-path";
+import type { ResolvedTreePath } from "./tree-path";
 
 export interface TreeRow {
   id: string;
-  recordId: string;
-  path: string[];
   pathText: string;
-  jsonPath: string;
-  stringifiedPathChain: string[];
-  sourceState: NodeSourceState;
   depth: number;
   keyLabel: string;
   kind: JsonNode["kind"];
   valueLabel: string;
   wasStringified: boolean;
-  expandable: boolean;
   expanded: boolean;
   node: JsonNode;
 }
@@ -42,27 +36,15 @@ const pushRows = (
     node,
     (ctx) => {
       const wasStringified = isStringifiedNode(ctx.node);
-      const sourceState: NodeSourceState = wasStringified
-        ? "stringified"
-        : ctx.stringifiedChain.length > 0
-          ? "inside-stringified"
-          : "source";
       const expanded = !wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
-      const path = ["$", ...ctx.pathSegments.map((segment) => segment.value)];
       rows.push({
         id: `${recordId}:${ctx.jsonPath}`,
-        recordId,
-        path,
         pathText: ctx.jsonPath,
-        jsonPath: ctx.jsonPath,
-        stringifiedPathChain: [...ctx.stringifiedChain],
-        sourceState,
         depth: Math.max(0, ctx.pathSegments.length - depthOffset),
         keyLabel: ctx.pathSegments.at(-1)?.value ?? parentKeyLabel,
         kind: ctx.node.kind,
         valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
         wasStringified,
-        expandable: hasJsonNodeChildren(ctx.node),
         expanded,
         node: ctx.node,
       });

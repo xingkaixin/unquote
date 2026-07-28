@@ -44,13 +44,42 @@ describe("tree paths", () => {
     ]);
   });
 
+  it("projects only the fields the renderer, virtualizer, and selection read", () => {
+    const record = parseInput('{"a":{"b":1}}', { forcedFormat: "json" }).records[0]!;
+    const rows = buildRecordRows(record, new Set());
+
+    // A guard against re-introducing per-node state under a different name:
+    // every field here has a production reader.
+    expect(Object.keys(rows[0]!).sort()).toEqual([
+      "depth",
+      "expanded",
+      "id",
+      "keyLabel",
+      "kind",
+      "node",
+      "pathText",
+      "valueLabel",
+      "wasStringified",
+    ]);
+  });
+
+  it("keeps a focused subtree's rows addressable by their full path", () => {
+    const record = parseInput('{"outer":{"inner":{"leaf":1}}}', { forcedFormat: "json" })
+      .records[0]!;
+    const rows = buildRecordRows(record, new Set(), "$.outer.inner");
+
+    expect(rows.map((row) => row.pathText)).toEqual(["$.outer.inner", "$.outer.inner.leaf"]);
+    expect(rows[0]?.id).toBe(`${record.id}:$.outer.inner`);
+    expect(rows[1]?.keyLabel).toBe("leaf");
+  });
+
   it("serializes numeric object keys as quoted keys", () => {
     const result = parseInput('{"payload":"{\\"items\\":[{\\"0\\":\\"zero\\"}]}"}');
     const record = result.records[0]!;
     const rows = buildRecordRows(record, new Set(["$.payload"]));
     const numericKey = rows.find((row) => row.valueLabel === '"zero"');
 
-    expect(numericKey?.jsonPath).toBe('$.payload.items[0]["0"]');
+    expect(numericKey?.pathText).toBe('$.payload.items[0]["0"]');
     expect(resolveTreePath(result.records, '$.payload.items[0]["0"]')).toMatchObject({
       ok: true,
     });
@@ -87,7 +116,7 @@ describe("tree paths", () => {
       jq: true,
     });
 
-    expect(leaf?.jsonPath).toBe(expectedJsonPath);
+    expect(leaf?.pathText).toBe(expectedJsonPath);
     expect(matches).toEqual([
       expect.objectContaining({
         pathText: expectedJsonPath,
