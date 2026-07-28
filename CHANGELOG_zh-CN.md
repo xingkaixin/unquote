@@ -1,5 +1,9 @@
 # Changelog
 
+> `@unquote/core` 与 `@unquote/ui` 是仓库内部包，不会发布到任何 registry。
+> 其中标记为**破坏性变更**的条目描述的是仓库内部的迁移，而不是对外部调用方的通知。
+> 见 [`docs/core-distribution.md`](docs/core-distribution.md)。
+
 ## [0.12.0] - 2026-07-27
 
 ### Added

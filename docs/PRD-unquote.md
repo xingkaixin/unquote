@@ -10,7 +10,7 @@ Unquote 是一个在本地检测并展开 JSON 中 stringified JSON 值的查看
 
 - Unquote 的交互模型是单向地把 stringified JSON 呈现为结构化内容；用户可以展开或收起节点，但不会在 UI 中把节点还原为原始转义字符串。
 - 输入内容不会被回写。复制和导出使用展开后的结构化结果。
-- `@unquote/core` 仍保留 `restoreNode` 供库消费者按需使用；这不是 Web 或扩展的产品功能。
+- `@unquote/core` 仍保留 `restoreNode` 供仓库内程序化调用；这不是 Web 或扩展的产品功能。`@unquote/core` 是仓库内部包，不发布到 registry（见 `docs/core-distribution.md`）。
 
 ## 2. 目标用户
 
@@ -47,7 +47,7 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 | C-3 | 判别式节点模型 | 节点以 `kind`、`preview`、`truncated` 等判别信息区分完整容器、Preview 容器、截断容器与 primitive；路径、深度和 Record 归属由遍历上下文提供。 |
 | C-4 | JSONL 解析 | 按行生成带稳定 ID、行号、摘要和错误元数据的记录；单行错误不阻断其余记录。 |
 | C-5 | 格式与导出基础 | 自动识别 JSON / JSONL，并将解析树物化为格式化 JSON 或 JSONL。 |
-| C-6 | 库级原始形态恢复 | `restoreNode` 可供程序化调用；当前 UI 不暴露还原操作。 |
+| C-6 | 原始形态恢复原语 | `restoreNode` 可供仓库内程序化调用；当前 UI 不暴露还原操作。 |
 
 ### 4.2 UI 组件（@unquote/ui）
 

@@ -1,5 +1,10 @@
 # Changelog
 
+> `@unquote/core` and `@unquote/ui` are repository-internal packages that are never
+> published to a registry. Entries marked **Breaking** for them describe migrations
+> inside this repository, not a notice to external consumers. See
+> [`docs/core-distribution.md`](docs/core-distribution.md).
+
 ## [0.12.0] - 2026-07-27
 
 ### Added
