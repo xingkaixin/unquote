@@ -1,6 +1,6 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
-import { createTranslator, en } from "@unquote/ui";
+import { createTranslator, en } from "@unquote/ui/i18n";
 import {
   claimSelectionHandoffMessageType,
   createSelectionHandoff,
