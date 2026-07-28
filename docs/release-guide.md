@@ -121,11 +121,57 @@ pnpm benchmark
 
 如果本次只改发布文档，可以不运行完整测试，但需要在最终说明中明确未运行。
 
-## 8. 发布前最终核对
+## 8. Safari 渠道
+
+Safari 扩展与 Chrome 扩展是同一套代码，通过 `apps/safari` 的 macOS 宿主应用分发。
+除签名与上传外，发布前的准备都可以从干净 checkout 重现：
+
+```sh
+pnpm build:safari
+```
+
+这条命令做两件事，任何一步不满足都会失败而不是静默通过：
+
+1. 用 `wxt.safari.config.ts` 构建 `dist/extension-safari`，其 manifest 不申请
+   `clipboardRead`（Safari 没有该权限）；
+2. 校验产物完整性与 manifest 身份，把 `MARKETING_VERSION` 同步为 manifest 版本，
+   并重新填充 `apps/safari/Unquote Extension/Resources`。
+
+同步后确认 Xcode 项目没有残留改动——若有，说明版本尚未提交：
+
+```sh
+git diff -- "apps/safari/Unquote.xcodeproj/project.pbxproj"
+```
+
+本地可以先做一次无签名构建，确认宿主应用仍能编译（CI 的 macOS job 执行同一命令）：
+
+```sh
+xcodebuild -project "apps/safari/Unquote.xcodeproj" -scheme Unquote -configuration Debug \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+```
+
+**以下步骤需要人工在 Xcode 中完成，无法自动化：**
+
+- 选择签名团队（App Store Connect 要求扩展 bundle id 嵌套在宿主应用之下：
+  `com.xingkaixin.unquote` 与 `com.xingkaixin.unquote.extension`）；
+- 递增 `CURRENT_PROJECT_VERSION`（`MARKETING_VERSION` 已由上面的命令同步）；
+- Archive 并上传到 Mac App Store。
+
+审核前检查：
+
+- `apps/safari/Unquote/Resources/Base.lproj/Main.html` 是 App Review 实际看到的界面，
+  `Script.js` 只改写其中的 `.state-*` 段落，因此这些元素必须保持纯文本；
+- Deployment target 为 macOS 12；选中文本交接依赖 `storage.session`（Safari 16.4+），
+  在更旧的 Safari 上会打开空编辑器而不是报错；
+- `apps/safari/Unquote Extension/Resources` 与 `xcuserdata` 是构建产物与本地状态，
+  不应出现在提交中。
+
+## 9. 发布前最终核对
 
 - 工作区 diff 只包含本次发布文档和必要版本号
 - 双语 changelog 的 `Added` / `Changed` / `Fixed` 对齐
 - README 没有夸大未完成能力
 - AGENTS 没有保留已移除 UI 行为
 - 目标版本号只更新了应更新的 package
+- 若本次包含扩展改动，`pnpm build:safari` 已执行且 Xcode 项目无残留 diff
 - 校验命令结果或未运行原因已记录

@@ -4,7 +4,7 @@
 
 Unquote 是一个在本地检测并展开 JSON 中 stringified JSON 值的查看器。大模型返回内容、Agent 工具持久化记录和其他 JSONL 日志中，JSON 经常被二次编码为转义字符串，因而难以阅读、搜索和调试。Unquote 将这些值递归解析为可浏览的结构，并保留 JSONL 的逐条记录语义。
 
-产品提供三个分发渠道：供程序使用的 core 库、无需登录的 Web 应用，以及 Chrome 扩展。所有解析、搜索和导出均在浏览器或扩展本地完成。
+产品提供三个分发渠道：无需登录的 Web 应用、Chrome 扩展，以及通过 macOS 宿主应用分发的 Safari 扩展。所有解析、搜索和导出均在浏览器或扩展本地完成。
 
 ### 产品边界
 
@@ -70,16 +70,17 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 | 编号 | 功能 | 描述 |
 | ---- | ---- | ---- |
 | W-1 | 单页应用 | 打开即用，无需登录。 |
-| W-2 | 本地文件与链接分享 | 可打开本地 `.json` / `.jsonl`，并以 URL hash 分享小体积输入。 |
+| W-2 | 本地文件打开 | 可打开本地 `.json` / `.jsonl` 文件。输入不写入 URL：页面只会清除历史遗留的 `#data=` hash，不再产生新的分享链接。 |
 | W-3 | 偏好设置 | 支持浅色、深色和跟随系统主题，以及英文和简体中文。 |
 
-### 4.4 Chrome Extension（@unquote/extension）
+### 4.4 浏览器扩展（@unquote/extension）
 
 | 编号 | 功能 | 描述 |
 | ---- | ---- | ---- |
 | E-1 | 独立页面 | 点击扩展图标在独立标签页中打开完整 Unquote 体验。 |
 | E-2 | 右键菜单 | 选中文本后通过 “Open in Unquote” 将内容交给扩展页面查看。 |
 | E-3 | 快捷键 | 支持 `Ctrl+Shift+U` / `Cmd+Shift+U` 打开扩展页面。 |
+| E-4 | Safari 分发 | 同一套扩展通过 `apps/safari` 的 macOS 宿主应用分发到 Safari，尚未上架 App Store；Safari 不支持 `clipboardRead`，剪贴板读取会自行降级。 |
 
 ## 5. 界面布局
 
@@ -131,7 +132,8 @@ TOC 显示行号、摘要和解析状态；搜索和路径跳转会将目标记�
 unquote/
 ├── apps/
 │   ├── web/          # Vite + React Web 应用
-│   └── extension/    # WXT + React Chrome Extension（MV3）
+│   ├── extension/    # WXT + React 浏览器扩展（MV3）
+│   └── safari/       # 把同一扩展分发到 Safari 的 macOS 宿主应用
 ├── packages/
 │   ├── core/         # 无框架依赖的 TypeScript 解析库
 │   └── ui/           # 共享的 React UI 与应用逻辑
@@ -145,6 +147,7 @@ unquote/
 ```
 web ──→ ui ──→ core
 extension ──→ ui ──→ core
+safari ──→ extension 的构建产物
 ```
 
 ### 7.2 技术选型
@@ -160,7 +163,7 @@ extension ──→ ui ──→ core
 
 ### 7.3 数据与扩展边界
 
-Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计算路径和深度，并负责显示、查询、虚拟化与本地文件的按需 Full Record 读取。Web 仅增加 URL hash 和文件选择等网页入口能力。
+Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计算路径和深度，并负责显示、查询、虚拟化与本地文件的按需 Full Record 读取。Web 仅增加文件选择等网页入口能力。
 
 扩展由 WXT 管理 MV3 manifest、background 与 options 页面；options 页面复用 `UnquoteApp`。选中文本通过扩展存储交接给页面，避免把内容编码进 URL 或泄漏给网页上下文。
 
@@ -172,10 +175,11 @@ Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计�
 - Web Worker 解析、流式 JSONL、大记录虚拟化、按需取得 Full Record 和分块导出。
 - 搜索、正则和大小写选项、JSONPath / jq 风格路径跳转、记录过滤及命令面板。
 - Codex rollout 和 Claude Code JSONL 的 session 识别与专用浏览视图。
-- URL 分享、主题与语言偏好、Chrome 扩展的独立页面、右键菜单和快捷键。
+- 主题与语言偏好，以及浏览器扩展的独立页面、右键菜单和快捷键。
 
 ### 已否决
 
+- URL hash 分享：不再把输入编码进 URL。会话内容留在设备上，链接也无法承载真实体量的日志；Web 只保留清除历史遗留 `#data=` hash 的行为。
 - UI restore：不再提供 Restore All、单条 restore 或任何将结构化结果重新显示为原始转义字符串的操作。该能力会和 Collapse All 重复，并使显示与复制/导出的结果产生不必要的双重语义。
 
 ### 未承诺方向
@@ -184,4 +188,4 @@ Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计�
 
 ## 9. 价值定位
 
-Unquote 的差异不在于替代通用 JSON formatter，而在于把难读的嵌套字符串和逐行 Agent 记录变为可探索的本地结构：递归 stringified JSON 展开、JSONL 原生导航，以及对已识别 Agent session 的上下文视图，同时覆盖 Web、Chrome Extension 和可复用 core 库。
+Unquote 的差异不在于替代通用 JSON formatter，而在于把难读的嵌套字符串和逐行 Agent 记录变为可探索的本地结构：递归 stringified JSON 展开、JSONL 原生导航，以及对已识别 Agent session 的上下文视图，同时覆盖 Web、Chrome 扩展与 Safari 扩展。
