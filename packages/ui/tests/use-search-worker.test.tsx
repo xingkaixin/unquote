@@ -8,6 +8,7 @@ import {
 } from "../src/hooks/use-search-worker";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
+import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
 import type { SearchMatch } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
@@ -534,5 +535,55 @@ describe("useSearchWorker", () => {
 
     expect(screen.getByTestId("status")).toHaveTextContent("idle");
     expect(screen.getByTestId("record-id")).toHaveTextContent("");
+  });
+
+  it("refuses an oversized in-memory search rather than blocking the main thread", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const parse = vi.spyOn(JSON, "parse");
+    const text = `{"pad":"${"x".repeat(mainThreadWorkBudgetBytes)}"}`;
+
+    render(<Probe query="pad" text={text} />);
+
+    // Neither the synchronous parse nor the search is entered.
+    expect(parse).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("too-large");
+    parse.mockRestore();
+  });
+
+  it.each([
+    ["a plain query", "hello", defaultOptions],
+    ["a regex query", "hel+o", { ...defaultOptions, regex: true }],
+    ["a jq path query", "$.a", { ...defaultOptions, jq: true }],
+  ])("searches %s within the budget", (_label, query, options) => {
+    Reflect.deleteProperty(globalThis, "Worker");
+
+    render(<Probe query={query} text='{"a":"hello"}' options={options} />);
+
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("still searches an oversized input through the worker", () => {
+    const text = `{"pad":"${"x".repeat(mainThreadWorkBudgetBytes)}"}`;
+
+    render(<Probe query="pad" text={text} />);
+
+    expect(MockWorker.instances).toHaveLength(1);
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+  });
+
+  it("keeps a file-backed search on its chunked path regardless of size", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const file = new File(["{}"], "big.jsonl");
+    Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes * 4 });
+    const search = vi.fn().mockResolvedValue([matchStub("from-file")]);
+    const access = { ...createLocalFileAccess(file), search } as LocalFileAccess;
+
+    render(<Probe query="a" text="" access={access} />);
+    await act(async () => undefined);
+
+    expect(search).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("record-id")).toHaveTextContent("from-file");
   });
 });

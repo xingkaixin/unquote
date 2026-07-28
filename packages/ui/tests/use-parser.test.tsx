@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const toastMocks = vi.hoisted(() => ({
@@ -408,5 +409,63 @@ describe("useParser", () => {
     expect(chunks).toHaveLength(2);
     expect(chunks?.[0]?.chunk).toHaveLength(256 * 1024);
     expect(chunks?.[1]?.chunk).toBe("\n{}");
+  });
+
+  it("parses within the main-thread budget when Worker is unavailable", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const padding = " ".repeat(mainThreadWorkBudgetBytes - 32);
+    const input = `{"value":1,"pad":"${padding.slice(0, mainThreadWorkBudgetBytes - 32)}"}`;
+    expect(input.length).toBeLessThanOrEqual(mainThreadWorkBudgetBytes);
+
+    render(<Probe input={input} forcedFormat="json" />);
+
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("refuses an oversized input instead of blocking the main thread", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const parse = vi.spyOn(JSON, "parse");
+    const input = `{"pad":"${"x".repeat(mainThreadWorkBudgetBytes)}"}`;
+
+    render(<Probe input={input} forcedFormat="json" />);
+
+    // The heavy synchronous parse is never entered.
+    expect(parse).not.toHaveBeenCalled();
+    expect(screen.getByTestId("stats")).toHaveTextContent("0");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).toHaveBeenCalledWith(
+      "This input is too large to parse without a background worker",
+    );
+    parse.mockRestore();
+  });
+
+  it("refuses an oversized file instead of reading it on the main thread", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const file = new File([], "huge.jsonl");
+    Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes + 1 });
+    const text = vi.fn(() => Promise.resolve(""));
+    Object.defineProperty(file, "text", { value: text });
+
+    render(<Probe input="" sourceFile={file} />);
+    await act(async () => undefined);
+
+    expect(text).not.toHaveBeenCalled();
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(toastMocks.error).toHaveBeenCalledWith(
+      "This input is too large to parse without a background worker",
+    );
+  });
+
+  it("still uses the worker for an oversized input", async () => {
+    const input = `${"x".repeat(mainThreadWorkBudgetBytes + 1)}\n{}`;
+
+    render(<Probe input={input} forcedFormat="jsonl" />);
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    expect(MockWorker.instances).toHaveLength(1);
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 });
