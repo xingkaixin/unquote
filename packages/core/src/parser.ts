@@ -3,9 +3,9 @@ import type {
   FailedJsonlRecord,
   FullJsonNode,
   FullJsonlRecord,
+  JsonContainerKind,
   JsonNode,
   JsonlRecord,
-  JsonlRecordPreview,
   JsonPrimitive,
   ParseErrorMeta,
   ParseOptions,
@@ -179,31 +179,35 @@ const createRecordPreview = (value: unknown) => {
     return undefined;
   }
 
-  const fields: JsonlRecordPreview["fields"] = {};
-  const containers: NonNullable<JsonlRecordPreview["containers"]> = {};
+  const fields: Array<[string, JsonPrimitive]> = [];
+  const containers: Array<[string, JsonContainerKind]> = [];
   const nestedFieldKeys: string[] = [];
 
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     const kind = getJsonKind(child);
     if (kind === "object" || kind === "array") {
-      containers[key] = kind;
+      containers.push([key, kind]);
       continue;
     }
 
-    fields[key] =
-      typeof child === "string" ? truncatePreviewString(child) : (child as JsonPrimitive);
+    fields.push([
+      key,
+      typeof child === "string" ? truncatePreviewString(child) : (child as JsonPrimitive),
+    ]);
     if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
       nestedFieldKeys.push(key);
     }
   }
 
-  if (Object.keys(fields).length === 0 && Object.keys(containers).length === 0) {
+  if (fields.length === 0 && containers.length === 0) {
     return undefined;
   }
 
+  // Collected as entries because assigning `preview[key]` would route a JSON
+  // key named `__proto__` into the prototype setter instead of a property.
   return {
-    fields,
-    ...(Object.keys(containers).length > 0 ? { containers } : {}),
+    fields: Object.fromEntries(fields),
+    ...(containers.length > 0 ? { containers: Object.fromEntries(containers) } : {}),
     ...(nestedFieldKeys.length > 0 ? { nestedFieldKeys } : {}),
   };
 };
