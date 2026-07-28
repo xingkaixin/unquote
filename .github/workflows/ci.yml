@@ -18,3 +18,33 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      # The Safari artifact and its resource sync are pure Node work, so they
+      # are verified here rather than paying for a macOS runner.
+      - run: pnpm build:safari
+      - name: Verify the Safari extension target was refilled
+        run: git diff --exit-code -- "apps/safari/Unquote.xcodeproj/project.pbxproj"
+
+  safari:
+    # Only macOS can run xcodebuild, and this job answers one question the
+    # Linux job cannot: does the synced extension still build inside its host
+    # app? Signing, archiving, and uploading stay a release-time step.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:safari
+      - name: Build the Safari host app without signing
+        run: >-
+          xcodebuild
+          -project "apps/safari/Unquote.xcodeproj"
+          -scheme Unquote
+          -configuration Debug
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          build
