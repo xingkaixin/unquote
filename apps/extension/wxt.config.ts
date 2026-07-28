@@ -1,11 +1,6 @@
 import { defineConfig } from "wxt";
 import tailwindcss from "@tailwindcss/vite";
-
-const icons = {
-  "16": "icon16.png",
-  "48": "icon48.png",
-  "128": "icon128.png",
-};
+import { createExtensionManifest } from "./src/distribution";
 
 export default defineConfig({
   outDir: "../../dist",
@@ -19,32 +14,5 @@ export default defineConfig({
   vite: () => ({
     plugins: [tailwindcss()],
   }),
-  manifest: ({ browser }) => ({
-    name: "__MSG_appName__",
-    description: "__MSG_appDescription__",
-    default_locale: "en",
-    // Safari has no clipboardRead permission. Clipboard file paste already
-    // feature-detects navigator.clipboard.read, so it degrades on its own.
-    permissions:
-      browser === "safari"
-        ? ["contextMenus", "storage"]
-        : ["contextMenus", "storage", "clipboardRead"],
-    commands: {
-      open_unquote: {
-        suggested_key: {
-          default: "Ctrl+Shift+U",
-          mac: "Command+Shift+U",
-        },
-        description: "__MSG_openUnquote__",
-      },
-    },
-    action: {
-      default_icon: icons,
-    },
-    icons,
-    options_ui: {
-      page: "options.html",
-      open_in_tab: true,
-    },
-  }),
+  manifest: ({ browser }) => createExtensionManifest(browser),
 });

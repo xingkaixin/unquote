@@ -1,33 +1,9 @@
 import { defineConfig } from "wxt";
-import tailwindcss from "@tailwindcss/vite";
+import baseConfig from "./wxt.config";
 
+// Dev only needs its own output directory; sharing the base config is what
+// keeps the development manifest from drifting away from what ships.
 export default defineConfig({
-  outDir: "../../dist",
+  ...baseConfig,
   outDirTemplate: "dev-extension",
-  webExt: {
-    disabled: true,
-  },
-  vite: () => ({
-    plugins: [tailwindcss()],
-  }),
-  manifest: {
-    name: "__MSG_appName__",
-    description: "__MSG_appDescription__",
-    default_locale: "en",
-    permissions: ["contextMenus", "storage", "clipboardRead"],
-    commands: {
-      open_unquote: {
-        suggested_key: {
-          default: "Ctrl+Shift+U",
-          mac: "Command+Shift+U",
-        },
-        description: "__MSG_openUnquote__",
-      },
-    },
-    action: {},
-    options_ui: {
-      page: "options.html",
-      open_in_tab: true,
-    },
-  },
 });
