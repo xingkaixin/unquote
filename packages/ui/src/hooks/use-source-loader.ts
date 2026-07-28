@@ -24,17 +24,10 @@ type SourceState =
 
 interface UseSourceLoaderParams {
   initialInput: string;
-  onRequestOpenFile?:
-    | (() => Promise<File | string | null> | File | string | null | void)
-    | undefined;
   onCollapseSource: () => void;
 }
 
-export const useSourceLoader = ({
-  initialInput,
-  onRequestOpenFile,
-  onCollapseSource,
-}: UseSourceLoaderParams) => {
+export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoaderParams) => {
   const { t } = useTranslation();
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<SourceMode>("auto");
@@ -160,18 +153,6 @@ export const useSourceLoader = ({
     publishSourceRevision();
   };
 
-  const onOpenFile = async () => {
-    const source = await onRequestOpenFile?.();
-    if (source instanceof File) {
-      await onFileDrop(source);
-      return;
-    }
-
-    if (typeof source === "string") {
-      onSourceChange(source);
-    }
-  };
-
   return {
     mode,
     setMode: setSourceMode,
@@ -183,6 +164,5 @@ export const useSourceLoader = ({
     sourceRevision,
     onSourceChange,
     onFileDrop,
-    onOpenFile,
   };
 };

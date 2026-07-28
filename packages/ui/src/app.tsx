@@ -55,14 +55,9 @@ const noSearchMatches: SearchMatch[] = [];
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
-  onOpenFile?: () => Promise<File | string | null> | File | string | null | void;
 }
 
-export const UnquoteApp = ({
-  initialInput = "",
-  chromeWebStoreUrl,
-  onOpenFile,
-}: UnquoteAppProps) => {
+export const UnquoteApp = ({ initialInput = "", chromeWebStoreUrl }: UnquoteAppProps) => {
   const { t } = useTranslation();
   const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
@@ -77,10 +72,8 @@ export const UnquoteApp = ({
     sourceRevision,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
-    onOpenFile: handleOpenFile,
   } = useSourceLoader({
     initialInput,
-    onRequestOpenFile: onOpenFile,
     onCollapseSource: () => setSourceCollapsed(true),
   });
   const workspace = useWorkspaceSession(sourceRevision);
@@ -545,7 +538,6 @@ export const UnquoteApp = ({
       onModeChange={setMode}
       sampleOptions={sampleOptions}
       onSampleSelect={handleSampleSelect}
-      onOpenFile={handleOpenFile}
       onFileDrop={handleFileDrop}
       onClear={() => handleSourceChange("")}
       {...(isDesktopWorkspace

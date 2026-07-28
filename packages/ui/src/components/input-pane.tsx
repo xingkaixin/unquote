@@ -13,7 +13,6 @@ interface InputPaneProps {
   onModeChange: (mode: "auto" | "json" | "jsonl") => void;
   sampleOptions?: readonly SourceSampleOption[];
   onSampleSelect?: (sample: SourceSampleOption) => void;
-  onOpenFile?: () => void;
   onFileDrop?: (file: File) => void;
   onClear: () => void;
   onToggleCollapse?: () => void;
@@ -114,7 +113,6 @@ export const InputPane = ({
   onModeChange,
   sampleOptions = [],
   onSampleSelect,
-  onOpenFile,
   onFileDrop,
   onClear,
   onToggleCollapse,
@@ -204,12 +202,7 @@ export const InputPane = ({
   };
 
   const handleOpenFile = () => {
-    if (onFileDrop) {
-      fileInputRef.current?.click();
-      return;
-    }
-
-    onOpenFile?.();
+    fileInputRef.current?.click();
   };
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {

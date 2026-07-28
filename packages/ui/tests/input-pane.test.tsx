@@ -109,13 +109,15 @@ describe("InputPane file interactions", () => {
     expect(onFileDrop).not.toHaveBeenCalled();
   });
 
-  it("uses the external file opener when direct file drops are unavailable", () => {
-    const onOpenFile = vi.fn();
-    renderPane({ onOpenFile });
+  it("opens the file chooser from the browse button", () => {
+    const onFileDrop = vi.fn();
+    const { container } = renderPane({ onFileDrop });
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const click = vi.spyOn(fileInput, "click");
 
     fireEvent.click(screen.getByRole("button", { name: "Open file" }));
 
-    expect(onOpenFile).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
   });
 
   it("tracks nested drag depth and drops files from items or file lists", () => {
