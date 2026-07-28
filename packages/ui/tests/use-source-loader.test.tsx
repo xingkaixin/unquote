@@ -25,6 +25,44 @@ import { useSourceLoader } from "../src/hooks/use-source-loader";
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
+// Each chunk is released by the test, so the count reflects exactly how far the
+// reader got rather than how fast the queue filled.
+const createCountingStreamFile = (name = "counted.json") => {
+  const file = new File(["x"], name, { type: "application/json" });
+  let pulled = 0;
+  let releaseChunk: (() => void) | null = null;
+  Object.defineProperty(file, "stream", {
+    configurable: true,
+    value: () =>
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          return new Promise<void>((resolve) => {
+            releaseChunk = () => {
+              try {
+                controller.enqueue(new TextEncoder().encode("x".repeat(64)));
+                pulled += 1;
+              } catch {
+                // Enqueueing into a canceled stream throws: the reader is gone,
+                // which is precisely the outcome under test.
+              }
+              releaseChunk = null;
+              resolve();
+            };
+          });
+        },
+      }),
+  });
+
+  return {
+    file,
+    pulled: () => pulled,
+    releaseChunk: () => {
+      releaseChunk?.();
+      return releaseChunk !== null;
+    },
+  };
+};
+
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
   const callbacks = {
     onCollapseSource: vi.fn(),
@@ -209,5 +247,110 @@ describe("useSourceLoader", () => {
 
     expect(stream).toHaveBeenCalledTimes(1);
     expect(result.current.importedFile).toBe(file);
+  });
+
+  it("cancels a superseded read instead of decoding a file nobody wants", async () => {
+    const controlled = createControlledStreamFile("stale", "slow.json");
+    const { result } = setup();
+
+    let readPromise: Promise<void> | undefined;
+    act(() => {
+      readPromise = result.current.onFileDrop(controlled.file);
+    });
+    act(() => controlled.enqueue("partial"));
+    expect(controlled.isCanceled()).toBe(false);
+
+    act(() => result.current.onSourceChange("replacement"));
+    await act(async () => {
+      await readPromise;
+    });
+
+    expect(controlled.isCanceled()).toBe(true);
+    expect(result.current.sourceText).toBe("replacement");
+    expect(result.current.importedFile).toBeNull();
+    expect(result.current.readingFile).toBeNull();
+    // Cancelling is the caller's own doing, so it must not look like a failure.
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("cancels a read that a newer import replaces, then completes the newer one", async () => {
+    const stale = createControlledStreamFile("stale", "stale.json");
+    const { file: fresh, stream } = createStreamFile('{"fresh":true}', "fresh.json");
+    const { result } = setup();
+
+    let stalePromise: Promise<void> | undefined;
+    act(() => {
+      stalePromise = result.current.onFileDrop(stale.file);
+    });
+    await act(async () => {
+      await result.current.onFileDrop(fresh);
+      await stalePromise;
+    });
+
+    expect(stale.isCanceled()).toBe(true);
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(result.current.importedFile).toBe(fresh);
+    expect(result.current.sourceText).toBe('{"fresh":true}');
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("cancels an in-flight read when the owner unmounts", async () => {
+    const controlled = createControlledStreamFile("stale", "slow.json");
+    const { result, unmount } = setup();
+
+    act(() => {
+      void result.current.onFileDrop(controlled.file);
+    });
+    act(() => controlled.enqueue("partial"));
+
+    unmount();
+
+    expect(controlled.isCanceled()).toBe(true);
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("still reports a genuine read failure", async () => {
+    const { file } = createFailingStreamFile(new Error("disk gone"), "broken.json");
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file));
+
+    expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
+    expect(result.current.readingFile).toBeNull();
+  });
+
+  it("stops pulling chunks once a read is superseded", async () => {
+    const counted = createCountingStreamFile();
+    const { result } = setup();
+
+    let readPromise: Promise<void> | undefined;
+    act(() => {
+      readPromise = result.current.onFileDrop(counted.file);
+    });
+    for (let chunk = 0; chunk < 3; chunk += 1) {
+      await act(async () => {
+        counted.releaseChunk();
+        await Promise.resolve();
+      });
+    }
+    const pulledBeforeAbort = counted.pulled();
+    expect(pulledBeforeAbort).toBeGreaterThan(0);
+
+    act(() => result.current.onSourceChange("replacement"));
+    await act(async () => {
+      await readPromise;
+    });
+
+    // Five more releases cannot restart a canceled read: at most the one chunk
+    // already in flight lands, and the rest of the file is never decoded.
+    for (let chunk = 0; chunk < 5; chunk += 1) {
+      await act(async () => {
+        counted.releaseChunk();
+        await Promise.resolve();
+      });
+    }
+
+    expect(counted.pulled()).toBeLessThanOrEqual(pulledBeforeAbort + 1);
+    expect(result.current.sourceText).toBe("replacement");
   });
 });

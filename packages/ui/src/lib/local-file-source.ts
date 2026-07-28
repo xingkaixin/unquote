@@ -57,49 +57,93 @@ const lineIndexFor = (file: File) => {
 
 export type { SearchMatch, SearchOptions } from "./record-search";
 
-const readFileWithFileReader = (file: File, onProgress: (progress: number) => void) =>
+// Distinguishable from a genuine read failure, which the caller surfaces to
+// the user; an abort is expected and silent.
+const readAbortError = () => new DOMException("File read aborted", "AbortError");
+
+const readFileWithFileReader = (
+  file: File,
+  onProgress: (progress: number) => void,
+  signal?: AbortSignal,
+) =>
   new Promise<string>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(readAbortError());
+      return;
+    }
+
     const reader = new FileReader();
+    const cancelRead = () => reader.abort();
+    const finish = (settle: () => void) => {
+      signal?.removeEventListener("abort", cancelRead);
+      settle();
+    };
+
     reader.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(event.total === 0 ? 1 : event.loaded / event.total);
       }
     };
-    reader.onload = () => {
-      onProgress(1);
-      resolve(typeof reader.result === "string" ? reader.result : "");
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.onload = () =>
+      finish(() => {
+        onProgress(1);
+        resolve(typeof reader.result === "string" ? reader.result : "");
+      });
+    reader.onerror = () => finish(() => reject(reader.error ?? new Error("Failed to read file")));
+    reader.onabort = () => finish(() => reject(readAbortError()));
+
+    signal?.addEventListener("abort", cancelRead, { once: true });
     reader.readAsText(file);
   });
 
-const readFileText = async (file: File, onProgress: (progress: number) => void) => {
+const readFileText = async (
+  file: File,
+  onProgress: (progress: number) => void,
+  signal?: AbortSignal,
+) => {
   if (typeof file.stream !== "function") {
     if (typeof file.text === "function") {
+      // Not interruptible, so the guard is on the result rather than the work.
       const text = await file.text();
+      if (signal?.aborted) {
+        throw readAbortError();
+      }
       onProgress(1);
       return text;
     }
 
-    return readFileWithFileReader(file, onProgress);
+    return readFileWithFileReader(file, onProgress, signal);
   }
 
   const reader = file.stream().getReader();
   const decoder = new TextDecoder();
+  const cancelReader = () => void reader.cancel().catch(() => undefined);
+  signal?.addEventListener("abort", cancelReader, { once: true });
   let text = "";
   let bytesRead = 0;
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        throw readAbortError();
+      }
 
-    if (value) {
-      bytesRead += value.byteLength;
-      text += decoder.decode(value, { stream: true });
-      onProgress(file.size === 0 ? 1 : bytesRead / file.size);
+      const { value, done } = await reader.read();
+      if (signal?.aborted) {
+        throw readAbortError();
+      }
+      if (done) {
+        break;
+      }
+
+      if (value) {
+        bytesRead += value.byteLength;
+        text += decoder.decode(value, { stream: true });
+        onProgress(file.size === 0 ? 1 : bytesRead / file.size);
+      }
     }
+  } finally {
+    signal?.removeEventListener("abort", cancelReader);
   }
 
   text += decoder.decode();
@@ -422,7 +466,7 @@ export interface LocalFileAccess {
   readonly name: string;
   readonly size: number;
   getFile: () => File;
-  readText: (onProgress: (progress: number) => void) => Promise<string>;
+  readText: (onProgress: (progress: number) => void, signal?: AbortSignal) => Promise<string>;
   readRecords: (
     lineNumbers: ReadonlySet<number>,
     signal?: AbortSignal,
@@ -451,7 +495,7 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => ({
   name: file.name,
   size: file.size,
   getFile: () => file,
-  readText: (onProgress) => readFileText(file, onProgress),
+  readText: (onProgress, signal) => readFileText(file, onProgress, signal),
   readRecords: (lineNumbers, signal) => readJsonlRecordsByLine(file, new Set(lineNumbers), signal),
   resolveRecords: async (records, signal) => {
     const resolved = await readJsonlRecordsByLine(
