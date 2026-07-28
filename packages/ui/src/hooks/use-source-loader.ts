@@ -1,4 +1,4 @@
-import { useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
@@ -35,6 +35,16 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
   const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
   const sourceRevisionRef = useRef<SourceRevision>(sourceRevision);
   const fileImportIdRef = useRef(0);
+  // The request id keeps a stale result from being committed; this stops the
+  // work that produced it. A superseded read has no value, so it should not
+  // keep decoding a large file in the background.
+  const activeReadRef = useRef<AbortController | null>(null);
+  const abortActiveRead = () => {
+    activeReadRef.current?.abort();
+    activeReadRef.current = null;
+  };
+
+  useEffect(() => () => abortActiveRead(), []);
 
   const publishedSource = sourceState.kind === "reading" ? sourceState.previousSource : sourceState;
   const sourceText =
@@ -73,6 +83,7 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
 
   const onSourceChange = (value: string) => {
     fileImportIdRef.current += 1;
+    abortActiveRead();
     setSourceState({ kind: "text", text: value });
     const nextRevision = publishSourceRevision();
     if (value.length > largeSourceCollapseBytes) {
@@ -84,6 +95,9 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
   const onFileDrop = async (file: File) => {
     const requestId = fileImportIdRef.current + 1;
     fileImportIdRef.current = requestId;
+    abortActiveRead();
+    const controller = new AbortController();
+    activeReadRef.current = controller;
     setSourceState({
       kind: "reading",
       file,
@@ -105,9 +119,10 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
             prev.kind === "reading" ? { ...prev, progress: nextProgress } : prev,
           );
         }
-      });
+      }, controller.signal);
     } catch {
-      if (fileImportIdRef.current !== requestId) {
+      // An abort is the caller's own doing, not a failure to report.
+      if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
         return;
       }
 
@@ -116,9 +131,10 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
       return;
     }
 
-    if (fileImportIdRef.current !== requestId) {
+    if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
       return;
     }
+    activeReadRef.current = null;
 
     if (shouldStreamFile(file, modeRef.current)) {
       publishStreamingFile(file);
@@ -146,6 +162,7 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
 
     if (publishedSource.kind === "imported" && shouldStreamFile(publishedSource.file, nextMode)) {
       fileImportIdRef.current += 1;
+      abortActiveRead();
       publishStreamingFile(publishedSource.file);
       return;
     }

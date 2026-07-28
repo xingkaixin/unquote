@@ -43,11 +43,15 @@ export const createControlledStreamFile = (contents: string, name = "payload.jso
   const file = new File([contents], name, { type: fileType(name) });
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
   let hasEnqueued = false;
+  let canceled = false;
   const stream = vi.fn(
     () =>
       new ReadableStream<Uint8Array>({
         start(nextController) {
           controller = nextController;
+        },
+        cancel() {
+          canceled = true;
         },
       }),
   );
@@ -63,11 +67,17 @@ export const createControlledStreamFile = (contents: string, name = "payload.jso
   return {
     file,
     stream,
+    isCanceled: () => canceled,
     enqueue(chunk: string) {
       hasEnqueued = true;
       activeController().enqueue(new TextEncoder().encode(chunk));
     },
+    // A canceled stream is already closed, so a late completion is a no-op
+    // rather than an error the test has to work around.
     complete(chunk?: string) {
+      if (canceled) {
+        return;
+      }
       if (chunk !== undefined) {
         activeController().enqueue(new TextEncoder().encode(chunk));
       } else if (!hasEnqueued) {
