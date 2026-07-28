@@ -1,18 +1,19 @@
 import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import {
+  addRecordsToBuilder,
   createExportFilename,
+  createJsonPartsBuilder,
+  createJsonlPartsBuilder,
   downloadBlob,
   formatRecordsAsJson,
-  formatRecordsAsJsonParts,
   formatRecordsAsJsonl,
-  formatRecordsAsJsonlParts,
   getCopyValue,
-  yieldToMain,
 } from "../lib/record-export";
+import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
@@ -35,6 +36,46 @@ export const useExportActions = ({
 }: UseExportActionsParams) => {
   const { t } = useTranslation();
   const copyText = useCopyToClipboard(sourceRevision);
+  // One scope per Source Revision: replacing the source or unmounting stops an
+  // export that is still reading the previous file.
+  const exportScopeRef = useRef<AbortController>(new AbortController());
+
+  useEffect(() => {
+    const scope = new AbortController();
+    exportScopeRef.current = scope;
+    return () => scope.abort();
+  }, [sourceRevision]);
+
+  /**
+   * Builds the export payload without ever holding every Full Record at once.
+   * With a local file the records are parsed in file order and serialized one
+   * by one, so only the resulting text survives each step; the record order of
+   * the output still follows `visibleRecords`.
+   */
+  const buildExportParts = useCallback(
+    async (builder: ExportPartsBuilder) => {
+      if (!sourceAccess) {
+        return addRecordsToBuilder(builder, await resolveRecords(visibleRecords));
+      }
+
+      const { signal } = exportScopeRef.current;
+      const bodies = new Map<number, string>();
+      await sourceAccess.streamRecords(
+        new Set(visibleRecords.map((record) => record.lineNumber)),
+        (record) => bodies.set(record.lineNumber, builder.bodyFor(record)),
+        signal,
+      );
+      if (signal.aborted) {
+        throw new DOMException("Export superseded by a new source", "AbortError");
+      }
+
+      for (const record of visibleRecords) {
+        builder.addBody(bodies.get(record.lineNumber) ?? builder.bodyFor(record));
+      }
+      return builder.finish();
+    },
+    [resolveRecords, sourceAccess, visibleRecords],
+  );
 
   // Copy actions are invoked fire-and-forget from onClick, so a rejected file
   // read would become an unhandled rejection — surface it here instead.
@@ -75,9 +116,7 @@ export const useExportActions = ({
   const onExportJsonl = useCallback(() => {
     toast.promise(
       (async () => {
-        const records = await resolveRecords(visibleRecords);
-        await yieldToMain();
-        const parts = await formatRecordsAsJsonlParts(records);
+        const parts = await buildExportParts(createJsonlPartsBuilder());
         downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
       })(),
       {
@@ -86,14 +125,12 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  }, [resolveRecords, t, visibleRecords]);
+  }, [buildExportParts, t]);
 
   const onExportFormattedJson = useCallback(() => {
     toast.promise(
       (async () => {
-        const records = await resolveRecords(visibleRecords);
-        await yieldToMain();
-        const parts = await formatRecordsAsJsonParts(records, format);
+        const parts = await buildExportParts(createJsonPartsBuilder(format));
         downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
       })(),
       {
@@ -102,7 +139,7 @@ export const useExportActions = ({
         error: t("toolbar.exportFailed"),
       },
     );
-  }, [format, resolveRecords, t, visibleRecords]);
+  }, [buildExportParts, format, t]);
 
   const onCopyRecord = useCallback(
     (record: JsonlRecord) =>
