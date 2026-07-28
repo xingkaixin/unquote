@@ -5,6 +5,13 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  collectBudgetFailures,
+  mergeMeasurementFailures,
+  parseBudgetSetting,
+  parseIntegerSetting,
+  summarize,
+} from "./metrics.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -34,14 +41,7 @@ const resolveChromePath = () => {
   return executable;
 };
 
-const readBudget = (name, fallback) => {
-  const value = Number(process.env[name] ?? fallback);
-  if (!Number.isFinite(value) || value < 0) {
-    throw new Error(`${name} must be a non-negative number`);
-  }
-
-  return value;
-};
+const readBudget = (name, fallback) => parseBudgetSetting(name, process.env[name] ?? fallback);
 
 const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
@@ -51,11 +51,25 @@ const chromeStartupPollIntervalMs = 100;
 // Deferred file records only grow an expandable row once they hydrate; give
 // that a bounded wait rather than assuming it has already happened.
 const expandableRowTimeoutMs = 10_000;
+// Tree rows mount lazily as they enter the viewport, so the nearest stringified
+// node can sit below the fold on a wide record. Bounded so a fixture that truly
+// has none fails instead of scrolling to the end of a huge file.
+const expandPathScrollSteps = 40;
 // Three samples: gating on the median already removes the worst-run
 // sensitivity, and raising this to five pushed the CI job past its 20 minute
 // timeout even though the same change costs only ~1.4x locally.
-const sampleRuns = Number(process.env.UNQUOTE_BENCH_RUNS ?? 3);
-const warmupRuns = Number(process.env.UNQUOTE_BENCH_WARMUPS ?? 1);
+// A run that samples nothing cannot prove anything, so this is a precondition
+// rather than a hint.
+const sampleRuns = parseIntegerSetting(
+  "UNQUOTE_BENCH_RUNS",
+  process.env.UNQUOTE_BENCH_RUNS ?? 3,
+  1,
+);
+const warmupRuns = parseIntegerSetting(
+  "UNQUOTE_BENCH_WARMUPS",
+  process.env.UNQUOTE_BENCH_WARMUPS ?? 1,
+  0,
+);
 const outputPath = path.resolve(
   repoRoot,
   process.env.UNQUOTE_BENCH_OUTPUT ?? "benchmark/results/latest.json",
@@ -118,32 +132,6 @@ const fixtureInfo = (relativePath) => {
     path: relativePath,
     bytes: Buffer.byteLength(input),
     records: input.trim().split(/\r?\n/).filter(Boolean).length,
-  };
-};
-
-const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
-
-// Nearest-rank, so for small sample counts any high quantile collapses onto the
-// slowest run: with the default sampleRuns this p95 is literally max. That is
-// why the budgets below gate on p50 and keep p95 as reporting only.
-const percentile = (values, ratio) => {
-  const sorted = [...values].sort((left, right) => left - right);
-  const index = Math.min(sorted.length - 1, Math.floor(sorted.length * ratio));
-  return sorted[index];
-};
-
-const summarize = (values) => {
-  const valid = values.filter(Number.isFinite);
-  if (valid.length === 0) {
-    return { avg: null, min: null, p50: null, p95: null, max: null };
-  }
-
-  return {
-    avg: Number(average(valid).toFixed(2)),
-    min: Number(Math.min(...valid).toFixed(2)),
-    p50: Number(percentile(valid, 0.5).toFixed(2)),
-    p95: Number(percentile(valid, 0.95).toFixed(2)),
-    max: Number(Math.max(...valid).toFixed(2)),
   };
 };
 
@@ -527,11 +515,51 @@ const runRenderFixture = async (client, fixture) => {
       // handler and the aria-expanded state. It used to be matched by
       // [aria-label^="Toggle"], which stopped existing in #67 and left
       // expandPathReadyMs silently null on every fixture since.
-      const firstToggleRow = await waitFor(
+      // A missing selector or an unhydrated row is a benchmark failure, not a
+      // silently absent metric: the reason travels back so the budget layer can
+      // name what did not run.
+      const measurementFailures = {}
+      const findToggleRow = () =>
+        document.querySelector('[data-tree-toggle]')?.closest('[role="treeitem"]') ?? null
+      const outputScroller = (() => {
+        let best = document.scrollingElement ?? document.documentElement
+        let bestOverflow = best.scrollHeight - best.clientHeight
+        for (const node of document.querySelectorAll('div')) {
+          const overflow = node.scrollHeight - node.clientHeight
+          if (overflow <= bestOverflow) continue
+          const overflowY = getComputedStyle(node).overflowY
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            best = node
+            bestOverflow = overflow
+          }
+        }
+        return best
+      })()
+      const originalScrollTop = outputScroller.scrollTop
+
+      let firstToggleRow = await waitFor(
         'expandable-row',
-        () => document.querySelector('[data-tree-toggle]')?.closest('[role="treeitem"]') ?? null,
+        findToggleRow,
         ${expandableRowTimeoutMs}
       ).catch(() => null)
+      let scrolledViewports = 0
+      while (!firstToggleRow && scrolledViewports < ${expandPathScrollSteps}) {
+        if (
+          outputScroller.scrollTop + outputScroller.clientHeight >=
+          outputScroller.scrollHeight - 1
+        ) {
+          break
+        }
+        outputScroller.scrollTop += outputScroller.clientHeight
+        scrolledViewports += 1
+        await settleFrames()
+        firstToggleRow = findToggleRow()
+      }
+      if (!firstToggleRow) {
+        measurementFailures.expandPathReadyMs =
+          'no [data-tree-toggle] row within ' + scrolledViewports + ' scrolled viewports of ' +
+          outputScroller.tagName + '.' + (outputScroller.className || '(no class)')
+      }
 
       let expandPathReadyMs = null
       if (firstToggleRow) {
@@ -547,12 +575,19 @@ const runRenderFixture = async (client, fixture) => {
         await settleFrames()
       }
 
+      // domNodes is sampled from the default view, so the scan above gives back
+      // the scroll position it borrowed.
+      outputScroller.scrollTop = originalScrollTop
+      await settleFrames()
+
       // Expand All applies one expansion write per visible record — a
       // different path from the single toggle above, and the one that
       // regressed to O(n^2) in UQ-113. The control carries no aria-label, but
       // its text doubles as its current state.
       let expandAllReadyMs = null
-      if (expansionControl('Expand All')) {
+      if (!expansionControl('Expand All')) {
+        measurementFailures.expandAllReadyMs = 'no "Expand All" control was rendered'
+      } else {
         const expandAllStart = performance.now()
         expansionControl('Expand All').click()
         await waitFor('expand-all', () => expansionControl('Collapse All'))
@@ -622,6 +657,7 @@ const runRenderFixture = async (client, fixture) => {
         tocReadyMs,
         domNodes,
         recordCards,
+        measurementFailures,
       }
     }
   )()`;
@@ -744,6 +780,7 @@ const benchmarkRender = async (fixturesInfo) => {
           layoutCount: summarize(runs.map((run) => run.layoutCount)),
           recalcStyleCount: summarize(runs.map((run) => run.recalcStyleCount)),
           taskDurationMs: summarize(runs.map((run) => run.taskDurationMs)),
+          measurementFailures: mergeMeasurementFailures(runs),
           jsHeapUsedSizeMB: summarize(runs.map((run) => run.jsHeapUsedSizeMB)),
         },
       ]);
@@ -761,39 +798,6 @@ const benchmarkRender = async (fixturesInfo) => {
   }
 };
 
-const collectBudgetFailures = (render) => {
-  const failures = [];
-  for (const [fixture, metrics] of Object.entries(render)) {
-    if ((metrics.firstRecordReadyMs.p50 ?? 0) > budgets.firstRecordReadyMsP50) {
-      failures.push(
-        `${fixture} firstRecordReadyMs.p50 ${metrics.firstRecordReadyMs.p50} > ${budgets.firstRecordReadyMsP50}`,
-      );
-    }
-    if ((metrics.completeReadyMs.p50 ?? 0) > budgets.completeReadyMsP50) {
-      failures.push(
-        `${fixture} completeReadyMs.p50 ${metrics.completeReadyMs.p50} > ${budgets.completeReadyMsP50}`,
-      );
-    }
-    if ((metrics.expandPathReadyMs.p50 ?? 0) > budgets.expandPathReadyMsP50) {
-      failures.push(
-        `${fixture} expandPathReadyMs.p50 ${metrics.expandPathReadyMs.p50} > ${budgets.expandPathReadyMsP50}`,
-      );
-    }
-    if ((metrics.expandAllReadyMs.p50 ?? 0) > budgets.expandAllReadyMsP50) {
-      failures.push(
-        `${fixture} expandAllReadyMs.p50 ${metrics.expandAllReadyMs.p50} > ${budgets.expandAllReadyMsP50}`,
-      );
-    }
-    if ((metrics.domNodes.max ?? 0) > budgets.domNodesMax) {
-      failures.push(`${fixture} domNodes.max ${metrics.domNodes.max}`);
-    }
-    if ((metrics.jsHeapUsedSizeMB.max ?? 0) > budgets.jsHeapUsedSizeMBMax) {
-      failures.push(`${fixture} jsHeapUsedSizeMB.max ${metrics.jsHeapUsedSizeMB.max}`);
-    }
-  }
-  return failures;
-};
-
 const main = async () => {
   const startedAt = performance.now();
   debug("Reading fixture metadata");
@@ -802,7 +806,7 @@ const main = async () => {
   const [core, render] = renderOnly
     ? [{}, await benchmarkRender(fixturesInfo)]
     : await Promise.all([benchmarkCore(fixturesInfo), benchmarkRender(fixturesInfo)]);
-  const budgetFailures = collectBudgetFailures(render);
+  const budgetFailures = collectBudgetFailures(render, budgets, sampleRuns);
 
   const report = {
     generatedAt: new Date().toISOString(),
