@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useExportActions } from "../src/hooks/use-export-actions";
 import { I18nProvider } from "../src/i18n/context";
+import type { LocalFileAccess } from "../src/lib/local-file-source";
 
 const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
@@ -31,19 +32,23 @@ afterEach(() => {
 const renderActions = ({
   getFullRecords = vi.fn(async (records) => records),
   isCopyBlocked = false,
+  sourceAccess = null,
 }: {
   getFullRecords?: (records: (typeof validRecord)[]) => Promise<(typeof validRecord)[]>;
   isCopyBlocked?: boolean;
+  sourceAccess?: LocalFileAccess | null;
 } = {}) =>
   renderHook(
-    () =>
+    ({ sourceRevision }: { sourceRevision: number }) =>
       useExportActions({
         visibleRecords: validRecords,
         resolveRecords: getFullRecords,
+        sourceAccess,
         format: "json",
         isCopyBlocked,
+        sourceRevision,
       }),
-    { wrapper },
+    { wrapper, initialProps: { sourceRevision: 0 } },
   );
 
 describe("useExportActions", () => {
@@ -51,7 +56,7 @@ describe("useExportActions", () => {
     const { result, rerender } = renderActions();
     const actions = result.current;
 
-    rerender();
+    rerender({ sourceRevision: 0 });
 
     expect(result.current).toBe(actions);
   });
@@ -135,5 +140,98 @@ describe("useExportActions", () => {
 
     expect(writeText.mock.calls[0]?.[0]).toContain("Line 1, column 2");
     expect(writeText.mock.calls[0]?.[0]).toContain("Raw line:");
+  });
+
+  it("copies inline record text when no local file backs the source", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { result } = renderActions();
+
+    await act(async () => {
+      await result.current.onCopyRawLine(failedRecord);
+    });
+
+    expect(writeText).toHaveBeenCalledWith("{bad}");
+  });
+
+  it("reads the raw line from the local file and reports a read failure", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const readRecordText = vi.fn().mockResolvedValue('{"raw":true}');
+    const sourceAccess = { readRecordText } as unknown as LocalFileAccess;
+    const { result } = renderActions({ sourceAccess });
+
+    await act(async () => {
+      await result.current.onCopyRawLine(validRecord);
+    });
+    expect(writeText).toHaveBeenCalledWith('{"raw":true}');
+
+    readRecordText.mockRejectedValue(new Error("record read failed"));
+    await act(async () => {
+      await result.current.onCopyRawLine(validRecord);
+    });
+    expect(toastMocks.error).toHaveBeenLastCalledWith("Failed to read file");
+    expect(writeText).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the newest copy win across different copy entry points", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    let resolveSlow!: (records: (typeof validRecord)[]) => void;
+    const getFullRecords = vi.fn(
+      () =>
+        new Promise<(typeof validRecord)[]>((resolve) => {
+          resolveSlow = resolve;
+        }),
+    );
+    const { result } = renderActions({ getFullRecords });
+
+    // Started outside `act` so the faster copy below can overtake it.
+    const bulkCopy = result.current.onCopyJsonl();
+    await act(async () => {
+      await result.current.onCopyRecordError(failedRecord);
+    });
+    await act(async () => {
+      resolveSlow(validRecords);
+      await bulkCopy;
+    });
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0]?.[0]).toContain("Raw line:");
+  });
+
+  it("drops an in-flight copy once the source is replaced", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    let resolvePending!: (records: (typeof validRecord)[]) => void;
+    const getFullRecords = vi.fn(
+      () =>
+        new Promise<(typeof validRecord)[]>((resolve) => {
+          resolvePending = resolve;
+        }),
+    );
+    const { result, rerender } = renderActions({ getFullRecords });
+
+    const copy = result.current.onCopyJsonl();
+    rerender({ sourceRevision: 1 });
+    await act(async () => {
+      resolvePending(validRecords);
+      await copy;
+    });
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 });
