@@ -111,7 +111,11 @@ const findPathNodeInRecord = (
         return null;
       }
 
-      const child = node.children[requested.value];
+      // Own-property check: a path segment such as `constructor` would
+      // otherwise resolve to an inherited member of the children map.
+      const child = Object.hasOwn(node.children, requested.value)
+        ? node.children[requested.value]
+        : undefined;
       if (!child) {
         return null;
       }
