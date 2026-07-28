@@ -16,7 +16,6 @@ import {
   getString,
   isRecord,
   parseTimestamp,
-  parseToolArguments,
   stringifyValue,
   truncateBlockText,
   truncatePreview,
@@ -126,12 +125,13 @@ const codexResponseBlock = (
     const callId = getString(payload, "call_id");
     const argsSource =
       itemType === "function_call" ? getString(payload, "arguments") : getString(payload, "input");
-    const toolInput = parseToolArguments(argsSource);
     return {
       type: "tool_use",
-      text: truncateBlockText(argsSource ?? JSON.stringify(toolInput, null, 2)),
+      // The raw argument string is what the preview shows, so it is never
+      // parsed: a large tool payload would cost a full parse and stay resident
+      // for a value no consumer reads.
+      text: truncateBlockText(argsSource ?? "{}"),
       toolName,
-      toolInput,
       ...(callId ? { toolCallId: callId } : {}),
       status: "pending",
     };

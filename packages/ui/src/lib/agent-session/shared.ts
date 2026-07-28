@@ -72,19 +72,6 @@ export const stringifyValue = (value: unknown) => {
   return JSON.stringify(value, null, 2);
 };
 
-export const parseToolArguments = (source: string | undefined): Record<string, unknown> => {
-  if (!source) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(source) as unknown;
-    return isRecord(parsed) ? parsed : { raw: source };
-  } catch {
-    return { raw: source };
-  }
-};
-
 export const readTokenCount = (usage: Record<string, unknown>, key: string): number | undefined => {
   const value = usage[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;

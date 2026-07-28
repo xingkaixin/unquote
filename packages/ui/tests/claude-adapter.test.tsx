@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
@@ -20,6 +20,8 @@ const transcriptLine = (lineNumber: number): ParsedAgentLine =>
     },
     lineNumber,
   );
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("claudeTranscriptAdapter", () => {
   it("scores transcript and metadata evidence", () => {
@@ -277,7 +279,53 @@ describe("claudeTranscriptAdapter", () => {
     expect(items[5]?.block).toMatchObject({
       type: "tool_use",
       toolName: "Bash",
-      toolInput: {},
+      text: "{}",
     });
+  });
+
+  it("normalizes each event's content exactly once", () => {
+    const stringify = vi.spyOn(JSON, "stringify");
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "tool_use", id: "tool-1", name: "Bash", input: { command: "ls" } }],
+          },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "tool_use", id: "tool-2", name: "Read", input: { path: "/tmp" } }],
+          },
+        },
+        2,
+      ),
+    );
+    builder.finish([]);
+
+    // The label, the preview, and the conversation item all read one projection,
+    // so each tool input is serialized once rather than once per consumer.
+    const toolInputSerializations = stringify.mock.calls.filter(
+      ([value]) =>
+        typeof value === "object" && value !== null && ("command" in value || "path" in value),
+    );
+    expect(toolInputSerializations).toHaveLength(2);
+  });
+
+  it("projects a string message body the same way as a single text block", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(parsedLine({ type: "assistant", message: { content: "Plain reply" } }, 1));
+
+    const session = builder.finish([]);
+
+    expect(session.events[0]).toMatchObject({ label: "text", preview: "Plain reply" });
+    expect(conversationItems(session)[0]?.block).toEqual({ type: "text", text: "Plain reply" });
   });
 });
