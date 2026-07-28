@@ -51,4 +51,19 @@ describe("i18n", () => {
     expect(t("input.title")).toBe("Source");
     expect(t("error.location", { line: 2, column: 4 })).toBe("Line 2, column 4");
   });
+
+  it("exposes translation without reaching the React app barrel", async () => {
+    const entry = await import("../src/i18n");
+
+    expect(Object.keys(entry).sort()).toEqual([
+      "createTranslator",
+      "detectLocale",
+      "en",
+      "persistLocale",
+      "zhCN",
+    ]);
+    expect(entry.createTranslator(entry.en)("extension.openInUnquote")).toBe(
+      en["extension.openInUnquote"],
+    );
+  });
 });
