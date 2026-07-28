@@ -300,6 +300,37 @@ const readJsonlRecordsByLine = async (
   );
 };
 
+/**
+ * Parses the requested lines in file order and hands each Full Record to the
+ * caller immediately, so only one record's AST is live at a time. Unlike
+ * `resolveRecords`, nothing is accumulated here — the caller decides what to
+ * keep.
+ */
+const streamJsonlRecords = async (
+  file: File,
+  lineNumbers: ReadonlySet<number>,
+  onRecord: (record: JsonlRecord) => void,
+  signal?: AbortSignal,
+) => {
+  if (lineNumbers.size === 0) {
+    return;
+  }
+
+  let remaining = lineNumbers.size;
+  await readJsonlFileLines(
+    file,
+    (line, lineNumber) => {
+      if (!lineNumbers.has(lineNumber)) {
+        return true;
+      }
+      onRecord(parseJsonlRecordLine(line, lineNumber));
+      remaining -= 1;
+      return remaining > 0;
+    },
+    signal,
+  );
+};
+
 const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
 const numericLabelPattern = /^[\d.eE+-]+$/;
 const containerLabelPattern = /^[\d[\]{}]+$/;
@@ -378,6 +409,11 @@ export interface LocalFileAccess {
     signal?: AbortSignal,
   ) => Promise<Map<number, JsonlRecord>>;
   resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
+  streamRecords: (
+    lineNumbers: ReadonlySet<number>,
+    onRecord: (record: JsonlRecord) => void,
+    signal?: AbortSignal,
+  ) => Promise<void>;
   readRecordText: (record: JsonlRecord, signal?: AbortSignal) => Promise<string>;
   readRecordTextByLine: (lineNumber: number, signal?: AbortSignal) => Promise<string>;
   search: (
@@ -406,6 +442,8 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => ({
     );
     return records.map((record) => resolved.get(record.lineNumber) ?? record);
   },
+  streamRecords: (lineNumbers, onRecord, signal) =>
+    streamJsonlRecords(file, lineNumbers, onRecord, signal),
   readRecordText: async (record, signal) => {
     const resolved = (await readJsonlRecordsByLine(file, new Set([record.lineNumber]), signal)).get(
       record.lineNumber,

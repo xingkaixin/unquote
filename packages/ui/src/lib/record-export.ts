@@ -42,53 +42,82 @@ export const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resol
 
 const exportChunkSize = 200;
 
+/**
+ * Serializes records one at a time so a caller can release each Full Record as
+ * soon as its text exists. `bodyFor` is separate from `addBody` because the
+ * streaming export reads the file in line order but writes in the caller's
+ * record order.
+ */
+export interface ExportPartsBuilder {
+  bodyFor: (record: JsonlRecord) => string;
+  addBody: (body: string) => void;
+  finish: () => BlobPart[];
+}
+
 // Stream-friendly: each record stringifies to its own BlobPart so the engine
-// concatenates buffers directly instead of one giant JS string. Chunked with
-// main-thread yields so an "Exporting…" toast stays responsive.
-export const formatRecordsAsJsonlParts = async (records: JsonlRecord[]): Promise<BlobPart[]> => {
+// concatenates buffers directly instead of one giant JS string.
+export const createJsonlPartsBuilder = (): ExportPartsBuilder => {
   const parts: BlobPart[] = [];
+  return {
+    bodyFor: (record) => JSON.stringify(getCopyValue(record)),
+    addBody: (body) => {
+      if (parts.length > 0) {
+        parts.push("\n");
+      }
+      parts.push(body);
+    },
+    finish: () => parts,
+  };
+};
+
+// JSONL-as-JSON-array: stringify each record on its own and indent it to the
+// array's nesting, instead of handing JSON.stringify one 300MB+ value — that
+// single synchronous call can't be interrupted and freezes the tab.
+export const createJsonPartsBuilder = (format: "json" | "jsonl"): ExportPartsBuilder => {
+  const bodyFor = (record: JsonlRecord) => JSON.stringify(getCopyValue(record), null, 2);
+
+  if (format === "json") {
+    let first: string | null = null;
+    return {
+      bodyFor,
+      addBody: (body) => {
+        first ??= body;
+      },
+      finish: () => [first ?? "null"],
+    };
+  }
+
+  const parts: BlobPart[] = [];
+  return {
+    bodyFor: (record) => `  ${bodyFor(record).replace(/\n/g, "\n  ")}`,
+    addBody: (body) => {
+      parts.push(parts.length === 0 ? "[\n" : ",\n", body);
+    },
+    finish: () => (parts.length === 0 ? ["[]"] : [...parts, "\n]"]),
+  };
+};
+
+// Chunked with main-thread yields so an "Exporting…" toast stays responsive.
+export const addRecordsToBuilder = async (
+  builder: ExportPartsBuilder,
+  records: JsonlRecord[],
+): Promise<BlobPart[]> => {
   for (let index = 0; index < records.length; index += 1) {
-    if (index > 0) {
-      parts.push("\n");
-    }
-    parts.push(JSON.stringify(getCopyValue(records[index]!)));
+    builder.addBody(builder.bodyFor(records[index]!));
     if (index > 0 && index % exportChunkSize === 0) {
       await yieldToMain();
     }
   }
-  return parts;
+  return builder.finish();
 };
 
-export const formatRecordsAsJsonParts = async (
+export const formatRecordsAsJsonlParts = (records: JsonlRecord[]): Promise<BlobPart[]> =>
+  addRecordsToBuilder(createJsonlPartsBuilder(), records);
+
+export const formatRecordsAsJsonParts = (
   records: JsonlRecord[],
   format: "json" | "jsonl",
-): Promise<BlobPart[]> => {
-  if (format === "json") {
-    const value = records[0] ? getCopyValue(records[0]) : null;
-    return [JSON.stringify(value, null, 2)];
-  }
-
-  // JSONL-as-JSON-array: stringify each record on its own and indent it to the
-  // array's nesting, instead of handing JSON.stringify one 300MB+ value — that
-  // single synchronous call can't be interrupted and freezes the tab. Per-record
-  // chunked yields keep the UI (and the "Exporting…" toast) live.
-  if (records.length === 0) {
-    return ["[]"];
-  }
-  const parts: BlobPart[] = ["[\n"];
-  for (let index = 0; index < records.length; index += 1) {
-    if (index > 0) {
-      parts.push(",\n");
-    }
-    const body = JSON.stringify(getCopyValue(records[index]!), null, 2);
-    parts.push(`  ${body.replace(/\n/g, "\n  ")}`);
-    if (index > 0 && index % exportChunkSize === 0) {
-      await yieldToMain();
-    }
-  }
-  parts.push("\n]");
-  return parts;
-};
+): Promise<BlobPart[]> => addRecordsToBuilder(createJsonPartsBuilder(format), records);
 
 export const downloadBlob = (parts: BlobPart[], filename: string, type: string) => {
   const blob = new Blob(parts, { type });
