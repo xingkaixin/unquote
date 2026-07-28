@@ -35,54 +35,26 @@ const claudeMetaTypes = new Set([
   "pr-link",
 ]);
 
-const isClaudeToolResultUser = (record: Record<string, unknown>) => {
-  if (record.type !== "user" || !isRecord(record.message)) {
-    return false;
-  }
-
-  const content = record.message.content;
-  return (
-    Array.isArray(content) && content.some((part) => isRecord(part) && part.type === "tool_result")
-  );
-};
-
-const extractClaudeUserText = (record: Record<string, unknown>) => {
+/**
+ * The single normalization pass for a record's message content. The label,
+ * preview, category, and conversation items are all derived from this result,
+ * so the raw record is never re-read per consumer.
+ */
+const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentContentBlock[] => {
   if (!isRecord(record.message)) {
-    return "";
+    return [];
   }
 
   const content = record.message.content;
   if (typeof content === "string") {
-    return content;
+    return content ? [{ type: "text", text: truncateBlockText(content) }] : [];
   }
   if (!Array.isArray(content)) {
-    return "";
-  }
-
-  return content
-    .map((part) => {
-      if (!isRecord(part)) {
-        return "";
-      }
-      if (part.type === "text" && typeof part.text === "string") {
-        return part.text;
-      }
-      if (part.type === "tool_result") {
-        return stringifyValue(part.content);
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
-};
-
-const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentContentBlock[] => {
-  if (!isRecord(record.message) || !Array.isArray(record.message.content)) {
     return [];
   }
 
   const blocks: AgentContentBlock[] = [];
-  for (const part of record.message.content) {
+  for (const part of content) {
     if (!isRecord(part)) {
       continue;
     }
@@ -101,7 +73,6 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         type: "tool_use",
         text: truncateBlockText(JSON.stringify(input, null, 2)),
         toolName: part.name,
-        toolInput: input,
         toolCallId: part.id,
         status: "pending",
       });
@@ -163,6 +134,15 @@ const attachBlockItems = (
   turnIndex: number,
   textRole: AgentConversationRole,
 ) => {
+  if (blocks.length === 0) {
+    attachConversationItem(event, {
+      id: `conv-${event.lineNumber}-${textRole}`,
+      role: textRole,
+      turnIndex,
+    });
+    return;
+  }
+
   blocks.forEach((block, blockIndex) => {
     attachConversationItem(event, {
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
@@ -180,9 +160,9 @@ const claudeBlockPreview = (block: AgentContentBlock) => {
   return truncatePreview(block.text);
 };
 
-const claudeCategory = (type: string, record: Record<string, unknown>): AgentEventCategory => {
+const claudeCategory = (type: string, isToolResultTurn: boolean): AgentEventCategory => {
   if (type === "user") {
-    return isClaudeToolResultUser(record) ? "tool" : "user";
+    return isToolResultTurn ? "tool" : "user";
   }
   if (type === "assistant") {
     return "assistant";
@@ -193,27 +173,33 @@ const claudeCategory = (type: string, record: Record<string, unknown>): AgentEve
   return "unknown";
 };
 
-const claudeLabel = (type: string, record: Record<string, unknown>) => {
+const claudeLabel = (type: string, blocks: AgentContentBlock[], isToolResultTurn: boolean) => {
   if (type === "user") {
-    return isClaudeToolResultUser(record)
-      ? claudeBlocksLabel(extractClaudeContentBlocks(record), "tool_result")
-      : "user";
+    return isToolResultTurn ? claudeBlocksLabel(blocks, "tool_result") : "user";
   }
 
   if (type === "assistant") {
-    return claudeBlocksLabel(extractClaudeContentBlocks(record), "assistant");
+    return claudeBlocksLabel(blocks, "assistant");
   }
 
   return type;
 };
 
-const claudePreview = (type: string, record: Record<string, unknown>) => {
+const claudePreview = (
+  type: string,
+  record: Record<string, unknown>,
+  blocks: AgentContentBlock[],
+) => {
   if (type === "user") {
-    return truncatePreview(extractClaudeUserText(record));
+    return truncatePreview(
+      blocks
+        .map((block) => block.text)
+        .filter(Boolean)
+        .join("\n"),
+    );
   }
 
   if (type === "assistant") {
-    const blocks = extractClaudeContentBlocks(record);
     return blocks.length > 0 ? claudeBlockPreview(blocks[0]!) : "";
   }
 
@@ -279,16 +265,20 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       cwd ??= getString(record, "cwd");
       version ??= getString(record, "version");
 
-      if (type === "user" && promptId !== lastPromptId && !isClaudeToolResultUser(record)) {
+      const blocks = extractClaudeContentBlocks(record);
+      const isToolResultTurn =
+        type === "user" && blocks.some((block) => block.type === "tool_result");
+
+      if (type === "user" && promptId !== lastPromptId && !isToolResultTurn) {
         turnIndex += 1;
       }
 
       const event = createBaseEvent(
         line,
-        claudeCategory(type, record),
+        claudeCategory(type, isToolResultTurn),
         type,
-        claudeLabel(type, record),
-        claudePreview(type, record),
+        claudeLabel(type, blocks, isToolResultTurn),
+        claudePreview(type, record, blocks),
       );
       addOptionalNumber(event, "timestamp", parseTimestamp(record.timestamp));
       addOptionalNumber(event, "turnIndex", turnIndex);
@@ -311,33 +301,12 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       if (type === "user") {
         lastPromptId = promptId;
-        if (isClaudeToolResultUser(record)) {
-          attachBlockItems(event, extractClaudeContentBlocks(record), turnIndex, "user");
-        } else if (!getBoolean(record, "isMeta")) {
-          const text = extractClaudeUserText(record);
-          const block: AgentContentBlock | undefined = text
-            ? { type: "text", text: truncateBlockText(text) }
-            : undefined;
-          attachConversationItem(event, {
-            id: `conv-${line.lineNumber}-user`,
-            role: "user",
-            turnIndex,
-            ...(block ? { block } : {}),
-          });
+        if (isToolResultTurn || !getBoolean(record, "isMeta")) {
+          attachBlockItems(event, blocks, turnIndex, "user");
         }
       } else if (type === "assistant") {
-        const blocks = extractClaudeContentBlocks(record);
         model = parseClaudeModel(record) ?? model;
-
-        if (blocks.length === 0) {
-          attachConversationItem(event, {
-            id: `conv-${line.lineNumber}-assistant`,
-            role: "assistant",
-            turnIndex,
-          });
-        } else {
-          attachBlockItems(event, blocks, turnIndex, "assistant");
-        }
+        attachBlockItems(event, blocks, turnIndex, "assistant");
       }
 
       events.push(event);

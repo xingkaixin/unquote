@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 import { codexRolloutAdapter } from "../src/lib/agent-session/codex-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
@@ -10,6 +10,8 @@ const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
 
 const conversationItems = (session: AgentSession) =>
   createAgentSessionModel(session).conversation.map(({ item }) => item);
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("codexRolloutAdapter", () => {
   it("scores only recognized Codex envelopes with record payloads", () => {
@@ -143,21 +145,23 @@ describe("codexRolloutAdapter", () => {
     expect(items[0]?.block?.text).toBe("System guidance");
     expect(items[2]).not.toHaveProperty("block");
     expect(items[3]?.block?.text).toBe("encrypted reasoning");
+    // The preview keeps the raw argument text, valid JSON or not, without
+    // parsing it into a resident object.
     expect(items[5]?.block).toMatchObject({
       type: "tool_use",
       toolName: "tool",
-      toolInput: {},
+      text: "{}",
       status: "pending",
     });
     expect(items[6]?.block).toMatchObject({
       type: "tool_use",
       toolCallId: "short-id",
-      toolInput: { raw: "not json" },
+      text: "not json",
     });
     expect(items[7]?.block).toMatchObject({
       type: "tool_use",
       toolName: "scalar_tool",
-      toolInput: { raw: "42" },
+      text: "42",
     });
     expect(session.events[8]?.label).toBe("tool_result call_123456");
     expect(items.slice(8, 11).map((item) => item.block?.type)).toEqual([
@@ -171,5 +175,40 @@ describe("codexRolloutAdapter", () => {
         .map((item) => (item.block?.type === "tool_result" ? item.block.status : undefined)),
     ).toEqual(["completed", "failed", "failed"]);
     expect(items[11]).not.toHaveProperty("block");
+  });
+
+  it("previews a large tool payload without parsing or retaining it", () => {
+    const parse = vi.spyOn(JSON, "parse");
+    const args = JSON.stringify({ values: Array.from({ length: 20_000 }, (_, index) => index) });
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          payload: {
+            type: "function_call",
+            name: "bulk_tool",
+            call_id: "call_bulk",
+            arguments: args,
+          },
+        },
+        1,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const block = conversationItems(session)[0]?.block;
+
+    expect(parse).not.toHaveBeenCalled();
+    expect(block).toMatchObject({
+      type: "tool_use",
+      toolName: "bulk_tool",
+      toolCallId: "call_bulk",
+    });
+    expect(block).not.toHaveProperty("toolInput");
+    expect(block?.text.startsWith(args.slice(0, 64))).toBe(true);
+    expect(block?.text.length).toBeLessThan(args.length);
+    // The canonical record still carries the untouched payload.
+    expect(session.events[0]?.lineNumber).toBe(1);
   });
 });

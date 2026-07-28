@@ -43,7 +43,6 @@ export type AgentContentBlock =
       type: "tool_use";
       text: string;
       toolName: string;
-      toolInput?: Record<string, unknown>;
       toolCallId?: string;
       status: "pending" | "completed" | "failed";
     }
