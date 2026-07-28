@@ -225,7 +225,17 @@ const readJsonlLinesByNumber = async (
   };
   signal?.addEventListener("abort", cancelReader, { once: true });
 
-  const processLine = () => {
+  const withoutCarriageReturn = (bytes: Uint8Array) =>
+    bytes.at(-1) === 13 ? bytes.subarray(0, -1) : bytes;
+
+  // Only a line split across chunks needs its pieces merged; the common case
+  // decodes the chunk's own bytes in place.
+  const decodeCollectedLine = () => {
+    const [only] = lineChunks;
+    if (lineChunks.length === 1 && only) {
+      return decoder.decode(withoutCarriageReturn(only));
+    }
+
     const byteLength = lineChunks.reduce((total, chunk) => total + chunk.byteLength, 0);
     const bytes = new Uint8Array(byteLength);
     let writeOffset = 0;
@@ -233,11 +243,22 @@ const readJsonlLinesByNumber = async (
       bytes.set(chunk, writeOffset);
       writeOffset += chunk.byteLength;
     }
-    const content = bytes.at(-1) === 13 ? bytes.subarray(0, -1) : bytes;
+    return decoder.decode(withoutCarriageReturn(bytes));
+  };
+
+  // Locating a line only needs newline positions, so bytes are collected for
+  // requested lines alone: skipped lines advance the counters and nothing else.
+  const collectLineBytes = (bytes: Uint8Array) => {
     if (lineNumbers.has(lineNumber)) {
-      lines.set(lineNumber, decoder.decode(content));
+      lineChunks.push(bytes);
     }
-    lineChunks = [];
+  };
+
+  const processLine = () => {
+    if (lineChunks.length > 0) {
+      lines.set(lineNumber, decodeCollectedLine());
+      lineChunks = [];
+    }
     return lines.size < lineNumbers.size;
   };
 
@@ -245,9 +266,7 @@ const readJsonlLinesByNumber = async (
     while (!stopped && !signal?.aborted) {
       const { value, done } = await reader.read();
       if (done) {
-        if (lineChunks.some((chunk) => chunk.byteLength > 0)) {
-          processLine();
-        }
+        processLine();
         break;
       }
       if (!value) {
@@ -260,7 +279,7 @@ const readJsonlLinesByNumber = async (
           continue;
         }
 
-        lineChunks.push(value.subarray(segmentStart, index));
+        collectLineBytes(value.subarray(segmentStart, index));
         stopped = !processLine();
         lineNumber += 1;
         lineIndex.addCheckpoint(lineNumber, absoluteOffset + index + 1);
@@ -271,7 +290,7 @@ const readJsonlLinesByNumber = async (
       }
 
       if (!stopped && segmentStart < value.byteLength) {
-        lineChunks.push(value.subarray(segmentStart));
+        collectLineBytes(value.subarray(segmentStart));
       }
       absoluteOffset += value.byteLength;
     }
