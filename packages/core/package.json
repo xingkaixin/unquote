@@ -1,6 +1,10 @@
 {
   "name": "@unquote/core",
   "version": "0.1.0",
+  "private": true,
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -51,7 +51,7 @@ git show --name-only --format='' "$PREV_TAG"..HEAD | sort -u
 - `apps/web/package.json`
 - `apps/extension/package.json`
 
-`packages/core/package.json` 和 `packages/ui/package.json` 不默认跟随应用版本。只有在实际发布对应 package，或者明确决定 monorepo 统一版本时才更新。
+`packages/core/package.json` 和 `packages/ui/package.json` 是仓库内部包（`private: true`），不发布到任何 registry，其 `version` 只用于 workspace 解析，因此不跟随应用版本。分发决策见 `docs/core-distribution.md`。
 
 检查遗漏：
 
