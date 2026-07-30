@@ -23,7 +23,6 @@
 
 ## 分发
 
-- **npm 包** — 纯 TypeScript 核心，零依赖
 - **Web 应用** — [unquote.xingkaixin.me](https://unquote.xingkaixin.me/)
 - **Chrome 扩展** — [Chrome Web Store](https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg)，Manifest V3，支持右键菜单和独立页面
 - **Safari 扩展** — 尚未上架，宿主 app 的 Xcode 项目见 `apps/safari`，用 `pnpm build:safari` 构建扩展产物
