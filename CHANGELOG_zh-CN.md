@@ -4,6 +4,30 @@
 > 其中标记为**破坏性变更**的条目描述的是仓库内部的迁移，而不是对外部调用方的通知。
 > 见 [`docs/core-distribution.md`](docs/core-distribution.md)。
 
+## [0.13.0] - 2026-07-30
+
+### Added
+
+- 新增原生 macOS 宿主应用和可重现的 Safari 扩展构建流程，并加入 Safari 专用权限过滤与 CI 校验。
+
+### Changed
+
+- 大型本地 JSONL 现在直接从源文件流式导出记录并增量反馈进度，无需水合全部完整记录，降低峰值内存占用。
+- 大输入路径减少重复工作：经过 checkpoint 的行扫描跳过字节复制，单行 JSON 自动检测复用严格解析结果，搜索只保留可见标签范围内的高亮区间。
+- Web Worker 不可用时，同步解析和搜索会限制在安全的输入预算内；超大任务会停止并显示本地化反馈，不再阻塞页面。
+- `@unquote/core` 与 `@unquote/ui` 现在明确为仓库内部包，不再暗示存在实际并未提供的 registry 发布。
+- Safari 打包与 benchmark 指标在缺少必要产物或预算样本时会让 CI 失败，减少发布门禁静默失效的风险。
+- Web 和扩展应用版本升级到 `0.13.0`。
+
+### Fixed
+
+- Web 应用不再加载远程 analytics beacon，Content Security Policy 也不再放行对应端点。
+- 依赖升级与定向 override 清除了开发和扩展构建链中的 5 个高危安全告警。
+- Parser 和 Search Worker 失败时现在会彻底终止并进入明确的错误状态，不再让任务停留在 pending。
+- 名为 `__proto__`、`constructor`、`prototype` 或其他原型成员的 JSON key 现在能在 preview、搜索和路径解析中保持原样。
+- Claude Code 会话现在会把每个并行 `tool_result` 保留为独立对话项，并关联正确的 tool-call ID 与状态。
+- 只有最新的复制请求可以写入剪贴板；被新来源取代的文件读取也会停止继续消费数据，不再针对过期来源完成。
+
 ## [0.12.0] - 2026-07-27
 
 ### Added

@@ -5,6 +5,30 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [0.13.0] - 2026-07-30
+
+### Added
+
+- Added a native macOS host and reproducible Safari extension build workflow, with Safari-specific permission filtering and CI verification.
+
+### Changed
+
+- Large local JSONL exports now stream records directly from the source file with incremental progress, avoiding full-record hydration and reducing peak memory.
+- Large-input paths do less redundant work: checkpointed line scans skip byte copies, single-line JSON auto-detection reuses its strict parse, and search retains highlight ranges only for visible labels.
+- When Web Workers are unavailable, synchronous parsing and search are limited to a safe input budget; oversized work stops with localized feedback instead of blocking the page.
+- `@unquote/core` and `@unquote/ui` are now explicitly repository-internal packages, removing the unsupported implication that they are published to a registry.
+- Safari packaging and benchmark measurements now fail CI when required outputs or budget samples are missing, reducing silent release-gate gaps.
+- Web and extension app versions bumped to `0.13.0`.
+
+### Fixed
+
+- The web app no longer loads a remote analytics beacon or allows its endpoint in Content Security Policy.
+- Dependency updates and scoped overrides clear five high-severity advisories from the development and extension build chains.
+- Parser and search Worker failures now terminate cleanly and reach an explicit error state instead of leaving work pending.
+- JSON keys named `__proto__`, `constructor`, `prototype`, or other prototype members remain faithful in previews, search, and path resolution.
+- Claude Code sessions now preserve every parallel `tool_result` as its own conversation item with the matching tool-call ID and status.
+- Only the newest copy request can write to the clipboard, and superseded file reads stop consuming data instead of completing against stale source state.
+
 ## [0.12.0] - 2026-07-27
 
 ### Added
