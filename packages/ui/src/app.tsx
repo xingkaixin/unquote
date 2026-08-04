@@ -52,12 +52,38 @@ const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
 const noSearchMatches: SearchMatch[] = [];
 
+interface ExtensionStoreLinkProps {
+  href: string;
+  label: string;
+}
+
+const ExtensionStoreLink = ({ href, label }: ExtensionStoreLinkProps) => (
+  <a
+    href={href}
+    target="_blank"
+    rel="noreferrer"
+    aria-label={label}
+    title={label}
+    className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
+  >
+    <Store className="size-3.5" />
+    <span className="hidden sm:inline" aria-hidden="true">
+      {label}
+    </span>
+  </a>
+);
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
+  edgeAddonsUrl?: string;
 }
 
-export const UnquoteApp = ({ initialInput = "", chromeWebStoreUrl }: UnquoteAppProps) => {
+export const UnquoteApp = ({
+  initialInput = "",
+  chromeWebStoreUrl,
+  edgeAddonsUrl,
+}: UnquoteAppProps) => {
   const { t } = useTranslation();
   const isDesktopWorkspace = useDesktopWorkspace();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
@@ -578,15 +604,10 @@ export const UnquoteApp = ({ initialInput = "", chromeWebStoreUrl }: UnquoteAppP
           </div>
           <div className="flex items-center gap-1">
             {chromeWebStoreUrl ? (
-              <a
-                href={chromeWebStoreUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
-              >
-                <Store className="size-3.5" />
-                <span className="hidden sm:inline">{t("app.chrome")}</span>
-              </a>
+              <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />
+            ) : null}
+            {edgeAddonsUrl ? (
+              <ExtensionStoreLink href={edgeAddonsUrl} label={t("app.edge")} />
             ) : null}
             <LocaleToggle />
             <ThemeToggle theme={theme} onChange={setTheme} />

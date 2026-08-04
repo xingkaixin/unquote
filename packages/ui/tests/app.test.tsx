@@ -376,6 +376,29 @@ describe("UnquoteApp", () => {
     expect(screen.getByRole("button", { name: "Expand source" })).toHaveClass("size-7");
   });
 
+  it("renders configured extension store links", () => {
+    const chromeWebStoreUrl = "https://chrome.example/extension";
+    const edgeAddonsUrl = "https://edge.example/extension";
+    render(
+      <I18nProvider>
+        <UnquoteApp chromeWebStoreUrl={chromeWebStoreUrl} edgeAddonsUrl={edgeAddonsUrl} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "Chrome Extension" })).toHaveAttribute(
+      "href",
+      chromeWebStoreUrl,
+    );
+    expect(screen.getByRole("link", { name: "Edge Extension" })).toHaveAttribute(
+      "href",
+      edgeAddonsUrl,
+    );
+    for (const link of screen.getAllByRole("link", { name: /Extension$/ })) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noreferrer");
+    }
+  });
+
   it("exposes command options and restores focus when the palette closes", async () => {
     const user = userEvent.setup();
     render(

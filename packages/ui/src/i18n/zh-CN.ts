@@ -6,6 +6,7 @@ export const zhCN: Messages = {
   "app.tab.agent": "Agent",
   "app.expand": "展开",
   "app.chrome": "Chrome 插件",
+  "app.edge": "Edge 插件",
   "app.skipToContent": "跳到主要内容",
   "theme.toggle": "切换主题",
   "theme.light": "浅色",

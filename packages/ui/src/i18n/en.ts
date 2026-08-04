@@ -4,6 +4,7 @@ export const en = {
   "app.tab.agent": "Agent",
   "app.expand": "Expand",
   "app.chrome": "Chrome Extension",
+  "app.edge": "Edge Extension",
   "app.skipToContent": "Skip to main content",
   "theme.toggle": "Switch theme",
   "theme.light": "Light",
