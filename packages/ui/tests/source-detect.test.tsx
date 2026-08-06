@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { detectSourceFormat } from "../src/lib/source-detect";
 
 describe("detectSourceFormat", () => {
@@ -51,6 +51,20 @@ describe("detectSourceFormat", () => {
     );
 
     expect(detectSourceFormat(lines.join("\n"))).toEqual({ kind: "jsonl", lines: 20 });
+  });
+
+  it("classifies a multi-megabyte single-line document without parsing it", () => {
+    const document = `{"blob":"${"x".repeat(4 * 1024 * 1024)}"}`;
+    const parse = vi.spyOn(JSON, "parse");
+
+    expect(detectSourceFormat(document)).toEqual({ kind: "json" });
+    expect(parse).not.toHaveBeenCalled();
+
+    parse.mockRestore();
+  });
+
+  it("still rejects an over-budget draft that is not shaped like JSON", () => {
+    expect(detectSourceFormat("x".repeat(70 * 1024))).toEqual({ kind: "invalid" });
   });
 
   it("stops probing once a line has spent the budget", () => {

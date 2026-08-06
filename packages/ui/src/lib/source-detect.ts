@@ -4,24 +4,34 @@ export type SourceDetection =
   | { kind: "jsonl"; lines: number }
   | { kind: "invalid" };
 
-// The draft is re-sniffed on every keystroke, so the JSONL probe parses whole
-// lines only until it has spent this budget, and never more than this many.
+// The draft is re-sniffed on every keystroke, so nothing longer than this
+// budget is ever parsed: the probe walks whole lines until it has spent the
+// budget, across no more than this many lines, and falls back to a shape check
+// for any candidate that exceeds it on its own.
 const probeBudget = 64 * 1024;
 const probedLines = 40;
 
-const parses = (line: string) => {
+const parses = (text: string) => {
   try {
-    JSON.parse(line);
+    JSON.parse(text);
     return true;
   } catch {
     return false;
   }
 };
 
+const isBracketed = (text: string) => {
+  const last = text.at(-1);
+  return (text[0] === "{" && last === "}") || (text[0] === "[" && last === "]");
+};
+
+const looksLikeJson = (text: string) =>
+  text.length > probeBudget ? isBracketed(text) : parses(text);
+
 const probeJsonLines = (lines: readonly string[]) => {
   let budget = probeBudget;
   for (const line of lines.slice(0, probedLines)) {
-    if (!parses(line)) {
+    if (!looksLikeJson(line)) {
       return false;
     }
 
@@ -45,5 +55,5 @@ export const detectSourceFormat = (text: string): SourceDetection => {
     return { kind: "jsonl", lines: lines.length };
   }
 
-  return parses(trimmed) ? { kind: "json" } : { kind: "invalid" };
+  return looksLikeJson(trimmed) ? { kind: "json" } : { kind: "invalid" };
 };
