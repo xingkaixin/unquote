@@ -148,10 +148,13 @@ describe("claudeTranscriptAdapter", () => {
       "tool",
     ]);
     expect(session.events[0]?.preview).toBe("system message");
+    // The system line precedes the first prompt, so it belongs to no turn.
+    expect(session.events[0]).not.toHaveProperty("turnIndex");
     expect(session.events[1]).toMatchObject({
       requestId: "request-1",
       role: "user",
       stopReason: "end_turn",
+      turnIndex: 1,
     });
     const items = conversationItems(session);
     expect(items.map((item) => item.role)).toEqual([

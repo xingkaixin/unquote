@@ -82,7 +82,11 @@ describe("codexRolloutAdapter", () => {
       "unknown",
       "unknown",
     ]);
-    expect(session.events[0]).toMatchObject({ timestamp: 100, turnIndex: 1 });
+    expect(session.events[0]).toMatchObject({ timestamp: 100 });
+    // The session_meta line precedes the first turn boundary, so it carries no
+    // turn; the turn_context that opens turn-1 is the first numbered event.
+    expect(session.events[0]).not.toHaveProperty("turnIndex");
+    expect(session.events[1]).toMatchObject({ turnIndex: 1 });
     expect(session.events[1]).not.toHaveProperty("timestamp");
     expect(session.parseWarnings).toEqual([
       { lineNumber: 13, message: "Invalid JSON on this line" },

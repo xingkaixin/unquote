@@ -312,7 +312,6 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
   let version: string | undefined;
   let model: string | undefined;
   let currentTurnId: string | undefined;
-  const defaultTurnIndex = 1;
 
   const registerTurn = (turnId: string) => {
     const existing = turnIdToIndex.get(turnId);
@@ -324,7 +323,9 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
     return nextIndex;
   };
 
-  const currentTurnIndex = () => (currentTurnId ? registerTurn(currentTurnId) : defaultTurnIndex);
+  // Records before the first turn boundary belong to no turn: numbering them
+  // would print a turn the rollout never reported.
+  const currentTurnIndex = () => (currentTurnId ? registerTurn(currentTurnId) : undefined);
 
   return {
     push(line) {
@@ -396,7 +397,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         attachConversationItem(event, {
           id: codexResponseItemId(line.lineNumber, itemType, messageRole),
           role: codexResponseRole(itemType, messageRole),
-          turnIndex,
+          ...(turnIndex === undefined ? {} : { turnIndex }),
           ...(block ? { block } : {}),
         });
       }
