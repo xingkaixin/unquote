@@ -34,8 +34,6 @@ export interface RecordInsight {
   kind: RecordInsightKind;
   title: string;
   nestedJsonCount: number;
-  maxDepth: number;
-  keyPathCount: number;
   timestamp?: string;
   level?: string;
   status?: string;
@@ -48,7 +46,6 @@ export interface RecordInsight {
 
 const maxInsightValueLength = 160;
 const maxInsightTitleLength = 96;
-const maxKeyPathCount = 8;
 const errorLikePattern =
   /(^|[-_\s.])(error|exception|failed|failure|fatal|panic|timeout)([-_\s.]|$)/i;
 const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
@@ -211,11 +208,7 @@ export const createInsightCollector = (): InsightCollector => {
         );
       }
     },
-    build: (record, metrics) =>
-      createRecordInsightFromHits(record, hits, {
-        nestedJsonCount: metrics.nestedCount,
-        maxDepth: metrics.maxDepth,
-      }),
+    build: (record, metrics) => createRecordInsightFromHits(record, hits, metrics.nestedCount),
   };
 };
 
@@ -344,21 +337,10 @@ const getTitle = (
   );
 };
 
-const countKeyPaths = (hits: readonly RecordInsightHit[]) => {
-  const paths = new Set<string>();
-  for (const hit of hits) {
-    paths.add(hit.pathText);
-    if (paths.size === maxKeyPathCount) {
-      break;
-    }
-  }
-  return paths.size;
-};
-
 const createRecordInsightFromHits = (
   record: JsonlRecord,
   hits: RecordInsightHit[],
-  metrics: { nestedJsonCount: number; maxDepth: number },
+  nestedJsonCount: number,
 ): RecordInsight => {
   const best = pickBestHits(hits);
   const timestamp = best.get("timestamp")?.value;
@@ -380,16 +362,13 @@ const createRecordInsightFromHits = (
     status,
     level,
   });
-  const keyPathCount = countKeyPaths(hits);
 
   return {
     recordId: record.id,
     lineNumber: record.lineNumber,
     kind,
     title,
-    nestedJsonCount: metrics.nestedJsonCount,
-    maxDepth: metrics.maxDepth,
-    keyPathCount,
+    nestedJsonCount,
     ...(timestamp ? { timestamp } : {}),
     ...(level ? { level } : {}),
     ...(status ? { status } : {}),

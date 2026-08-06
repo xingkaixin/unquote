@@ -13,7 +13,7 @@ const budgets = {
   completeReadyMsP50: 3000,
   expandPathReadyMsP50: 400,
   expandAllReadyMsP50: 800,
-  domNodesMax: 10_000,
+  domNodesMax: 3_000,
   jsHeapUsedSizeMBMax: 256,
 };
 

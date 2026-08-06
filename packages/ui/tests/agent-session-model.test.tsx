@@ -116,3 +116,75 @@ describe("createAgentSessionModel", () => {
     });
   });
 });
+
+describe("tool call and result pairing", () => {
+  const call = (id: string, callId?: string): AgentConversationItem => ({
+    id,
+    role: "tool_call",
+    block: {
+      type: "tool_use",
+      text: "{}",
+      toolName: "shell",
+      ...(callId ? { toolCallId: callId } : {}),
+    },
+  });
+  const result = (
+    id: string,
+    status: "completed" | "failed",
+    callId?: string,
+  ): AgentConversationItem => ({
+    id,
+    role: "tool_result",
+    block: { type: "tool_result", text: "out", status, ...(callId ? { toolCallId: callId } : {}) },
+  });
+
+  it("reads a call's status from its paired result", () => {
+    const failing = call("call-failed", "id-2");
+    const succeeding = call("call-done", "id-1");
+    const model = createAgentSessionModel(
+      session([
+        event("event-1", "record-1", [succeeding, result("result-done", "completed", "id-1")]),
+        event("event-2", "record-2", [failing, result("result-failed", "failed", "id-2")]),
+      ]),
+    );
+
+    expect(model.resolveToolStatus(succeeding)).toBe("completed");
+    expect(model.resolveToolStatus(failing)).toBe("failed");
+  });
+
+  it("reports an unpaired call as pending and never invents an outcome", () => {
+    const unpaired = call("call-1", "id-1");
+    const idless = call("call-2");
+    const model = createAgentSessionModel(
+      session([event("event-1", "record-1", [unpaired, idless])]),
+    );
+
+    expect(model.resolveToolStatus(unpaired)).toBe("pending");
+    expect(model.resolveToolStatus(idless)).toBe("pending");
+  });
+
+  it("keeps a result's own status and borrows the paired call's tool name", () => {
+    const paired = result("result-1", "completed", "id-1");
+    const orphan = result("result-2", "failed", "missing");
+    const model = createAgentSessionModel(
+      session([event("event-1", "record-1", [call("call-1", "id-1"), paired, orphan])]),
+    );
+
+    expect(model.resolveToolStatus(paired)).toBe("completed");
+    expect(model.resolveToolStatus(orphan)).toBe("failed");
+    expect(model.resolveToolName(paired)).toBe("shell");
+    expect(model.resolveToolName(orphan)).toBeUndefined();
+  });
+
+  it("has no tool name or outcome for a plain message", () => {
+    const message: AgentConversationItem = {
+      id: "item-1",
+      role: "assistant",
+      block: { type: "text", text: "hello" },
+    };
+    const model = createAgentSessionModel(session([event("event-1", "record-1", [message])]));
+
+    expect(model.resolveToolName(message)).toBeUndefined();
+    expect(model.resolveToolStatus(message)).toBe("pending");
+  });
+});

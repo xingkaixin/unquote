@@ -31,12 +31,7 @@ export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="uq-icon-button h-7 w-7 px-0"
-            aria-label={t("theme.toggle")}
-          >
+          <Button size="sm" className="uq-icon-button h-7 w-7 px-0" aria-label={t("theme.toggle")}>
             <ThemeIcon theme={theme} />
           </Button>
         }

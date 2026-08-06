@@ -154,15 +154,15 @@ export const CommandPalette = ({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="uq-dialog-backdrop fixed inset-0 z-50 bg-black/35 backdrop-blur-sm dark:bg-black/65" />
+        <Dialog.Backdrop className="uq-dialog-backdrop fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[6px]" />
         <Dialog.Viewport className="fixed inset-0 z-50 px-3 pt-[16vh]">
           <Dialog.Popup
             initialFocus={inputRef}
-            className="uq-dialog-popup mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="uq-dialog-popup mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-xl border border-border-medium bg-surface-100 shadow-[var(--shadow-panel)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Dialog.Title className="sr-only">{t("command.palette")}</Dialog.Title>
             <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4 focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-accent">
-              <Search className="size-4 shrink-0 text-text-muted" />
+              <Search className="size-4 shrink-0 text-text-tertiary" />
               <input
                 ref={inputRef}
                 role="combobox"
@@ -200,7 +200,7 @@ export const CommandPalette = ({
                   }
                 }}
                 placeholder={t("command.placeholder")}
-                className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-muted"
+                className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-tertiary"
               />
               <span className="shrink-0 bg-surface-200 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-secondary">
                 {t(pathMode ? "command.pathMode" : "command.searchMode")}
@@ -219,7 +219,7 @@ export const CommandPalette = ({
               />
             </div>
             <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-2">
-              <span className="mr-1 font-mono text-[10px] text-text-muted">
+              <span className="mr-1 font-mono text-[10px] text-text-tertiary">
                 {pathMode
                   ? t("command.pathMatches", { count: pathMatchCount })
                   : t("command.searchMatches", { count: matchCount })}
@@ -259,7 +259,7 @@ export const CommandPalette = ({
               </Button>
             </div>
             <div className="flex items-center gap-2 px-[18px] py-2">
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-[10px] text-text-tertiary">
                 {t("command.visibleRecords", { shown: visibleCount, total: totalCount })}
               </span>
               <input
@@ -267,7 +267,7 @@ export const CommandPalette = ({
                 value={commandQuery}
                 onChange={(event) => setCommandQuery(event.target.value)}
                 placeholder={t("command.filterCommands")}
-                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono uq-text-11 text-text-primary outline-none placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               />
             </div>
             <div
@@ -286,7 +286,7 @@ export const CommandPalette = ({
                     role="option"
                     tabIndex={-1}
                     aria-selected={index === activeIndex}
-                    className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
+                    className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono uq-text-11 uppercase tracking-[0.08em] ${
                       index === activeIndex
                         ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]"
                         : "text-text-secondary"

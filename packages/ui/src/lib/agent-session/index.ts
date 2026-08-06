@@ -22,6 +22,7 @@ export type {
   AgentSessionModel,
   AgentTimelineEvent,
   AgentTokenUsage,
+  AgentToolStatus,
   ParsedAgentLine,
 } from "./types";
 export { createAgentSessionModel } from "./model";

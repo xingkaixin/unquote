@@ -54,6 +54,7 @@ describe("tree paths", () => {
       "depth",
       "expanded",
       "id",
+      "insideStringified",
       "keyLabel",
       "kind",
       "node",
@@ -63,14 +64,20 @@ describe("tree paths", () => {
     ]);
   });
 
-  it("keeps a focused subtree's rows addressable by their full path", () => {
+  it("addresses every row by its record id and full path", () => {
     const record = parseInput('{"outer":{"inner":{"leaf":1}}}', { forcedFormat: "json" })
       .records[0]!;
-    const rows = buildRecordRows(record, new Set(), "$.outer.inner");
+    const rows = buildRecordRows(record, new Set());
 
-    expect(rows.map((row) => row.pathText)).toEqual(["$.outer.inner", "$.outer.inner.leaf"]);
-    expect(rows[0]?.id).toBe(`${record.id}:$.outer.inner`);
-    expect(rows[1]?.keyLabel).toBe("leaf");
+    expect(rows.map((row) => row.pathText)).toEqual([
+      "$",
+      "$.outer",
+      "$.outer.inner",
+      "$.outer.inner.leaf",
+    ]);
+    expect(rows.map((row) => row.depth)).toEqual([0, 1, 2, 3]);
+    expect(rows[2]?.id).toBe(`${record.id}:$.outer.inner`);
+    expect(rows[3]?.keyLabel).toBe("leaf");
   });
 
   it("serializes numeric object keys as quoted keys", () => {
@@ -123,6 +130,26 @@ describe("tree paths", () => {
         pathRanges: [{ start: 0, end: expectedJsonPath.length }],
       }),
     ]);
+  });
+
+  it("marks the rows an escaped payload was unwrapped into, not its boundary", () => {
+    const record = parseInput('{"payload":"{\\"answer\\":{\\"n\\":42}}","status":"ok"}')
+      .records[0]!;
+    const rows = buildRecordRows(record, new Set(["$.payload"]));
+    const insideByPath = new Map(rows.map((row) => [row.pathText, row.insideStringified]));
+
+    expect(insideByPath.get("$")).toBe(false);
+    expect(insideByPath.get("$.status")).toBe(false);
+    expect(insideByPath.get("$.payload")).toBe(false);
+    expect(insideByPath.get("$.payload.answer")).toBe(true);
+    expect(insideByPath.get("$.payload.answer.n")).toBe(true);
+  });
+
+  it("leaves a collapsed boundary's payload unmarked because it has no rows", () => {
+    const record = parseInput('{"payload":"{\\"answer\\":42}"}').records[0]!;
+    const rows = buildRecordRows(record, new Set());
+
+    expect(rows.map((row) => row.insideStringified)).toEqual([false, false]);
   });
 
   it("collects stringified paths with quoted keys and array indexes", () => {
@@ -340,26 +367,16 @@ describe("tree paths", () => {
     );
     const overview = createFileOverview(result.records);
 
-    expect(overview).toMatchObject({
+    expect(overview).toEqual({
       total: 3,
       success: 2,
       failed: 1,
       nestedRecords: 1,
       maxDepth: 2,
     });
-    expect(overview.topNestedPaths).toEqual([{ pathText: "$.args", count: 1 }]);
-    expect(overview.topFieldValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: "event", pathText: "$.event", value: "tool_call" }),
-        expect.objectContaining({ field: "tool", pathText: "$.tool", value: "billing.search" }),
-      ]),
-    );
-    expect(overview.errors).toEqual([
-      expect.objectContaining({ recordId: "record-3", lineNumber: 3 }),
-    ]);
   });
 
-  it("keeps overview fields and nested paths for Preview Records", () => {
+  it("counts nested JSON and depth for Preview Records", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,
@@ -376,18 +393,12 @@ describe("tree paths", () => {
       summary: "event:tool_call",
     } satisfies JsonlRecord;
 
-    expect(createFileOverview([record])).toMatchObject({
+    expect(createFileOverview([record])).toEqual({
       total: 1,
       success: 1,
+      failed: 0,
       nestedRecords: 1,
       maxDepth: 1,
-      topNestedPaths: [{ pathText: "$.args", count: 1 }],
     });
-    expect(createFileOverview([record]).topFieldValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: "event", value: "tool_call" }),
-        expect.objectContaining({ field: "tool", value: "billing.search" }),
-      ]),
-    );
   });
 });

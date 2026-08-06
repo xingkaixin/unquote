@@ -250,25 +250,6 @@ export const useQueryInteraction = ({
     },
     [invalidateNavigation],
   );
-  const selectOverviewPath = useCallback(
-    (value: string) => {
-      invalidateNavigation();
-      const resolution = resolvePathQuery(result.records, value);
-      navigate({
-        type: "overviewPathSelect",
-        value,
-        resolution,
-      });
-    },
-    [invalidateNavigation, navigate, resolvePathQuery, result.records],
-  );
-  const searchOverviewFieldValue = useCallback(
-    (value: string) => {
-      invalidateNavigation();
-      dispatch({ type: "overviewFieldValueSearch", value });
-    },
-    [invalidateNavigation],
-  );
   const setOption = useCallback(
     (kind: SearchOptionKind, on: boolean) => {
       invalidateNavigation();
@@ -310,8 +291,6 @@ export const useQueryInteraction = ({
       submitToolbarQuery,
       clearToolbarQuery,
       searchFromCommand,
-      selectOverviewPath,
-      searchOverviewFieldValue,
       setOption,
       setFilter,
       changeCommandInput,
@@ -329,8 +308,6 @@ export const useQueryInteraction = ({
       previousResult,
       reset,
       searchFromCommand,
-      searchOverviewFieldValue,
-      selectOverviewPath,
       setFilter,
       setOption,
       submitToolbarQuery,

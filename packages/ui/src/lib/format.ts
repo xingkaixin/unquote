@@ -1,3 +1,5 @@
+import type { Locale } from "../i18n/i18n";
+
 const fileSizeUnits = ["B", "KB", "MB", "GB"] as const;
 
 export const formatFileSize = (bytes: number) => {
@@ -11,4 +13,17 @@ export const formatFileSize = (bytes: number) => {
 
   const formatted = unitIndex === 0 || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
   return `${formatted} ${fileSizeUnits[unitIndex]}`;
+};
+
+export const formatClockTime = (value: string | number | undefined, locale: Locale) => {
+  if (value === undefined) {
+    return "";
+  }
+
+  const parsed = typeof value === "number" ? value : Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat(locale, { timeStyle: "medium" }).format(parsed);
 };

@@ -74,7 +74,6 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         text: truncateBlockText(JSON.stringify(input, null, 2)),
         toolName: part.name,
         toolCallId: part.id,
-        status: "pending",
       });
     } else if (part.type === "tool_result") {
       // Parallel tool calls answer with one tool_result block per call, so each
@@ -131,14 +130,14 @@ const claudeBlocksLabel = (blocks: AgentContentBlock[], fallback: string) => {
 const attachBlockItems = (
   event: AgentTimelineEvent,
   blocks: AgentContentBlock[],
-  turnIndex: number,
+  turnIndex: number | undefined,
   textRole: AgentConversationRole,
 ) => {
   if (blocks.length === 0) {
     attachConversationItem(event, {
       id: `conv-${event.lineNumber}-${textRole}`,
       role: textRole,
-      turnIndex,
+      ...(turnIndex === undefined ? {} : { turnIndex }),
     });
     return;
   }
@@ -147,7 +146,7 @@ const attachBlockItems = (
     attachConversationItem(event, {
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
       role: claudeBlockRole(block, textRole),
-      turnIndex,
+      ...(turnIndex === undefined ? {} : { turnIndex }),
       block,
     });
   });
@@ -272,6 +271,9 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       if (type === "user" && promptId !== lastPromptId && !isToolResultTurn) {
         turnIndex += 1;
       }
+      // Records before the first user prompt belong to no turn, so they carry
+      // no number rather than a fabricated turn 0.
+      const currentTurnIndex = turnIndex > 0 ? turnIndex : undefined;
 
       const event = createBaseEvent(
         line,
@@ -281,7 +283,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         claudePreview(type, record, blocks),
       );
       addOptionalNumber(event, "timestamp", parseTimestamp(record.timestamp));
-      addOptionalNumber(event, "turnIndex", turnIndex);
+      addOptionalNumber(event, "turnIndex", currentTurnIndex);
       addOptionalString(event, "requestId", getString(record, "requestId"));
       addOptionalString(event, "model", parseClaudeModel(record));
       addOptionalString(event, "uuid", getString(record, "uuid"));
@@ -302,11 +304,11 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       if (type === "user") {
         lastPromptId = promptId;
         if (isToolResultTurn || !getBoolean(record, "isMeta")) {
-          attachBlockItems(event, blocks, turnIndex, "user");
+          attachBlockItems(event, blocks, currentTurnIndex, "user");
         }
       } else if (type === "assistant") {
         model = parseClaudeModel(record) ?? model;
-        attachBlockItems(event, blocks, turnIndex, "assistant");
+        attachBlockItems(event, blocks, currentTurnIndex, "assistant");
       }
 
       events.push(event);

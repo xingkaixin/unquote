@@ -1,11 +1,13 @@
 import type {
   AgentConversationEntry,
+  AgentConversationItem,
   AgentDetailSelection,
   AgentSession,
   AgentSessionDetail,
   AgentSessionIntegrityIssue,
   AgentSessionModel,
   AgentTimelineEvent,
+  AgentToolStatus,
 } from "./types";
 
 const detailForEvent = (
@@ -17,6 +19,12 @@ const detailForEvent = (
   recordId: event.recordId,
 });
 
+const toolUseBlock = (item: AgentConversationItem | undefined) =>
+  item?.block?.type === "tool_use" ? item.block : undefined;
+
+const toolResultBlock = (item: AgentConversationItem | undefined) =>
+  item?.block?.type === "tool_result" ? item.block : undefined;
+
 export const createAgentSessionModel = (session: AgentSession): AgentSessionModel => {
   const events: AgentTimelineEvent[] = [];
   const conversation: AgentConversationEntry[] = [];
@@ -25,6 +33,8 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const eventByRecordId = new Map<string, AgentTimelineEvent>();
   const conversationById = new Map<string, AgentConversationEntry>();
   const firstConversationByEventId = new Map<string, AgentConversationEntry>();
+  const toolUseByCallId = new Map<string, AgentConversationItem>();
+  const toolResultByCallId = new Map<string, AgentConversationItem>();
 
   for (const event of session.events) {
     if (eventById.has(event.id)) {
@@ -50,6 +60,14 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
       conversationById.set(item.id, entry);
       if (!firstConversationByEventId.has(event.id)) {
         firstConversationByEventId.set(event.id, entry);
+      }
+      const callId = toolUseBlock(item)?.toolCallId;
+      if (callId) {
+        toolUseByCallId.set(callId, item);
+      }
+      const resultId = toolResultBlock(item)?.toolCallId;
+      if (resultId) {
+        toolResultByCallId.set(resultId, item);
       }
     }
   }
@@ -93,6 +111,29 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
       : null;
   };
 
+  // A tool call never carries its own outcome; only the paired result does.
+  const resolveToolStatus = (item: AgentConversationItem): AgentToolStatus => {
+    const result = toolResultBlock(item);
+    if (result) {
+      return result.status;
+    }
+
+    const callId = toolUseBlock(item)?.toolCallId;
+    return (
+      (callId ? toolResultBlock(toolResultByCallId.get(callId))?.status : undefined) ?? "pending"
+    );
+  };
+
+  const resolveToolName = (item: AgentConversationItem): string | undefined => {
+    const call = toolUseBlock(item);
+    if (call) {
+      return call.toolName;
+    }
+
+    const callId = toolResultBlock(item)?.toolCallId;
+    return callId ? toolUseBlock(toolUseByCallId.get(callId))?.toolName : undefined;
+  };
+
   return {
     events,
     conversation,
@@ -100,5 +141,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     resolveDetail,
     selectEvent,
     selectConversation,
+    resolveToolStatus,
+    resolveToolName,
   };
 };

@@ -243,6 +243,10 @@ const benchmarkRender = async () => {
           textarea.focus()
           valueSetter.call(textarea, source)
           textarea.dispatchEvent(new Event('input', { bubbles: true }))
+          // The import panel keeps a local draft; typing alone publishes nothing.
+          ;[...document.querySelectorAll('button')]
+            .find((node) => node.textContent?.trim() === 'Parse')
+            ?.click()
 
           await waitFor(() =>
             [...document.querySelectorAll('div')]
@@ -250,6 +254,10 @@ const benchmarkRender = async () => {
           )
           const statsReady = performance.now()
 
+          // case1.jsonl is a Codex rollout, so the shell settles on the Agent
+          // tab, which renders no JSON tree. firstRecordMs therefore carries the
+          // tab switch for this fixture.
+          document.querySelector('[data-output-tab="json"]')?.click()
           await waitFor(() => document.getElementById('record-1'))
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
           const firstRecordReady = performance.now()
@@ -258,7 +266,7 @@ const benchmarkRender = async () => {
             statsMs: statsReady - start,
             firstRecordMs: firstRecordReady - start,
             domNodes: document.getElementsByTagName('*').length,
-            recordCards: document.querySelectorAll('[id^="record-"]').length,
+            railRows: document.querySelectorAll('[data-record-rail] button[aria-pressed]').length,
           }
         }
       )()`;
@@ -289,7 +297,7 @@ const benchmarkRender = async () => {
       statsReady: summarize(runs.map((run) => run.statsMs)),
       firstRecordReady: summarize(runs.map((run) => run.firstRecordMs)),
       domNodes: summarize(runs.map((run) => run.domNodes)),
-      recordCards: summarize(runs.map((run) => run.recordCards)),
+      railRows: summarize(runs.map((run) => run.railRows)),
       layoutCount: summarize(runs.map((run) => run.layoutCount)),
       recalcStyleCount: summarize(runs.map((run) => run.recalcStyleCount)),
       taskDuration: summarize(runs.map((run) => run.taskDuration * 1000)),

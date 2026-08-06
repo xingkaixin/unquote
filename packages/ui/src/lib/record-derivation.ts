@@ -3,9 +3,9 @@ import { walkRecordFields } from "./field-extraction";
 import {
   addSummaryToFileOverview,
   createFileOverviewAggregate,
-  createOverviewCollector,
   summarizeUnwalkableRecord,
   toFileOverview,
+  toRecordOverviewSummary,
 } from "./file-overview";
 import type { FileOverview, FileOverviewAggregate, RecordOverviewSummary } from "./file-overview";
 import { createInsightCollector } from "./record-insight";
@@ -14,9 +14,9 @@ import { createPartialRecordCache, updatePartialRecordCache } from "./partial-re
 import type { PartialRecordCache } from "./partial-record-cache";
 import type { RecordAppend } from "./record-sequence";
 
-// Record insight and file overview both need every field of every record.
-// Running them as two independent pipelines walked each record's tree twice;
-// this module walks it once and hands each candidate to both collectors.
+// Record insight and file overview both describe the same record tree. Running
+// them as two independent pipelines walked it twice; this module walks it once,
+// feeding the insight collector and reading the overview off the same metrics.
 export interface RecordDerivation {
   insight: RecordInsight | null;
   overview: RecordOverviewSummary;
@@ -36,21 +36,14 @@ export const deriveRecord = (record: JsonlRecord): RecordDerivation => {
   }
 
   const insightCollector = createInsightCollector();
-  const overviewCollector = createOverviewCollector();
   const metrics = walkRecordFields(record, {
-    // Overview aggregates nested-JSON counts per path; insight only needs the
-    // scalar count, which the same metrics object already carries.
-    trackNestedPaths: true,
-    onField: (candidate) => {
-      insightCollector.onField(candidate);
-      overviewCollector.onField(candidate);
-    },
+    onField: insightCollector.onField,
     onContainer: insightCollector.onContainer,
   });
 
   return {
     insight: insightCollector.build(record, metrics),
-    overview: overviewCollector.build(metrics),
+    overview: toRecordOverviewSummary(metrics),
   };
 };
 

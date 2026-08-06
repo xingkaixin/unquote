@@ -36,14 +36,10 @@ export interface ContainerCandidate {
 export interface FieldExtractionMetrics {
   maxDepth: number;
   nestedCount: number;
-  // Only populated when `trackNestedPaths` is set; file-overview aggregates
-  // nested-JSON counts per path, record-insight only needs the scalar count.
-  nestedPaths: Map<string, number>;
 }
 
 export interface WalkRecordFieldsOptions {
-  trackNestedPaths?: boolean;
-  onField: (candidate: FieldCandidate) => void;
+  onField?: (candidate: FieldCandidate) => void;
   onContainer?: (candidate: ContainerCandidate) => void;
 }
 
@@ -64,24 +60,16 @@ const getDirectChildValue = (node: JsonNode, keys: string[]) => {
   return null;
 };
 
-const addCount = (counts: Map<string, number>, key: string) => {
-  counts.set(key, (counts.get(key) ?? 0) + 1);
-};
-
 const walkNodeBranch = (
   root: JsonNode,
   metrics: FieldExtractionMetrics,
-  trackNestedPaths: boolean,
-  onField: (candidate: FieldCandidate) => void,
+  onField?: (candidate: FieldCandidate) => void,
   onContainer?: (candidate: ContainerCandidate) => void,
 ) => {
   walkJsonNode(root, (ctx) => {
     metrics.maxDepth = Math.max(metrics.maxDepth, ctx.pathSegments.length);
     if (isStringifiedNode(ctx.node)) {
       metrics.nestedCount += 1;
-      if (trackNestedPaths) {
-        addCount(metrics.nestedPaths, ctx.jsonPath);
-      }
     }
 
     const lastSegment = ctx.pathSegments.at(-1);
@@ -91,7 +79,7 @@ const walkNodeBranch = (
 
     const key = lastSegment.value;
     const primitiveValue = getPrimitiveValue(ctx.node);
-    onField({ key, pathSegments: ctx.pathSegments, pathText: ctx.jsonPath, primitiveValue });
+    onField?.({ key, pathSegments: ctx.pathSegments, pathText: ctx.jsonPath, primitiveValue });
 
     if (onContainer && (ctx.node.kind === "object" || ctx.node.kind === "array")) {
       onContainer({
@@ -112,21 +100,14 @@ const walkNodeBranch = (
 const walkPreviewBranch = (
   preview: JsonlRecordPreview,
   metrics: FieldExtractionMetrics,
-  trackNestedPaths: boolean,
-  onField: (candidate: FieldCandidate) => void,
+  onField?: (candidate: FieldCandidate) => void,
   onContainer?: (candidate: ContainerCandidate) => void,
 ) => {
   metrics.maxDepth = getPreviewMaxDepth(preview);
-  const nestedFieldKeys = preview.nestedFieldKeys ?? [];
-  metrics.nestedCount = nestedFieldKeys.length;
-  if (trackNestedPaths) {
-    for (const key of nestedFieldKeys) {
-      addCount(metrics.nestedPaths, getPreviewPath(key));
-    }
-  }
+  metrics.nestedCount = (preview.nestedFieldKeys ?? []).length;
 
   for (const [key, value] of Object.entries(preview.fields)) {
-    onField({
+    onField?.({
       key,
       pathSegments: getPreviewPathSegments(key),
       pathText: getPreviewPath(key),
@@ -151,19 +132,12 @@ export const walkRecordFields = (
   record: JsonlRecord,
   options: WalkRecordFieldsOptions,
 ): FieldExtractionMetrics => {
-  const metrics: FieldExtractionMetrics = { maxDepth: 0, nestedCount: 0, nestedPaths: new Map() };
-  const trackNestedPaths = options.trackNestedPaths ?? false;
+  const metrics: FieldExtractionMetrics = { maxDepth: 0, nestedCount: 0 };
 
   if (record.status === "preview" && record.preview) {
-    walkPreviewBranch(
-      record.preview,
-      metrics,
-      trackNestedPaths,
-      options.onField,
-      options.onContainer,
-    );
+    walkPreviewBranch(record.preview, metrics, options.onField, options.onContainer);
   } else if (record.status !== "failed") {
-    walkNodeBranch(record.node, metrics, trackNestedPaths, options.onField, options.onContainer);
+    walkNodeBranch(record.node, metrics, options.onField, options.onContainer);
   }
 
   return metrics;

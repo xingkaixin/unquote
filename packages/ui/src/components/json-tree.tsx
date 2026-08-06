@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, FileWarning, Focus, Undo2 } from "lucide-react";
+import { ChevronRight, Copy, FileWarning } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,7 +7,6 @@ import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import { isPathWithin } from "../lib/path-codec";
 import { measurePerfFn } from "../lib/perf";
-import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch, TextRange } from "../lib/record-search";
 import type { RecordViewActions } from "../lib/record-view";
 import {
@@ -19,54 +18,40 @@ import { buildDisplayRows, getDisplayValueClassName } from "../lib/tree-display"
 import type { DisplayTreeRow } from "../lib/tree-display";
 import { buildRecordRows } from "../lib/tree";
 import type { TreeRow } from "../lib/tree";
-import { Badge } from "./badge";
 import { Button } from "./button";
-import { Card, CardContent } from "./card";
-import { RecordInsightSummary } from "./record-insight";
 
 // A record only virtualizes past a row count and when every row is short and
 // single-line: tall (long or multiline) values break the virtualizer's
 // fixed-size row estimate.
 const virtualizationRowThreshold = 180;
 const inlineValueLengthLimit = 160;
+const rowEstimateSize = 24;
 
 interface JsonTreeProps {
   record: JsonlRecord;
-  insight: RecordInsight | undefined;
   expandedStringifiedPaths: ReadonlySet<string>;
-  eager?: boolean;
   searchMatches: SearchMatch[];
   activeMatchPath: string | null;
   scrollIntent: ScrollIntent | null;
   selectedPath: string | null;
-  focusedPath: string | null;
   actions: RecordViewActions;
 }
 
 export const JsonTree = memo(function JsonTree({
   record,
-  insight,
   expandedStringifiedPaths,
-  eager = false,
   searchMatches,
   activeMatchPath,
   scrollIntent,
   selectedPath,
-  focusedPath,
   actions,
 }: JsonTreeProps) {
   const { t } = useTranslation();
-  const cardRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
-  const [hydrated, setHydrated] = useState(eager);
   const rows = useMemo(
     () =>
-      hydrated
-        ? measurePerfFn("recordRows:build", () =>
-            buildRecordRows(record, expandedStringifiedPaths, focusedPath),
-          )
-        : [],
-    [expandedStringifiedPaths, focusedPath, hydrated, record],
+      measurePerfFn("recordRows:build", () => buildRecordRows(record, expandedStringifiedPaths)),
+    [expandedStringifiedPaths, record],
   );
   const displayRows = useMemo(() => buildDisplayRows(rows), [rows]);
   const interactiveRows = useMemo(
@@ -96,11 +81,6 @@ export const JsonTree = memo(function JsonTree({
     setActiveRowId(interactiveRows[0]?.id);
   }, [activeRowId, interactiveIndexById, interactiveRows]);
 
-  useEffect(() => {
-    if (record.status === "preview" && hydrated) {
-      actions.requestFullRecord(record);
-    }
-  }, [actions, hydrated, record]);
   const searchMatchMap = useMemo(() => {
     const map = new Map<string, SearchMatch>();
     for (const match of searchMatches) {
@@ -120,9 +100,9 @@ export const JsonTree = memo(function JsonTree({
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 38,
+    estimateSize: () => rowEstimateSize,
     overscan: 12,
-    measureElement: (element) => element?.getBoundingClientRect().height ?? 38,
+    measureElement: (element) => element?.getBoundingClientRect().height ?? rowEstimateSize,
     enabled: shouldVirtualize,
   });
 
@@ -200,35 +180,7 @@ export const JsonTree = memo(function JsonTree({
   };
 
   useEffect(() => {
-    if (hydrated) {
-      return;
-    }
-
-    const element = cardRef.current;
-    if (!element) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setHydrated(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "900px 0px" },
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [hydrated]);
-
-  useEffect(() => {
     if (!targetsPathInRecord(scrollIntent, record.id)) {
-      return;
-    }
-    if (!hydrated) {
-      setHydrated(true);
       return;
     }
 
@@ -247,18 +199,23 @@ export const JsonTree = memo(function JsonTree({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [scrollIntent, record.id, displayRows, hydrated, shouldVirtualize, rowVirtualizer]);
+  }, [scrollIntent, record.id, displayRows, shouldVirtualize, rowVirtualizer]);
 
   if (record.status === "failed") {
     const errorMeta = record.errorMeta;
     const rawLine = record.rawLine;
     return (
-      <Card id={record.id} className="min-h-[120px] overflow-hidden">
-        <div className="flex flex-col gap-2 border-b border-border px-4 py-[11px] sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-col gap-2 border-b border-border bg-surface-100 px-4 py-[11px] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <span className="font-mono text-[11px] text-text-secondary">#{record.lineNumber}</span>
-            <span className="nf-led is-red" />
-            <Badge variant="danger">{t("error.parseFailed")}</Badge>
+            <span
+              className="size-[7px] shrink-0 rounded-full"
+              style={{ background: "var(--dot-error)" }}
+            />
+            <span className="font-mono text-[10.5px] uppercase tracking-[var(--tracking-tag)] text-error">
+              {t("error.parseFailed")}
+            </span>
             <span className="min-w-0 truncate text-[11px] text-text-secondary">
               {record.summary}
             </span>
@@ -284,16 +241,16 @@ export const JsonTree = memo(function JsonTree({
             </Button>
           </div>
         </div>
-        <CardContent className="flex flex-col gap-2 bg-surface-100 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="danger">
-              <FileWarning className="mr-1 size-3" />
+        <div className="flex flex-col gap-2 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1 text-error">
+              <FileWarning className="size-3" />
               {t("error.parseFailed")}
-            </Badge>
+            </span>
             {errorMeta ? (
-              <Badge>
+              <span className="rounded-sm border border-border px-1.5 py-0.5 text-text-secondary">
                 {t("error.location", { line: errorMeta.line, column: errorMeta.column })}
-              </Badge>
+              </span>
             ) : null}
           </div>
           <div className="min-w-0 break-words font-mono text-[11px] leading-5 text-text-secondary">
@@ -301,13 +258,13 @@ export const JsonTree = memo(function JsonTree({
           </div>
           {errorMeta ? (
             <div className="flex flex-col gap-1.5">
-              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
                 {t("error.rawLine")}
               </div>
               <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all border border-border bg-surface-100 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">
                 {rawLine}
               </pre>
-              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
                 {t("error.context")}
               </div>
               <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all border border-border bg-surface-100 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">
@@ -315,149 +272,90 @@ export const JsonTree = memo(function JsonTree({
               </pre>
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card
-      ref={cardRef}
-      id={record.id}
-      className="scroll-mt-28 overflow-hidden [contain-intrinsic-size:480px] [content-visibility:auto]"
+    <div
+      ref={parentRef}
+      data-tree-scroller
+      className="group/tree min-h-0 flex-1 overflow-auto py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+      role="tree"
+      aria-label={record.summary}
+      aria-activedescendant={activeRowId}
+      tabIndex={0}
+      onKeyDown={handleTreeKeyDown}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-[11px]">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="shrink-0 font-mono text-[11px] text-text-secondary">
-              #{record.lineNumber}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="nf-led is-green is-static" />
-              <Badge variant="success" translate="no">
-                ok
-              </Badge>
-            </span>
-            <span className="min-w-0 truncate text-[13px] text-text-primary">
-              {insight?.title ?? record.summary}
-            </span>
-            <span className="shrink-0 font-mono text-[10px] text-text-muted">
-              {t("tree.nodes", { count: rows.length })}
-            </span>
-            {focusedPath ? (
-              <span className="inline-flex min-w-0 items-center gap-1 border border-accent bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] text-accent">
-                <Focus className="size-3 shrink-0" />
-                <span className="truncate">{t("tree.focused", { path: focusedPath })}</span>
-              </span>
-            ) : null}
-          </div>
-          {insight ? <RecordInsightSummary insight={insight} /> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {focusedPath ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={actions.clearFocus}
-            >
-              <Undo2 className="size-3.5" />
-              {t("tree.exitFocus")}
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="uq-icon-button h-7 w-7 px-0"
-            onClick={() => actions.copyRecord(record)}
-            aria-label={t("tree.copyRecord")}
-          >
-            <Copy className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-      <div
-        ref={parentRef}
-        className="group/tree max-h-[560px] overflow-auto bg-surface-100 py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-        role="tree"
-        aria-label={record.summary}
-        aria-activedescendant={activeRowId}
-        tabIndex={0}
-        onKeyDown={handleTreeKeyDown}
-      >
-        {!hydrated ? (
-          <div className="flex h-[200px] items-center justify-center px-6 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
-            {t("tree.scrollHint")}
-          </div>
-        ) : null}
-        {hydrated && shouldVirtualize ? (
-          <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const row = displayRows[virtualRow.index];
-              if (!row) {
-                return null;
-              }
+      {shouldVirtualize ? (
+        <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = displayRows[virtualRow.index];
+            if (!row) {
+              return null;
+            }
 
-              const searchMatch =
-                row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
-              const isSelected = selectedPath
-                ? isPathWithin(row.source.pathText, selectedPath)
-                : false;
-              const isSelectedAnchor = selectedPath === row.source.pathText;
+            const searchMatch =
+              row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
+            const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
+            const isSelected = selectedPath
+              ? isPathWithin(row.source.pathText, selectedPath)
+              : false;
+            const isSelectedAnchor = selectedPath === row.source.pathText;
 
-              return (
-                <RowItem
-                  key={row.id}
-                  row={row}
-                  virtualized
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
-                  measureRef={(node) => {
-                    if (node) {
-                      rowVirtualizer.measureElement(node);
-                    }
-                  }}
-                  searchMatch={searchMatch}
-                  isActiveMatch={isActive}
-                  isSelected={isSelected}
-                  isSelectedAnchor={isSelectedAnchor}
-                  isActiveDescendant={row.id === activeRowId}
-                  onSelectNode={selectNode}
-                  onActivate={setActiveRowId}
-                  onTogglePath={toggleRow}
-                />
-              );
-            })}
-          </div>
-        ) : hydrated ? (
-          <div>
-            {displayRows.map((row) => {
-              const searchMatch =
-                row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
-              const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
-              const isSelected = selectedPath
-                ? isPathWithin(row.source.pathText, selectedPath)
-                : false;
-              const isSelectedAnchor = selectedPath === row.source.pathText;
-              return (
-                <RowItem
-                  key={row.id}
-                  row={row}
-                  searchMatch={searchMatch}
-                  isActiveMatch={isActive}
-                  isSelected={isSelected}
-                  isSelectedAnchor={isSelectedAnchor}
-                  isActiveDescendant={row.id === activeRowId}
-                  onSelectNode={selectNode}
-                  onActivate={setActiveRowId}
-                  onTogglePath={toggleRow}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
-    </Card>
+            return (
+              <RowItem
+                key={row.id}
+                row={row}
+                virtualized
+                virtualIndex={virtualRow.index}
+                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                measureRef={(node) => {
+                  if (node) {
+                    rowVirtualizer.measureElement(node);
+                  }
+                }}
+                searchMatch={searchMatch}
+                isActiveMatch={isActive}
+                isSelected={isSelected}
+                isSelectedAnchor={isSelectedAnchor}
+                isActiveDescendant={row.id === activeRowId}
+                onSelectNode={selectNode}
+                onActivate={setActiveRowId}
+                onTogglePath={toggleRow}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          {displayRows.map((row) => {
+            const searchMatch =
+              row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
+            const isActive = row.kind !== "close" && activeMatchPath === row.source.pathText;
+            const isSelected = selectedPath
+              ? isPathWithin(row.source.pathText, selectedPath)
+              : false;
+            const isSelectedAnchor = selectedPath === row.source.pathText;
+            return (
+              <RowItem
+                key={row.id}
+                row={row}
+                searchMatch={searchMatch}
+                isActiveMatch={isActive}
+                isSelected={isSelected}
+                isSelectedAnchor={isSelectedAnchor}
+                isActiveDescendant={row.id === activeRowId}
+                onSelectNode={selectNode}
+                onActivate={setActiveRowId}
+                onTogglePath={toggleRow}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 });
 
@@ -513,6 +411,7 @@ interface RowItemProps {
   onActivate: (rowId: string) => void;
   onTogglePath: (row: DisplayTreeRow) => void;
   virtualized?: boolean;
+  virtualIndex?: number;
   style?: CSSProperties;
   measureRef?: (node: HTMLDivElement | null) => void;
 }
@@ -528,6 +427,7 @@ const RowItem = memo(function RowItem({
   onActivate,
   onTogglePath,
   virtualized = false,
+  virtualIndex,
   style,
   measureRef,
 }: RowItemProps) {
@@ -536,23 +436,33 @@ const RowItem = memo(function RowItem({
     row.kind === "value" && searchMatch?.valueRanges.length
       ? clampRanges(searchMatch.valueRanges, row.valueText.length)
       : [];
-  const rowTone = isSelected
-    ? "bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)]"
-    : isActiveMatch
-      ? "bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] shadow-[inset_2px_0_0_var(--color-accent)]"
-      : searchMatch
-        ? "bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]"
-        : "hover:bg-surface-200";
-  const anchorTone = isSelectedAnchor ? "shadow-[inset_2px_0_0_var(--color-accent)]" : "";
+  const rowTone = isActiveMatch
+    ? "bg-accent-soft"
+    : searchMatch
+      ? "bg-[color-mix(in_srgb,var(--color-accent)_6%,transparent)]"
+      : isSelected
+        ? "bg-surface-50"
+        : "hover:bg-surface-50";
+  // The accent bar marks the active match; the muted bar marks the region an
+  // escaped payload was unwrapped into, so it reads as one attached block.
+  const railTone =
+    isActiveMatch || isSelectedAnchor
+      ? "shadow-[inset_3px_0_0_var(--color-accent)]"
+      : source.insideStringified
+        ? "shadow-[inset_3px_0_0_var(--color-border-medium)]"
+        : "";
   const activeDescendantTone = isActiveDescendant
     ? "group-focus-visible/tree:outline group-focus-visible/tree:outline-1 group-focus-visible/tree:-outline-offset-1 group-focus-visible/tree:outline-accent"
     : "";
 
+  // `uq-row-in` stays off the virtualized branch: windowed rows remount on every
+  // scroll step, which would replay the entrance animation continuously.
   return (
     <div
       ref={measureRef}
       id={row.id}
-      className={`group ${virtualized ? "absolute left-0 top-0" : ""} flex w-full ${row.kind === "close" ? "cursor-default" : "cursor-pointer"} items-start px-3 ${rowTone} ${anchorTone} ${activeDescendantTone}`}
+      data-index={virtualIndex}
+      className={`group ${virtualized ? "absolute left-0 top-0" : "uq-row-in"} flex min-h-[24px] w-full ${row.kind === "close" ? "cursor-default" : "cursor-pointer"} items-start px-4 ${rowTone} ${railTone} ${activeDescendantTone}`}
       style={style}
       onClick={(event) => {
         if (row.kind === "close") {

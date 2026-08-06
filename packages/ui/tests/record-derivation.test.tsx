@@ -59,15 +59,19 @@ describe("record derivation", () => {
     expect(derived.overview).toEqual(createFileOverview(records));
   });
 
-  it("keeps the overview error entry for unparsed lines out of the insight map", () => {
+  it("keeps unparsed lines out of the insight map and counts them as failed", () => {
     const records = parseRecords(["not-json"]);
 
     const derived = updateRecordDerivations(records, createRecordDerivationState());
 
     expect(derived.insights.size).toBe(0);
-    expect(derived.overview.errors).toEqual([
-      expect.objectContaining({ recordId: "record-1", lineNumber: 1 }),
-    ]);
+    expect(derived.overview).toEqual({
+      total: 1,
+      success: 0,
+      failed: 1,
+      nestedRecords: 0,
+      maxDepth: 0,
+    });
   });
 
   it("derives Preview Records without a full node tree", () => {

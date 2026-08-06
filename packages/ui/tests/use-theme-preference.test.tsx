@@ -20,7 +20,7 @@ describe("useThemePreference", () => {
     localStorage.clear();
     document.documentElement.classList.remove("dark");
     document.documentElement.style.colorScheme = "";
-    document.head.innerHTML = '<meta name="theme-color" content="#f2f2ef" />';
+    document.head.innerHTML = '<meta name="theme-color" content="#f4f5f6" />';
     systemMatches = false;
     changeListener = null;
     Object.defineProperty(window, "matchMedia", {
@@ -38,7 +38,7 @@ describe("useThemePreference", () => {
     expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
       "content",
-      "#000000",
+      "#0d0f11",
     );
   });
 
@@ -87,7 +87,7 @@ describe("useThemePreference", () => {
     expect(document.documentElement).toHaveStyle({ colorScheme: "light" });
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
       "content",
-      "#f2f2ef",
+      "#f4f5f6",
     );
   });
 
@@ -138,7 +138,7 @@ describe("useThemePreference", () => {
     expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
       "content",
-      "#000000",
+      "#0d0f11",
     );
 
     unmount();

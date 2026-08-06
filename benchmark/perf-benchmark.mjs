@@ -115,7 +115,12 @@ const budgets = {
   completeReadyMsP50: readBudget("UNQUOTE_BENCH_COMPLETE_BUDGET_MS", 3000),
   expandPathReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS", 400),
   expandAllReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS", 800),
-  domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 10000),
+  // Re-derived after the three-column redesign: the N record cards became one
+  // record's tree plus a virtualized rail and a permanently mounted inspector,
+  // which took the observed max across the default fixtures from 5000 to 1375.
+  // Kept at the same ~2x headroom the old 10000 gave, so the gate stays as
+  // sensitive as it was.
+  domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 3000),
   jsHeapUsedSizeMBMax: readBudget("UNQUOTE_BENCH_HEAP_BUDGET_MB", 256),
 };
 
@@ -437,7 +442,7 @@ const runRenderFixture = async (client, fixture) => {
         firstRecordReadyMs: firstRecordReady - start,
         completeReadyMs: completeReady - start,
         domNodes: document.getElementsByTagName('*').length,
-        recordCards: document.querySelectorAll('[id^="record-"]:not([id*=":"])').length,
+        railRows: document.querySelectorAll('[data-record-rail] button[aria-pressed]').length,
       }
     }
   )()`;
@@ -504,9 +509,9 @@ const runRenderFixture = async (client, fixture) => {
       }
 
       // Expansion is measured before the search step and restored afterwards:
-      // search populates its own expansion state, which flips the toolbar
-      // control to Collapse All and makes anything measured after it depend on
-      // whether the query happened to match inside stringified JSON.
+      // search populates its own expansion state, which makes anything measured
+      // after it depend on whether the query happened to match inside
+      // stringified JSON.
       const expansionControl = (label) =>
         [...document.querySelectorAll('button')].find(
           (node) => node.textContent?.trim() === label
@@ -521,44 +526,65 @@ const runRenderFixture = async (client, fixture) => {
       const measurementFailures = {}
       const findToggleRow = () =>
         document.querySelector('[data-tree-toggle]')?.closest('[role="treeitem"]') ?? null
-      const outputScroller = (() => {
-        let best = document.scrollingElement ?? document.documentElement
-        let bestOverflow = best.scrollHeight - best.clientHeight
-        for (const node of document.querySelectorAll('div')) {
-          const overflow = node.scrollHeight - node.clientHeight
-          if (overflow <= bestOverflow) continue
-          const overflowY = getComputedStyle(node).overflowY
-          if (overflowY === 'auto' || overflowY === 'scroll') {
-            best = node
-            bestOverflow = overflow
+      // The tree pane owns the scroller the toggle scan walks. The fallback
+      // heuristic picks the largest overflowing div, which on a large fixture
+      // is the record rail (one row per record) rather than one record's tree.
+      const treeScroller = () =>
+        document.querySelector('[data-tree-scroller]') ??
+        (() => {
+          let best = document.scrollingElement ?? document.documentElement
+          let bestOverflow = best.scrollHeight - best.clientHeight
+          for (const node of document.querySelectorAll('div')) {
+            const overflow = node.scrollHeight - node.clientHeight
+            if (overflow <= bestOverflow) continue
+            const overflowY = getComputedStyle(node).overflowY
+            if (overflowY === 'auto' || overflowY === 'scroll') {
+              best = node
+              bestOverflow = overflow
+            }
           }
+          return best
+        })()
+      const railRow = (index) =>
+        document.querySelectorAll('[data-record-rail] button[aria-pressed]')[index] ?? null
+      const scanForToggleRow = async () => {
+        const scroller = treeScroller()
+        scroller.scrollTop = 0
+        await settleFrames()
+        let row = findToggleRow()
+        let scrolledViewports = 0
+        while (!row && scrolledViewports < ${expandPathScrollSteps}) {
+          if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1) {
+            break
+          }
+          scroller.scrollTop += scroller.clientHeight
+          scrolledViewports += 1
+          await settleFrames()
+          row = findToggleRow()
         }
-        return best
-      })()
-      const originalScrollTop = outputScroller.scrollTop
+        return row
+      }
 
       let firstToggleRow = await waitFor(
         'expandable-row',
         findToggleRow,
         ${expandableRowTimeoutMs}
       ).catch(() => null)
-      let scrolledViewports = 0
-      while (!firstToggleRow && scrolledViewports < ${expandPathScrollSteps}) {
-        if (
-          outputScroller.scrollTop + outputScroller.clientHeight >=
-          outputScroller.scrollHeight - 1
-        ) {
-          break
-        }
-        outputScroller.scrollTop += outputScroller.clientHeight
-        scrolledViewports += 1
+      firstToggleRow ??= await scanForToggleRow()
+      // Only the selected record renders a tree now, and only stringified JSON
+      // grows a toggle — which record 1 need not carry (a Codex session_meta
+      // line does not). Walk the mounted rail rows until a record that does
+      // shows up, which is the record the old whole-page scan would have found.
+      let scannedRecords = 1
+      while (!firstToggleRow && railRow(scannedRecords)) {
+        railRow(scannedRecords).click()
+        scannedRecords += 1
         await settleFrames()
-        firstToggleRow = findToggleRow()
+        firstToggleRow = await scanForToggleRow()
       }
       if (!firstToggleRow) {
         measurementFailures.expandPathReadyMs =
-          'no [data-tree-toggle] row within ' + scrolledViewports + ' scrolled viewports of ' +
-          outputScroller.tagName + '.' + (outputScroller.className || '(no class)')
+          'no [data-tree-toggle] row in ' + scannedRecords + ' rail records'
       }
 
       let expandPathReadyMs = null
@@ -577,25 +603,28 @@ const runRenderFixture = async (client, fixture) => {
 
       // domNodes is sampled from the default view, so the scan above gives back
       // the scroll position it borrowed.
-      outputScroller.scrollTop = originalScrollTop
+      treeScroller().scrollTop = 0
       await settleFrames()
 
-      // Expand All applies one expansion write per visible record — a
+      // Expand All applies one expansion write per stringified node — a
       // different path from the single toggle above, and the one that
-      // regressed to O(n^2) in UQ-113. The control carries no aria-label, but
-      // its text doubles as its current state.
+      // regressed to O(n^2) in UQ-113. Its scope narrowed with the redesign
+      // from every visible record to the displayed one, so values recorded
+      // before that are not comparable with the ones recorded after.
+      // Expand All and Collapse All now render side by side, so their presence
+      // no longer reports the expansion state; data-expanded-nested does.
       let expandAllReadyMs = null
       if (!expansionControl('Expand All')) {
         measurementFailures.expandAllReadyMs = 'no "Expand All" control was rendered'
       } else {
         const expandAllStart = performance.now()
         expansionControl('Expand All').click()
-        await waitFor('expand-all', () => expansionControl('Collapse All'))
+        await waitFor('expand-all', () => Number(shell.dataset.expandedNested) > 0)
         await settleFrames()
         expandAllReadyMs = performance.now() - expandAllStart
 
         expansionControl('Collapse All').click()
-        await waitFor('collapse-all', () => expansionControl('Expand All'))
+        await waitFor('collapse-all', () => Number(shell.dataset.expandedNested) === 0)
         await settleFrames()
       }
 
@@ -626,37 +655,29 @@ const runRenderFixture = async (client, fixture) => {
         searchReadyMs = performance.now() - searchStart
       }
 
-      // Large fixtures auto-collapse the source panel (see app.tsx sourceCollapsed),
-      // which unmounts TocPane entirely. Re-expand it so the TOC's per-record DOM
-      // cost (currently unvirtualized) is captured by domNodes/recordCards below.
-      const sourceExpandButton = document.querySelector('button[aria-label="Expand source"]')
-      let tocReadyMs = null
-      if (sourceExpandButton) {
-        const tocStart = performance.now()
-        sourceExpandButton.click()
-        await waitFor('toc-ready', () => {
-          const heading = [...document.querySelectorAll('h2, h3')].find(
-            (node) => node.textContent === 'Records'
-          )
-          const tocContent = heading?.parentElement?.parentElement?.nextElementSibling
-          return (tocContent?.querySelectorAll('button[aria-pressed]').length ?? 0) > 0
-        })
-        await settleFrames()
-        tocReadyMs = performance.now() - tocStart
-      }
+      // The rail replaced the TOC as the per-record navigation surface. It is
+      // already mounted by this point, so this reports the settle time after
+      // the search step rather than a cold mount.
+      const railStart = performance.now()
+      await waitFor(
+        'rail-ready',
+        () => document.querySelectorAll('[data-record-rail] button[aria-pressed]').length > 0
+      )
+      await settleFrames()
+      const railReadyMs = performance.now() - railStart
 
       // domNodes is budgeted against the default mostly-collapsed view, which
       // is why the expansion steps above restore their state before returning.
       const domNodes = document.getElementsByTagName('*').length
-      const recordCards = document.querySelectorAll('[id^="record-"]:not([id*=":"])').length
+      const railRows = document.querySelectorAll('[data-record-rail] button[aria-pressed]').length
 
       return {
         searchReadyMs,
         expandPathReadyMs,
         expandAllReadyMs,
-        tocReadyMs,
+        railReadyMs,
         domNodes,
-        recordCards,
+        railRows,
         measurementFailures,
       }
     }
@@ -679,7 +700,7 @@ const runRenderFixture = async (client, fixture) => {
     ...settled,
     ...interaction,
     domNodes: Math.max(settled.domNodes, interaction.domNodes),
-    recordCards: Math.max(settled.recordCards, interaction.recordCards),
+    railRows: Math.max(settled.railRows, interaction.railRows),
     layoutCount: interactionMetrics.LayoutCount,
     recalcStyleCount: interactionMetrics.RecalcStyleCount,
     taskDurationMs: interactionMetrics.TaskDuration * 1000,
@@ -704,8 +725,9 @@ const benchmarkRender = async (fixturesInfo) => {
     "--lang=en-US",
     "--no-first-run",
     "--no-default-browser-check",
-    // TocPane only renders at the Tailwind `lg` breakpoint (>=1024px); force a
-    // wide window so the source-panel expand + TOC render steps are reachable.
+    // The workspace only lays out as three columns at the Tailwind `lg`
+    // breakpoint (>=1024px); force a wide window so the rail and the node
+    // inspector are measured alongside the tree.
     "--window-size=1440,900",
     "about:blank",
   ];
@@ -774,9 +796,9 @@ const benchmarkRender = async (fixturesInfo) => {
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
           expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
           expandAllReadyMs: summarize(runs.map((run) => run.expandAllReadyMs)),
-          tocReadyMs: summarize(runs.map((run) => run.tocReadyMs)),
+          railReadyMs: summarize(runs.map((run) => run.railReadyMs)),
           domNodes: summarize(runs.map((run) => run.domNodes)),
-          recordCards: summarize(runs.map((run) => run.recordCards)),
+          railRows: summarize(runs.map((run) => run.railRows)),
           layoutCount: summarize(runs.map((run) => run.layoutCount)),
           recalcStyleCount: summarize(runs.map((run) => run.recalcStyleCount)),
           taskDurationMs: summarize(runs.map((run) => run.taskDurationMs)),

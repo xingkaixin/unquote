@@ -4,11 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { ContainerCandidate, FieldCandidate } from "../src/lib/field-extraction";
 import { walkRecordFields } from "../src/lib/field-extraction";
 
-const walk = (record: JsonlRecord, trackNestedPaths = false) => {
+const walk = (record: JsonlRecord) => {
   const fields: FieldCandidate[] = [];
   const containers: ContainerCandidate[] = [];
   const metrics = walkRecordFields(record, {
-    trackNestedPaths,
     onField: (candidate) =>
       fields.push({ ...candidate, pathSegments: [...candidate.pathSegments] }),
     onContainer: (candidate) =>
@@ -72,22 +71,11 @@ describe("field-extraction", () => {
     expect(byKey("stack").getChildValue(fallbackKeys)).toBeNull();
   });
 
-  it("tracks nested-JSON metrics without a path map unless trackNestedPaths is set", () => {
+  it("counts every stringified node in nestedCount", () => {
     const record = parseInput('{"payload":"{\\"nested\\":true}","other":"{\\"n\\":1}"}')
       .records[0]!;
 
-    const bare = walk(record, false).metrics;
-    expect(bare.nestedCount).toBe(2);
-    expect(bare.nestedPaths.size).toBe(0);
-
-    const tracked = walk(record, true).metrics;
-    expect(tracked.nestedCount).toBe(2);
-    expect([...tracked.nestedPaths]).toEqual(
-      expect.arrayContaining([
-        ["$.payload", 1],
-        ["$.other", 1],
-      ]),
-    );
+    expect(walk(record).metrics.nestedCount).toBe(2);
   });
 
   it("computes maxDepth across the full tree, unaffected by candidate dispatch", () => {
@@ -116,7 +104,7 @@ describe("field-extraction", () => {
       summary: "event:tool_call",
     } satisfies JsonlRecord;
 
-    const { fields, containers, metrics } = walk(record, true);
+    const { fields, containers, metrics } = walk(record);
 
     expect(fields).toEqual(
       expect.arrayContaining([
@@ -133,8 +121,7 @@ describe("field-extraction", () => {
     ]);
     // Preview containers carry no child data to inspect.
     expect(containers[0]!.getChildValue(["message"])).toBeNull();
-    expect(metrics).toMatchObject({ maxDepth: 1, nestedCount: 1 });
-    expect([...metrics.nestedPaths]).toEqual([["$.payload", 1]]);
+    expect(metrics).toEqual({ maxDepth: 1, nestedCount: 1 });
   });
 
   it("does nothing for a record with neither a node nor a preview", () => {
@@ -143,6 +130,6 @@ describe("field-extraction", () => {
 
     expect(fields).toEqual([]);
     expect(containers).toEqual([]);
-    expect(metrics).toEqual({ maxDepth: 0, nestedCount: 0, nestedPaths: new Map() });
+    expect(metrics).toEqual({ maxDepth: 0, nestedCount: 0 });
   });
 });

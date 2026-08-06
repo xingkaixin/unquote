@@ -32,6 +32,7 @@ const makeRow = (
   keyLabel: "$",
   valueLabel: "",
   wasStringified: false,
+  insideStringified: false,
   expanded: false,
   node: makeNode(overrides.kind),
   ...overrides,

@@ -1,20 +1,17 @@
 import { materializeNode } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { toast } from "sonner";
-import { PanelLeftOpen, Store } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { AppHeader } from "./components/app-header";
 import { CommandPalette } from "./components/command-palette";
-import { FileOverview } from "./components/file-overview";
-import { InputPane } from "./components/input-pane";
-import type { SourceParseError } from "./components/input-pane";
+import { ImportDialog } from "./components/import-dialog";
 import { AgentSessionView } from "./components/agent-session-view";
-import { LocaleToggle } from "./components/locale-toggle";
-import { RecordList } from "./components/record-list";
+import { JsonWorkspace } from "./components/json-workspace";
 import { Toaster } from "./components/sonner";
-import { ThemeToggle } from "./components/theme-toggle";
-import { TocPane } from "./components/toc-pane";
-import { Toolbar } from "./components/toolbar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
+import { SourceImportPanel } from "./components/source-import-panel";
+import type { SourceSampleOption } from "./components/source-import-panel";
+import { StatusBar } from "./components/status-bar";
+import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
@@ -28,50 +25,18 @@ import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { formatFileSize } from "./lib/format";
-import { isArrayElementPath } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
+import { narrowPathToRecord } from "./lib/record-view";
 import type { SearchMatch } from "./lib/record-search";
-import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
+import type { RecordViewActions } from "./lib/record-view";
+import { formatSelectionCopy, resolveSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
-import { resolveTreePath } from "./lib/tree-path";
-
-import type { SelectedPath } from "./hooks/use-workspace-session";
-
-const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
-  const valueText = JSON.stringify(value, null, 2);
-  if (selection.rawKey === "$" || isArrayElementPath(selection.pathText)) {
-    return valueText;
-  }
-
-  return `${JSON.stringify(selection.rawKey)}: ${valueText}`;
-};
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
 const noSearchMatches: SearchMatch[] = [];
-
-interface ExtensionStoreLinkProps {
-  href: string;
-  label: string;
-}
-
-const ExtensionStoreLink = ({ href, label }: ExtensionStoreLinkProps) => (
-  <a
-    href={href}
-    target="_blank"
-    rel="noreferrer"
-    aria-label={label}
-    title={label}
-    className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
-  >
-    <Store className="size-3.5" />
-    <span className="hidden sm:inline" aria-hidden="true">
-      {label}
-    </span>
-  </a>
-);
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -85,8 +50,7 @@ export const UnquoteApp = ({
   edgeAddonsUrl,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const isDesktopWorkspace = useDesktopWorkspace();
-  const [sourceCollapsed, setSourceCollapsed] = useState(false);
+  const isDesktop = useDesktopWorkspace();
   const {
     mode,
     setMode,
@@ -98,10 +62,7 @@ export const UnquoteApp = ({
     sourceRevision,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
-  } = useSourceLoader({
-    initialInput,
-    onCollapseSource: () => setSourceCollapsed(true),
-  });
+  } = useSourceLoader({ initialInput });
   const workspace = useWorkspaceSession(sourceRevision);
   const {
     activeRecordId,
@@ -109,13 +70,11 @@ export const UnquoteApp = ({
     expandedPaths: expandedStringifiedPathsByRecord,
     searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
     selectedPath,
-    focusedPath,
     scrollIntent,
   } = workspace.state;
-  const selectedRecordId = detailSelection?.recordId ?? null;
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const outputRef = useRef<HTMLDivElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const forcedFormat = sourceAccess ? "jsonl" : mode === "auto" ? undefined : mode;
   const {
     sourceRevision: resultRevision,
@@ -129,7 +88,7 @@ export const UnquoteApp = ({
     sourceAccess,
     sourceRevision,
   });
-  const hasMultipleJsonlRecords = result.format === "jsonl" && result.records.length > 1;
+  const hasData = Boolean(sourceAccess || importedFile) || sourceText.trim().length > 0;
 
   const translateError = useCallback(
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
@@ -161,32 +120,18 @@ export const UnquoteApp = ({
     mode: queryMode,
     searchStatus,
     searchErrorKind,
+    fileOverview,
     recordInsights,
     recordsById,
     visibleRecords,
     visibleStats,
-    fileOverview,
     visibleMatches,
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
   const { outputView, setOutputView } = useOutputView(agentSession);
 
-  const sourceParseError = useMemo<SourceParseError | null>(() => {
-    const record = result.records[0];
-    if (result.format !== "json" || result.stats.failed !== 1 || !record?.errorMeta) {
-      return null;
-    }
-
-    return {
-      message: record.error ?? t("error.parseFailed"),
-      line: record.errorMeta.line,
-      column: record.errorMeta.column,
-      context: record.errorMeta.context,
-      format: formatParseMode(result.format),
-    };
-  }, [result, t]);
-  const sampleOptions = useMemo(
+  const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
       {
         id: "escaped-api-response",
@@ -235,38 +180,40 @@ export const UnquoteApp = ({
       ),
     [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
   );
-  const hasExpandedVisibleStringifiedPaths = useMemo(() => {
-    let hasAny = false;
-    for (const paths of displayedExpandedStringifiedPathsByRecord.values()) {
-      if (paths.size > 0) {
-        hasAny = true;
-        break;
-      }
-    }
-    if (!hasAny) return false;
-    // Expansion maps can retain entries for record ids no longer in
-    // visibleRecords (e.g. use-source-loader's setSourceMode switches
-    // auto/json/jsonl for a text source without resetting expansion state),
-    // so a non-empty map entry doesn't guarantee a visible match — always
-    // check against visibleRecords rather than short-circuiting.
-    return visibleRecords.some(
-      (record) =>
-        getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id).size > 0,
-    );
-  }, [displayedExpandedStringifiedPathsByRecord, visibleRecords]);
+  // Same rule as reconcileWorkspaceSelection's fallback, applied during render:
+  // the reducer only catches up in an effect, which would otherwise leave the
+  // workspace record-less for the first paint of every parse.
+  const activeRecord = useMemo(
+    () =>
+      visibleRecords.find((record) => record.id === activeRecordId) ?? visibleRecords[0] ?? null,
+    [activeRecordId, visibleRecords],
+  );
+  const displayedRecordId = activeRecord?.id ?? "";
+  const expandedNestedCount = getExpandedStringifiedPaths(
+    displayedExpandedStringifiedPathsByRecord,
+    displayedRecordId,
+  ).size;
 
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
     setCommandPaletteOpen(true);
   }, [queryIntent]);
 
-  const handleSampleSelect = (sample: {
-    value: string;
-    expandedPathsByRecord: readonly { recordId: string; paths: readonly string[] }[];
-  }) => {
+  const commitSource = (text: string) => {
+    handleSourceChange(text);
+    setImportOpen(false);
+  };
+
+  const importFile = (file: File) => {
+    void handleFileDrop(file);
+    setImportOpen(false);
+  };
+
+  const handleSampleSelect = (sample: SourceSampleOption) => {
     setMode("auto");
     const nextRevision = handleSourceChange(sample.value);
     workspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
+    setImportOpen(false);
   };
 
   const {
@@ -294,80 +241,97 @@ export const UnquoteApp = ({
       copyError: onCopyRecordError,
       selectNode: workspace.selectNode,
       requestFullRecord: localFileSource.requestFullRecord,
-      clearFocus: workspace.clearFocus,
     }),
     [
       localFileSource.requestFullRecord,
       onCopyRawLine,
       onCopyRecord,
       onCopyRecordError,
-      workspace.clearFocus,
       workspace.selectNode,
       workspace.togglePath,
     ],
   );
-  const recordView = useMemo<RecordViewModel>(
-    () => ({
-      state: {
-        recordInsights,
-        resolveRecord: localFileSource.resolveRecord,
-        expandedStringifiedPathsByRecord: displayedExpandedStringifiedPathsByRecord,
-        selectedPath,
-        focusedPath,
-      },
-      actions: recordViewActions,
-    }),
-    [
-      displayedExpandedStringifiedPathsByRecord,
-      focusedPath,
-      localFileSource.resolveRecord,
-      recordInsights,
-      recordViewActions,
-      selectedPath,
-    ],
+  const renderedActiveRecord = useMemo(
+    () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
+    [activeRecord, localFileSource.resolveRecord],
   );
-
-  const handleExpandAll = () => {
-    // Expand from the Full Record where one exists: a Preview Record only lists
-    // top-level nested fields, so stringified JSON sitting
-    // under a plain container would otherwise be unreachable from here.
-    workspace.expandAll(
-      visibleRecords.map(localFileSource.resolveRecord),
-      displayedExpandedStringifiedPathsByRecord,
-    );
-  };
-
-  const handleCollapseAll = () => {
-    workspace.collapseAll(visibleRecords.map((record) => record.id));
-  };
-
-  const getSelectedNodeContext = async () => {
-    if (!selectedPath) {
+  const turnIndexByRecordId = useMemo(() => {
+    if (!agentSession) {
       return null;
     }
 
-    const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
-    const [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
-    const resolved = copyRecord?.node ? resolveTreePath([copyRecord], selectedPath.pathText) : null;
-
-    return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
-  };
-
-  const handleCopySelectedSubtree = () =>
-    copyText(async () => {
-      let context: Awaited<ReturnType<typeof getSelectedNodeContext>>;
-      try {
-        context = await getSelectedNodeContext();
-      } catch {
-        toast.error(t("input.readFailed"));
-        return null;
+    const turnIndexes = new Map<string, number>();
+    for (const event of agentSession.events) {
+      if (event.turnIndex !== undefined && !turnIndexes.has(event.recordId)) {
+        turnIndexes.set(event.recordId, event.turnIndex);
       }
-      if (!context || !selectedPath) {
-        return null;
+    }
+    return turnIndexes;
+  }, [agentSession]);
+  const visibleMatchesByRecord = useMemo(() => {
+    const matchesByRecord = new Map<string, SearchMatch[]>();
+    for (const match of visibleMatches ?? []) {
+      const matches = matchesByRecord.get(match.recordId);
+      if (matches) {
+        matches.push(match);
+      } else {
+        matchesByRecord.set(match.recordId, [match]);
       }
+    }
+    return matchesByRecord;
+  }, [visibleMatches]);
 
-      return formatSelectionCopy(selectedPath, materializeNode(context.target.node));
-    });
+  // Expansion is scoped to the record on screen: a Preview Record only lists
+  // top-level nested fields, so expand from the Full Record where one exists or
+  // stringified JSON under a plain container stays unreachable from here.
+  const handleExpandAll = useCallback(() => {
+    workspace.expandAll(
+      renderedActiveRecord ? [renderedActiveRecord] : [],
+      displayedExpandedStringifiedPathsByRecord,
+    );
+  }, [displayedExpandedStringifiedPathsByRecord, renderedActiveRecord, workspace.expandAll]);
+
+  const handleCollapseAll = useCallback(() => {
+    workspace.collapseAll(activeRecord ? [activeRecord.id] : []);
+  }, [activeRecord, workspace.collapseAll]);
+
+  const handleCopySelectedSubtree = useCallback(
+    () =>
+      copyText(async () => {
+        if (!selectedPath) {
+          return null;
+        }
+
+        const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
+        let copyRecord: JsonlRecord | undefined;
+        try {
+          [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
+        } catch {
+          toast.error(t("input.readFailed"));
+          return null;
+        }
+
+        const resolved = copyRecord ? resolveSelectedNode(copyRecord, selectedPath) : null;
+        return resolved ? formatSelectionCopy(selectedPath, materializeNode(resolved.node)) : null;
+      }),
+    [copyText, localFileSource.resolveRecords, result.records, selectedPath, t],
+  );
+
+  const handleOpenRecord = useCallback(
+    (recordId: string) => {
+      setOutputView("json");
+      const record = recordsById.get(recordId);
+      if (record) {
+        workspace.selectRecord(record);
+      }
+    },
+    [recordsById, setOutputView, workspace.selectRecord],
+  );
+
+  const handleCopySelectedPath = useCallback(
+    () => copyText(async () => selectedPath?.pathText ?? null),
+    [copyText, selectedPath],
+  );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
   // hook (listener mounts once), so this array can be a fresh literal every
@@ -377,6 +341,10 @@ export const UnquoteApp = ({
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
       allowInTextEditing: true,
       handler: () => {
+        if (importOpen) {
+          return false;
+        }
+
         handleOpenCommandPalette();
       },
     },
@@ -406,16 +374,6 @@ export const UnquoteApp = ({
       },
     },
   ]);
-
-  const handleOverviewErrorSelect = (recordId: string) => {
-    const record = result.records.find((candidate) => candidate.id === recordId);
-    if (!record) {
-      return;
-    }
-
-    queryIntent.setFilter("errors");
-    workspace.selectRecord(record);
-  };
 
   const statusFile = sourceAccess ?? importedFile;
   const sourceFileStatus = readingFile
@@ -461,131 +419,102 @@ export const UnquoteApp = ({
     ],
   );
   const toolbarInPathMode = queryMode === "path";
-  const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
-  const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
-  // When the source pane is collapsed, its expand affordance relocates into the
-  // output's top row instead of reserving a full-height column. Desktop-only:
-  // the mobile layout never uses the collapse.
-  const expandSourceControl = sourceCollapsed ? (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className="uq-icon-button hidden size-7 shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
-            onClick={() => setSourceCollapsed(false)}
-            aria-label={t("input.expandSource")}
-          >
-            <PanelLeftOpen className="size-3.5" />
-          </button>
-        }
-      />
-      <TooltipContent>{t("input.expandSource")}</TooltipContent>
-    </Tooltip>
-  ) : null;
-  const jsonOutput = (
-    <div ref={outputRef} className="flex flex-col gap-3">
-      <Toolbar
-        leading={agentSession ? null : expandSourceControl}
-        summary={toolbarSummary}
-        query={toolbarQuery}
-        matchCount={toolbarMatchCount}
-        currentMatchIndex={toolbarMatchIndex}
-        onQueryChange={queryIntent.changeToolbarQuery}
-        onSubmitQuery={queryIntent.submitToolbarQuery}
-        onPrevMatch={queryIntent.previousResult}
-        onNextMatch={queryIntent.nextResult}
-        onClearQuery={queryIntent.clearToolbarQuery}
-        onOpenCommandPalette={handleOpenCommandPalette}
-        onCopyJsonl={onCopyJsonl}
-        onCopyFormattedJson={onCopyFormattedJson}
-        onExportJsonl={onExportJsonl}
-        onExportFormattedJson={onExportFormattedJson}
-        onExpandAll={handleExpandAll}
-        onCollapseAll={handleCollapseAll}
-        hasExpandedStringified={hasExpandedVisibleStringifiedPaths}
-      />
-      {fileOverview.total > 0 ? (
-        <FileOverview
-          overview={fileOverview}
-          format={result.format}
-          visibleCount={visibleStats.total}
-          onSelectNestedPath={queryIntent.selectOverviewPath}
-          onSearchFieldValue={queryIntent.searchOverviewFieldValue}
-          onSelectError={handleOverviewErrorSelect}
-        />
-      ) : null}
-      <RecordList
-        records={visibleRecords}
-        recordView={recordView}
-        searchMatches={visibleMatches ?? noSearchMatches}
-        activeMatch={activeMatch}
-        scrollIntent={scrollIntent}
-        onActiveRecordChange={workspace.reportActiveRecord}
-      />
-    </div>
-  );
-  const output = agentSession ? (
-    <Tabs
-      value={outputView}
-      onValueChange={(value) => setOutputView(value === "agent" ? "agent" : "json")}
-    >
-      <div className="mb-3 flex items-center gap-2">
-        {expandSourceControl}
-        <TabsList>
-          <TabsTrigger value="agent" data-output-tab="agent">
-            {t("app.tab.agent")}
-          </TabsTrigger>
-          <TabsTrigger value="json" data-output-tab="json" translate="no">
-            {formatParseMode(result.format)}
-          </TabsTrigger>
-        </TabsList>
-      </div>
-      <TabsContent value="agent">
-        <AgentSessionView
-          session={agentSession}
-          recordsById={recordsById}
-          recordView={recordView}
-          detailSelection={detailSelection}
-          onDetailSelectionChange={workspace.selectAgentDetail}
-          {...(sourceAccess ? { readRawLine: sourceAccess.readRecordTextByLine } : {})}
-        />
-      </TabsContent>
-      <TabsContent value="json">{jsonOutput}</TabsContent>
-    </Tabs>
-  ) : (
-    jsonOutput
-  );
-  const inputPane = (
-    <InputPane
-      value={sourceText}
+  const importPanel = (textareaClassName: string) => (
+    <SourceImportPanel
+      initialDraft={sourceText}
       mode={mode}
-      onChange={handleSourceChange}
       onModeChange={setMode}
-      sampleOptions={sampleOptions}
+      onCommit={commitSource}
+      onFileDrop={importFile}
+      samples={sampleOptions}
       onSampleSelect={handleSampleSelect}
-      onFileDrop={handleFileDrop}
-      onClear={() => handleSourceChange("")}
-      {...(isDesktopWorkspace
-        ? { onToggleCollapse: () => setSourceCollapsed((current) => !current) }
-        : {})}
-      sourceStatus={sourceFileStatus}
-      sourceBusy={sourceFileBusy}
-      sourceProgress={readingFile ? readProgress : null}
-      sourceError={sourceParseError}
+      textareaClassName={textareaClassName}
     />
+  );
+  const jsonOutput = (
+    <JsonWorkspace
+      isDesktop={isDesktop}
+      filterBar={{
+        mode: recordFilter,
+        onChange: queryIntent.setFilter,
+        shown: visibleStats.total,
+        total: result.stats.total,
+      }}
+      rail={{
+        records: visibleRecords,
+        recordInsights,
+        turnIndexByRecordId,
+        activeRecordId: displayedRecordId,
+        scrollIntent,
+        onSelect: workspace.selectRecord,
+      }}
+      tree={{
+        record: renderedActiveRecord,
+        expandedStringifiedPaths: getExpandedStringifiedPaths(
+          displayedExpandedStringifiedPathsByRecord,
+          displayedRecordId,
+        ),
+        searchMatches: visibleMatchesByRecord.get(displayedRecordId) ?? noSearchMatches,
+        activeMatchPath: narrowPathToRecord(activeMatch, displayedRecordId),
+        scrollIntent,
+        selectedPath: narrowPathToRecord(selectedPath, displayedRecordId),
+        expandedNestedCount,
+        actions: recordViewActions,
+        onExpandAll: handleExpandAll,
+        onCollapseAll: handleCollapseAll,
+      }}
+      inspector={{
+        record: renderedActiveRecord,
+        selectedPath,
+        hasNestedJson: (recordInsights.get(displayedRecordId)?.nestedJsonCount ?? 0) > 0,
+        onCopyValue: handleCopySelectedSubtree,
+        onCopyPath: handleCopySelectedPath,
+        onExpandNested: handleExpandAll,
+      }}
+    />
+  );
+  const output =
+    agentSession && outputView === "agent" ? (
+      <AgentSessionView
+        session={agentSession}
+        isDesktop={isDesktop}
+        detailSelection={detailSelection}
+        onDetailSelectionChange={workspace.selectAgentDetail}
+        onOpenRecord={handleOpenRecord}
+      />
+    ) : (
+      jsonOutput
+    );
+  const emptyState = (
+    <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
+      <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
+        <div className="flex flex-col gap-2.5">
+          <span className="font-mono text-[11px] uppercase tracking-[var(--tracking-tag)] text-accent">
+            {t("empty.eyebrow")}
+          </span>
+          <h2 className="m-0 text-[28px] font-semibold tracking-[-0.02em] text-text-primary">
+            {t("empty.headline")}
+          </h2>
+          <p className="m-0 text-[14px] leading-[23px] text-text-secondary">
+            {t("empty.subtitle")}
+          </p>
+        </div>
+        {importPanel("h-[180px]")}
+      </div>
+    </div>
   );
 
   return (
     <TooltipProvider delay={600} closeDelay={0}>
       <div
-        className="uq-shell pb-8"
+        className="uq-shell"
         data-source-file={sourceAccess?.name ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
         data-output-view={agentSession ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
+        data-expanded-nested={expandedNestedCount}
       >
         <a
           href="#main-content"
@@ -593,66 +522,58 @@ export const UnquoteApp = ({
         >
           {t("app.skipToContent")}
         </a>
-        <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
-          <div className="flex items-center gap-3.5">
-            <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
-              UNQUOTE
-            </h1>
-            <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
-              JSON · JSONL
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            {chromeWebStoreUrl ? (
-              <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />
-            ) : null}
-            {edgeAddonsUrl ? (
-              <ExtensionStoreLink href={edgeAddonsUrl} label={t("app.edge")} />
-            ) : null}
-            <LocaleToggle />
-            <ThemeToggle theme={theme} onChange={setTheme} />
-          </div>
-        </header>
+        <AppHeader
+          enabled={hasData}
+          sourceName={sourceAccess?.name ?? importedFile?.name ?? null}
+          onOpenImport={() => setImportOpen(true)}
+          outputView={agentSession ? outputView : null}
+          jsonTabLabel={formatParseMode(result.format)}
+          onOutputViewChange={setOutputView}
+          search={{
+            query: toolbarQuery,
+            matchCount: toolbarInPathMode ? pathMatches.length : matchCount,
+            currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
+            disabled: !hasData,
+            onQueryChange: queryIntent.changeToolbarQuery,
+            onSubmitQuery: queryIntent.submitToolbarQuery,
+            onClearQuery: queryIntent.clearToolbarQuery,
+            onPrevMatch: queryIntent.previousResult,
+            onNextMatch: queryIntent.nextResult,
+          }}
+          onOpenCommandPalette={handleOpenCommandPalette}
+          theme={theme}
+          onThemeChange={setTheme}
+          copyBlocked={isCopyBlocked}
+          onCopyJsonl={onCopyJsonl}
+          onCopyFormattedJson={onCopyFormattedJson}
+          onExportJsonl={onExportJsonl}
+          onExportFormattedJson={onExportFormattedJson}
+        />
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto flex w-full max-w-[1760px] scroll-mt-[52px] flex-col gap-3 px-4 pb-6 pt-3.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent sm:px-6"
+          className="flex min-h-0 flex-1 flex-col focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         >
-          {isDesktopWorkspace ? (
-            sourceCollapsed ? (
-              <div className="min-w-0">{output}</div>
-            ) : (
-              <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
-                <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
-                  {inputPane}
-                  {hasMultipleJsonlRecords ? (
-                    <TocPane
-                      records={visibleRecords}
-                      recordInsights={recordInsights}
-                      stats={visibleStats}
-                      totalCount={result.stats.total}
-                      activeRecordId={activeRecordId}
-                      selectedRecordId={selectedRecordId}
-                      onSelect={workspace.selectRecord}
-                      onCopyRawLine={onCopyRawLine}
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0">{output}</div>
-              </div>
-            )
-          ) : (
-            <Tabs defaultValue="workspace" className="flex flex-col gap-3">
-              <TabsList>
-                <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
-                <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="workspace">{inputPane}</TabsContent>
-              <TabsContent value="output">{output}</TabsContent>
-            </Tabs>
-          )}
+          {hasData ? output : emptyState}
         </main>
+        <StatusBar
+          summary={hasData ? toolbarSummary : t("status.empty")}
+          failedCount={result.stats.failed}
+          onSelectFailed={() => queryIntent.setFilter("errors")}
+          maxDepth={fileOverview.maxDepth}
+          expandedNestedCount={expandedNestedCount}
+          sourceStatus={sourceFileStatus}
+          sourceBusy={sourceFileBusy}
+          sourceProgress={readingFile ? readProgress : null}
+          hasData={hasData}
+          onClear={() => handleSourceChange("")}
+          {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
+          {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
+        />
+        <ImportDialog open={importOpen} dismissible={hasData} onClose={() => setImportOpen(false)}>
+          {importPanel("h-[220px]")}
+        </ImportDialog>
         <CommandPalette
           open={commandPaletteOpen}
           inputValue={commandInput}

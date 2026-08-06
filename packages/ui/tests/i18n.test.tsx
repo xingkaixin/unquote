@@ -48,7 +48,7 @@ describe("i18n", () => {
   it("translates messages with and without interpolation values", () => {
     const t = createTranslator(en);
 
-    expect(t("input.title")).toBe("Source");
+    expect(t("input.modeLabel")).toBe("Input format");
     expect(t("error.location", { line: 2, column: 4 })).toBe("Line 2, column 4");
   });
 

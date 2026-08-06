@@ -1,13 +1,4 @@
-import {
-  Bot,
-  Brain,
-  CircleAlert,
-  FileJson,
-  Hash,
-  TerminalSquare,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { Bot, Brain, FileJson, TerminalSquare, UserRound, Wrench } from "lucide-react";
 import type { ComponentType } from "react";
 import type { useTranslation } from "../i18n/context";
 import type { Locale } from "../i18n/i18n";
@@ -21,8 +12,6 @@ const timestampFormatters: Record<Locale, Intl.DateTimeFormat> = {
 export interface RoleConfig {
   label: string;
   icon: ComponentType<{ className?: string }>;
-  variant: "default" | "warning" | "success" | "danger";
-  align: "start" | "end";
 }
 
 export const roleConfig = (
@@ -31,44 +20,44 @@ export const roleConfig = (
 ): RoleConfig => {
   switch (role) {
     case "user":
-      return { label: t("agent.role.user"), icon: UserRound, variant: "default", align: "end" };
+      return { label: t("agent.role.user"), icon: UserRound };
     case "assistant":
-      return { label: t("agent.role.assistant"), icon: Bot, variant: "default", align: "start" };
+      return { label: t("agent.role.assistant"), icon: Bot };
     case "thinking":
-      return { label: t("agent.role.thinking"), icon: Brain, variant: "default", align: "start" };
+      return { label: t("agent.role.thinking"), icon: Brain };
     case "tool_call":
-      return { label: t("agent.role.toolCall"), icon: Wrench, variant: "warning", align: "start" };
+      return { label: t("agent.role.toolCall"), icon: Wrench };
     case "tool_result":
-      return {
-        label: t("agent.role.toolResult"),
-        icon: TerminalSquare,
-        variant: "warning",
-        align: "start",
-      };
+      return { label: t("agent.role.toolResult"), icon: TerminalSquare };
     case "system":
-      return { label: t("agent.role.system"), icon: FileJson, variant: "default", align: "start" };
+      return { label: t("agent.role.system"), icon: FileJson };
   }
 };
+
+export interface CategoryConfig {
+  label: string;
+  dot: string;
+}
 
 export const categoryConfig = (
   category: AgentEventCategory,
   t: ReturnType<typeof useTranslation>["t"],
-) => {
+): CategoryConfig => {
   switch (category) {
     case "user":
-      return { label: t("agent.category.user"), icon: UserRound, tone: "text-text-secondary" };
+      return { label: t("agent.category.user"), dot: "var(--dot-message)" };
     case "assistant":
-      return { label: t("agent.category.assistant"), icon: Bot, tone: "text-text-secondary" };
+      return { label: t("agent.category.assistant"), dot: "var(--dot-message)" };
     case "thinking":
-      return { label: t("agent.category.thinking"), icon: Brain, tone: "text-text-secondary" };
+      return { label: t("agent.category.thinking"), dot: "var(--dot-message)" };
     case "tool":
-      return { label: t("agent.category.tool"), icon: Wrench, tone: "text-warning" };
+      return { label: t("agent.category.tool"), dot: "var(--dot-tool)" };
     case "system":
-      return { label: t("agent.category.system"), icon: FileJson, tone: "text-text-muted" };
+      return { label: t("agent.category.system"), dot: "var(--dot-event)" };
     case "meta":
-      return { label: t("agent.category.meta"), icon: Hash, tone: "text-text-muted" };
+      return { label: t("agent.category.meta"), dot: "var(--dot-event)" };
     case "unknown":
-      return { label: t("agent.category.unknown"), icon: CircleAlert, tone: "text-error" };
+      return { label: t("agent.category.unknown"), dot: "var(--dot-error)" };
   }
 };
 
@@ -83,3 +72,17 @@ export const formatTimestamp = (
   }
   return timestampFormatters[locale].format(date);
 };
+
+export const formatEventMeta = (
+  line: number,
+  time: string,
+  turnIndex: number | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
+) =>
+  [
+    t("agent.line", { line }),
+    time,
+    turnIndex === undefined ? "" : t("agent.turn", { turn: turnIndex }),
+  ]
+    .filter(Boolean)
+    .join(" · ");
