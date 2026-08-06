@@ -4,7 +4,7 @@ import { useTranslation } from "../i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
 import type { SourceRevision } from "../lib/source-revision";
 
-const largeSourceCollapseBytes = 1_000_000;
+const largeSourceStreamBytes = 1_000_000;
 
 type SourceMode = "auto" | "json" | "jsonl";
 
@@ -24,10 +24,9 @@ type SourceState =
 
 interface UseSourceLoaderParams {
   initialInput: string;
-  onCollapseSource: () => void;
 }
 
-export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoaderParams) => {
+export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
   const { t } = useTranslation();
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<SourceMode>("auto");
@@ -57,7 +56,7 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
 
   const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
-    file.size > largeSourceCollapseBytes &&
+    file.size > largeSourceStreamBytes &&
     (sourceMode === "jsonl" ||
       (sourceMode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
 
@@ -70,26 +69,18 @@ export const useSourceLoader = ({ initialInput, onCollapseSource }: UseSourceLoa
   const publishStreamingFile = (file: File) => {
     setSourceState({ kind: "streaming", access: createLocalFileAccess(file) });
     publishSourceRevision();
-    onCollapseSource();
   };
 
   const publishImportedFile = (file: File, text: string) => {
     setSourceState({ kind: "imported", file, text });
     publishSourceRevision();
-    if (text.length > largeSourceCollapseBytes) {
-      onCollapseSource();
-    }
   };
 
   const onSourceChange = (value: string) => {
     fileImportIdRef.current += 1;
     abortActiveRead();
     setSourceState({ kind: "text", text: value });
-    const nextRevision = publishSourceRevision();
-    if (value.length > largeSourceCollapseBytes) {
-      onCollapseSource();
-    }
-    return nextRevision;
+    return publishSourceRevision();
   };
 
   const onFileDrop = async (file: File) => {

@@ -64,15 +64,11 @@ const createCountingStreamFile = (name = "counted.json") => {
 };
 
 const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) => {
-  const callbacks = {
-    onCollapseSource: vi.fn(),
-  };
   const params = {
     initialInput: "initial",
-    ...callbacks,
     ...overrides,
   };
-  return { callbacks, ...renderHook(() => useSourceLoader(params), { wrapper }) };
+  return renderHook(() => useSourceLoader(params), { wrapper });
 };
 
 describe("useSourceLoader", () => {
@@ -177,12 +173,12 @@ describe("useSourceLoader", () => {
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
-  it("collapses oversized text and ignores an obsolete successful import", async () => {
+  it("keeps oversized text published and ignores an obsolete successful import", async () => {
     const controlled = createControlledStreamFile("stale", "slow.json");
-    const { result, callbacks } = setup();
+    const { result } = setup();
 
     act(() => result.current.onSourceChange("x".repeat(1_000_001)));
-    expect(callbacks.onCollapseSource).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceText).toHaveLength(1_000_001);
 
     let readPromise: Promise<void> | undefined;
     act(() => {
@@ -201,7 +197,7 @@ describe("useSourceLoader", () => {
   it("switches a large file between streaming and imported modes", async () => {
     const contents = oversizedContents('{"loaded":true}');
     const { file, stream } = createStreamFile(contents, "large.jsonl");
-    const { result, callbacks } = setup();
+    const { result } = setup();
 
     await act(() => result.current.onFileDrop(file));
     expect(result.current.sourceAccess?.getFile()).toBe(file);
@@ -215,7 +211,7 @@ describe("useSourceLoader", () => {
 
     act(() => result.current.setMode("jsonl"));
     expect(result.current.sourceAccess?.getFile()).toBe(file);
-    expect(callbacks.onCollapseSource).toHaveBeenCalledTimes(3);
+    expect(result.current.sourceText).toBe("");
   });
 
   it("rechecks the active mode when an asynchronous file read completes", async () => {

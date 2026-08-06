@@ -1,21 +1,20 @@
 import { materializeNode } from "@unquote/core";
 import { toast } from "sonner";
-import { PanelLeftOpen, Store } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { AppHeader } from "./components/app-header";
+import { Button } from "./components/button";
 import { CommandPalette } from "./components/command-palette";
-import { InputPane } from "./components/input-pane";
-import type { SourceParseError } from "./components/input-pane";
+import { ImportDialog } from "./components/import-dialog";
 import { AgentSessionView } from "./components/agent-session-view";
-import { LocaleToggle } from "./components/locale-toggle";
+import { RecordFilterBar } from "./components/record-filter-bar";
 import { RecordList } from "./components/record-list";
 import { Toaster } from "./components/sonner";
-import { ThemeToggle } from "./components/theme-toggle";
-import { TocPane } from "./components/toc-pane";
-import { Toolbar } from "./components/toolbar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
+import { SourceImportPanel } from "./components/source-import-panel";
+import type { SourceSampleOption } from "./components/source-import-panel";
+import { StatusBar } from "./components/status-bar";
+import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
-import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
@@ -51,27 +50,6 @@ const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
 const noSearchMatches: SearchMatch[] = [];
 
-interface ExtensionStoreLinkProps {
-  href: string;
-  label: string;
-}
-
-const ExtensionStoreLink = ({ href, label }: ExtensionStoreLinkProps) => (
-  <a
-    href={href}
-    target="_blank"
-    rel="noreferrer"
-    aria-label={label}
-    title={label}
-    className="inline-flex h-8 items-center justify-center gap-2 border border-transparent px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary transition-[background-color,border-color,color] hover:bg-surface-200 hover:text-text-display"
-  >
-    <Store className="size-3.5" />
-    <span className="hidden sm:inline" aria-hidden="true">
-      {label}
-    </span>
-  </a>
-);
-
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -84,8 +62,6 @@ export const UnquoteApp = ({
   edgeAddonsUrl,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const isDesktopWorkspace = useDesktopWorkspace();
-  const [sourceCollapsed, setSourceCollapsed] = useState(false);
   const {
     mode,
     setMode,
@@ -97,10 +73,7 @@ export const UnquoteApp = ({
     sourceRevision,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
-  } = useSourceLoader({
-    initialInput,
-    onCollapseSource: () => setSourceCollapsed(true),
-  });
+  } = useSourceLoader({ initialInput });
   const workspace = useWorkspaceSession(sourceRevision);
   const {
     activeRecordId,
@@ -110,10 +83,9 @@ export const UnquoteApp = ({
     selectedPath,
     scrollIntent,
   } = workspace.state;
-  const selectedRecordId = detailSelection?.recordId ?? null;
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const outputRef = useRef<HTMLDivElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const forcedFormat = sourceAccess ? "jsonl" : mode === "auto" ? undefined : mode;
   const {
     sourceRevision: resultRevision,
@@ -127,7 +99,7 @@ export const UnquoteApp = ({
     sourceAccess,
     sourceRevision,
   });
-  const hasMultipleJsonlRecords = result.format === "jsonl" && result.records.length > 1;
+  const hasData = Boolean(sourceAccess || importedFile) || sourceText.trim().length > 0;
 
   const translateError = useCallback(
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
@@ -159,6 +131,7 @@ export const UnquoteApp = ({
     mode: queryMode,
     searchStatus,
     searchErrorKind,
+    fileOverview,
     recordInsights,
     recordsById,
     visibleRecords,
@@ -169,21 +142,7 @@ export const UnquoteApp = ({
   const { intent: queryIntent } = query;
   const { outputView, setOutputView } = useOutputView(agentSession);
 
-  const sourceParseError = useMemo<SourceParseError | null>(() => {
-    const record = result.records[0];
-    if (result.format !== "json" || result.stats.failed !== 1 || !record?.errorMeta) {
-      return null;
-    }
-
-    return {
-      message: record.error ?? t("error.parseFailed"),
-      line: record.errorMeta.line,
-      column: record.errorMeta.column,
-      context: record.errorMeta.context,
-      format: formatParseMode(result.format),
-    };
-  }, [result, t]);
-  const sampleOptions = useMemo(
+  const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
       {
         id: "escaped-api-response",
@@ -232,38 +191,30 @@ export const UnquoteApp = ({
       ),
     [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
   );
-  const hasExpandedVisibleStringifiedPaths = useMemo(() => {
-    let hasAny = false;
-    for (const paths of displayedExpandedStringifiedPathsByRecord.values()) {
-      if (paths.size > 0) {
-        hasAny = true;
-        break;
-      }
-    }
-    if (!hasAny) return false;
-    // Expansion maps can retain entries for record ids no longer in
-    // visibleRecords (e.g. use-source-loader's setSourceMode switches
-    // auto/json/jsonl for a text source without resetting expansion state),
-    // so a non-empty map entry doesn't guarantee a visible match — always
-    // check against visibleRecords rather than short-circuiting.
-    return visibleRecords.some(
-      (record) =>
-        getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, record.id).size > 0,
-    );
-  }, [displayedExpandedStringifiedPathsByRecord, visibleRecords]);
+  const expandedNestedCount = activeRecordId
+    ? getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, activeRecordId).size
+    : 0;
 
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
     setCommandPaletteOpen(true);
   }, [queryIntent]);
 
-  const handleSampleSelect = (sample: {
-    value: string;
-    expandedPathsByRecord: readonly { recordId: string; paths: readonly string[] }[];
-  }) => {
+  const commitSource = (text: string) => {
+    handleSourceChange(text);
+    setImportOpen(false);
+  };
+
+  const importFile = (file: File) => {
+    void handleFileDrop(file);
+    setImportOpen(false);
+  };
+
+  const handleSampleSelect = (sample: SourceSampleOption) => {
     setMode("auto");
     const nextRevision = handleSourceChange(sample.value);
     workspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
+    setImportOpen(false);
   };
 
   const {
@@ -370,6 +321,10 @@ export const UnquoteApp = ({
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
       allowInTextEditing: true,
       handler: () => {
+        if (importOpen) {
+          return false;
+        }
+
         handleOpenCommandPalette();
       },
     },
@@ -444,77 +399,59 @@ export const UnquoteApp = ({
     ],
   );
   const toolbarInPathMode = queryMode === "path";
-  const toolbarMatchCount = toolbarInPathMode ? pathMatches.length : matchCount;
-  const toolbarMatchIndex = toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex;
-  // When the source pane is collapsed, its expand affordance relocates into the
-  // output's top row instead of reserving a full-height column. Desktop-only:
-  // the mobile layout never uses the collapse.
-  const expandSourceControl = sourceCollapsed ? (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className="uq-icon-button hidden size-7 shrink-0 items-center justify-center border border-transparent bg-surface-50 text-text-secondary transition-colors hover:border-border-medium hover:text-text-display focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex"
-            onClick={() => setSourceCollapsed(false)}
-            aria-label={t("input.expandSource")}
-          >
-            <PanelLeftOpen className="size-3.5" />
-          </button>
-        }
-      />
-      <TooltipContent>{t("input.expandSource")}</TooltipContent>
-    </Tooltip>
-  ) : null;
+  const hasExpandedNested = expandedNestedCount > 0;
+  const importPanel = (textareaClassName: string) => (
+    <SourceImportPanel
+      initialDraft={sourceText}
+      mode={mode}
+      onModeChange={setMode}
+      onCommit={commitSource}
+      onFileDrop={importFile}
+      samples={sampleOptions}
+      onSampleSelect={handleSampleSelect}
+      textareaClassName={textareaClassName}
+    />
+  );
   const jsonOutput = (
-    <div ref={outputRef} className="flex flex-col gap-3">
-      <Toolbar
-        leading={agentSession ? null : expandSourceControl}
-        summary={toolbarSummary}
-        query={toolbarQuery}
-        matchCount={toolbarMatchCount}
-        currentMatchIndex={toolbarMatchIndex}
-        onQueryChange={queryIntent.changeToolbarQuery}
-        onSubmitQuery={queryIntent.submitToolbarQuery}
-        onPrevMatch={queryIntent.previousResult}
-        onNextMatch={queryIntent.nextResult}
-        onClearQuery={queryIntent.clearToolbarQuery}
-        onOpenCommandPalette={handleOpenCommandPalette}
-        onCopyJsonl={onCopyJsonl}
-        onCopyFormattedJson={onCopyFormattedJson}
-        onExportJsonl={onExportJsonl}
-        onExportFormattedJson={onExportFormattedJson}
-        onExpandAll={handleExpandAll}
-        onCollapseAll={handleCollapseAll}
-        hasExpandedStringified={hasExpandedVisibleStringifiedPaths}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <RecordFilterBar
+        mode={recordFilter}
+        onChange={queryIntent.setFilter}
+        shown={visibleStats.total}
+        total={result.stats.total}
       />
-      <RecordList
-        records={visibleRecords}
-        recordView={recordView}
-        searchMatches={visibleMatches ?? noSearchMatches}
-        activeMatch={activeMatch}
-        scrollIntent={scrollIntent}
-        onActiveRecordChange={workspace.reportActiveRecord}
-      />
+      <div className="flex shrink-0 items-center border-b border-border px-3.5 py-1.5">
+        <span className="flex-1" />
+        <Button
+          variant={hasExpandedNested ? "secondary" : "outline"}
+          size="sm"
+          className="gap-1.5 rounded-sm px-3"
+          onClick={hasExpandedNested ? handleCollapseAll : handleExpandAll}
+          aria-pressed={hasExpandedNested}
+        >
+          {hasExpandedNested ? (
+            <ChevronsDownUp className="size-3.5" />
+          ) : (
+            <ChevronsUpDown className="size-3.5" />
+          )}
+          <span>{t(hasExpandedNested ? "toolbar.collapseAll" : "toolbar.expandAll")}</span>
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <RecordList
+          records={visibleRecords}
+          recordView={recordView}
+          searchMatches={visibleMatches ?? noSearchMatches}
+          activeMatch={activeMatch}
+          scrollIntent={scrollIntent}
+          onActiveRecordChange={workspace.reportActiveRecord}
+        />
+      </div>
     </div>
   );
-  const output = agentSession ? (
-    <Tabs
-      value={outputView}
-      onValueChange={(value) => setOutputView(value === "agent" ? "agent" : "json")}
-    >
-      <div className="mb-3 flex items-center gap-2">
-        {expandSourceControl}
-        <TabsList>
-          <TabsTrigger value="agent" data-output-tab="agent">
-            {t("app.tab.agent")}
-          </TabsTrigger>
-          <TabsTrigger value="json" data-output-tab="json" translate="no">
-            {formatParseMode(result.format)}
-          </TabsTrigger>
-        </TabsList>
-      </div>
-      <TabsContent value="agent">
+  const output =
+    agentSession && outputView === "agent" ? (
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <AgentSessionView
           session={agentSession}
           recordsById={recordsById}
@@ -523,42 +460,40 @@ export const UnquoteApp = ({
           onDetailSelectionChange={workspace.selectAgentDetail}
           {...(sourceAccess ? { readRawLine: sourceAccess.readRecordTextByLine } : {})}
         />
-      </TabsContent>
-      <TabsContent value="json">{jsonOutput}</TabsContent>
-    </Tabs>
-  ) : (
-    jsonOutput
-  );
-  const inputPane = (
-    <InputPane
-      value={sourceText}
-      mode={mode}
-      onChange={handleSourceChange}
-      onModeChange={setMode}
-      sampleOptions={sampleOptions}
-      onSampleSelect={handleSampleSelect}
-      onFileDrop={handleFileDrop}
-      onClear={() => handleSourceChange("")}
-      {...(isDesktopWorkspace
-        ? { onToggleCollapse: () => setSourceCollapsed((current) => !current) }
-        : {})}
-      sourceStatus={sourceFileStatus}
-      sourceBusy={sourceFileBusy}
-      sourceProgress={readingFile ? readProgress : null}
-      sourceError={sourceParseError}
-    />
+      </div>
+    ) : (
+      jsonOutput
+    );
+  const emptyState = (
+    <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
+      <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
+        <div className="flex flex-col gap-2.5">
+          <span className="font-mono text-[11px] uppercase tracking-[var(--tracking-tag)] text-accent">
+            {t("empty.eyebrow")}
+          </span>
+          <h2 className="m-0 text-[28px] font-semibold tracking-[-0.02em] text-text-primary">
+            {t("empty.headline")}
+          </h2>
+          <p className="m-0 text-[14px] leading-[23px] text-text-secondary">
+            {t("empty.subtitle")}
+          </p>
+        </div>
+        {importPanel("h-[180px]")}
+      </div>
+    </div>
   );
 
   return (
     <TooltipProvider delay={600} closeDelay={0}>
       <div
-        className="uq-shell pb-8"
+        className="uq-shell"
         data-source-file={sourceAccess?.name ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
         data-output-view={agentSession ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
+        data-expanded-nested={expandedNestedCount}
       >
         <a
           href="#main-content"
@@ -566,66 +501,58 @@ export const UnquoteApp = ({
         >
           {t("app.skipToContent")}
         </a>
-        <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--color-surface-100)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
-          <div className="flex items-center gap-3.5">
-            <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
-              UNQUOTE
-            </h1>
-            <span className="nf-mono-sub nf-dim hidden sm:inline" translate="no">
-              JSON · JSONL
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            {chromeWebStoreUrl ? (
-              <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />
-            ) : null}
-            {edgeAddonsUrl ? (
-              <ExtensionStoreLink href={edgeAddonsUrl} label={t("app.edge")} />
-            ) : null}
-            <LocaleToggle />
-            <ThemeToggle theme={theme} onChange={setTheme} />
-          </div>
-        </header>
+        <AppHeader
+          enabled={hasData}
+          sourceName={sourceAccess?.name ?? importedFile?.name ?? null}
+          onOpenImport={() => setImportOpen(true)}
+          outputView={agentSession ? outputView : null}
+          jsonTabLabel={formatParseMode(result.format)}
+          onOutputViewChange={setOutputView}
+          search={{
+            query: toolbarQuery,
+            matchCount: toolbarInPathMode ? pathMatches.length : matchCount,
+            currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
+            disabled: !hasData,
+            onQueryChange: queryIntent.changeToolbarQuery,
+            onSubmitQuery: queryIntent.submitToolbarQuery,
+            onClearQuery: queryIntent.clearToolbarQuery,
+            onPrevMatch: queryIntent.previousResult,
+            onNextMatch: queryIntent.nextResult,
+          }}
+          onOpenCommandPalette={handleOpenCommandPalette}
+          theme={theme}
+          onThemeChange={setTheme}
+          copyBlocked={isCopyBlocked}
+          onCopyJsonl={onCopyJsonl}
+          onCopyFormattedJson={onCopyFormattedJson}
+          onExportJsonl={onExportJsonl}
+          onExportFormattedJson={onExportFormattedJson}
+        />
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto flex w-full max-w-[1760px] scroll-mt-[52px] flex-col gap-3 px-4 pb-6 pt-3.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent sm:px-6"
+          className="flex min-h-0 flex-1 flex-col focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         >
-          {isDesktopWorkspace ? (
-            sourceCollapsed ? (
-              <div className="min-w-0">{output}</div>
-            ) : (
-              <div className="grid grid-cols-[minmax(360px,460px)_minmax(0,1fr)] items-start gap-3.5">
-                <div className="sticky top-[66px] flex max-h-[calc(100vh-130px)] min-h-0 flex-col gap-3.5 overflow-hidden">
-                  {inputPane}
-                  {hasMultipleJsonlRecords ? (
-                    <TocPane
-                      records={visibleRecords}
-                      recordInsights={recordInsights}
-                      stats={visibleStats}
-                      totalCount={result.stats.total}
-                      activeRecordId={activeRecordId}
-                      selectedRecordId={selectedRecordId}
-                      onSelect={workspace.selectRecord}
-                      onCopyRawLine={onCopyRawLine}
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0">{output}</div>
-              </div>
-            )
-          ) : (
-            <Tabs defaultValue="workspace" className="flex flex-col gap-3">
-              <TabsList>
-                <TabsTrigger value="workspace">{t("app.tab.input")}</TabsTrigger>
-                <TabsTrigger value="output">{t("app.tab.output")}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="workspace">{inputPane}</TabsContent>
-              <TabsContent value="output">{output}</TabsContent>
-            </Tabs>
-          )}
+          {hasData ? output : emptyState}
         </main>
+        <StatusBar
+          summary={hasData ? toolbarSummary : t("status.empty")}
+          failedCount={result.stats.failed}
+          onSelectFailed={() => queryIntent.setFilter("errors")}
+          maxDepth={fileOverview.maxDepth}
+          expandedNestedCount={expandedNestedCount}
+          sourceStatus={sourceFileStatus}
+          sourceBusy={sourceFileBusy}
+          sourceProgress={readingFile ? readProgress : null}
+          hasData={hasData}
+          onClear={() => handleSourceChange("")}
+          {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
+          {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
+        />
+        <ImportDialog open={importOpen} dismissible={hasData} onClose={() => setImportOpen(false)}>
+          {importPanel("h-[220px]")}
+        </ImportDialog>
         <CommandPalette
           open={commandPaletteOpen}
           inputValue={commandInput}

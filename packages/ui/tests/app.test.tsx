@@ -26,7 +26,7 @@ const useDesktopViewport = () => {
 
 const LocaleProbe = () => {
   const { setLocale, t } = useTranslation();
-  return <button onClick={() => setLocale("zh-CN")}>{t("input.title")}</button>;
+  return <button onClick={() => setLocale("zh-CN")}>{t("status.clear")}</button>;
 };
 const codexRolloutSource = [
   JSON.stringify({
@@ -304,7 +304,37 @@ const filterableJsonlInput = [
   "not-json",
 ].join("\n");
 
-const renderFilterableJsonl = async () => {
+type User = ReturnType<typeof userEvent.setup>;
+
+const setInputFormat = async (user: User, label: "Auto" | "JSON" | "JSONL") => {
+  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  const dialog = await screen.findByRole("dialog");
+  await user.click(
+    within(within(dialog).getByRole("group", { name: inputFormatLabel })).getByRole("button", {
+      name: label,
+    }),
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Back" }));
+};
+
+const pasteFileIntoImport = async (user: User, file: File) => {
+  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.paste(within(dialog).getByRole("textbox", { name: "Source input" }), {
+    clipboardData: { files: [file], items: [], types: ["Files"] },
+  });
+};
+
+const replaceSource = async (user: User, text: string) => {
+  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Source input" }), {
+    target: { value: text },
+  });
+  await user.click(within(dialog).getByRole("button", { name: "Parse" }));
+};
+
+const renderFilterableJsonl = async (user: User) => {
   useDesktopViewport();
   render(
     <I18nProvider>
@@ -312,15 +342,12 @@ const renderFilterableJsonl = async () => {
     </I18nProvider>,
   );
 
-  fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-    target: { value: "jsonl" },
-  });
+  await setInputFormat(user, "JSONL");
   await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
 };
 
 describe("UnquoteApp", () => {
-  it("mounts one mobile workspace pane at a time", async () => {
-    const user = userEvent.setup();
+  it("renders the shell landmarks around a loaded source", async () => {
     render(
       <I18nProvider>
         <UnquoteApp initialInput='{"ok":true}' />
@@ -332,48 +359,49 @@ describe("UnquoteApp", () => {
     expect(skipLink).toHaveClass("focus:not-sr-only");
     expect(main).toHaveAttribute("id", "main-content");
     expect(main).toHaveAttribute("tabindex", "-1");
-    expect(main).toHaveClass("scroll-mt-[52px]");
 
-    expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "Collapse source" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Search or jump" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
-
-    await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
+    // With data loaded the shell shows the workspace, not the import panel.
     expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
     expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
   });
 
-  it("mounts one desktop source and output tree", async () => {
+  it("opens the import dialog over a loaded workspace and returns from it", async () => {
     const user = userEvent.setup();
-    useDesktopViewport();
     render(
       <I18nProvider>
         <UnquoteApp initialInput='{"ok":true}' />
       </I18nProvider>,
     );
-
     await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
-    expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
-    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
-    expect(screen.queryByRole("tab", { name: "Output" })).not.toBeInTheDocument();
 
-    await user.type(getToolbarInput(), "x");
-    expect(getToolbarInput().closest("form")).toHaveClass("h-[34px]");
-    expect(screen.getByRole("button", { name: "Clear search" })).toHaveClass("size-7");
-    expect(screen.getByRole("button", { name: "Previous match" })).toHaveClass("h-7", "w-7");
-    expect(screen.getByRole("button", { name: "Next match" })).toHaveClass("h-7", "w-7");
-    expect(screen.getByRole("button", { name: "Commands" })).toHaveClass("h-7");
-    expect(screen.getByRole("button", { name: "Expand All" })).toHaveClass("h-7");
-    expect(screen.getByRole("button", { name: "More actions" })).toHaveClass("h-7", "w-7");
+    await user.click(screen.getByRole("button", { name: "Change data source" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import data" });
+    expect(within(dialog).getByRole("textbox", { name: "Source input" })).toHaveValue(
+      '{"ok":true}',
+    );
 
-    await user.click(screen.getByRole("button", { name: "Collapse source" }));
+    // The palette must not stack over the modal.
+    await user.keyboard("{Meta>}k{/Meta}");
+    expect(
+      screen.queryByRole("dialog", { name: "Find, jump, and commands" }),
+    ).not.toBeInTheDocument();
 
-    expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("textbox", { name: "Search or jump" })).toHaveLength(1);
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelectorAll("#record-1")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Expand source" })).toHaveClass("size-7");
+  });
+
+  it("renders the empty state with disabled workspace chrome", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
+    expect(screen.getByText("No data loaded · waiting for import")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeDisabled();
   });
 
   it("renders configured extension store links", () => {
@@ -403,11 +431,10 @@ describe("UnquoteApp", () => {
     const user = userEvent.setup();
     render(
       <I18nProvider>
-        <UnquoteApp />
+        <UnquoteApp initialInput='{"ok":true}' />
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     expect(getToolbarInput().closest("form")).toHaveClass("focus-within:outline-2");
     const trigger = screen.getAllByRole("button", { name: "Commands" })[0]!;
     await user.click(trigger);
@@ -470,33 +497,28 @@ describe("UnquoteApp", () => {
   });
 
   it("renders and parses input", async () => {
-    const user = userEvent.setup();
     render(
       <I18nProvider>
         <UnquoteApp initialInput='{"payload":"{\\"ok\\":true}"}' />
       </I18nProvider>,
     );
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Expand All")[0]).toBeInTheDocument();
     expect(screen.getAllByPlaceholderText(commandInputPlaceholder)[0]).toBeInTheDocument();
   });
 
-  it("renders a continuous heading hierarchy", async () => {
-    const user = userEvent.setup();
+  it("renders a continuous heading hierarchy", () => {
     render(
       <I18nProvider>
-        <UnquoteApp initialInput='{"value":1}' />
+        <UnquoteApp />
       </I18nProvider>,
     );
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
-    await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
 
     const levels = screen
       .getAllByRole("heading")
       .map((heading) => Number(heading.tagName.slice(1)));
     expect(levels[0]).toBe(1);
+    expect(levels).toContain(2);
     levels.slice(1).forEach((level, index) => {
       expect(level).toBeLessThanOrEqual(levels[index]! + 1);
     });
@@ -539,8 +561,8 @@ describe("UnquoteApp", () => {
       within(sampleGroup).getByRole("button", { name: "有效/无效混合 JSONL" }),
     ).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
-    expect(screen.getAllByText("来源").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("option", { name: "自动" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("粘贴、拖入或选择一个文件").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "自动" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("updates document language and accessible copy when locale changes", async () => {
@@ -552,10 +574,10 @@ describe("UnquoteApp", () => {
     );
 
     expect(document.documentElement).toHaveAttribute("lang", "en");
-    await user.click(screen.getByRole("button", { name: "Source" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
-    expect(screen.getByRole("button", { name: "来源" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "清空" })).toBeInTheDocument();
   });
 
   it("loads the escaped API response sample", async () => {
@@ -569,13 +591,9 @@ describe("UnquoteApp", () => {
     const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
     await user.click(within(sampleGroup).getByRole("button", { name: "Escaped API response" }));
 
-    const sourceInput = screen.getAllByPlaceholderText(
-      "Paste JSON / JSONL, or drop a file here.",
-    )[0]! as HTMLTextAreaElement;
-    await waitFor(() => expect(sourceInput.value).toContain('"body"'));
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
+    // A sample publishes immediately: the empty state gives way to the workspace.
     await waitFor(() => expect(screen.getAllByText("body").length).toBeGreaterThan(0));
+    expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
     expect(screen.queryByText("nested json")).not.toBeInTheDocument();
     expect(screen.getAllByText("items").length).toBeGreaterThan(0);
   });
@@ -591,7 +609,6 @@ describe("UnquoteApp", () => {
     const sampleGroup = screen.getAllByRole("group", { name: "Sample inputs" })[0]!;
     await user.click(within(sampleGroup).getByRole("button", { name: "Agent tool-call JSONL" }));
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText(/tool_call/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("action").length).toBeGreaterThan(0);
@@ -678,7 +695,6 @@ describe("UnquoteApp", () => {
       { clipboardData: { files: [file], items: [], types: ["Files"] } },
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     const timelineToolResult = (
       await screen.findAllByRole("button", {
         name: /^Timeline: tool_result/,
@@ -712,13 +728,6 @@ describe("UnquoteApp", () => {
     const conversationToolCalls = screen.getAllByRole("button", {
       name: /^Conversation: Tool call/,
     });
-    const getTocButton = (lineNumber: number) =>
-      screen
-        .getAllByText(`#${lineNumber}`)
-        .map((node) => node.closest("button"))
-        .find((button): button is HTMLButtonElement => Boolean(button))!;
-    const tocLineTwo = getTocButton(2);
-    const tocLineFour = getTocButton(4);
     const expectPressed = (buttons: HTMLElement[], pressed: boolean) => {
       for (const button of buttons) {
         expect(button).toHaveAttribute("aria-pressed", String(pressed));
@@ -732,8 +741,6 @@ describe("UnquoteApp", () => {
             .every((panel) => within(panel).queryByText(new RegExp(recordId))),
         ).toBe(true),
       );
-      expect(tocLineTwo).toHaveAttribute("aria-pressed", String(selectedLine === 2));
-      expect(tocLineFour).toHaveAttribute("aria-pressed", String(selectedLine === 4));
       expectPressed(timelineTaskStarted, selectedLine === 2);
       expectPressed(timelineToolCalls, selectedLine === 4);
       expectPressed(conversationToolCalls, selectedLine === 4);
@@ -744,21 +751,20 @@ describe("UnquoteApp", () => {
     const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
     expect(within(rawJsonPanel).getAllByText("call_id").length).toBeGreaterThan(0);
     expect(within(rawJsonPanel).getAllByText('"call_1"').length).toBeGreaterThan(0);
-    await user.click(tocLineTwo);
+    await user.click(timelineTaskStarted[0]!);
     await expectSelection("record-2", 2);
 
     await user.click(conversationToolCalls[0]!);
     await expectSelection("record-4", 4);
   });
 
-  it("reopens collapsed Agent raw data from a TOC selection", async () => {
+  it("reopens collapsed Agent raw data from a timeline selection", async () => {
     const user = await renderCodexAgentView();
-    const tocLineTwo = screen
-      .getAllByText("#2")
-      .map((node) => node.closest("button"))
-      .find((button): button is HTMLButtonElement => Boolean(button))!;
+    const timelineTaskStarted = screen.getAllByRole("button", {
+      name: /^Timeline: task_started/,
+    })[0]!;
 
-    await user.click(tocLineTwo);
+    await user.click(timelineTaskStarted);
     await waitFor(() =>
       expect(
         screen
@@ -772,7 +778,7 @@ describe("UnquoteApp", () => {
     }
     expect(screen.queryAllByRole("complementary", { name: "Raw JSONL" })).toHaveLength(0);
 
-    await user.click(tocLineTwo);
+    await user.click(timelineTaskStarted);
     await waitFor(() =>
       expect(
         screen
@@ -795,15 +801,14 @@ describe("UnquoteApp", () => {
       within(sampleGroup).getByRole("button", { name: "Mixed valid/invalid JSONL" }),
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
     expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
   });
 
-  it("filters JSONL records across list, toc, and search", async () => {
+  it("filters JSONL records across the record list and search", async () => {
     const user = userEvent.setup();
-    await renderFilterableJsonl();
+    await renderFilterableJsonl(user);
 
     await user.type(getToolbarInput(), "boom");
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
@@ -813,7 +818,7 @@ describe("UnquoteApp", () => {
     expect(screen.queryAllByText("#1")).toHaveLength(0);
     expect(screen.queryAllByText("#3")).toHaveLength(0);
     expect(screen.getAllByText("boom").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1/3 records · 1 ok · 0 err").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 / 3 records match this filter")).toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("option", { name: /Errors/ }));
@@ -849,26 +854,26 @@ describe("UnquoteApp", () => {
       configurable: true,
       value: { writeText },
     });
-    await renderFilterableJsonl();
+    await renderFilterableJsonl(user);
 
     await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
     await user.click(screen.getByRole("option", { name: /Nested/ }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("#2")).toHaveLength(0);
 
-    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: "Export" })[0]!);
     await user.click(await screen.findByText("Copy JSONL"));
 
     expect(writeText).toHaveBeenLastCalledWith('{"level":"info","payload":{"nested":true}}');
 
-    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: "Export" })[0]!);
     await user.click(await screen.findByText("Export JSONL"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(1));
     await expect(readBlobText(exportedBlobs[0]!)).resolves.toBe(
       '{"level":"info","payload":{"nested":true}}',
     );
 
-    await user.click(screen.getAllByRole("button", { name: /More actions/ })[0]!);
+    await user.click(screen.getAllByRole("button", { name: "Export" })[0]!);
     await user.click(await screen.findByText("Export JSON"));
     await waitFor(() => expect(exportedBlobs).toHaveLength(2));
     await expect(readBlobText(exportedBlobs[1]!)).resolves.toBe(
@@ -877,7 +882,6 @@ describe("UnquoteApp", () => {
   });
 
   it("skips the active-record observer for virtualized record lists", async () => {
-    const user = userEvent.setup();
     const originalIntersectionObserver = globalThis.IntersectionObserver;
     const observerOptions: IntersectionObserverInit[] = [];
     Object.assign(globalThis, {
@@ -905,7 +909,6 @@ describe("UnquoteApp", () => {
         </I18nProvider>,
       );
 
-      await user.click(screen.getByRole("tab", { name: "Output" }));
       await waitFor(() =>
         expect(screen.getAllByText("161 total · 161 ok · 0 err").length).toBeGreaterThan(0),
       );
@@ -934,7 +937,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
     await user.click(screen.getAllByText("payload")[0]!);
     expect(screen.queryByText("Path Inspector")).not.toBeInTheDocument();
@@ -963,7 +965,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
 
     // Path jump to an object member: the copy payload carries the member key.
@@ -997,7 +998,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
     await user.click(screen.getAllByText("payload")[0]!);
 
@@ -1020,7 +1020,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("a(b").length).toBeGreaterThan(0));
     await user.click(screen.getAllByText("a(b")[0]!);
 
@@ -1028,14 +1027,14 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('"a(b": 1'));
   });
 
-  it("shows JSON parse location in the source pane", async () => {
+  it("shows JSON parse location on the failed record", async () => {
     render(
       <I18nProvider>
         <UnquoteApp initialInput={"{\n bad\n}"} />
       </I18nProvider>,
     );
 
-    await waitFor(() => expect(screen.getAllByText("JSON parse failed").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0);
   });
 
@@ -1048,7 +1047,7 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await waitFor(() => expect(screen.getAllByText("JSON 解析失败").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("解析失败").length).toBeGreaterThan(0));
     expect(screen.getAllByText("第 2 行，第 2 列").length).toBeGreaterThan(0);
   });
 
@@ -1066,7 +1065,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0));
     await user.click(screen.getAllByRole("button", { name: /Copy raw line/ })[0]!);
 
@@ -1094,7 +1092,7 @@ describe("UnquoteApp", () => {
       },
     );
 
-    expect(screen.getByText("Release to open file")).toBeInTheDocument();
+    expect(screen.getByText("Release to parse")).toBeInTheDocument();
   });
 
   it("reads files pasted into the source input", async () => {
@@ -1119,7 +1117,7 @@ describe("UnquoteApp", () => {
       },
     });
 
-    await waitFor(() => expect(sourceInput).toHaveValue('{"pasted":true}'));
+    await waitFor(() => expect(screen.getAllByText("pasted").length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 
@@ -1201,59 +1199,51 @@ describe("UnquoteApp", () => {
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
   });
 
-  it("keeps the previous source text visible while a dropped file is being read", async () => {
+  it("keeps the previous source published while a dropped file is being read", async () => {
+    const user = userEvent.setup();
     const controlled = createControlledStreamFile('{"new":true}', "payload.json");
     render(
       <I18nProvider>
         <UnquoteApp initialInput={'{"old":true}'} />
       </I18nProvider>,
     );
+    await waitFor(() => expect(screen.getAllByText("old").length).toBeGreaterThan(0));
 
-    const sourceInput = screen.getAllByPlaceholderText(
-      "Paste JSON / JSONL, or drop a file here.",
-    )[0]!;
-    expect(sourceInput).toHaveValue('{"old":true}');
+    await pasteFileIntoImport(user, controlled.file);
 
-    fireEvent.paste(sourceInput, {
-      clipboardData: { files: [controlled.file], items: [], types: ["Files"] },
-    });
-
-    // While reading, the reading state carries prevText so the prior source text
-    // stays visible instead of collapsing to the file-preview overlay.
+    // While reading, the reading state carries the previous published Source so
+    // the prior workspace stays on screen instead of blanking.
     await waitFor(() => expect(controlled.stream).toHaveBeenCalledTimes(1));
-    expect(sourceInput).toHaveValue('{"old":true}');
+    expect(screen.getAllByText("old").length).toBeGreaterThan(0);
 
     await act(async () => {
       controlled.complete();
     });
-    await waitFor(() => expect(sourceInput).toHaveValue('{"new":true}'));
+    await waitFor(() => expect(screen.getAllByText("new").length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.getAllByText(/payload\.json/).length).toBeGreaterThan(0));
   });
 
-  it("surfaces an error toast and restores prior text when a file read fails", async () => {
+  it("surfaces an error toast and restores the prior Source when a file read fails", async () => {
+    const user = userEvent.setup();
     const failure = createFailingStreamFile(new Error("boom"), "payload.json");
     render(
       <I18nProvider>
         <UnquoteApp initialInput={'{"old":true}'} />
       </I18nProvider>,
     );
+    await waitFor(() => expect(screen.getAllByText("old").length).toBeGreaterThan(0));
 
-    const sourceInput = screen.getAllByPlaceholderText(
-      "Paste JSON / JSONL, or drop a file here.",
-    )[0]!;
-
-    fireEvent.paste(sourceInput, {
-      clipboardData: { files: [failure.file], items: [], types: ["Files"] },
-    });
+    await pasteFileIntoImport(user, failure.file);
 
     // The read rejects: an error toast surfaces (the hook no longer rethrows, so
-    // there is no unhandled rejection) and the prior source text is restored.
+    // there is no unhandled rejection) and the prior Source stays published.
     await waitFor(() => expect(failure.stream).toHaveBeenCalledTimes(1));
     expect((await screen.findAllByText("Failed to read file")).length).toBeGreaterThan(0);
-    await waitFor(() => expect(sourceInput).toHaveValue('{"old":true}'));
+    await waitFor(() => expect(screen.getAllByText("old").length).toBeGreaterThan(0));
   });
 
   it("ignores a read failure after a newer file import succeeds", async () => {
+    const user = userEvent.setup();
     const toastError = vi.spyOn(toast, "error");
     const stale = createControlledStreamFile("a", "a.json");
     const current = createControlledStreamFile('{"current":true}', "b.json");
@@ -1263,26 +1253,18 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    const sourceInput = screen.getAllByPlaceholderText(
-      "Paste JSON / JSONL, or drop a file here.",
-    )[0]!;
-    const pasteFile = (file: File) =>
-      fireEvent.paste(sourceInput, {
-        clipboardData: { files: [file], items: [], types: ["Files"] },
-      });
-
-    pasteFile(stale.file);
-    pasteFile(current.file);
+    await pasteFileIntoImport(user, stale.file);
+    await pasteFileIntoImport(user, current.file);
     await waitFor(() => {
       expect(stale.stream).toHaveBeenCalledTimes(1);
       expect(current.stream).toHaveBeenCalledTimes(1);
     });
 
     await act(async () => current.complete());
-    await waitFor(() => expect(sourceInput).toHaveValue('{"current":true}'));
+    await waitFor(() => expect(screen.getAllByText("current").length).toBeGreaterThan(0));
     await act(async () => stale.fail(new Error("stale failure")));
 
-    expect(sourceInput).toHaveValue('{"current":true}');
+    expect(screen.getAllByText("current").length).toBeGreaterThan(0);
     expect(toastError).not.toHaveBeenCalled();
     expect(screen.queryByText("Failed to read file")).not.toBeInTheDocument();
   });
@@ -1347,7 +1329,6 @@ describe("UnquoteApp", () => {
       },
     });
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
     await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "payload.jsonl"));
@@ -1369,6 +1350,7 @@ describe("UnquoteApp", () => {
   });
 
   it("switches a large file between streamed JSONL and loaded JSON semantics", async () => {
+    const user = userEvent.setup();
     const { container } = render(
       <I18nProvider>
         <UnquoteApp />
@@ -1392,16 +1374,14 @@ describe("UnquoteApp", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText(inputFormatLabel), { target: { value: "json" } });
+    await setInputFormat(user, "JSON");
 
     await waitFor(() =>
       expect(container.querySelector(".uq-shell")).toHaveAttribute("data-source-file", ""),
     );
-    fireEvent.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getByRole("tab", { name: "Input" }));
-    fireEvent.change(screen.getByLabelText(inputFormatLabel), { target: { value: "jsonl" } });
+    await setInputFormat(user, "JSONL");
 
     await waitFor(() =>
       expect(container.querySelector(".uq-shell")).toHaveAttribute(
@@ -1419,10 +1399,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     await user.type(getToolbarInput(), "alpha");
@@ -1453,10 +1429,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
@@ -1473,10 +1445,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    fireEvent.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
@@ -1512,10 +1480,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     // A path-like query jumps to the matched node(s).
@@ -1535,7 +1499,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={'{"payload":1}'} />
       </I18nProvider>,
     );
-    await user.click(screen.getByRole("tab", { name: "Output" }));
 
     await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
     // Enable regex, then jq — jq must turn regex off.
@@ -1559,10 +1522,6 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
     await user.type(getToolbarInput(), "alpha");
@@ -1584,27 +1543,19 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
 
     // Stringified payload is collapsed by default — the inner `nested` key is absent.
     expect(screen.queryAllByText("nested")).toHaveLength(0);
 
-    // The toolbar toggle starts as "Expand All" (aria-pressed=false).
-    const toggle = screen
-      .getAllByRole("button", { name: /^Expand All$/i })
-      .find((button) => button.hasAttribute("aria-pressed"))!;
+    // The workspace toggle starts as "Expand All" (aria-pressed=false).
+    const toggle = screen.getByRole("button", { name: "Expand All" });
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
     await user.click(toggle);
     await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
 
     // Clicking again flips the toggle to "Collapse All" and re-folds the payload.
-    const collapsedToggle = screen
-      .getAllByRole("button", { name: /^Collapse All$/i })
-      .find((button) => button.hasAttribute("aria-pressed"))!;
+    const collapsedToggle = await screen.findByRole("button", { name: "Collapse All" });
     expect(collapsedToggle.getAttribute("aria-pressed")).toBe("true");
     await user.click(collapsedToggle);
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
@@ -1635,7 +1586,6 @@ describe("UnquoteApp", () => {
       },
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
     await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "preview.jsonl"));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
@@ -1643,17 +1593,12 @@ describe("UnquoteApp", () => {
 
     // A Preview Record's projected node has no children, so this only works
     // if the expansion is collected from the record's preview.
-    const toggle = screen
-      .getAllByRole("button", { name: /^Expand All$/i })
-      .find((button) => button.hasAttribute("aria-pressed"))!;
+    const toggle = screen.getByRole("button", { name: "Expand All" });
     await user.click(toggle);
 
-    await waitFor(() =>
-      expect(
-        screen
-          .getAllByRole("button", { name: /^Collapse All$/i })
-          .some((button) => button.getAttribute("aria-pressed") === "true"),
-      ).toBe(true),
+    expect(await screen.findByRole("button", { name: "Collapse All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
   });
@@ -1681,24 +1626,19 @@ describe("UnquoteApp", () => {
       },
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
     await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "buried.jsonl"));
     await waitFor(() => expect(screen.getAllByText("meta").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("buried")).toHaveLength(0);
 
-    await user.click(
-      screen
-        .getAllByRole("button", { name: /^Expand All$/i })
-        .find((button) => button.hasAttribute("aria-pressed"))!,
-    );
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
 
     await waitFor(() => expect(screen.getAllByText("buried").length).toBeGreaterThan(0));
   });
 
   it("Expand All opens every level of nested stringified JSON in one click", async () => {
     const user = userEvent.setup();
-    // The toolbar control is a single toggle, so there is no second Expand All
+    // The workspace control is a single toggle, so there is no second Expand All
     // click available: one click has to reach all the way down.
     const input = JSON.stringify({
       payload: JSON.stringify({ inner: JSON.stringify({ deep: 1 }) }),
@@ -1708,26 +1648,14 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={input} />
       </I18nProvider>,
     );
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload").length).toBeGreaterThan(0));
     expect(screen.queryAllByText("deep")).toHaveLength(0);
 
-    await user.click(
-      screen
-        .getAllByRole("button", { name: /^Expand All$/i })
-        .find((button) => button.hasAttribute("aria-pressed"))!,
-    );
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
 
     await waitFor(() => expect(screen.getAllByText("deep").length).toBeGreaterThan(0));
 
-    await user.click(
-      screen
-        .getAllByRole("button", { name: /^Collapse All$/i })
-        .find((button) => button.hasAttribute("aria-pressed"))!,
-    );
+    await user.click(await screen.findByRole("button", { name: "Collapse All" }));
     await waitFor(() => expect(screen.queryAllByText("inner")).toHaveLength(0));
   });
 
@@ -1743,10 +1671,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
 
     await user.click(
@@ -1775,10 +1699,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
 
     await user.type(getToolbarInput(), "target-only");
@@ -1799,7 +1719,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     const timelineToolCall = (
       await screen.findAllByRole("button", {
         name: /^Timeline: tool_use exec_command/,
@@ -1849,15 +1768,9 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
 
-    const expandAll = screen
-      .getAllByRole("button", { name: /^Expand All$/i })
-      .find((button) => button.hasAttribute("aria-pressed"))!;
+    const expandAll = screen.getByRole("button", { name: "Expand All" });
     await user.click(expandAll);
     await waitFor(() =>
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
@@ -1872,10 +1785,7 @@ describe("UnquoteApp", () => {
       expect(document.getElementById("record-2")).not.toBeInTheDocument();
     });
 
-    const collapseAll = screen
-      .getAllByRole("button", { name: /^Collapse All$/i })
-      .find((button) => button.hasAttribute("aria-pressed"))!;
-    await user.click(collapseAll);
+    await user.click(await screen.findByRole("button", { name: "Collapse All" }));
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
 
     await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
@@ -1893,7 +1803,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
     await user.click(
       within(document.getElementById("record-1")!)
@@ -1902,16 +1811,8 @@ describe("UnquoteApp", () => {
     );
     await waitFor(() => expect(screen.getAllByText("first")).toHaveLength(1));
 
-    await user.click(screen.getByRole("tab", { name: "Input" }));
+    await replaceSource(user, '{"payload":"{\\"second\\":true}"}');
 
-    fireEvent.change(
-      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
-      {
-        target: { value: '{"payload":"{\\"second\\":true}"}' },
-      },
-    );
-
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("payload")).toHaveLength(1));
     expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
@@ -1924,7 +1825,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await user.type(getToolbarInput(), "first");
     await waitFor(() =>
       expect(container.querySelector("[data-search-query]")).toHaveAttribute(
@@ -1933,13 +1833,8 @@ describe("UnquoteApp", () => {
       ),
     );
 
-    await user.click(screen.getByRole("tab", { name: "Input" }));
-    fireEvent.change(
-      screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
-      { target: { value: '{"message":"second"}' } },
-    );
+    await replaceSource(user, '{"message":"second"}');
 
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(getToolbarInput()).toHaveValue(""));
     expect(container.querySelector("[data-search-query]")).toHaveAttribute("data-search-query", "");
   });
@@ -1957,10 +1852,6 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-      target: { value: "jsonl" },
-    });
-    await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(document.getElementById("record-3")).toBeInTheDocument());
 
     performance.clearMeasures("unquote:recordRows:build");
@@ -1983,78 +1874,5 @@ describe("UnquoteApp", () => {
     expect(isCopyAboveThreshold(5001, 1)).toBe(true);
     expect(isCopyAboveThreshold(1, 20_000_001)).toBe(true);
     expect(isCopyAboveThreshold(1, 20_000_000)).toBe(false);
-  });
-
-  it("keeps the clicked TOC record highlighted while scroll-spy reports another", async () => {
-    const user = userEvent.setup();
-    useDesktopViewport();
-    const originalObserver = globalThis.IntersectionObserver;
-    let observerCallback: IntersectionObserverCallback | null = null;
-    Object.assign(globalThis, {
-      IntersectionObserver: class {
-        constructor(callback: IntersectionObserverCallback) {
-          observerCallback = callback;
-        }
-        disconnect() {}
-        observe() {}
-        unobserve() {}
-        takeRecords() {
-          return [];
-        }
-      },
-    });
-
-    try {
-      const input = [
-        '{"event":"message","i":1}',
-        '{"event":"tool","i":2}',
-        '{"event":"tool_result","i":3}',
-      ].join("\n");
-      render(
-        <I18nProvider>
-          <UnquoteApp initialInput={input} />
-        </I18nProvider>,
-      );
-      fireEvent.change(screen.getAllByLabelText(inputFormatLabel)[0]!, {
-        target: { value: "jsonl" },
-      });
-      await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
-
-      // Click the #3 entry in the TOC. TOC entries are wrapped in a div with
-      // `items-stretch rounded-md`; the record card uses a different wrapper.
-      const tocEntryButton = (lineNumber: number) =>
-        screen.getAllByRole("button").find((node) => {
-          if (!node.textContent?.includes(`#${lineNumber}`)) return false;
-          const wrapper = node.closest("[class*='items-stretch']");
-          return Boolean(wrapper && wrapper.className.includes("rounded-md"));
-        });
-      await user.click(tocEntryButton(3)!);
-
-      const tocEntryFor = (lineNumber: number) =>
-        tocEntryButton(lineNumber)?.closest("[class*='items-stretch']") ?? null;
-
-      // Simulate the IntersectionObserver firing during smooth-scroll, reporting
-      // #2 as the most-visible entry. The user's explicit #3 selection must win.
-      act(() => {
-        const target2 = document.getElementById("record-2") as HTMLElement;
-        observerCallback?.(
-          [
-            {
-              isIntersecting: true,
-              intersectionRatio: 0.9,
-              target: target2,
-            } as unknown as IntersectionObserverEntry,
-          ],
-          {} as IntersectionObserver,
-        );
-      });
-
-      const entry3 = tocEntryFor(3);
-      expect(entry3?.className).toContain("border-border");
-      const entry2 = tocEntryFor(2);
-      expect(entry2?.className).toContain("border-transparent");
-    } finally {
-      Object.assign(globalThis, { IntersectionObserver: originalObserver });
-    }
   });
 });
