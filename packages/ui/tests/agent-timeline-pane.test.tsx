@@ -84,10 +84,11 @@ describe("AgentTimelinePane", () => {
   it("leads with the category, then the envelope type and line meta", () => {
     renderPane([{ ...buildEvent(0), preview: "a preview line", turnIndex: 2 }]);
 
-    // dc:587 orders the row `category · type` so the column scans by kind.
-    expect(screen.getByText("assistant")).toBeInTheDocument();
-    expect(screen.getByText("· Event 0")).toBeInTheDocument();
-    expect(screen.getByText("Line 1 · Turn 2")).toBeInTheDocument();
+    // dc:587 orders the row `category · type` so the column scans by kind, and
+    // the accessible name has to carry the same order (WCAG 2.5.3).
+    const [row] = timelineButtons();
+    expect(row).toHaveTextContent(/^assistant· Event 0Line 1 · Turn 2$/);
+    expect(row).toHaveAccessibleName("Timeline: assistant · Event 0");
     expect(screen.queryByText("a preview line")).not.toBeInTheDocument();
   });
 
@@ -119,7 +120,7 @@ describe("AgentTimelinePane", () => {
     const { onSelectEvent } = renderPane(events, { highlightedRecordId: "record-1" });
 
     const buttons = timelineButtons();
-    const highlighted = screen.getByLabelText("Timeline: Event 1");
+    const highlighted = screen.getByLabelText("Timeline: assistant · Event 1");
     expect(highlighted).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(buttons[0]!);

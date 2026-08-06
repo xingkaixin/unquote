@@ -91,13 +91,13 @@ describe("AgentSessionView", () => {
     expect(screen.getByText("Timeline")).toBeInTheDocument();
     expect(screen.getByText("Session overview")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Timeline: Session metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "Timeline: meta · Session metadata" }));
     expect(callbacks.onDetailSelectionChange).toHaveBeenLastCalledWith({
       kind: "event",
       id: "event-1",
       recordId: "record-1",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Timeline: User message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Timeline: user · User message" }));
     expect(callbacks.onDetailSelectionChange).toHaveBeenLastCalledWith({
       kind: "conversation",
       id: "conversation-1",
@@ -116,14 +116,13 @@ describe("AgentSessionView", () => {
       detailSelection: { kind: "conversation", id: "conversation-1", recordId: "record-2" },
     });
 
-    expect(screen.getByRole("button", { name: "Timeline: User message" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Timeline: user · User message" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Timeline: Session metadata" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: "Timeline: meta · Session metadata" }),
+    ).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Conversation: User" })).toHaveAttribute(
       "aria-pressed",
       "true",

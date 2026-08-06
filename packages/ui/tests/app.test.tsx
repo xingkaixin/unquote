@@ -684,7 +684,7 @@ describe("UnquoteApp", () => {
     // Held across the locale switch: the timeline aria-label is localized too,
     // so re-querying by the English name would not find the same row.
     const timelineToolCall = (
-      await screen.findAllByRole("button", { name: /^Timeline: tool_use exec_command/ })
+      await screen.findAllByRole("button", { name: /^Timeline: tool · tool_use exec_command/ })
     )[0]!;
 
     await user.click(timelineToolCall);
@@ -750,7 +750,7 @@ describe("UnquoteApp", () => {
 
     const timelineToolResult = (
       await screen.findAllByRole("button", {
-        name: /^Timeline: tool_result/,
+        name: /^Timeline: tool · tool_result/,
       })
     )[0]!;
     await user.click(timelineToolResult);
@@ -776,10 +776,10 @@ describe("UnquoteApp", () => {
   it("keeps Agent detail selection aligned across navigation sources", async () => {
     const user = await renderCodexAgentView();
     const timelineToolCalls = await screen.findAllByRole("button", {
-      name: /^Timeline: tool_use exec_command/,
+      name: /^Timeline: tool · tool_use exec_command/,
     });
     const timelineTaskStarted = screen.getAllByRole("button", {
-      name: /^Timeline: task_started/,
+      name: /^Timeline: meta · task_started/,
     });
     const conversationToolCalls = screen.getAllByRole("button", {
       name: /^Conversation: Tool call/,

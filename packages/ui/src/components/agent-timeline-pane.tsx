@@ -32,7 +32,7 @@ const TimelineEvent = ({
     <button
       type="button"
       data-index={virtualized ? virtualIndex : undefined}
-      aria-label={`${t("agent.timeline")}: ${event.label}`}
+      aria-label={`${t("agent.timeline")}: ${config.label} · ${event.label}`}
       aria-pressed={selected}
       className={`flex h-11 w-full min-w-0 items-start gap-2.5 rounded-md px-2.5 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
         virtualized ? "absolute left-0 top-0" : ""
