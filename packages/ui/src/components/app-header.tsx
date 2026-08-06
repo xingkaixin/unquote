@@ -65,16 +65,11 @@ export const AppHeader = ({
           value={outputView}
           onValueChange={(value) => onOutputViewChange(value === "agent" ? "agent" : "json")}
         >
-          <TabsList className="h-7 rounded-md border-border-medium p-0">
-            <TabsTrigger value="agent" data-output-tab="agent" className="h-full rounded-md px-4">
+          <TabsList className="h-7 border-border-medium p-0">
+            <TabsTrigger value="agent" data-output-tab="agent" className="h-full px-4">
               {t("app.tab.agent")}
             </TabsTrigger>
-            <TabsTrigger
-              value="json"
-              data-output-tab="json"
-              translate="no"
-              className="h-full rounded-md px-4"
-            >
+            <TabsTrigger value="json" data-output-tab="json" translate="no" className="h-full px-4">
               {jsonTabLabel}
             </TabsTrigger>
           </TabsList>
