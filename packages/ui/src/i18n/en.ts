@@ -105,7 +105,6 @@ export const en = {
   "source.change": "Change",
   "source.pasted": "Pasted text",
   "source.none": "No data loaded",
-  "source.openImport": "Change data source",
   "status.maxDepth": "max depth {depth}",
   "status.expandedNested": "{count} nested expanded",
   "status.failed": "{count} failed",

@@ -306,8 +306,12 @@ const filterableJsonlInput = [
 
 type User = ReturnType<typeof userEvent.setup>;
 
+// The header source button is named by what it shows — the loaded source plus
+// the "Change" hint — so assistive tech and voice control can reach it by name.
+const sourceButton = () => screen.getByRole("button", { name: /Change$/ });
+
 const setInputFormat = async (user: User, label: "Auto" | "JSON" | "JSONL") => {
-  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  await user.click(sourceButton());
   const dialog = await screen.findByRole("dialog");
   await user.click(
     within(within(dialog).getByRole("group", { name: inputFormatLabel })).getByRole("button", {
@@ -318,7 +322,7 @@ const setInputFormat = async (user: User, label: "Auto" | "JSON" | "JSONL") => {
 };
 
 const pasteFileIntoImport = async (user: User, file: File) => {
-  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  await user.click(sourceButton());
   const dialog = await screen.findByRole("dialog");
   fireEvent.paste(within(dialog).getByRole("textbox", { name: "Source input" }), {
     clipboardData: { files: [file], items: [], types: ["Files"] },
@@ -340,7 +344,7 @@ const selectRailRecord = async (user: User, lineNumber: number) => {
 };
 
 const replaceSource = async (user: User, text: string) => {
-  await user.click(screen.getByRole("button", { name: "Change data source" }));
+  await user.click(sourceButton());
   const dialog = await screen.findByRole("dialog");
   fireEvent.change(within(dialog).getByRole("textbox", { name: "Source input" }), {
     target: { value: text },
@@ -389,7 +393,7 @@ describe("UnquoteApp", () => {
     );
     await waitFor(() => expect(document.querySelectorAll("#record-1")).toHaveLength(1));
 
-    await user.click(screen.getByRole("button", { name: "Change data source" }));
+    await user.click(sourceButton());
     const dialog = await screen.findByRole("dialog", { name: "Import data" });
     expect(within(dialog).getByRole("textbox", { name: "Source input" })).toHaveValue(
       '{"ok":true}',
@@ -420,9 +424,9 @@ describe("UnquoteApp", () => {
     expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeEnabled();
     // The source button names what is loaded; a pasted draft has no file name
     // but the workspace is still loaded, so it must not read "No data loaded".
-    expect(screen.getByRole("button", { name: "Change data source" })).toHaveTextContent(
-      "Pasted text",
-    );
+    // The accessible name has to contain that visible text (WCAG 2.5.3).
+    expect(sourceButton()).toHaveTextContent("Pasted text");
+    expect(screen.getByRole("button", { name: "Pasted text Change" })).toBe(sourceButton());
 
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
     expect(screen.getByText("selection")).toBeInTheDocument();
@@ -437,9 +441,7 @@ describe("UnquoteApp", () => {
 
     expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
     expect(screen.getByText("No data loaded · waiting for import")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change data source" })).toHaveTextContent(
-      "No data loaded",
-    );
+    expect(sourceButton()).toHaveTextContent("No data loaded");
     expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeDisabled();
   });
 

@@ -84,6 +84,24 @@ describe("StatusBar summary", () => {
     expect(screen.queryByRole("button", { name: /failed/ })).not.toBeInTheDocument();
   });
 
+  it("announces a parse failure from a region that predates it", () => {
+    const { props, rerender } = renderBar({ failedCount: 0 });
+    const region = document.querySelector('[aria-live="polite"]');
+
+    // A live region only announces if it was in the DOM before its content
+    // changed, so it cannot be mounted together with the failed count.
+    expect(region).toHaveTextContent("");
+
+    rerender(
+      <I18nProvider>
+        <StatusBar {...props} failedCount={2} />
+      </I18nProvider>,
+    );
+
+    expect(document.querySelectorAll("[aria-live]")).toHaveLength(1);
+    expect(region).toHaveTextContent("2 failed");
+  });
+
   it("clears the loaded source", async () => {
     const user = userEvent.setup();
     const { props } = renderBar();

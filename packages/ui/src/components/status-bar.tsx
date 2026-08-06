@@ -80,6 +80,11 @@ export const StatusBar = ({
           {t("status.failed", { count: failedCount })}
         </button>
       ) : null}
+      {/* The single parse-failure announcement: a live region has to be in the
+          DOM before its content changes, so it outlives the button above. */}
+      <span className="sr-only" aria-live="polite">
+        {failedCount > 0 ? t("status.failed", { count: failedCount }) : ""}
+      </span>
       {sourceStatus ? (
         <div className="flex min-w-0 items-center gap-2" aria-live="polite">
           <span className="min-w-0 truncate">{sourceStatus}</span>

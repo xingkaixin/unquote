@@ -53,6 +53,7 @@ export const AppHeader = ({
   const { t } = useTranslation();
   const shortcut = navigator.platform.toLowerCase().includes("mac") ? "⌘K" : "Ctrl K";
   const copyHint = copyBlocked ? t("toolbar.copyBlocked") : undefined;
+  const sourceLabel = sourceName ?? t(enabled ? "source.pasted" : "source.none");
 
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-surface-100 px-4">
@@ -99,14 +100,14 @@ export const AppHeader = ({
         type="button"
         className="flex h-7 min-w-0 max-w-[280px] shrink items-center gap-2 rounded-md border border-border-medium bg-surface-50 px-2.5 text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={onOpenImport}
-        aria-label={t("source.openImport")}
+        // Names the button after what it shows: adjacent spans would otherwise
+        // run together into "payload.jsonlChange" (WCAG 2.5.3 Label in Name).
+        aria-label={`${sourceLabel} ${t("source.change")}`}
       >
         <span className="shrink-0 font-mono text-[11px] text-accent" aria-hidden="true">
           ◍
         </span>
-        <span className="min-w-0 truncate font-mono text-[11px]">
-          {sourceName ?? t(enabled ? "source.pasted" : "source.none")}
-        </span>
+        <span className="min-w-0 truncate font-mono text-[11px]">{sourceLabel}</span>
         <span className="shrink-0 font-mono text-[10px] text-text-tertiary">
           {t("source.change")}
         </span>

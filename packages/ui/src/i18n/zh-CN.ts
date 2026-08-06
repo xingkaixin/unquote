@@ -107,7 +107,6 @@ export const zhCN: Messages = {
   "source.change": "更换",
   "source.pasted": "粘贴的文本",
   "source.none": "未载入数据",
-  "source.openImport": "更换数据源",
   "status.maxDepth": "最大深度 {depth}",
   "status.expandedNested": "已展开 {count} 处嵌套",
   "status.failed": "{count} 条失败",
