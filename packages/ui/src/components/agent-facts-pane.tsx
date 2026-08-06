@@ -37,7 +37,7 @@ export const AgentFactsPane = ({ session, model }: AgentFactsPaneProps) => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-      <span className="uq-label">{t("agent.overview")}</span>
+      <h2 className="uq-label m-0">{t("agent.overview")}</h2>
 
       <div
         className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border"

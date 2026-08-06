@@ -83,12 +83,12 @@ export const AgentTimelinePane = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 px-3.5 pb-2 pt-4">
-        <span className="uq-label">{t("agent.timeline")}</span>
+      <h2 className="uq-label m-0 flex shrink-0 items-center gap-1 px-3.5 pb-2 pt-4">
+        {t("agent.timeline")}
         {firstTurnIndex === undefined ? null : (
-          <span className="uq-label">· {t("agent.turn", { turn: firstTurnIndex })}</span>
+          <span>· {t("agent.turn", { turn: firstTurnIndex })}</span>
         )}
-      </div>
+      </h2>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {shouldVirtualize ? (
           <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>

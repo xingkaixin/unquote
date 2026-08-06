@@ -65,7 +65,7 @@ export const NodeInspector = memo(function NodeInspector({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5">
       <div className="flex flex-col gap-1">
-        <span className="uq-label">{t("inspector.title")}</span>
+        <h2 className="uq-label m-0">{t("inspector.title")}</h2>
         {value && selectedPath ? (
           <>
             <span className="text-[13px] font-medium text-text-primary">{selectedPath.rawKey}</span>

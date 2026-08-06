@@ -546,12 +546,13 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByPlaceholderText(commandInputPlaceholder)[0]).toBeInTheDocument();
   });
 
-  it("renders a continuous heading hierarchy", () => {
+  it("renders a continuous heading hierarchy", async () => {
     render(
       <I18nProvider>
-        <UnquoteApp />
+        <UnquoteApp initialInput='{"value":1}' />
       </I18nProvider>,
     );
+    await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
 
     const levels = screen
       .getAllByRole("heading")
@@ -929,7 +930,7 @@ describe("UnquoteApp", () => {
     );
   });
 
-  it("skips the active-record observer for virtualized record lists", async () => {
+  it("windows a large record list without observing it", async () => {
     const originalIntersectionObserver = globalThis.IntersectionObserver;
     const observerOptions: IntersectionObserverInit[] = [];
     Object.assign(globalThis, {
@@ -961,7 +962,14 @@ describe("UnquoteApp", () => {
         expect(screen.getAllByText("161 total · 161 ok · 0 err").length).toBeGreaterThan(0),
       );
 
-      expect(observerOptions.some((options) => Array.isArray(options.threshold))).toBe(false);
+      // One record is rendered at a time and the rail virtualizes, so nothing
+      // is left to observe: no scroll-spy, no lazy row hydration.
+      expect(observerOptions).toHaveLength(0);
+      const railRows = document
+        .querySelector("[data-record-rail]")!
+        .querySelectorAll("button[aria-pressed]");
+      expect(railRows.length).toBeLessThan(161);
+      expect(document.querySelectorAll("[id^='record-']:not([id*=':'])")).toHaveLength(1);
     } finally {
       Object.assign(globalThis, { IntersectionObserver: originalIntersectionObserver });
     }
