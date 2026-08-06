@@ -1,0 +1,111 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { AgentFactsPane } from "../src/components/agent-facts-pane";
+import { I18nProvider } from "../src/i18n/context";
+import { createAgentSessionModel } from "../src/lib/agent-session";
+import type { AgentSession, AgentTimelineEvent } from "../src/lib/agent-session";
+
+afterEach(cleanup);
+
+const toolEvent: AgentTimelineEvent = {
+  id: "event-2",
+  recordId: "record-2",
+  lineNumber: 2,
+  category: "tool",
+  kind: "function_call",
+  label: "Tool call",
+  preview: "shell",
+  conversationItems: [
+    {
+      id: "conversation-1",
+      role: "tool_call",
+      block: { type: "tool_use", text: "{}", toolName: "shell", toolCallId: "call-1" },
+    },
+    {
+      id: "conversation-2",
+      role: "tool_result",
+      block: { type: "tool_result", text: "ok", toolCallId: "call-1", status: "completed" },
+    },
+    { id: "conversation-3", role: "assistant", block: { type: "text", text: "done" } },
+  ],
+};
+
+const session: AgentSession = {
+  fileType: "Codex",
+  fileName: "rollout.jsonl",
+  meta: {
+    sessionId: "session-1",
+    model: "gpt-5",
+    cwd: "/repo",
+    version: "1.0.0",
+    eventCount: 1,
+    turnCount: 2,
+  },
+  events: [toolEvent],
+  parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
+};
+
+const renderPane = (next: AgentSession = session) => {
+  render(
+    <I18nProvider>
+      <AgentFactsPane session={next} model={createAgentSessionModel(next)} />
+    </I18nProvider>,
+  );
+};
+
+describe("AgentFactsPane", () => {
+  it("counts events, messages, turns, and tool exchanges", () => {
+    renderPane();
+    const metrics = document.querySelector("[data-agent-metrics]")!;
+
+    expect(metrics).toHaveAttribute("data-agent-metrics", "4");
+    expect(metrics).toHaveTextContent("Events1");
+    expect(metrics).toHaveTextContent("Messages3");
+    expect(metrics).toHaveTextContent("Turns2");
+    expect(metrics).toHaveTextContent("Tools2");
+  });
+
+  it("chips the file type, file name, and parse warnings", () => {
+    renderPane();
+
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("rollout.jsonl")).toBeInTheDocument();
+    expect(screen.getByText("1 warnings")).toBeInTheDocument();
+  });
+
+  it("composes the working directory and version under the session id", () => {
+    renderPane();
+
+    expect(screen.getByText("Session")).toBeInTheDocument();
+    expect(screen.getByText("session-1")).toBeInTheDocument();
+    expect(screen.getByText("/repo · v1.0.0")).toBeInTheDocument();
+    expect(screen.getByText("gpt-5")).toBeInTheDocument();
+  });
+
+  it("keeps the session block for a working directory with no version", () => {
+    renderPane({ ...session, meta: { cwd: "/repo", eventCount: 1, turnCount: 0 } });
+
+    expect(screen.getByText("Session")).toBeInTheDocument();
+    expect(screen.getByText("/repo")).toBeInTheDocument();
+  });
+
+  it("omits every fact the session does not carry", () => {
+    renderPane({
+      fileType: "Claude Code",
+      meta: { sessionId: "session-1", eventCount: 1, turnCount: 0 },
+      events: session.events,
+      parseWarnings: [],
+    });
+
+    expect(screen.getByText("session-1")).toBeInTheDocument();
+    expect(screen.queryByText("rollout.jsonl")).not.toBeInTheDocument();
+    expect(screen.queryByText(/warnings/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Model")).not.toBeInTheDocument();
+  });
+
+  it("drops the session block entirely when nothing identifies the session", () => {
+    renderPane({ ...session, meta: { eventCount: 0, turnCount: 0 } });
+
+    expect(screen.queryByText("Session")).not.toBeInTheDocument();
+  });
+});

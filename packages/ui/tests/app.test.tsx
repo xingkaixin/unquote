@@ -325,13 +325,16 @@ const pasteFileIntoImport = async (user: User, file: File) => {
   });
 };
 
-// The workspace shows one record at a time, so reaching another record's tree
-// goes through its rail row.
-const selectRailRecord = async (user: User, lineNumber: number) => {
-  const row = screen
+const railRow = (lineNumber: number) =>
+  screen
     .getAllByText(`#${lineNumber}`)
     .map((node) => node.closest("button"))
     .find((button): button is HTMLButtonElement => Boolean(button))!;
+
+// The workspace shows one record at a time, so reaching another record's tree
+// goes through its rail row.
+const selectRailRecord = async (user: User, lineNumber: number) => {
+  const row = railRow(lineNumber);
   await user.click(row);
   return row;
 };
@@ -401,6 +404,23 @@ describe("UnquoteApp", () => {
     await user.click(within(dialog).getByRole("button", { name: "Back" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelectorAll("#record-1")).toHaveLength(1);
+  });
+
+  it("opens straight into the workspace for an extension selection", async () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput='{"selection":"handoff"}' />
+      </I18nProvider>,
+    );
+
+    // The extension passes the selected text as initialInput and never sees the
+    // empty state, so hasData has to be true on the very first paint.
+    expect(screen.queryByText("Paste, drop, or choose a file")).not.toBeInTheDocument();
+    expect(screen.queryByText("No data loaded · waiting for import")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeEnabled();
+
+    await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+    expect(screen.getByText("selection")).toBeInTheDocument();
   });
 
   it("renders the empty state with disabled workspace chrome", () => {
@@ -1442,6 +1462,26 @@ describe("UnquoteApp", () => {
       expect(screen.getAllByText((text) => text.includes("1/2")).length).toBeGreaterThan(0),
     );
     void inputs;
+  });
+
+  it("follows a search match into a record the workspace was not showing", async () => {
+    const user = userEvent.setup();
+    const input = ['{"msg":"alpha"}', '{"msg":"beta"}', '{"msg":"needle"}'].join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    expect(railRow(1)).toHaveAttribute("aria-pressed", "true");
+
+    await user.type(getToolbarInput(), "needle");
+
+    // One record is on screen at a time, so the match has to move both the rail
+    // selection and the centre tree or ↑↓ navigation silently does nothing.
+    await waitFor(() => expect(railRow(3)).toHaveAttribute("aria-pressed", "true"));
+    expect(document.getElementById("record-3")).toBeInTheDocument();
+    expect(document.getElementById("record-1")).not.toBeInTheDocument();
   });
 
   it("completes an in-memory search through the search worker", async () => {

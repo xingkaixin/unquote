@@ -84,6 +84,14 @@ describe("StatusBar summary", () => {
     expect(screen.queryByRole("button", { name: /failed/ })).not.toBeInTheDocument();
   });
 
+  it("clears the loaded source", async () => {
+    const user = userEvent.setup();
+    const { props } = renderBar();
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(props.onClear).toHaveBeenCalledOnce();
+  });
+
   it("hides the data-scoped readouts until a source is loaded", () => {
     renderBar({ hasData: false, summary: "No data loaded · waiting for import" });
 
