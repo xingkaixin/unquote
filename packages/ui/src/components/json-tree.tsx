@@ -258,13 +258,13 @@ export const JsonTree = memo(function JsonTree({
           </div>
           {errorMeta ? (
             <div className="flex flex-col gap-1.5">
-              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
                 {t("error.rawLine")}
               </div>
               <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-all border border-border bg-surface-100 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">
                 {rawLine}
               </pre>
-              <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
                 {t("error.context")}
               </div>
               <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all border border-border bg-surface-100 px-2 py-1.5 font-mono text-[10px] leading-5 text-text-secondary">

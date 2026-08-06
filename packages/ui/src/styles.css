@@ -8,16 +8,11 @@
   --color-surface-50: #f7f8f9;
   --color-surface-100: #ffffff;
   --color-surface-200: #f4f5f6;
-  --color-surface-300: #e6e6e1;
-  --color-surface-400: #d2d2cc;
-  --color-surface-500: #b2b2ac;
 
   /* --- Text --- */
-  --color-text-display: #14171a;
   --color-text-primary: #14171a;
   --color-text-secondary: #5a6169;
   --color-text-tertiary: #8b939b;
-  --color-text-muted: #8b939b;
 
   /* --- Semantic --- */
   --color-accent: #f26522;
@@ -37,7 +32,6 @@
   /* --- Borders --- */
   --color-border: #e4e6e9;
   --color-border-medium: #d2d7dc;
-  --color-border-strong: #6c6c66;
 
   /* --- Background / Foreground --- */
   --background: #f4f5f6;
@@ -74,15 +68,10 @@
   --color-surface-50: #1a1e22;
   --color-surface-100: #15181b;
   --color-surface-200: #0d0f11;
-  --color-surface-300: #222222;
-  --color-surface-400: #333333;
-  --color-surface-500: #666666;
 
-  --color-text-display: #e9ecef;
   --color-text-primary: #e9ecef;
   --color-text-secondary: #a4acb4;
   --color-text-tertiary: #6f7880;
-  --color-text-muted: #6f7880;
 
   --color-accent: #ff7a36;
   --color-accent-hover: #ff9057;
@@ -99,7 +88,6 @@
 
   --color-border: #24282d;
   --color-border-medium: #343b42;
-  --color-border-strong: #999999;
 
   --background: #0d0f11;
   --foreground: #e9ecef;
@@ -250,60 +238,16 @@ a,
   color: var(--color-text-tertiary);
 }
 
-.uq-glass {
-  background: color-mix(in srgb, var(--color-surface-100) 90%, transparent);
-  backdrop-filter: blur(14px);
-}
-
 .uq-row-in {
   animation: rowIn 180ms var(--ease-out) both;
 }
 
-.nf-led {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--color-accent);
-  animation: nf-pulse 2.4s var(--ease-out) infinite;
-}
-
-.nf-led.is-red {
-  width: 7px;
-  height: 7px;
-  background: var(--color-error);
-  animation-duration: 1.6s;
-}
-
-.nf-led.is-green {
-  background: var(--color-success);
-}
-
-.nf-led.is-static {
-  animation: none;
-}
-
-.nf-title {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--color-text-primary);
-}
-
-/* .nf-mono-sub is the pre-redesign alias; it goes away with its last consumer in C7. */
-.uq-label,
-.nf-mono-sub {
+.uq-label {
   font-family: var(--font-mono);
   font-size: 10.5px;
   line-height: 1.6;
   letter-spacing: var(--tracking-tag);
   text-transform: uppercase;
-  color: var(--color-text-tertiary);
-}
-
-.nf-dim {
   color: var(--color-text-tertiary);
 }
 
@@ -318,18 +262,7 @@ a,
   }
 }
 
-@keyframes nf-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.18;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .nf-led,
   .uq-motion-pulse,
   .uq-row-in {
     animation: none;
