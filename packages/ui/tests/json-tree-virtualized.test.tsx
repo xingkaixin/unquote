@@ -59,7 +59,10 @@ const renderWideTree = () => {
   return screen.getByRole("tree");
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 beforeEach(() => {
   scrollToIndex.mockClear();
 });
@@ -75,6 +78,22 @@ describe("JsonTree virtualized keyboard navigation", () => {
 
     expect(tree).toHaveAttribute("aria-activedescendant", `${recordId}:$.k0`);
     expect(scrollToIndex).toHaveBeenLastCalledWith(1, { align: "auto" });
+  });
+
+  it("tags every virtualized row with its display index", () => {
+    // jsdom reports a zero-height scroll container, so the virtualizer renders
+    // no rows at all until it is given a viewport.
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    const tree = renderWideTree();
+
+    // `measureElement` resolves a row to its item through `data-index`; without
+    // it the estimate is never corrected and the rows overlap.
+    const indexes = Array.from(tree.querySelectorAll("[role='treeitem']")).map((row) =>
+      Number(row.getAttribute("data-index")),
+    );
+    expect(indexes.length).toBeGreaterThan(0);
+    expect(indexes.every(Number.isInteger)).toBe(true);
+    expect(indexes).toStrictEqual([...indexes].sort((left, right) => left - right));
   });
 
   it("resolves boundary navigation to the last interactive display index", () => {

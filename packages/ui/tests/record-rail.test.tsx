@@ -2,14 +2,18 @@ import { parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RecordRail, recordRailVirtualizationThreshold } from "../src/components/record-rail";
+import {
+  railRowHeight,
+  RecordRail,
+  recordRailVirtualizationThreshold,
+} from "../src/components/record-rail";
 import { I18nProvider } from "../src/i18n/context";
 import { createRecordInsight } from "../src/lib/record-insight";
 import type { RecordInsight } from "../src/lib/record-insight";
 import type { ScrollIntent } from "../src/lib/scroll-intent";
 
 const scrollViewportHeight = 600;
-const measuredRowHeight = 76;
+const measuredRowHeight = railRowHeight;
 
 const buildRecords = (count: number, failedIndexes: Set<number> = new Set()): JsonlRecord[] => {
   const lines = Array.from({ length: count }, (_, index) =>
@@ -118,6 +122,15 @@ describe("RecordRail", () => {
 
     expect(screen.getByText("#1")).toBeInTheDocument();
     expect(screen.queryByText(`#${total}`)).not.toBeInTheDocument();
+  });
+
+  it("renders virtualized rows at exactly the height the virtualizer assumes", () => {
+    renderRail(buildRecords(recordRailVirtualizationThreshold + 40));
+
+    // The rail runs without `measureElement`, so a row taller than the
+    // estimate would stack the absolutely positioned rows on top of each other.
+    expect(railButton(1).style.height).toBe(`${railRowHeight}px`);
+    expect(railButton(2).style.transform).toBe(`translateY(${railRowHeight}px)`);
   });
 
   it("scrolls to the record a scroll intent targets", async () => {

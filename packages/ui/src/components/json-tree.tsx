@@ -309,6 +309,7 @@ export const JsonTree = memo(function JsonTree({
                 key={row.id}
                 row={row}
                 virtualized
+                virtualIndex={virtualRow.index}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
                 measureRef={(node) => {
                   if (node) {
@@ -410,6 +411,7 @@ interface RowItemProps {
   onActivate: (rowId: string) => void;
   onTogglePath: (row: DisplayTreeRow) => void;
   virtualized?: boolean;
+  virtualIndex?: number;
   style?: CSSProperties;
   measureRef?: (node: HTMLDivElement | null) => void;
 }
@@ -425,6 +427,7 @@ const RowItem = memo(function RowItem({
   onActivate,
   onTogglePath,
   virtualized = false,
+  virtualIndex,
   style,
   measureRef,
 }: RowItemProps) {
@@ -458,6 +461,7 @@ const RowItem = memo(function RowItem({
     <div
       ref={measureRef}
       id={row.id}
+      data-index={virtualIndex}
       className={`group ${virtualized ? "absolute left-0 top-0" : "uq-row-in"} flex min-h-[24px] w-full ${row.kind === "close" ? "cursor-default" : "cursor-pointer"} items-start px-4 ${rowTone} ${railTone} ${activeDescendantTone}`}
       style={style}
       onClick={(event) => {

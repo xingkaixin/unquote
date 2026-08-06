@@ -11,7 +11,9 @@ import type { RecordInsight, RecordInsightKind } from "../lib/record-insight";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 
 export const recordRailVirtualizationThreshold = 160;
-const railRowEstimateSize = 76;
+// Rows are three truncated lines, so the virtualizer runs without measuring
+// them — which only holds while the rendered row is exactly this tall.
+export const railRowHeight = 86;
 
 // The rail always paints the four real RecordInsight kinds plus `error` for
 // records that never parsed; the agent-only six-way category split is not
@@ -65,8 +67,8 @@ const RailRow = ({
       aria-pressed={active}
       data-record-id={record.id}
       onClick={() => onSelect(record)}
-      style={style}
-      className={`flex w-full gap-2.5 border-b border-l-[3px] border-b-border px-3.5 py-[11px] text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
+      style={{ height: `${railRowHeight}px`, ...style }}
+      className={`flex w-full gap-2.5 overflow-hidden border-b border-l-[3px] border-b-border px-3.5 py-[11px] text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
         virtualized ? "absolute left-0 top-0" : ""
       } ${active ? "border-l-accent bg-accent-soft" : "border-l-transparent hover:bg-surface-200"}`}
     >
@@ -124,7 +126,7 @@ export const RecordRail = ({
   const rowVirtualizer = useVirtualizer({
     count: records.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => railRowEstimateSize,
+    estimateSize: () => railRowHeight,
     overscan: 12,
     getItemKey: (index) => records[index]?.id ?? index,
     enabled: shouldVirtualize,
