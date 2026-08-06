@@ -445,6 +445,23 @@ describe("UnquoteApp", () => {
     expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeDisabled();
   });
 
+  it("gives the header chrome controls one bordered treatment", () => {
+    render(
+      <I18nProvider>
+        <UnquoteApp />
+      </I18nProvider>,
+    );
+
+    // dc:58-59 borders the header controls with --line2; the locale, theme and
+    // export triggers used to compute a transparent border and a 0px radius.
+    for (const name of ["Change language", "Switch theme", "Export"]) {
+      expect(screen.getByRole("button", { name })).toHaveClass(
+        "border-border-medium",
+        "rounded-md",
+      );
+    }
+  });
+
   it("renders configured extension store links", () => {
     const chromeWebStoreUrl = "https://chrome.example/extension";
     const edgeAddonsUrl = "https://edge.example/extension";

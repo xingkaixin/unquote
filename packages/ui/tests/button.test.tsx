@@ -20,21 +20,29 @@ describe("Button base style", () => {
     expect(screen.getByRole("button", { name: "Export" })).toHaveClass("rounded-md");
   });
 
-  it("lets a call site opt into mono without fighting the base", () => {
-    render(<Button className="font-mono">JSONL</Button>);
+  it("leaves mono to the call sites that ask for it", () => {
+    render(
+      <>
+        <Button>Copy value</Button>
+        <Button className="font-mono">JSONL</Button>
+      </>,
+    );
 
+    expect(screen.getByRole("button", { name: "Copy value" })).not.toHaveClass("font-mono");
     expect(screen.getByRole("button", { name: "JSONL" })).toHaveClass("font-mono");
   });
 
   it.each([
-    { variant: undefined, expected: "border-border-medium" },
-    { variant: "outline" as const, expected: "border-border" },
-    { variant: "ghost" as const, expected: "border-transparent" },
-    { variant: "secondary" as const, expected: "bg-accent" },
-    { variant: "selected" as const, expected: "bg-accent-soft" },
+    // dc:58-59 gives the header's chrome controls a --line2 border that turns
+    // accent on hover; ghost is the only variant allowed to drop the border.
+    { variant: undefined, expected: ["border-border-medium", "hover:border-accent"] },
+    { variant: "outline" as const, expected: ["border-border", "hover:border-border-medium"] },
+    { variant: "ghost" as const, expected: ["border-transparent"] },
+    { variant: "secondary" as const, expected: ["border-accent", "bg-accent", "text-white"] },
+    { variant: "selected" as const, expected: ["border-accent", "bg-accent-soft"] },
   ])("keeps the $variant variant visually distinct", ({ variant, expected }) => {
     render(<Button variant={variant}>Filter</Button>);
 
-    expect(screen.getByRole("button", { name: "Filter" })).toHaveClass(expected);
+    expect(screen.getByRole("button", { name: "Filter" })).toHaveClass(...expected);
   });
 });
