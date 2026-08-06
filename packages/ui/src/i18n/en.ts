@@ -103,6 +103,7 @@ export const en = {
   "import.formatLabel": "Format",
   "import.formatHint": "Auto mode detects JSONL line by line and expands stringified JSON",
   "source.change": "Change",
+  "source.pasted": "Pasted text",
   "source.none": "No data loaded",
   "source.openImport": "Change data source",
   "status.maxDepth": "max depth {depth}",

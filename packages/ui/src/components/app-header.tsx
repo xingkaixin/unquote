@@ -110,7 +110,7 @@ export const AppHeader = ({
           ◍
         </span>
         <span className="min-w-0 truncate font-mono text-[11px]">
-          {sourceName ?? t("source.none")}
+          {sourceName ?? t(enabled ? "source.pasted" : "source.none")}
         </span>
         <span className="shrink-0 font-mono text-[10px] text-text-tertiary">
           {t("source.change")}

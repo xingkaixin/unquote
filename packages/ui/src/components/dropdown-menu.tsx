@@ -23,7 +23,7 @@ export const DropdownMenuContent = ({
   </Menu.Portal>
 );
 const itemClassName =
-  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono text-ui-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
+  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono uq-text-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
 
 export const DropdownMenuItem = ({
   className,

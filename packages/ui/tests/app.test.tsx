@@ -418,6 +418,11 @@ describe("UnquoteApp", () => {
     expect(screen.queryByText("Paste, drop, or choose a file")).not.toBeInTheDocument();
     expect(screen.queryByText("No data loaded · waiting for import")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeEnabled();
+    // The source button names what is loaded; a pasted draft has no file name
+    // but the workspace is still loaded, so it must not read "No data loaded".
+    expect(screen.getByRole("button", { name: "Change data source" })).toHaveTextContent(
+      "Pasted text",
+    );
 
     await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
     expect(screen.getByText("selection")).toBeInTheDocument();
@@ -432,6 +437,9 @@ describe("UnquoteApp", () => {
 
     expect(screen.getAllByRole("textbox", { name: "Source input" })).toHaveLength(1);
     expect(screen.getByText("No data loaded · waiting for import")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change data source" })).toHaveTextContent(
+      "No data loaded",
+    );
     expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeDisabled();
   });
 

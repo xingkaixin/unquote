@@ -322,7 +322,7 @@ export const SourceImportPanel = ({
             <Button
               key={option}
               type="button"
-              variant={mode === option ? "secondary" : "outline"}
+              variant={mode === option ? "selected" : "outline"}
               size="sm"
               className="rounded-sm px-2.5"
               aria-pressed={mode === option}

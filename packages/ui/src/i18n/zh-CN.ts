@@ -105,6 +105,7 @@ export const zhCN: Messages = {
   "import.formatLabel": "格式",
   "import.formatHint": "自动模式会按行判断 JSONL，并自动展开字符串化 JSON",
   "source.change": "更换",
+  "source.pasted": "粘贴的文本",
   "source.none": "未载入数据",
   "source.openImport": "更换数据源",
   "status.maxDepth": "最大深度 {depth}",

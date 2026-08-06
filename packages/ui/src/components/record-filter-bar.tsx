@@ -29,7 +29,7 @@ export const RecordFilterBar = ({ mode, onChange, shown, total }: RecordFilterBa
         <Button
           key={filter.mode}
           type="button"
-          variant={mode === filter.mode ? "secondary" : "outline"}
+          variant={mode === filter.mode ? "selected" : "outline"}
           size="sm"
           className="h-6 rounded-sm px-2.5"
           aria-pressed={mode === filter.mode}

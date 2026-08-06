@@ -267,7 +267,7 @@ export const CommandPalette = ({
                 value={commandQuery}
                 onChange={(event) => setCommandQuery(event.target.value)}
                 placeholder={t("command.filterCommands")}
-                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono text-ui-11 text-text-primary outline-none placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono uq-text-11 text-text-primary outline-none placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               />
             </div>
             <div
@@ -286,7 +286,7 @@ export const CommandPalette = ({
                     role="option"
                     tabIndex={-1}
                     aria-selected={index === activeIndex}
-                    className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono text-ui-11 uppercase tracking-[0.08em] ${
+                    className={`flex w-full items-center gap-2 px-4 py-3 text-left font-mono uq-text-11 uppercase tracking-[0.08em] ${
                       index === activeIndex
                         ? "bg-surface-50 text-text-primary shadow-[inset_2px_0_0_var(--color-accent)]"
                         : "text-text-secondary"
