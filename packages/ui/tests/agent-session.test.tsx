@@ -162,7 +162,6 @@ describe("agent session", () => {
       type: "tool_use",
       toolName: "exec_command",
       toolCallId: callId,
-      status: "pending",
     });
     expect(items[3]?.block).toMatchObject({
       type: "tool_result",

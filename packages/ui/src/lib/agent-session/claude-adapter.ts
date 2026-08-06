@@ -74,7 +74,6 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         text: truncateBlockText(JSON.stringify(input, null, 2)),
         toolName: part.name,
         toolCallId: part.id,
-        status: "pending",
       });
     } else if (part.type === "tool_result") {
       // Parallel tool calls answer with one tool_result block per call, so each

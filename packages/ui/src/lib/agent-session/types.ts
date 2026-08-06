@@ -44,7 +44,6 @@ export type AgentContentBlock =
       text: string;
       toolName: string;
       toolCallId?: string;
-      status: "pending" | "completed" | "failed";
     }
   | {
       type: "tool_result";
@@ -106,6 +105,8 @@ export interface AgentSessionDetail {
   recordId: string;
 }
 
+export type AgentToolStatus = "pending" | "completed" | "failed";
+
 export type AgentSessionIntegrityIssue =
   | { kind: "duplicate-event-id"; id: string }
   | { kind: "duplicate-record-id"; recordId: string }
@@ -118,6 +119,8 @@ export interface AgentSessionModel {
   resolveDetail(selection: AgentDetailSelection | null): AgentSessionDetail | null;
   selectEvent(eventId: string): AgentDetailSelection | null;
   selectConversation(itemId: string): AgentDetailSelection | null;
+  resolveToolStatus(item: AgentConversationItem): AgentToolStatus;
+  resolveToolName(item: AgentConversationItem): string | undefined;
 }
 
 export interface ParsedAgentLine {

@@ -151,7 +151,6 @@ describe("codexRolloutAdapter", () => {
       type: "tool_use",
       toolName: "tool",
       text: "{}",
-      status: "pending",
     });
     expect(items[6]?.block).toMatchObject({
       type: "tool_use",

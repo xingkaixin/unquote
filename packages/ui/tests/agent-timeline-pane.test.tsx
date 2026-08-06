@@ -25,25 +25,20 @@ const renderPane = (
   events: AgentTimelineEvent[],
   overrides: Partial<{
     highlightedRecordId: string | undefined;
-    collapsed: boolean;
-    onToggleCollapsed: () => void;
     onSelectEvent: (eventId: string) => void;
   }> = {},
 ) => {
   const onSelectEvent = overrides.onSelectEvent ?? vi.fn();
-  const onToggleCollapsed = overrides.onToggleCollapsed ?? vi.fn();
-  render(
+  const view = render(
     <I18nProvider>
       <AgentTimelinePane
         events={events}
         highlightedRecordId={overrides.highlightedRecordId}
-        collapsed={overrides.collapsed ?? false}
-        onToggleCollapsed={onToggleCollapsed}
         onSelectEvent={onSelectEvent}
       />
     </I18nProvider>,
   );
-  return { onSelectEvent, onToggleCollapsed };
+  return { onSelectEvent, ...view };
 };
 
 const timelineButtons = () => screen.getAllByRole("button", { name: /^Timeline:/ });
@@ -79,17 +74,29 @@ describe("AgentTimelinePane", () => {
     const buttons = timelineButtons();
     expect(buttons).toHaveLength(5);
     expect(buttons[2]).toHaveAttribute("aria-pressed", "true");
-    expect(buttons[2]).toHaveClass("bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]");
+    expect(buttons[2]).toHaveClass("bg-accent-soft");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(buttons[0]!);
     expect(onSelectEvent).toHaveBeenCalledWith("event-0");
   });
 
-  it("triggers the collapse toggle", () => {
-    const { onToggleCollapsed } = renderPane([buildEvent(0)]);
-    fireEvent.click(screen.getByLabelText("Collapse timeline"));
-    expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+  it("shows the category and line meta instead of the event preview", () => {
+    renderPane([{ ...buildEvent(0), preview: "a preview line", turnIndex: 2 }]);
+
+    expect(screen.getByText("· assistant")).toBeInTheDocument();
+    expect(screen.getByText("Line 1 · Turn 2")).toBeInTheDocument();
+    expect(screen.queryByText("a preview line")).not.toBeInTheDocument();
+  });
+
+  it("names the turn in the header only when the first event carries one", () => {
+    const { unmount } = renderPane([buildEvent(0)]);
+    expect(screen.getByText("Timeline")).toBeInTheDocument();
+    expect(screen.queryByText("· Turn 1")).not.toBeInTheDocument();
+    unmount();
+
+    renderPane([{ ...buildEvent(0), turnIndex: 1 }]);
+    expect(screen.getByText("· Turn 1")).toBeInTheDocument();
   });
 
   it("windows the rendered rows once events exceed the virtualization threshold", () => {

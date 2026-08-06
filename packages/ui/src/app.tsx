@@ -29,7 +29,7 @@ import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./li
 import { isCopyAboveThreshold } from "./lib/record-export";
 import { narrowPathToRecord } from "./lib/record-view";
 import type { SearchMatch } from "./lib/record-search";
-import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
+import type { RecordViewActions } from "./lib/record-view";
 import { formatSelectionCopy, resolveSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -251,25 +251,6 @@ export const UnquoteApp = ({
       workspace.togglePath,
     ],
   );
-  const recordView = useMemo<RecordViewModel>(
-    () => ({
-      state: {
-        recordInsights,
-        resolveRecord: localFileSource.resolveRecord,
-        expandedStringifiedPathsByRecord: displayedExpandedStringifiedPathsByRecord,
-        selectedPath,
-      },
-      actions: recordViewActions,
-    }),
-    [
-      displayedExpandedStringifiedPathsByRecord,
-      localFileSource.resolveRecord,
-      recordInsights,
-      recordViewActions,
-      selectedPath,
-    ],
-  );
-
   const renderedActiveRecord = useMemo(
     () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
     [activeRecord, localFileSource.resolveRecord],
@@ -334,6 +315,17 @@ export const UnquoteApp = ({
         return resolved ? formatSelectionCopy(selectedPath, materializeNode(resolved.node)) : null;
       }),
     [copyText, localFileSource.resolveRecords, result.records, selectedPath, t],
+  );
+
+  const handleOpenRecord = useCallback(
+    (recordId: string) => {
+      setOutputView("json");
+      const record = recordsById.get(recordId);
+      if (record) {
+        workspace.selectRecord(record);
+      }
+    },
+    [recordsById, setOutputView, workspace.selectRecord],
   );
 
   const handleCopySelectedPath = useCallback(
@@ -483,16 +475,13 @@ export const UnquoteApp = ({
   );
   const output =
     agentSession && outputView === "agent" ? (
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <AgentSessionView
-          session={agentSession}
-          recordsById={recordsById}
-          recordView={recordView}
-          detailSelection={detailSelection}
-          onDetailSelectionChange={workspace.selectAgentDetail}
-          {...(sourceAccess ? { readRawLine: sourceAccess.readRecordTextByLine } : {})}
-        />
-      </div>
+      <AgentSessionView
+        session={agentSession}
+        isDesktop={isDesktop}
+        detailSelection={detailSelection}
+        onDetailSelectionChange={workspace.selectAgentDetail}
+        onOpenRecord={handleOpenRecord}
+      />
     ) : (
       jsonOutput
     );

@@ -133,7 +133,6 @@ const codexResponseBlock = (
       text: truncateBlockText(argsSource ?? "{}"),
       toolName,
       ...(callId ? { toolCallId: callId } : {}),
-      status: "pending",
     };
   }
 

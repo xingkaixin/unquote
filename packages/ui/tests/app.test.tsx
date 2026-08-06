@@ -636,33 +636,40 @@ describe("UnquoteApp", () => {
 
     expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Timeline").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Conversation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Session overview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Tool call").length).toBeGreaterThan(0);
   });
 
   it("updates Agent timestamps across every surface when locale changes", async () => {
     const user = await renderCodexAgentView();
     const timestamp = Date.parse("2026-06-06T13:44:08.000Z");
-    const formatTimestamp = (locale: "en" | "zh-CN") =>
+    const fullTimestamp = (locale: "en" | "zh-CN") =>
       new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
         timeStyle: "medium",
       }).format(timestamp);
+    const clockTime = (locale: "en" | "zh-CN") =>
+      new Intl.DateTimeFormat(locale, { timeStyle: "medium" }).format(timestamp);
+    // Held across the locale switch: the timeline aria-label is localized too,
+    // so re-querying by the English name would not find the same row.
+    const timelineToolCall = (
+      await screen.findAllByRole("button", { name: /^Timeline: tool_use exec_command/ })
+    )[0]!;
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: /^Timeline: tool_use exec_command/ }))[0]!,
-    );
+    await user.click(timelineToolCall);
 
-    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
-    expect(screen.getAllByText(formatTimestamp("en"))).toHaveLength(2);
-    expect(rawJsonPanel).toHaveTextContent(formatTimestamp("en"));
+    // The 250px timeline rail prints the clock time only; the conversation,
+    // which has the width for it, prints the full date and time.
+    expect(timelineToolCall).toHaveTextContent(clockTime("en"));
+    expect(timelineToolCall).not.toHaveTextContent(fullTimestamp("en"));
+    expect(screen.getAllByText(new RegExp(fullTimestamp("en"))).length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "Change language" }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Chinese (Simplified)" }));
 
-    expect(screen.getAllByText(formatTimestamp("zh-CN"))).toHaveLength(2);
-    expect(rawJsonPanel).toHaveTextContent(formatTimestamp("zh-CN"));
-    expect(screen.queryByText(formatTimestamp("en"))).not.toBeInTheDocument();
+    expect(timelineToolCall).toHaveTextContent(clockTime("zh-CN"));
+    expect(screen.getAllByText(new RegExp(fullTimestamp("zh-CN"))).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(new RegExp(fullTimestamp("en")))).toHaveLength(0);
   });
 
   it("resolves Full Records for streamed Agent files", async () => {
@@ -717,9 +724,9 @@ describe("UnquoteApp", () => {
     )[0]!;
     await user.click(timelineToolResult);
 
-    // Selecting a timeline event activates its record; the JSON tab's tree pane
-    // is what now requests and renders the Full Record behind the Preview stub.
-    await user.click(screen.getAllByRole("tab", { name: "JSONL" })[0]!);
+    // The turn's own JSONL link activates its record; the JSON tab's tree pane
+    // is what then requests and renders the Full Record behind the Preview stub.
+    await user.click(screen.getByRole("button", { name: "View in JSONL" }));
     const treePane = await waitFor(() => {
       const pane = document.getElementById("record-3");
       expect(pane).toBeInTheDocument();
@@ -751,58 +758,53 @@ describe("UnquoteApp", () => {
         expect(button).toHaveAttribute("aria-pressed", String(pressed));
       }
     };
-    const expectSelection = async (recordId: string, selectedLine: 2 | 4) => {
-      await waitFor(() =>
-        expect(
-          screen
-            .getAllByRole("complementary", { name: "Raw JSONL" })
-            .every((panel) => within(panel).queryByText(new RegExp(recordId))),
-        ).toBe(true),
-      );
+    // task_started carries no conversation item, so line 2 selects the Event
+    // itself while line 4 selects through its Tool call.
+    const expectSelection = async (selectedLine: 2 | 4) => {
+      await waitFor(() => expectPressed(timelineToolCalls, selectedLine === 4));
       expectPressed(timelineTaskStarted, selectedLine === 2);
-      expectPressed(timelineToolCalls, selectedLine === 4);
       expectPressed(conversationToolCalls, selectedLine === 4);
     };
 
     await user.click(timelineToolCalls[0]!);
-    await expectSelection("record-4", 4);
-    const rawJsonPanel = screen.getAllByRole("complementary", { name: "Raw JSONL" })[0]!;
-    expect(within(rawJsonPanel).getAllByText("call_id").length).toBeGreaterThan(0);
-    expect(within(rawJsonPanel).getAllByText('"call_1"').length).toBeGreaterThan(0);
+    await expectSelection(4);
+    // Selecting the tool call is what expands its argument fields.
+    expect(screen.getAllByText("cmd").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("rg --files").length).toBeGreaterThan(0);
+
     await user.click(timelineTaskStarted[0]!);
-    await expectSelection("record-2", 2);
+    await expectSelection(2);
+    expect(screen.queryByText("cmd")).not.toBeInTheDocument();
 
     await user.click(conversationToolCalls[0]!);
-    await expectSelection("record-4", 4);
+    await expectSelection(4);
   });
 
-  it("reopens collapsed Agent raw data from a timeline selection", async () => {
+  it("keeps the Agent selection after opening its record in the JSONL view", async () => {
     const user = await renderCodexAgentView();
-    const timelineTaskStarted = screen.getAllByRole("button", {
-      name: /^Timeline: task_started/,
-    })[0]!;
+    const conversationToolCall = (
+      await screen.findAllByRole("button", { name: /^Conversation: Tool call/ })
+    )[0]!;
 
-    await user.click(timelineTaskStarted);
+    await user.click(conversationToolCall);
+    await waitFor(() => expect(conversationToolCall).toHaveAttribute("aria-pressed", "true"));
+
+    const openInJsonl = screen.getAllByRole("button", { name: "View in JSONL" });
+    await user.click(openInJsonl[openInJsonl.length - 1]!);
+
+    const treePane = await waitFor(() => {
+      const pane = document.getElementById("record-4");
+      expect(pane).toBeInTheDocument();
+      return pane!;
+    });
+    expect(within(treePane).getAllByText("call_id").length).toBeGreaterThan(0);
+    expect(within(treePane).getAllByText('"call_1"').length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("tab", { name: "Agent" })[0]!);
     await waitFor(() =>
       expect(
-        screen
-          .getAllByRole("complementary", { name: "Raw JSONL" })
-          .every((panel) => within(panel).queryByText(/record-2/)),
-      ).toBe(true),
-    );
-
-    for (const button of screen.getAllByRole("button", { name: "Collapse raw data" })) {
-      await user.click(button);
-    }
-    expect(screen.queryAllByRole("complementary", { name: "Raw JSONL" })).toHaveLength(0);
-
-    await user.click(timelineTaskStarted);
-    await waitFor(() =>
-      expect(
-        screen
-          .getAllByRole("complementary", { name: "Raw JSONL" })
-          .every((panel) => within(panel).queryByText(/record-2/)),
-      ).toBe(true),
+        screen.getAllByRole("button", { name: /^Conversation: Tool call/ })[0]!,
+      ).toHaveAttribute("aria-pressed", "true"),
     );
   });
 
@@ -1730,51 +1732,6 @@ describe("UnquoteApp", () => {
     expect(
       within(document.getElementById("record-2")!).queryByText("nested"),
     ).not.toBeInTheDocument();
-  });
-
-  it("shares record-scoped expansion between Agent and JSON views", async () => {
-    const user = userEvent.setup();
-    render(
-      <I18nProvider>
-        <UnquoteApp initialInput={codexRolloutSource} />
-      </I18nProvider>,
-    );
-
-    const timelineToolCall = (
-      await screen.findAllByRole("button", {
-        name: /^Timeline: tool_use exec_command/,
-      })
-    )[0]!;
-    await user.click(timelineToolCall);
-
-    const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;
-    await user.click(
-      within(rawJsonPanel)
-        .getByRole("treeitem", { name: /arguments/ })
-        .querySelector("[data-tree-toggle]")!,
-    );
-    await waitFor(() => expect(within(rawJsonPanel).getByText("cmd")).toBeInTheDocument());
-
-    await user.click(screen.getAllByRole("tab", { name: "JSONL" })[0]!);
-    const jsonRecord = await waitFor(() => {
-      const record = document.getElementById("record-4");
-      expect(record).toBeInTheDocument();
-      return record!;
-    });
-    expect(within(jsonRecord).getByText("cmd")).toBeInTheDocument();
-
-    await user.click(
-      within(jsonRecord)
-        .getByRole("treeitem", { name: /arguments/ })
-        .querySelector("[data-tree-toggle]")!,
-    );
-    await user.click(screen.getAllByRole("tab", { name: "Agent" })[0]!);
-    const collapsedRawJsonPanel = (
-      await screen.findAllByRole("complementary", {
-        name: "Raw JSONL",
-      })
-    )[0]!;
-    expect(within(collapsedRawJsonPanel).queryByText("cmd")).not.toBeInTheDocument();
   });
 
   it("collapses only the record on screen", async () => {

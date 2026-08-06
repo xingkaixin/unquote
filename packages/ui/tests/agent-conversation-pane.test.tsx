@@ -5,7 +5,12 @@ import {
   conversationVirtualizationThreshold,
 } from "../src/components/agent-conversation-pane";
 import { I18nProvider } from "../src/i18n/context";
-import type { AgentConversationEntry, AgentDetailSelection } from "../src/lib/agent-session";
+import { createAgentSessionModel } from "../src/lib/agent-session";
+import type {
+  AgentConversationEntry,
+  AgentDetailSelection,
+  AgentSession,
+} from "../src/lib/agent-session";
 
 const measuredRowHeight = 96;
 const containerTop = 40;
@@ -31,22 +36,39 @@ const buildEntry = (
   },
 });
 
+// The pane reads tool status and tool names through the model, so the entries
+// it renders must be the ones the model indexed.
+const modelFor = (entries: AgentConversationEntry[]) => {
+  const session: AgentSession = {
+    fileType: "Codex",
+    meta: { eventCount: entries.length, turnCount: 1 },
+    events: entries.map(({ item, event }) => ({ ...event, conversationItems: [item] })),
+    parseWarnings: [],
+  };
+  return createAgentSessionModel(session);
+};
+
 const renderPane = (
   entries: AgentConversationEntry[],
   overrides: Partial<{
     selectedConversationId: string | undefined;
     detailSelection: AgentDetailSelection | null;
     onSelectItem: (itemId: string) => void;
+    onOpenRecord: (recordId: string) => void;
   }> = {},
 ) => {
   const onSelectItem = overrides.onSelectItem ?? vi.fn();
+  const onOpenRecord = overrides.onOpenRecord ?? vi.fn();
+  const model = modelFor(entries);
   const { rerender } = render(
     <I18nProvider>
       <AgentConversationPane
         entries={entries}
+        model={model}
         selectedConversationId={overrides.selectedConversationId}
         detailSelection={overrides.detailSelection ?? null}
         onSelectItem={onSelectItem}
+        onOpenRecord={onOpenRecord}
       />
     </I18nProvider>,
   );
@@ -62,15 +84,17 @@ const renderPane = (
       <I18nProvider>
         <AgentConversationPane
           entries={next.entries ?? entries}
+          model={model}
           selectedConversationId={next.selectedConversationId}
           detailSelection={next.detailSelection ?? null}
           onSelectItem={onSelectItem}
+          onOpenRecord={onOpenRecord}
         />
       </I18nProvider>,
     );
   };
 
-  return { onSelectItem, rerenderWith };
+  return { onSelectItem, onOpenRecord, rerenderWith };
 };
 
 const conversationButtons = () => screen.getAllByRole("button", { name: /^Conversation:/ });
@@ -123,18 +147,90 @@ describe("AgentConversationPane", () => {
     expect(onSelectItem).toHaveBeenCalledWith("item-0");
   });
 
-  it("styles Tool Result content as code without treating plain text as code", () => {
-    renderPane([
+  it("opens the underlying record from every turn header", () => {
+    const entries = [
+      buildEntry(0, { type: "text", text: "Plain response" }),
+      buildEntry(1, { type: "tool_result", text: '{"ok":true}', status: "completed" }),
+    ];
+    const { onOpenRecord } = renderPane(entries);
+
+    const openButtons = screen.getAllByRole("button", { name: "View in JSONL" });
+    expect(openButtons).toHaveLength(2);
+
+    fireEvent.click(openButtons[1]!);
+    expect(onOpenRecord).toHaveBeenCalledWith("record-1");
+  });
+
+  it("renders a text turn as prose and a tool turn as a collapsed card", () => {
+    const entries = [
       buildEntry(0, { type: "text", text: "Plain response" }),
       buildEntry(1, {
-        type: "tool_result",
-        text: '{"ok":true}',
-        status: "completed",
+        type: "tool_use",
+        text: '{"cmd":"ls -la"}',
+        toolName: "shell",
+        toolCallId: "call-1",
       }),
-    ]);
+    ];
+    renderPane(entries);
 
-    expect(screen.getByText("Plain response")).toHaveClass("font-sans");
-    expect(screen.getByText('{"ok":true}')).toHaveClass("font-mono");
+    expect(screen.getByText("Plain response")).toBeInTheDocument();
+    expect(screen.getByText("shell")).toBeInTheDocument();
+    // Unpaired call: the status is never guessed as done.
+    expect(screen.getByText("Running")).toBeInTheDocument();
+    expect(screen.queryByText("cmd")).not.toBeInTheDocument();
+  });
+
+  it("expands the selected tool card into a field table", () => {
+    const entries = [
+      buildEntry(1, {
+        type: "tool_use",
+        text: '{"cmd":"ls -la","timeout":30}',
+        toolName: "shell",
+        toolCallId: "call-1",
+      }),
+    ];
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getByText("cmd")).toBeInTheDocument();
+    expect(screen.getByText("ls -la")).toBeInTheDocument();
+    expect(screen.getByText("timeout")).toBeInTheDocument();
+    expect(screen.getByText("30")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw text when the tool payload is not a JSON object", () => {
+    const entries = [
+      buildEntry(1, {
+        type: "tool_result",
+        text: "total 0\ndrwxr-xr-x  3 user",
+        status: "failed",
+        toolCallId: "call-1",
+      }),
+    ];
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getAllByText(/total 0/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+  });
+
+  it("titles a tool result with the paired call's tool name", () => {
+    const entries = [
+      buildEntry(0, {
+        type: "tool_use",
+        text: "{}",
+        toolName: "shell",
+        toolCallId: "call-1",
+      }),
+      buildEntry(1, {
+        type: "tool_result",
+        text: "done",
+        status: "completed",
+        toolCallId: "call-1",
+      }),
+    ];
+    renderPane(entries);
+
+    expect(screen.getByText("shell → output")).toBeInTheDocument();
+    expect(screen.getAllByText("Done")).toHaveLength(2);
   });
 
   it("re-scrolls to the same item when it is selected again below the threshold", () => {
@@ -209,9 +305,9 @@ describe("AgentConversationPane", () => {
     const entries = Array.from({ length: total }, (_, index) => buildEntry(index));
     const { onSelectItem } = renderPane(entries, { selectedConversationId: "item-1" });
 
-    const pressedButtons = screen
-      .getAllByRole("button")
-      .filter((button) => button.getAttribute("aria-pressed") === "true");
+    const pressedButtons = conversationButtons().filter(
+      (button) => button.getAttribute("aria-pressed") === "true",
+    );
     expect(pressedButtons).toHaveLength(1);
 
     const buttons = conversationButtons();
