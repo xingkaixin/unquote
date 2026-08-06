@@ -54,6 +54,7 @@ describe("tree paths", () => {
       "depth",
       "expanded",
       "id",
+      "insideStringified",
       "keyLabel",
       "kind",
       "node",
@@ -129,6 +130,26 @@ describe("tree paths", () => {
         pathRanges: [{ start: 0, end: expectedJsonPath.length }],
       }),
     ]);
+  });
+
+  it("marks the rows an escaped payload was unwrapped into, not its boundary", () => {
+    const record = parseInput('{"payload":"{\\"answer\\":{\\"n\\":42}}","status":"ok"}')
+      .records[0]!;
+    const rows = buildRecordRows(record, new Set(["$.payload"]));
+    const insideByPath = new Map(rows.map((row) => [row.pathText, row.insideStringified]));
+
+    expect(insideByPath.get("$")).toBe(false);
+    expect(insideByPath.get("$.status")).toBe(false);
+    expect(insideByPath.get("$.payload")).toBe(false);
+    expect(insideByPath.get("$.payload.answer")).toBe(true);
+    expect(insideByPath.get("$.payload.answer.n")).toBe(true);
+  });
+
+  it("leaves a collapsed boundary's payload unmarked because it has no rows", () => {
+    const record = parseInput('{"payload":"{\\"answer\\":42}"}').records[0]!;
+    const rows = buildRecordRows(record, new Set());
+
+    expect(rows.map((row) => row.insideStringified)).toEqual([false, false]);
   });
 
   it("collects stringified paths with quoted keys and array indexes", () => {

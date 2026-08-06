@@ -443,12 +443,12 @@ const RowItem = memo(function RowItem({
       : isSelected
         ? "bg-surface-50"
         : "hover:bg-surface-50";
-  // The accent bar marks the active match; a stringified boundary keeps a muted
-  // bar so an expanded escaped payload stays visually attached to its source.
+  // The accent bar marks the active match; the muted bar marks the region an
+  // escaped payload was unwrapped into, so it reads as one attached block.
   const railTone =
     isActiveMatch || isSelectedAnchor
       ? "shadow-[inset_3px_0_0_var(--color-accent)]"
-      : source.wasStringified
+      : source.insideStringified
         ? "shadow-[inset_3px_0_0_var(--color-border-medium)]"
         : "";
   const activeDescendantTone = isActiveDescendant

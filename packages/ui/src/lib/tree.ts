@@ -11,6 +11,7 @@ export interface TreeRow {
   kind: JsonNode["kind"];
   valueLabel: string;
   wasStringified: boolean;
+  insideStringified: boolean;
   expanded: boolean;
   node: JsonNode;
 }
@@ -35,6 +36,9 @@ export const buildRecordRows = (
       kind: ctx.node.kind,
       valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
       wasStringified,
+      // The chain ends with the row's own path when the row *is* a boundary, so
+      // anything beyond that means the row was unwrapped out of a parent string.
+      insideStringified: ctx.stringifiedChain.length > (wasStringified ? 1 : 0),
       expanded,
       node: ctx.node,
     });

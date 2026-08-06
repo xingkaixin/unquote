@@ -154,6 +154,17 @@ describe("JsonTree", () => {
     expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload.answer`);
   });
 
+  it("rails the unwrapped payload rather than the boundary row", () => {
+    const { setExpandedPaths, record } = renderTree();
+    const rail = "shadow-[inset_3px_0_0_var(--color-border-medium)]";
+
+    setExpandedPaths(new Set(["$.payload"]));
+
+    expect(document.getElementById(`${record.id}:$.payload`)).not.toHaveClass(rail);
+    expect(document.getElementById(`${record.id}:$.payload.answer`)).toHaveClass(rail);
+    expect(document.getElementById(`${record.id}:$.status`)).not.toHaveClass(rail);
+  });
+
   it("clicking the toggle affordance toggles the path instead of selecting it", () => {
     const { onTogglePath, onSelectNode, record } = renderTree();
     const items = screen.getAllByRole("treeitem");
