@@ -566,7 +566,7 @@ export const UnquoteApp = ({
         >
           {t("app.skipToContent")}
         </a>
-        <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
+        <header className="sticky top-0 z-40 flex h-[52px] items-center justify-between border-b border-border bg-[color-mix(in_srgb,var(--color-surface-100)_90%,transparent)] px-4 backdrop-blur-[14px] sm:px-6">
           <div className="flex items-center gap-3.5">
             <h1 className="m-0 text-[18px] font-medium tracking-[-0.01em] text-text-display">
               UNQUOTE

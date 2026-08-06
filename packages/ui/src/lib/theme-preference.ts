@@ -4,8 +4,8 @@ export const themeStorageKey = "unquote-theme";
 export const themeMediaQuery = "(prefers-color-scheme: dark)";
 
 const themeColors = {
-  light: "#f2f2ef",
-  dark: "#000000",
+  light: "#f4f5f6",
+  dark: "#0d0f11",
 } as const;
 
 const isTheme = (value: string | null): value is Theme =>

@@ -14,7 +14,7 @@ export const DropdownMenuContent = ({
     <Menu.Positioner align={align} sideOffset={8} className="z-50 outline-none">
       <Menu.Popup
         className={cn(
-          "uq-dropdown-popup min-w-40 rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 p-1 shadow-lg",
+          "uq-dropdown-popup min-w-40 rounded-xl border border-border-medium bg-surface-100 p-1 shadow-[var(--shadow-panel)]",
           className,
         )}
         {...props}

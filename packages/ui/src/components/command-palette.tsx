@@ -154,11 +154,11 @@ export const CommandPalette = ({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="uq-dialog-backdrop fixed inset-0 z-50 bg-black/35 backdrop-blur-sm dark:bg-black/65" />
+        <Dialog.Backdrop className="uq-dialog-backdrop fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[6px]" />
         <Dialog.Viewport className="fixed inset-0 z-50 px-3 pt-[16vh]">
           <Dialog.Popup
             initialFocus={inputRef}
-            className="uq-dialog-popup mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[var(--radius-overlay)] border border-border-medium bg-surface-100 shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="uq-dialog-popup mx-auto flex max-h-[76vh] w-full max-w-[540px] flex-col overflow-hidden rounded-xl border border-border-medium bg-surface-100 shadow-[var(--shadow-panel)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Dialog.Title className="sr-only">{t("command.palette")}</Dialog.Title>
             <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4 focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-accent">

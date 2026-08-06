@@ -6,7 +6,7 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        "rounded-[var(--radius-card)] border border-border bg-surface-100 text-text-primary shadow-none transition-colors duration-200 hover:border-border-medium",
+        "rounded-lg border border-border bg-surface-100 text-text-primary shadow-none transition-colors duration-200 hover:border-border-medium",
         className,
       )}
       {...props}
