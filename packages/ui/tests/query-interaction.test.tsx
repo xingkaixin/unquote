@@ -185,22 +185,6 @@ describe("query-interaction", () => {
     expect(state).toEqual({ ...base, toolbarQuery: "needle" });
   });
 
-  it("resets the filter when selecting an overview path", () => {
-    const state = reduceQueryInteraction(
-      { ...searchState(), recordFilter: "errors" },
-      {
-        type: "overviewPathSelect",
-        value: "$.payload",
-        resolution: errPath("$.payload", "NOT_FOUND"),
-      },
-    );
-    expect(state.recordFilter).toBe("all");
-    expect(state.modeState).toMatchObject({
-      mode: "path",
-      error: "NOT_FOUND",
-    });
-  });
-
   it("cycles search match indices with wrap-around", () => {
     let state = searchState();
     state = reduceQueryInteraction(state, { type: "nextMatch", matchCount: 3 });
@@ -284,26 +268,6 @@ describe("query-interaction", () => {
       currentMatchIndex: 0,
     });
     expect(state.toolbarQuery).toBe("boom");
-    expect(state.recordFilter).toBe("matches");
-  });
-
-  it("clears search options for overview field-value searches", () => {
-    const state = reduceQueryInteraction(
-      {
-        ...pathState(),
-        searchRegex: true,
-        searchCaseSensitive: true,
-      },
-      { type: "overviewFieldValueSearch", value: "boom" },
-    );
-    expect(state.modeState).toEqual({
-      mode: "search",
-      query: "boom",
-      currentMatchIndex: 0,
-    });
-    expect(state.searchRegex).toBe(false);
-    expect(state.searchCaseSensitive).toBe(false);
-    expect(state.searchJq).toBe(false);
     expect(state.recordFilter).toBe("matches");
   });
 

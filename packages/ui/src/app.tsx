@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { PanelLeftOpen, Store } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CommandPalette } from "./components/command-palette";
-import { FileOverview } from "./components/file-overview";
 import { InputPane } from "./components/input-pane";
 import type { SourceParseError } from "./components/input-pane";
 import { AgentSessionView } from "./components/agent-session-view";
@@ -164,7 +163,6 @@ export const UnquoteApp = ({
     recordsById,
     visibleRecords,
     visibleStats,
-    fileOverview,
     visibleMatches,
     matchCount,
   } = query.snapshot;
@@ -402,16 +400,6 @@ export const UnquoteApp = ({
     },
   ]);
 
-  const handleOverviewErrorSelect = (recordId: string) => {
-    const record = result.records.find((candidate) => candidate.id === recordId);
-    if (!record) {
-      return;
-    }
-
-    queryIntent.setFilter("errors");
-    workspace.selectRecord(record);
-  };
-
   const statusFile = sourceAccess ?? importedFile;
   const sourceFileStatus = readingFile
     ? t("input.readingFile", {
@@ -500,16 +488,6 @@ export const UnquoteApp = ({
         onCollapseAll={handleCollapseAll}
         hasExpandedStringified={hasExpandedVisibleStringifiedPaths}
       />
-      {fileOverview.total > 0 ? (
-        <FileOverview
-          overview={fileOverview}
-          format={result.format}
-          visibleCount={visibleStats.total}
-          onSelectNestedPath={queryIntent.selectOverviewPath}
-          onSearchFieldValue={queryIntent.searchOverviewFieldValue}
-          onSelectError={handleOverviewErrorSelect}
-        />
-      ) : null}
       <RecordList
         records={visibleRecords}
         recordView={recordView}

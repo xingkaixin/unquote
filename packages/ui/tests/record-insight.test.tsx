@@ -1,35 +1,10 @@
 import { parseInput } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { RecordInsightSummary } from "../src/components/record-insight";
-import { I18nProvider } from "../src/i18n/context";
 import { createRecordInsight, createRecordInsightMap } from "../src/lib/record-insight";
 import { filterRecords } from "../src/lib/record-filter";
 
 describe("record insight", () => {
-  it("renders the message kind with the neutral badge variant", () => {
-    render(
-      <I18nProvider>
-        <RecordInsightSummary
-          insight={{
-            recordId: "record-1",
-            lineNumber: 1,
-            kind: "message",
-            title: "message",
-            nestedJsonCount: 0,
-            maxDepth: 0,
-            keyPathCount: 0,
-          }}
-        />
-      </I18nProvider>,
-    );
-
-    const badge = screen.getByText("Message").closest("div");
-    expect(badge).toHaveClass("text-text-muted");
-    expect(badge).not.toHaveClass("text-success");
-  });
-
   it("extracts common field variants and classifies records", () => {
     const result = parseInput(
       [
@@ -84,8 +59,6 @@ describe("record insight", () => {
       tool: "billing.search",
       nestedJsonCount: 1,
     });
-    expect(tool?.maxDepth).toBeGreaterThanOrEqual(3);
-    expect(tool?.keyPathCount).toBeGreaterThanOrEqual(2);
   });
 
   // The field pickers changed from eight filter+sort passes to a single pass
@@ -219,7 +192,6 @@ describe("record insight", () => {
       tool: "billing.search",
       message: "ready",
       nestedJsonCount: 1,
-      maxDepth: 1,
     });
     expect(filterRecords([record], "nested", null)).toEqual([record]);
   });

@@ -497,7 +497,6 @@ describe("UnquoteApp", () => {
       .getAllByRole("heading")
       .map((heading) => Number(heading.tagName.slice(1)));
     expect(levels[0]).toBe(1);
-    expect(levels).toContain(2);
     levels.slice(1).forEach((level, index) => {
       expect(level).toBeLessThanOrEqual(levels[index]! + 1);
     });
@@ -798,19 +797,8 @@ describe("UnquoteApp", () => {
 
     await user.click(screen.getByRole("tab", { name: "Output" }));
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
-    expect(screen.getAllByText("File Overview").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Nested records").length).toBeGreaterThan(0);
-    const maxDepthIcon = screen.getAllByText("Max depth")[0]?.parentElement?.querySelector("svg");
-    expect(maxDepthIcon).toHaveClass("text-text-secondary");
-    expect(maxDepthIcon).not.toHaveClass("text-code-boolean");
-    await user.click(screen.getAllByRole("button", { name: /File Overview/ })[0]!);
-    expect(screen.getAllByText("webhook.received").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3 total · 2 ok · 1 err").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
-
-    await user.click(screen.getAllByRole("button", { name: "Jump to line 2" })[0]!);
-    await waitFor(() => expect(screen.queryAllByText("#1")).toHaveLength(0));
-    expect(screen.getAllByText("#2").length).toBeGreaterThan(0);
   });
 
   it("filters JSONL records across list, toc, and search", async () => {

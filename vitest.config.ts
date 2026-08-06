@@ -34,7 +34,6 @@ export default defineConfig({
         statements: 92,
         "packages/ui/src/components/agent-session-view.tsx": hotspotThresholds,
         "packages/ui/src/components/command-palette.tsx": hotspotThresholds,
-        "packages/ui/src/components/file-overview.tsx": hotspotThresholds,
         "packages/ui/src/hooks/use-parser.ts": hotspotThresholds,
         "packages/ui/src/hooks/use-source-loader.ts": hotspotThresholds,
         "packages/ui/src/lib/path-codec.ts": hotspotThresholds,

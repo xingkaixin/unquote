@@ -9,7 +9,6 @@ import type { RecordInsight } from "../lib/record-insight";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
-import { RecordInsightSummary } from "./record-insight";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 export const tocVirtualizationThreshold = 160;
@@ -73,7 +72,6 @@ const TocRow = ({
           <span className="truncate text-[12px] text-text-secondary">
             {insight?.title ?? record.summary}
           </span>
-          {insight ? <RecordInsightSummary insight={insight} compact /> : null}
         </div>
       </button>
       {!parsed ? (

@@ -22,7 +22,6 @@ import type { TreeRow } from "../lib/tree";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
-import { RecordInsightSummary } from "./record-insight";
 
 // A record only virtualizes past a row count and when every row is short and
 // single-line: tall (long or multiline) values break the virtualizer's
@@ -341,7 +340,6 @@ export const JsonTree = memo(function JsonTree({
               {t("tree.nodes", { count: rows.length })}
             </span>
           </div>
-          {insight ? <RecordInsightSummary insight={insight} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button

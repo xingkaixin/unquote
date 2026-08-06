@@ -51,8 +51,6 @@ export type QueryInteractionAction =
   | { type: "submitToolbarQuery"; value: string; resolution: PathResolution | null }
   | { type: "clearToolbarQuery" }
   | { type: "commandSearch"; value: string }
-  | { type: "overviewPathSelect"; value: string; resolution: PathResolution | null }
-  | { type: "overviewFieldValueSearch"; value: string }
   | { type: "setSearchOption"; kind: SearchOptionKind; on: boolean }
   | { type: "setRecordFilter"; filter: QueryInteractionState["recordFilter"] }
   | { type: "setCommandInput"; value: string }
@@ -91,23 +89,6 @@ export const reduceQueryInteraction = (
       return applyPathResolution(state, action.value, action.resolution);
     }
 
-    case "overviewPathSelect": {
-      if (!action.resolution) {
-        return {
-          ...state,
-          toolbarQuery: action.value,
-          modeState: createModeState(action.value),
-          recordFilter: "all",
-        };
-      }
-
-      return applyPathResolution(
-        { ...state, recordFilter: "all" },
-        action.value,
-        action.resolution,
-      );
-    }
-
     case "clearToolbarQuery": {
       return {
         ...state,
@@ -121,18 +102,6 @@ export const reduceQueryInteraction = (
         ...state,
         toolbarQuery: action.value,
         modeState: createSearchModeState(action.value),
-        recordFilter: "matches",
-      };
-    }
-
-    case "overviewFieldValueSearch": {
-      return {
-        ...state,
-        toolbarQuery: action.value,
-        modeState: createSearchModeState(action.value),
-        searchRegex: false,
-        searchCaseSensitive: false,
-        searchJq: false,
         recordFilter: "matches",
       };
     }

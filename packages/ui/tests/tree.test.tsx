@@ -346,26 +346,16 @@ describe("tree paths", () => {
     );
     const overview = createFileOverview(result.records);
 
-    expect(overview).toMatchObject({
+    expect(overview).toEqual({
       total: 3,
       success: 2,
       failed: 1,
       nestedRecords: 1,
       maxDepth: 2,
     });
-    expect(overview.topNestedPaths).toEqual([{ pathText: "$.args", count: 1 }]);
-    expect(overview.topFieldValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: "event", pathText: "$.event", value: "tool_call" }),
-        expect.objectContaining({ field: "tool", pathText: "$.tool", value: "billing.search" }),
-      ]),
-    );
-    expect(overview.errors).toEqual([
-      expect.objectContaining({ recordId: "record-3", lineNumber: 3 }),
-    ]);
   });
 
-  it("keeps overview fields and nested paths for Preview Records", () => {
+  it("counts nested JSON and depth for Preview Records", () => {
     const record = {
       id: "record-1",
       lineNumber: 1,
@@ -382,18 +372,12 @@ describe("tree paths", () => {
       summary: "event:tool_call",
     } satisfies JsonlRecord;
 
-    expect(createFileOverview([record])).toMatchObject({
+    expect(createFileOverview([record])).toEqual({
       total: 1,
       success: 1,
+      failed: 0,
       nestedRecords: 1,
       maxDepth: 1,
-      topNestedPaths: [{ pathText: "$.args", count: 1 }],
     });
-    expect(createFileOverview([record]).topFieldValues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: "event", value: "tool_call" }),
-        expect.objectContaining({ field: "tool", value: "billing.search" }),
-      ]),
-    );
   });
 });
