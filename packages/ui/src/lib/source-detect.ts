@@ -4,10 +4,9 @@ export type SourceDetection =
   | { kind: "jsonl"; lines: number }
   | { kind: "invalid" };
 
-// The draft is re-sniffed on every keystroke, so nothing longer than this
-// budget is ever parsed: the probe walks whole lines until it has spent the
-// budget, across no more than this many lines, and falls back to a shape check
-// for any candidate that exceeds it on its own.
+// The draft is re-sniffed on every keystroke, so the scan below allocates
+// nothing per line and parses at most this budget plus the one line that
+// crosses it; any candidate longer than the budget is judged by its shape.
 const probeBudget = 64 * 1024;
 const probedLines = 40;
 
@@ -28,32 +27,55 @@ const isBracketed = (text: string) => {
 const looksLikeJson = (text: string) =>
   text.length > probeBudget ? isBracketed(text) : parses(text);
 
-const probeJsonLines = (lines: readonly string[]) => {
+interface DraftLines {
+  count: number;
+  probe: string[];
+}
+
+const scanLines = (text: string): DraftLines => {
+  const probe: string[] = [];
+  let count = 0;
   let budget = probeBudget;
-  for (const line of lines.slice(0, probedLines)) {
-    if (!looksLikeJson(line)) {
-      return false;
+  let index = 0;
+
+  for (;;) {
+    const brk = text.indexOf("\n", index);
+    const end = brk === -1 ? text.length : brk;
+    let start = index;
+    while (start < end && text.charCodeAt(start) <= 32) {
+      start += 1;
     }
 
-    budget -= line.length;
-    if (budget <= 0) {
-      break;
+    let stop = end;
+    while (stop > start && text.charCodeAt(stop - 1) <= 32) {
+      stop -= 1;
     }
+
+    if (start < stop) {
+      count += 1;
+      if (probe.length < probedLines && budget > 0) {
+        budget -= stop - start;
+        probe.push(text.slice(start, stop));
+      }
+    }
+
+    if (brk === -1) {
+      return { count, probe };
+    }
+
+    index = brk + 1;
   }
-
-  return true;
 };
 
 export const detectSourceFormat = (text: string): SourceDetection => {
-  const trimmed = text.trim();
-  if (!trimmed) {
+  const { count, probe } = scanLines(text);
+  if (count === 0) {
     return { kind: "empty" };
   }
 
-  const lines = trimmed.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length > 1 && probeJsonLines(lines)) {
-    return { kind: "jsonl", lines: lines.length };
+  if (count > 1 && probe.every((line) => looksLikeJson(line))) {
+    return { kind: "jsonl", lines: count };
   }
 
-  return looksLikeJson(trimmed) ? { kind: "json" } : { kind: "invalid" };
+  return looksLikeJson(text.trim()) ? { kind: "json" } : { kind: "invalid" };
 };

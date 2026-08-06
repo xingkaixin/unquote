@@ -65,6 +65,23 @@ describe("detectSourceFormat", () => {
 
   it("still rejects an over-budget draft that is not shaped like JSON", () => {
     expect(detectSourceFormat("x".repeat(70 * 1024))).toEqual({ kind: "invalid" });
+    // Over the budget the shape check is all that is left, so a bracketed
+    // document is trusted while an unclosed one is not.
+    expect(detectSourceFormat(`[${"x".repeat(70 * 1024)}]`)).toEqual({ kind: "json" });
+    expect(detectSourceFormat(`{${"x".repeat(70 * 1024)}`)).toEqual({ kind: "invalid" });
+  });
+
+  it("counts a pretty-printed document over the budget without parsing it", () => {
+    const document = `{\n${Array.from({ length: 40_000 }, (_, index) => `  "k${index}": "${"x".repeat(20)}",`).join("\n")}\n  "last": 1\n}`;
+    const parse = vi.spyOn(JSON, "parse");
+
+    // Every line here is a JSON fragment, so the probe fails on line 1 and the
+    // whole draft is judged by its brackets rather than parsed.
+    expect(document.length).toBeGreaterThan(64 * 1024);
+    expect(detectSourceFormat(document)).toEqual({ kind: "json" });
+    expect(parse).toHaveBeenCalledTimes(1);
+
+    parse.mockRestore();
   });
 
   it("stops probing once a line has spent the budget", () => {
