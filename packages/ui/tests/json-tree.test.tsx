@@ -15,9 +15,7 @@ const renderTree = (
     <I18nProvider>
       <JsonTree
         record={record}
-        insight={undefined}
         expandedStringifiedPaths={paths}
-        eager
         searchMatches={[]}
         activeMatchPath={null}
         scrollIntent={null}
@@ -53,6 +51,8 @@ describe("JsonTree", () => {
     expect(screen.getByRole("tree")).toBeInTheDocument();
     const items = screen.getAllByRole("treeitem");
     expect(items).toHaveLength(3);
+    // The tree is its own scroll container; the benchmark targets it by name.
+    expect(screen.getByRole("tree")).toHaveAttribute("data-tree-scroller");
     expect(screen.getByRole("tree")).toHaveAttribute("tabindex", "0");
     expect(items[0]).toHaveAttribute("tabindex", "-1");
     expect(items[1]).toHaveAttribute("tabindex", "-1");
@@ -76,10 +76,11 @@ describe("JsonTree", () => {
     );
   });
 
-  it("marks a record-scoped selected path", () => {
+  it("addresses rows by record id and path and marks only the selected one", () => {
     renderTree(new Set(), "$.status");
 
     expect(document.getElementById("record-1:$.status")).toHaveAttribute("aria-selected", "true");
+    expect(document.getElementById("record-1:$.payload")).toHaveAttribute("aria-selected", "false");
   });
 
   it("scrolls the newly active row into view when not virtualized", () => {

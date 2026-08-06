@@ -39,9 +39,7 @@ const renderWideTree = () => {
     <I18nProvider>
       <JsonTree
         record={record}
-        insight={undefined}
         expandedStringifiedPaths={new Set()}
-        eager
         searchMatches={[]}
         activeMatchPath={null}
         scrollIntent={null}

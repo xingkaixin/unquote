@@ -11,7 +11,6 @@ import {
   type AgentTimelineEvent,
 } from "../lib/agent-session";
 import { getExpandedStringifiedPaths } from "../lib/record-expansion";
-import type { RecordInsight } from "../lib/record-insight";
 import {
   narrowPathToRecord,
   type RecordViewActions,
@@ -63,7 +62,6 @@ const RawJsonlPanel = ({
   event,
   item,
   record,
-  insight,
   expandedStringifiedPaths,
   selectedPath,
   onCollapse,
@@ -73,7 +71,6 @@ const RawJsonlPanel = ({
   event: AgentTimelineEvent;
   item: AgentConversationItem | undefined;
   record: JsonlRecord | undefined;
-  insight: RecordInsight | undefined;
   expandedStringifiedPaths: ReadonlySet<string>;
   selectedPath: { recordId: string; pathText: string } | null;
   onCollapse: () => void;
@@ -151,9 +148,7 @@ const RawJsonlPanel = ({
         {record ? (
           <JsonTree
             record={record}
-            insight={insight}
             expandedStringifiedPaths={expandedStringifiedPaths}
-            eager
             searchMatches={noSearchMatches}
             activeMatchPath={null}
             scrollIntent={null}
@@ -182,7 +177,7 @@ export const AgentSessionView = ({
   readRawLine,
 }: AgentSessionViewProps) => {
   const {
-    state: { resolveRecord, recordInsights, expandedStringifiedPathsByRecord, selectedPath },
+    state: { resolveRecord, expandedStringifiedPathsByRecord, selectedPath },
     actions,
   } = recordView;
   const { t } = useTranslation();
@@ -300,7 +295,6 @@ export const AgentSessionView = ({
       event={detailEvent}
       item={detailItem}
       record={renderedDetailRecord}
-      insight={recordInsights.get(detailEvent.recordId)}
       expandedStringifiedPaths={getExpandedStringifiedPaths(
         expandedStringifiedPathsByRecord,
         detailEvent.recordId,

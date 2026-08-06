@@ -1,20 +1,19 @@
 import { materializeNode } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { AppHeader } from "./components/app-header";
-import { Button } from "./components/button";
 import { CommandPalette } from "./components/command-palette";
 import { ImportDialog } from "./components/import-dialog";
 import { AgentSessionView } from "./components/agent-session-view";
-import { RecordFilterBar } from "./components/record-filter-bar";
-import { RecordList } from "./components/record-list";
+import { JsonWorkspace } from "./components/json-workspace";
 import { Toaster } from "./components/sonner";
 import { SourceImportPanel } from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
 import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
+import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
@@ -26,25 +25,14 @@ import { useSourceLoader } from "./hooks/use-source-loader";
 import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
 import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { formatFileSize } from "./lib/format";
-import { isArrayElementPath } from "./lib/path-codec";
 import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
 import { isCopyAboveThreshold } from "./lib/record-export";
+import { narrowPathToRecord } from "./lib/record-view";
 import type { SearchMatch } from "./lib/record-search";
 import type { RecordViewActions, RecordViewModel } from "./lib/record-view";
+import { formatSelectionCopy, resolveSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
-import { resolveTreePath } from "./lib/tree-path";
-
-import type { SelectedPath } from "./hooks/use-workspace-session";
-
-const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
-  const valueText = JSON.stringify(value, null, 2);
-  if (selection.rawKey === "$" || isArrayElementPath(selection.pathText)) {
-    return valueText;
-  }
-
-  return `${JSON.stringify(selection.rawKey)}: ${valueText}`;
-};
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
@@ -62,6 +50,7 @@ export const UnquoteApp = ({
   edgeAddonsUrl,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
+  const isDesktop = useDesktopWorkspace();
   const {
     mode,
     setMode,
@@ -191,9 +180,19 @@ export const UnquoteApp = ({
       ),
     [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
   );
-  const expandedNestedCount = activeRecordId
-    ? getExpandedStringifiedPaths(displayedExpandedStringifiedPathsByRecord, activeRecordId).size
-    : 0;
+  // Same rule as reconcileWorkspaceSelection's fallback, applied during render:
+  // the reducer only catches up in an effect, which would otherwise leave the
+  // workspace record-less for the first paint of every parse.
+  const activeRecord = useMemo(
+    () =>
+      visibleRecords.find((record) => record.id === activeRecordId) ?? visibleRecords[0] ?? null,
+    [activeRecordId, visibleRecords],
+  );
+  const displayedRecordId = activeRecord?.id ?? "";
+  const expandedNestedCount = getExpandedStringifiedPaths(
+    displayedExpandedStringifiedPathsByRecord,
+    displayedRecordId,
+  ).size;
 
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
@@ -271,47 +270,76 @@ export const UnquoteApp = ({
     ],
   );
 
-  const handleExpandAll = () => {
-    // Expand from the Full Record where one exists: a Preview Record only lists
-    // top-level nested fields, so stringified JSON sitting
-    // under a plain container would otherwise be unreachable from here.
-    workspace.expandAll(
-      visibleRecords.map(localFileSource.resolveRecord),
-      displayedExpandedStringifiedPathsByRecord,
-    );
-  };
-
-  const handleCollapseAll = () => {
-    workspace.collapseAll(visibleRecords.map((record) => record.id));
-  };
-
-  const getSelectedNodeContext = async () => {
-    if (!selectedPath) {
+  const renderedActiveRecord = useMemo(
+    () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
+    [activeRecord, localFileSource.resolveRecord],
+  );
+  const turnIndexByRecordId = useMemo(() => {
+    if (!agentSession) {
       return null;
     }
 
-    const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
-    const [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
-    const resolved = copyRecord?.node ? resolveTreePath([copyRecord], selectedPath.pathText) : null;
-
-    return copyRecord && resolved?.ok ? { record: copyRecord, target: resolved.target } : null;
-  };
-
-  const handleCopySelectedSubtree = () =>
-    copyText(async () => {
-      let context: Awaited<ReturnType<typeof getSelectedNodeContext>>;
-      try {
-        context = await getSelectedNodeContext();
-      } catch {
-        toast.error(t("input.readFailed"));
-        return null;
+    const turnIndexes = new Map<string, number>();
+    for (const event of agentSession.events) {
+      if (event.turnIndex !== undefined && !turnIndexes.has(event.recordId)) {
+        turnIndexes.set(event.recordId, event.turnIndex);
       }
-      if (!context || !selectedPath) {
-        return null;
+    }
+    return turnIndexes;
+  }, [agentSession]);
+  const visibleMatchesByRecord = useMemo(() => {
+    const matchesByRecord = new Map<string, SearchMatch[]>();
+    for (const match of visibleMatches ?? []) {
+      const matches = matchesByRecord.get(match.recordId);
+      if (matches) {
+        matches.push(match);
+      } else {
+        matchesByRecord.set(match.recordId, [match]);
       }
+    }
+    return matchesByRecord;
+  }, [visibleMatches]);
 
-      return formatSelectionCopy(selectedPath, materializeNode(context.target.node));
-    });
+  // Expansion is scoped to the record on screen: a Preview Record only lists
+  // top-level nested fields, so expand from the Full Record where one exists or
+  // stringified JSON under a plain container stays unreachable from here.
+  const handleExpandAll = useCallback(() => {
+    workspace.expandAll(
+      renderedActiveRecord ? [renderedActiveRecord] : [],
+      displayedExpandedStringifiedPathsByRecord,
+    );
+  }, [displayedExpandedStringifiedPathsByRecord, renderedActiveRecord, workspace.expandAll]);
+
+  const handleCollapseAll = useCallback(() => {
+    workspace.collapseAll(activeRecord ? [activeRecord.id] : []);
+  }, [activeRecord, workspace.collapseAll]);
+
+  const handleCopySelectedSubtree = useCallback(
+    () =>
+      copyText(async () => {
+        if (!selectedPath) {
+          return null;
+        }
+
+        const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
+        let copyRecord: JsonlRecord | undefined;
+        try {
+          [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
+        } catch {
+          toast.error(t("input.readFailed"));
+          return null;
+        }
+
+        const resolved = copyRecord ? resolveSelectedNode(copyRecord, selectedPath) : null;
+        return resolved ? formatSelectionCopy(selectedPath, materializeNode(resolved.node)) : null;
+      }),
+    [copyText, localFileSource.resolveRecords, result.records, selectedPath, t],
+  );
+
+  const handleCopySelectedPath = useCallback(
+    () => copyText(async () => selectedPath?.pathText ?? null),
+    [copyText, selectedPath],
+  );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
   // hook (listener mounts once), so this array can be a fresh literal every
@@ -399,7 +427,6 @@ export const UnquoteApp = ({
     ],
   );
   const toolbarInPathMode = queryMode === "path";
-  const hasExpandedNested = expandedNestedCount > 0;
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
       initialDraft={sourceText}
@@ -413,41 +440,46 @@ export const UnquoteApp = ({
     />
   );
   const jsonOutput = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <RecordFilterBar
-        mode={recordFilter}
-        onChange={queryIntent.setFilter}
-        shown={visibleStats.total}
-        total={result.stats.total}
-      />
-      <div className="flex shrink-0 items-center border-b border-border px-3.5 py-1.5">
-        <span className="flex-1" />
-        <Button
-          variant={hasExpandedNested ? "secondary" : "outline"}
-          size="sm"
-          className="gap-1.5 rounded-sm px-3"
-          onClick={hasExpandedNested ? handleCollapseAll : handleExpandAll}
-          aria-pressed={hasExpandedNested}
-        >
-          {hasExpandedNested ? (
-            <ChevronsDownUp className="size-3.5" />
-          ) : (
-            <ChevronsUpDown className="size-3.5" />
-          )}
-          <span>{t(hasExpandedNested ? "toolbar.collapseAll" : "toolbar.expandAll")}</span>
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <RecordList
-          records={visibleRecords}
-          recordView={recordView}
-          searchMatches={visibleMatches ?? noSearchMatches}
-          activeMatch={activeMatch}
-          scrollIntent={scrollIntent}
-          onActiveRecordChange={workspace.reportActiveRecord}
-        />
-      </div>
-    </div>
+    <JsonWorkspace
+      isDesktop={isDesktop}
+      filterBar={{
+        mode: recordFilter,
+        onChange: queryIntent.setFilter,
+        shown: visibleStats.total,
+        total: result.stats.total,
+      }}
+      rail={{
+        records: visibleRecords,
+        recordInsights,
+        turnIndexByRecordId,
+        activeRecordId: displayedRecordId,
+        scrollIntent,
+        onSelect: workspace.selectRecord,
+      }}
+      tree={{
+        record: renderedActiveRecord,
+        expandedStringifiedPaths: getExpandedStringifiedPaths(
+          displayedExpandedStringifiedPathsByRecord,
+          displayedRecordId,
+        ),
+        searchMatches: visibleMatchesByRecord.get(displayedRecordId) ?? noSearchMatches,
+        activeMatchPath: narrowPathToRecord(activeMatch, displayedRecordId),
+        scrollIntent,
+        selectedPath: narrowPathToRecord(selectedPath, displayedRecordId),
+        expandedNestedCount,
+        actions: recordViewActions,
+        onExpandAll: handleExpandAll,
+        onCollapseAll: handleCollapseAll,
+      }}
+      inspector={{
+        record: renderedActiveRecord,
+        selectedPath,
+        hasNestedJson: (recordInsights.get(displayedRecordId)?.nestedJsonCount ?? 0) > 0,
+        onCopyValue: handleCopySelectedSubtree,
+        onCopyPath: handleCopySelectedPath,
+        onExpandNested: handleExpandAll,
+      }}
+    />
   );
   const output =
     agentSession && outputView === "agent" ? (

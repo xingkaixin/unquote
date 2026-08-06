@@ -325,6 +325,17 @@ const pasteFileIntoImport = async (user: User, file: File) => {
   });
 };
 
+// The workspace shows one record at a time, so reaching another record's tree
+// goes through its rail row.
+const selectRailRecord = async (user: User, lineNumber: number) => {
+  const row = screen
+    .getAllByText(`#${lineNumber}`)
+    .map((node) => node.closest("button"))
+    .find((button): button is HTMLButtonElement => Boolean(button))!;
+  await user.click(row);
+  return row;
+};
+
 const replaceSource = async (user: User, text: string) => {
   await user.click(screen.getByRole("button", { name: "Change data source" }));
   const dialog = await screen.findByRole("dialog");
@@ -610,6 +621,10 @@ describe("UnquoteApp", () => {
     await user.click(within(sampleGroup).getByRole("button", { name: "Agent tool-call JSONL" }));
 
     await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+
+    // The sample seeds `$.args` as expanded, so opening record 2 shows the
+    // stringified payload already unwrapped.
+    await selectRailRecord(user, 2);
     expect(screen.getAllByText(/tool_call/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("action").length).toBeGreaterThan(0);
     expect(screen.queryByText("nested json")).not.toBeInTheDocument();
@@ -702,16 +717,19 @@ describe("UnquoteApp", () => {
     )[0]!;
     await user.click(timelineToolResult);
 
-    const rawJsonPanel = (await screen.findAllByRole("complementary", { name: "Raw JSONL" }))[0]!;
+    // Selecting a timeline event activates its record; the JSON tab's tree pane
+    // is what now requests and renders the Full Record behind the Preview stub.
+    await user.click(screen.getAllByRole("tab", { name: "JSONL" })[0]!);
+    const treePane = await waitFor(() => {
+      const pane = document.getElementById("record-3");
+      expect(pane).toBeInTheDocument();
+      return pane!;
+    });
     await waitFor(() =>
-      expect(within(rawJsonPanel).getByText(new RegExp(fullValueMarker))).toBeInTheDocument(),
+      expect(within(treePane).getByText(new RegExp(fullValueMarker))).toBeInTheDocument(),
     );
 
-    const copyRecordButton = within(rawJsonPanel)
-      .getAllByRole("button")
-      .find((button) => button.querySelector(".lucide-copy"));
-    expect(copyRecordButton).toBeDefined();
-    await user.click(copyRecordButton!);
+    await user.click(screen.getByRole("button", { name: "Copy record" }));
     await waitFor(() =>
       expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining(fullValueMarker)),
     );
@@ -1064,6 +1082,9 @@ describe("UnquoteApp", () => {
         <UnquoteApp initialInput={'{"ok":1}\n{bad}'} />
       </I18nProvider>,
     );
+
+    await waitFor(() => expect(screen.getAllByText("#2").length).toBeGreaterThan(0));
+    await selectRailRecord(user, 2);
 
     await waitFor(() => expect(screen.getAllByText("Line 2, column 2").length).toBeGreaterThan(0));
     await user.click(screen.getAllByRole("button", { name: /Copy raw line/ })[0]!);
@@ -1548,16 +1569,15 @@ describe("UnquoteApp", () => {
     // Stringified payload is collapsed by default — the inner `nested` key is absent.
     expect(screen.queryAllByText("nested")).toHaveLength(0);
 
-    // The workspace toggle starts as "Expand All" (aria-pressed=false).
-    const toggle = screen.getByRole("button", { name: "Expand All" });
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    await user.click(toggle);
+    // Both controls are always present; Collapse All stays disabled until
+    // something is actually expanded.
+    expect(screen.getByRole("button", { name: "Collapse All" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
     await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
 
-    // Clicking again flips the toggle to "Collapse All" and re-folds the payload.
-    const collapsedToggle = await screen.findByRole("button", { name: "Collapse All" });
-    expect(collapsedToggle.getAttribute("aria-pressed")).toBe("true");
-    await user.click(collapsedToggle);
+    const collapseAll = screen.getByRole("button", { name: "Collapse All" });
+    expect(collapseAll).toBeEnabled();
+    await user.click(collapseAll);
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
   });
 
@@ -1593,13 +1613,9 @@ describe("UnquoteApp", () => {
 
     // A Preview Record's projected node has no children, so this only works
     // if the expansion is collected from the record's preview.
-    const toggle = screen.getByRole("button", { name: "Expand All" });
-    await user.click(toggle);
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
 
-    expect(await screen.findByRole("button", { name: "Collapse All" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Collapse All" })).toBeEnabled());
     await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
   });
 
@@ -1638,8 +1654,8 @@ describe("UnquoteApp", () => {
 
   it("Expand All opens every level of nested stringified JSON in one click", async () => {
     const user = userEvent.setup();
-    // The workspace control is a single toggle, so there is no second Expand All
-    // click available: one click has to reach all the way down.
+    // Expand All is not a per-level step: one click has to reach all the way
+    // down through every stringified layer.
     const input = JSON.stringify({
       payload: JSON.stringify({ inner: JSON.stringify({ deep: 1 }) }),
     });
@@ -1682,6 +1698,9 @@ describe("UnquoteApp", () => {
     await waitFor(() =>
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
     );
+
+    // Switching the rail to record 2 shows its own, still-collapsed payload.
+    await selectRailRecord(user, 2);
     expect(
       within(document.getElementById("record-2")!).queryByText("nested"),
     ).not.toBeInTheDocument();
@@ -1699,13 +1718,15 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
 
     await user.type(getToolbarInput(), "target-only");
 
     await waitFor(() =>
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
     );
+
+    await selectRailRecord(user, 2);
     expect(
       within(document.getElementById("record-2")!).queryByText("nested"),
     ).not.toBeInTheDocument();
@@ -1756,7 +1777,7 @@ describe("UnquoteApp", () => {
     expect(within(collapsedRawJsonPanel).queryByText("cmd")).not.toBeInTheDocument();
   });
 
-  it("collapses only the records visible after filtering", async () => {
+  it("collapses only the record on screen", async () => {
     const user = userEvent.setup();
     const input = [
       '{"kind":"target","payload":"{\\"nested\\":\\"first\\"}"}',
@@ -1768,31 +1789,25 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
 
-    const expandAll = screen.getByRole("button", { name: "Expand All" });
-    await user.click(expandAll);
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
     await waitFor(() =>
       expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument(),
     );
-    expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument();
 
-    await user.type(getToolbarInput(), "target");
-    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("option", { name: /Matches/ }));
-    await waitFor(() => {
-      expect(document.getElementById("record-1")).toBeInTheDocument();
-      expect(document.getElementById("record-2")).not.toBeInTheDocument();
-    });
+    await selectRailRecord(user, 2);
+    await user.click(screen.getByRole("button", { name: "Expand All" }));
+    await waitFor(() =>
+      expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument(),
+    );
 
-    await user.click(await screen.findByRole("button", { name: "Collapse All" }));
+    // Collapse All is scoped to the active record: record 1 keeps its expansion.
+    await user.click(screen.getByRole("button", { name: "Collapse All" }));
     await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));
 
-    await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
-    await user.click(screen.getAllByRole("button", { name: /Commands/ })[0]!);
-    await user.click(screen.getByRole("option", { name: /^All$/ }));
-    await waitFor(() => expect(document.getElementById("record-2")).toBeInTheDocument());
-    expect(within(document.getElementById("record-2")!).getByText("nested")).toBeInTheDocument();
+    await selectRailRecord(user, 1);
+    expect(within(document.getElementById("record-1")!).getByText("nested")).toBeInTheDocument();
   });
 
   it("resets expansion when the source changes", async () => {
@@ -1839,7 +1854,7 @@ describe("UnquoteApp", () => {
     expect(container.querySelector("[data-search-query]")).toHaveAttribute("data-search-query", "");
   });
 
-  it("rebuilds only the toggled JSONL record rows", async () => {
+  it("rebuilds the displayed record's rows exactly once per toggle", async () => {
     const user = userEvent.setup();
     const input = [
       '{"payload":"{\\"nested\\":\\"first\\"}"}',
@@ -1852,7 +1867,10 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
 
-    await waitFor(() => expect(document.getElementById("record-3")).toBeInTheDocument());
+    // Three records in the rail, one record's tree on screen: only that one
+    // may cost a row build.
+    await waitFor(() => expect(screen.getAllByText("#3").length).toBeGreaterThan(0));
+    expect(document.getElementById("record-1")).toBeInTheDocument();
 
     performance.clearMeasures("unquote:recordRows:build");
     await user.click(

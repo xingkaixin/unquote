@@ -176,9 +176,6 @@ describe("AgentSessionView", () => {
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
     expect(screen.getByTestId("uq-agent-workspace")).toHaveAttribute("data-group", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy record" }));
-    expect(callbacks.onCopyRecord).toHaveBeenCalledWith(records[0]);
-
     const treeItems = screen.getAllByRole("treeitem");
     const expandableTreeItem = treeItems.find((item) => item.querySelector("[data-tree-toggle]"));
     expect(expandableTreeItem).toBeDefined();

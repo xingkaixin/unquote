@@ -36,13 +36,16 @@ describe("reduceWorkspaceSelection", () => {
     });
   });
 
-  it("issues a scroll intent for a path in another record", () => {
+  it("activates the owning record when scrolling to a path in another record", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "scrollToPath",
       recordId: "record-2",
       pathText: "$.other",
     });
 
+    // The workspace shows one record, so the scroll target has to become active
+    // or the match never reaches the screen.
+    expect(state.activeRecordId).toBe("record-2");
     expect(state.scrollIntent).toEqual({
       kind: "path",
       recordId: "record-2",
@@ -177,20 +180,5 @@ describe("reduceWorkspaceSelection", () => {
     });
 
     expect(state).toBe(current);
-  });
-
-  it("updates the active record only when the reported record changes", () => {
-    const current = createPopulatedState();
-    const unchanged = reduceWorkspaceSelection(current, {
-      type: "activeRecordReported",
-      recordId: "record-1",
-    });
-    const changed = reduceWorkspaceSelection(current, {
-      type: "activeRecordReported",
-      recordId: "record-2",
-    });
-
-    expect(unchanged).toBe(current);
-    expect(changed.activeRecordId).toBe("record-2");
   });
 });

@@ -285,12 +285,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     () => dispatchSelection({ type: "clearScrollIntent" }),
     [dispatchSelection],
   );
-  const reportActiveRecord = useCallback(
-    (recordId: string) => {
-      dispatchSelection({ type: "activeRecordReported", recordId });
-    },
-    [dispatchSelection],
-  );
   const navigate = useCallback(
     (navigation: QueryNavigationTarget) => {
       if (!belongsToSourceRevision(sourceRevision, navigation)) {
@@ -342,6 +336,5 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     collapseAll,
     togglePath,
     clearScrollIntent,
-    reportActiveRecord,
   };
 };

@@ -28,8 +28,7 @@ export type WorkspaceSelectionAction =
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
   | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
   | { type: "recordsAppended"; firstRecordId: string | null }
-  | { type: "clearScrollIntent" }
-  | { type: "activeRecordReported"; recordId: string };
+  | { type: "clearScrollIntent" };
 
 const retainVisibleRecordValue = <Value extends { recordId: string }>(
   value: Value | null,
@@ -72,8 +71,11 @@ export const reduceWorkspaceSelection = (
 ): WorkspaceSelectionState => {
   switch (action.type) {
     case "scrollToPath":
+      // The workspace shows one record at a time, so a hit in another record
+      // has to switch the displayed record before the scroll can land.
       return {
         ...state,
+        activeRecordId: action.recordId,
         scrollIntent: issueScrollIntent({
           kind: "path",
           recordId: action.recordId,
@@ -122,10 +124,5 @@ export const reduceWorkspaceSelection = (
 
     case "clearScrollIntent":
       return state.scrollIntent ? { ...state, scrollIntent: null } : state;
-
-    case "activeRecordReported":
-      return state.activeRecordId === action.recordId
-        ? state
-        : { ...state, activeRecordId: action.recordId };
   }
 };
