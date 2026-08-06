@@ -262,7 +262,7 @@ export const SourceImportPanel = ({
           <Button
             type="button"
             variant="outline"
-            className="h-8 rounded-md px-3.5 text-[11px] normal-case tracking-normal"
+            className="h-8 px-3.5 text-[11px]"
             onClick={() => fileInputRef.current?.click()}
           >
             {t("input.chooseFile")}
@@ -287,7 +287,7 @@ export const SourceImportPanel = ({
           <Button
             type="button"
             variant="secondary"
-            className="h-8 rounded-md px-4 text-[11px] normal-case tracking-normal"
+            className="h-8 px-4 text-[11px]"
             onClick={commitDraft}
             disabled={draft.trim().length === 0}
           >
@@ -324,7 +324,7 @@ export const SourceImportPanel = ({
               type="button"
               variant={mode === option ? "selected" : "outline"}
               size="sm"
-              className="rounded-sm px-2.5"
+              className="rounded-sm px-2.5 font-mono"
               aria-pressed={mode === option}
               translate={option === "auto" ? undefined : "no"}
               onClick={() => onModeChange(option)}

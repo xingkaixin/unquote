@@ -35,11 +35,7 @@ export const ImportDialog = ({ open, dismissible, onClose, children }: ImportDia
               {dismissible ? (
                 <Dialog.Close
                   render={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-md px-3 text-[11px] normal-case tracking-normal"
-                    >
+                    <Button variant="outline" size="sm" className="px-3 text-[11px]">
                       {t("import.back")}
                     </Button>
                   }

@@ -21,12 +21,7 @@ export const LocaleToggle = () => {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="uq-icon-button h-7 w-7 px-0"
-            aria-label={t("locale.toggle")}
-          >
+          <Button size="sm" className="uq-icon-button h-7 w-7 px-0" aria-label={t("locale.toggle")}>
             <Languages className="size-4" />
           </Button>
         }

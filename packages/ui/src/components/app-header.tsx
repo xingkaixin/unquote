@@ -121,7 +121,7 @@ export const AppHeader = ({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="sm" className="shrink-0 px-3" disabled={!enabled}>
+            <Button size="sm" className="shrink-0 px-3" disabled={!enabled}>
               {t("toolbar.export")}
             </Button>
           }
