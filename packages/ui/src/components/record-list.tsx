@@ -31,13 +31,7 @@ export const RecordList = memo(function RecordList({
   onActiveRecordChange,
 }: RecordListProps) {
   const {
-    state: {
-      recordInsights,
-      resolveRecord,
-      expandedStringifiedPathsByRecord,
-      selectedPath,
-      focusedPath,
-    },
+    state: { recordInsights, resolveRecord, expandedStringifiedPathsByRecord, selectedPath },
     actions,
   } = recordView;
   const listRef = useRef<HTMLDivElement>(null);
@@ -176,7 +170,6 @@ export const RecordList = memo(function RecordList({
         activeMatchPath={narrowPathToRecord(activeMatch, renderedRecord.id)}
         scrollIntent={scrollIntent}
         selectedPath={narrowPathToRecord(selectedPath, renderedRecord.id)}
-        focusedPath={narrowPathToRecord(focusedPath, renderedRecord.id)}
         actions={actions}
       />
     );

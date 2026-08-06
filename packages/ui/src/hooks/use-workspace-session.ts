@@ -281,10 +281,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [setExpandedPaths],
   );
 
-  const clearFocus = useCallback(
-    () => dispatchSelection({ type: "clearFocusedPath" }),
-    [dispatchSelection],
-  );
   const clearScrollIntent = useCallback(
     () => dispatchSelection({ type: "clearScrollIntent" }),
     [dispatchSelection],
@@ -331,7 +327,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
       expandedPaths: workspaceState.expandedPaths,
       searchExpandedPaths: workspaceState.searchExpandedPaths,
       selectedPath: workspaceState.selection.selectedPath,
-      focusedPath: workspaceState.selection.focusedPath,
       scrollIntent: workspaceState.selection.scrollIntent,
     },
     navigate,
@@ -346,7 +341,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     expandAll,
     collapseAll,
     togglePath,
-    clearFocus,
     clearScrollIntent,
     reportActiveRecord,
   };

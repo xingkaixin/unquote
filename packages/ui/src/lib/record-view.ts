@@ -16,7 +16,6 @@ export interface RecordViewState {
   resolveRecord: (record: JsonlRecord) => JsonlRecord;
   expandedStringifiedPathsByRecord: ExpandedStringifiedPathsByRecord;
   selectedPath: RecordViewPath | null;
-  focusedPath: RecordViewPath | null;
 }
 
 export interface RecordViewActions {
@@ -26,7 +25,6 @@ export interface RecordViewActions {
   copyError: (record: JsonlRecord) => void;
   selectNode: (record: JsonlRecord, row: TreeRow) => void;
   requestFullRecord: (record: JsonlRecord) => void;
-  clearFocus: () => void;
 }
 
 export interface RecordViewModel {

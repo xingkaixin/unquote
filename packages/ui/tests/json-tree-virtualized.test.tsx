@@ -46,7 +46,6 @@ const renderWideTree = () => {
         activeMatchPath={null}
         scrollIntent={null}
         selectedPath={null}
-        focusedPath={null}
         actions={{
           togglePath: vi.fn(),
           copyRecord: vi.fn(),
@@ -54,7 +53,6 @@ const renderWideTree = () => {
           copyError: vi.fn(),
           selectNode: vi.fn(),
           requestFullRecord: vi.fn(),
-          clearFocus: vi.fn(),
         }}
       />
     </I18nProvider>,

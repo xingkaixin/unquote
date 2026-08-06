@@ -18,14 +18,8 @@ describe("useWorkspaceQueryBinding", () => {
     const calls: string[] = [];
     const visibleRecords = parseInput('{"target":true}', { forcedFormat: "jsonl" }).records;
     const workspace = {
-      state: {
-        focusedPath: { recordId: "record-1", pathText: "$.focused" },
-      },
       synchronizeSearchExpansions: vi.fn(() => {
         calls.push("search-expansions");
-      }),
-      clearFocus: vi.fn(() => {
-        calls.push("focus");
       }),
       reconcileVisibleRecords: vi.fn(() => {
         calls.push("visible-records");
@@ -47,11 +41,10 @@ describe("useWorkspaceQueryBinding", () => {
     );
 
     expect(result.current).toBe(activeMatch);
-    expect(calls).toEqual(["search-expansions", "focus", "visible-records"]);
+    expect(calls).toEqual(["search-expansions", "visible-records"]);
     expect(workspace.reconcileVisibleRecords).toHaveBeenCalledWith(visibleRecords, null);
 
     rerender({ match: null });
     expect(result.current).toBeNull();
-    expect(workspace.clearFocus).toHaveBeenCalledTimes(1);
   });
 });

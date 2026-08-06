@@ -120,7 +120,6 @@ const renderView = (
     copyError: vi.fn(),
     onSelectNode: vi.fn(),
     onRequestFullRecord: vi.fn(),
-    onClearFocus: vi.fn(),
   };
   const props: ComponentProps<typeof AgentSessionView> = {
     session,
@@ -131,7 +130,6 @@ const renderView = (
         recordInsights: new Map(),
         expandedStringifiedPathsByRecord: new Map(),
         selectedPath: { recordId: "record-1", pathText: "$" },
-        focusedPath: { recordId: "record-1", pathText: "$" },
         ...stateOverrides,
       },
       actions: {
@@ -141,7 +139,6 @@ const renderView = (
         copyError: callbacks.copyError,
         selectNode: callbacks.onSelectNode,
         requestFullRecord: callbacks.onRequestFullRecord,
-        clearFocus: callbacks.onClearFocus,
       },
     },
     detailSelection: null,
@@ -181,8 +178,6 @@ describe("AgentSessionView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copy record" }));
     expect(callbacks.onCopyRecord).toHaveBeenCalledWith(records[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Exit focus" }));
-    expect(callbacks.onClearFocus).toHaveBeenCalledTimes(1);
 
     const treeItems = screen.getAllByRole("treeitem");
     const expandableTreeItem = treeItems.find((item) => item.querySelector("[data-tree-toggle]"));
@@ -225,10 +220,7 @@ describe("AgentSessionView", () => {
 
   it("forwards copy actions for a selected parse-error record", () => {
     const selection: AgentDetailSelection = { kind: "record", recordId: "record-3" };
-    const { callbacks } = renderView(
-      { detailSelection: selection },
-      { selectedPath: null, focusedPath: null },
-    );
+    const { callbacks } = renderView({ detailSelection: selection }, { selectedPath: null });
 
     fireEvent.click(screen.getByRole("button", { name: "Copy raw line" }));
     fireEvent.click(screen.getByRole("button", { name: "Copy error" }));
@@ -246,7 +238,7 @@ describe("AgentSessionView", () => {
           recordId: "record-2",
         },
       },
-      { selectedPath: null, focusedPath: null },
+      { selectedPath: null },
     );
 
     expect(screen.getAllByText("User").length).toBeGreaterThan(1);
@@ -266,7 +258,7 @@ describe("AgentSessionView", () => {
         ]),
         readRawLine,
       },
-      { selectedPath: null, focusedPath: null },
+      { selectedPath: null },
     );
 
     await waitFor(() =>
@@ -286,10 +278,7 @@ describe("AgentSessionView", () => {
       events: [],
       parseWarnings: [],
     };
-    renderView(
-      { session: emptySession, recordsById: new Map() },
-      { selectedPath: null, focusedPath: null },
-    );
+    renderView({ session: emptySession, recordsById: new Map() }, { selectedPath: null });
 
     expect(screen.getByText("No conversation items in this session")).toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Raw JSONL" })).not.toBeInTheDocument();

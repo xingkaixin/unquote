@@ -127,7 +127,6 @@ describe("useWorkspaceSession", () => {
       activeRecordId: records[1]!.id,
       detailSelection: null,
       selectedPath: null,
-      focusedPath: null,
       scrollIntent: null,
     });
   });
@@ -158,7 +157,6 @@ describe("useWorkspaceSession", () => {
     expect(result.current.state.activeRecordId).toBe(stateBeforeAppend.activeRecordId);
     expect(result.current.state.selectedPath).toBe(stateBeforeAppend.selectedPath);
     expect(result.current.state.detailSelection).toBe(stateBeforeAppend.detailSelection);
-    expect(result.current.state.focusedPath).toBe(stateBeforeAppend.focusedPath);
     expect(result.current.state.scrollIntent).toBe(stateBeforeAppend.scrollIntent);
   });
 
@@ -213,7 +211,6 @@ describe("useWorkspaceSession", () => {
       activeRecordId: records[2]!.id,
       detailSelection: null,
       selectedPath: null,
-      focusedPath: null,
       scrollIntent: null,
     });
   });

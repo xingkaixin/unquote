@@ -17,7 +17,6 @@ describe("RecordList", () => {
         resolveRecord: (record) => record,
         expandedStringifiedPathsByRecord: new Map(),
         selectedPath: { recordId: selectedRecord.id, pathText: "$.value" },
-        focusedPath: null,
       },
       actions: {
         togglePath: vi.fn(),
@@ -26,7 +25,6 @@ describe("RecordList", () => {
         copyError: vi.fn(),
         selectNode: vi.fn(),
         requestFullRecord: vi.fn(),
-        clearFocus: vi.fn(),
       },
     };
 
@@ -64,7 +62,6 @@ describe("RecordList", () => {
         resolveRecord: (record) => record,
         expandedStringifiedPathsByRecord: new Map(),
         selectedPath: null,
-        focusedPath: null,
       },
       actions: {
         togglePath: vi.fn(),
@@ -73,7 +70,6 @@ describe("RecordList", () => {
         copyError: vi.fn(),
         selectNode: vi.fn(),
         requestFullRecord: vi.fn(),
-        clearFocus: vi.fn(),
       },
     };
     const view = (visibleRecords: typeof records) => (

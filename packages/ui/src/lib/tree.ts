@@ -2,8 +2,6 @@ import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
 import { getPreviewPath } from "./record-preview";
 import { formatJsonValueLabel, maxStringValueLabelLength, walkJsonNode } from "./json-walk";
-import { resolveTreePath } from "./tree-path";
-import type { ResolvedTreePath } from "./tree-path";
 
 export interface TreeRow {
   id: string;
@@ -17,90 +15,32 @@ export interface TreeRow {
   node: JsonNode;
 }
 
-interface FocusedTreeRows {
-  rows: TreeRow[];
-  focus: ResolvedTreePath;
-}
-
-const pushRows = (
-  node: JsonNode,
-  rows: TreeRow[],
-  expandedStringifiedPaths: ReadonlySet<string>,
-  recordId: string,
-  jsonPath = "$",
-  stringifiedAncestors: string[] = [],
-  parentKeyLabel = "$",
-  depthOffset = 0,
-) => {
-  walkJsonNode(
-    node,
-    (ctx) => {
-      const wasStringified = isStringifiedNode(ctx.node);
-      const expanded = !wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
-      rows.push({
-        id: `${recordId}:${ctx.jsonPath}`,
-        pathText: ctx.jsonPath,
-        depth: Math.max(0, ctx.pathSegments.length - depthOffset),
-        keyLabel: ctx.pathSegments.at(-1)?.value ?? parentKeyLabel,
-        kind: ctx.node.kind,
-        valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
-        wasStringified,
-        expanded,
-        node: ctx.node,
-      });
-      return expanded;
-    },
-    { jsonPath, stringifiedAncestors },
-  );
-};
-
 export const buildRecordRows = (
   record: JsonlRecord,
   expandedStringifiedPaths: ReadonlySet<string>,
-  focusedPath?: string | null,
 ) => {
   if (!isParsed(record)) {
     return [];
   }
 
-  if (focusedPath) {
-    const focused = buildFocusedRecordRows(record, expandedStringifiedPaths, focusedPath);
-    if (focused) {
-      return focused.rows;
-    }
-  }
-
   const rows: TreeRow[] = [];
-  pushRows(record.node, rows, expandedStringifiedPaths, record.id);
+  walkJsonNode(record.node, (ctx) => {
+    const wasStringified = isStringifiedNode(ctx.node);
+    const expanded = !wasStringified || expandedStringifiedPaths.has(ctx.jsonPath);
+    rows.push({
+      id: `${record.id}:${ctx.jsonPath}`,
+      pathText: ctx.jsonPath,
+      depth: ctx.pathSegments.length,
+      keyLabel: ctx.pathSegments.at(-1)?.value ?? "$",
+      kind: ctx.node.kind,
+      valueLabel: formatJsonValueLabel(ctx, maxStringValueLabelLength),
+      wasStringified,
+      expanded,
+      node: ctx.node,
+    });
+    return expanded;
+  });
   return rows;
-};
-
-const buildFocusedRecordRows = (
-  record: JsonlRecord,
-  expandedStringifiedPaths: ReadonlySet<string>,
-  focusedPath: string,
-): FocusedTreeRows | null => {
-  const resolved = resolveTreePath([record], focusedPath);
-  if (!resolved.ok) {
-    return null;
-  }
-
-  const rows: TreeRow[] = [];
-  const stringifiedAncestors = isStringifiedNode(resolved.target.node)
-    ? resolved.target.stringifiedPathChain.slice(0, -1)
-    : resolved.target.stringifiedPathChain;
-  pushRows(
-    resolved.target.node,
-    rows,
-    expandedStringifiedPaths,
-    record.id,
-    resolved.target.jsonPath,
-    stringifiedAncestors,
-    resolved.target.rawKey,
-    Math.max(0, resolved.target.path.length - 1),
-  );
-
-  return { rows, focus: resolved.target };
 };
 
 export const materializeRecord = (record: JsonlRecord) => {

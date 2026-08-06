@@ -127,8 +127,6 @@ export const en = {
   "toc.filteredStats": "{shown}/{total} records · {success} ok · {failed} err",
   "tree.nodes": "{count} nodes",
   "tree.scrollHint": "Scroll here to load nodes",
-  "tree.focused": "Focused: {path}",
-  "tree.exitFocus": "Exit focus",
   "tree.copyRecord": "Copy record",
   "stats.label": "{total} total · {success} ok · {failed} err",
   "stats.filteredLabel": "{shown}/{total} shown · {success} ok · {failed} err",

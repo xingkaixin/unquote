@@ -129,8 +129,6 @@ export const zhCN: Messages = {
   "toc.filteredStats": "{shown}/{total} 条记录 · {success} 成功 · {failed} 失败",
   "tree.nodes": "{count} 个节点",
   "tree.scrollHint": "滚动到这里时加载节点",
-  "tree.focused": "聚焦：{path}",
-  "tree.exitFocus": "退出聚焦",
   "tree.copyRecord": "复制记录",
   "stats.label": "{total} 条记录 · {success} 成功 · {failed} 失败",
   "stats.filteredLabel": "显示 {shown}/{total} 条 · {success} 成功 · {failed} 失败",

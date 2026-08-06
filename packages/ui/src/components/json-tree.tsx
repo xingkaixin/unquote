@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, FileWarning, Focus, Undo2 } from "lucide-react";
+import { ChevronRight, Copy, FileWarning } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +39,6 @@ interface JsonTreeProps {
   activeMatchPath: string | null;
   scrollIntent: ScrollIntent | null;
   selectedPath: string | null;
-  focusedPath: string | null;
   actions: RecordViewActions;
 }
 
@@ -52,7 +51,6 @@ export const JsonTree = memo(function JsonTree({
   activeMatchPath,
   scrollIntent,
   selectedPath,
-  focusedPath,
   actions,
 }: JsonTreeProps) {
   const { t } = useTranslation();
@@ -62,11 +60,9 @@ export const JsonTree = memo(function JsonTree({
   const rows = useMemo(
     () =>
       hydrated
-        ? measurePerfFn("recordRows:build", () =>
-            buildRecordRows(record, expandedStringifiedPaths, focusedPath),
-          )
+        ? measurePerfFn("recordRows:build", () => buildRecordRows(record, expandedStringifiedPaths))
         : [],
-    [expandedStringifiedPaths, focusedPath, hydrated, record],
+    [expandedStringifiedPaths, hydrated, record],
   );
   const displayRows = useMemo(() => buildDisplayRows(rows), [rows]);
   const interactiveRows = useMemo(
@@ -344,27 +340,10 @@ export const JsonTree = memo(function JsonTree({
             <span className="shrink-0 font-mono text-[10px] text-text-muted">
               {t("tree.nodes", { count: rows.length })}
             </span>
-            {focusedPath ? (
-              <span className="inline-flex min-w-0 items-center gap-1 border border-accent bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] text-accent">
-                <Focus className="size-3 shrink-0" />
-                <span className="truncate">{t("tree.focused", { path: focusedPath })}</span>
-              </span>
-            ) : null}
           </div>
           {insight ? <RecordInsightSummary insight={insight} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {focusedPath ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={actions.clearFocus}
-            >
-              <Undo2 className="size-3.5" />
-              {t("tree.exitFocus")}
-            </Button>
-          ) : null}
           <Button
             variant="ghost"
             size="sm"

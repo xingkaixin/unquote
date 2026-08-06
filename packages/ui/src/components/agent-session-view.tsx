@@ -66,7 +66,6 @@ const RawJsonlPanel = ({
   insight,
   expandedStringifiedPaths,
   selectedPath,
-  focusedPath,
   onCollapse,
   actions,
   readRawLine,
@@ -77,7 +76,6 @@ const RawJsonlPanel = ({
   insight: RecordInsight | undefined;
   expandedStringifiedPaths: ReadonlySet<string>;
   selectedPath: { recordId: string; pathText: string } | null;
-  focusedPath: { recordId: string; pathText: string } | null;
   onCollapse: () => void;
   actions: RecordViewActions;
   readRawLine: ((lineNumber: number, signal: AbortSignal) => Promise<string>) | undefined;
@@ -160,7 +158,6 @@ const RawJsonlPanel = ({
             activeMatchPath={null}
             scrollIntent={null}
             selectedPath={narrowPathToRecord(selectedPath, record.id)}
-            focusedPath={narrowPathToRecord(focusedPath, record.id)}
             actions={actions}
           />
         ) : (
@@ -185,13 +182,7 @@ export const AgentSessionView = ({
   readRawLine,
 }: AgentSessionViewProps) => {
   const {
-    state: {
-      resolveRecord,
-      recordInsights,
-      expandedStringifiedPathsByRecord,
-      selectedPath,
-      focusedPath,
-    },
+    state: { resolveRecord, recordInsights, expandedStringifiedPathsByRecord, selectedPath },
     actions,
   } = recordView;
   const { t } = useTranslation();
@@ -315,7 +306,6 @@ export const AgentSessionView = ({
         detailEvent.recordId,
       )}
       selectedPath={selectedPath}
-      focusedPath={focusedPath}
       onCollapse={() => setDetailOpen(false)}
       actions={actions}
       readRawLine={readRawLine}

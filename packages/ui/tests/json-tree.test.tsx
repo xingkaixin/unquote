@@ -22,7 +22,6 @@ const renderTree = (
         activeMatchPath={null}
         scrollIntent={null}
         selectedPath={selectedPath}
-        focusedPath={null}
         actions={{
           togglePath: onTogglePath,
           copyRecord: vi.fn(),
@@ -30,7 +29,6 @@ const renderTree = (
           copyError: vi.fn(),
           selectNode: onSelectNode,
           requestFullRecord: vi.fn(),
-          clearFocus: vi.fn(),
         }}
       />
     </I18nProvider>

@@ -63,14 +63,20 @@ describe("tree paths", () => {
     ]);
   });
 
-  it("keeps a focused subtree's rows addressable by their full path", () => {
+  it("addresses every row by its record id and full path", () => {
     const record = parseInput('{"outer":{"inner":{"leaf":1}}}', { forcedFormat: "json" })
       .records[0]!;
-    const rows = buildRecordRows(record, new Set(), "$.outer.inner");
+    const rows = buildRecordRows(record, new Set());
 
-    expect(rows.map((row) => row.pathText)).toEqual(["$.outer.inner", "$.outer.inner.leaf"]);
-    expect(rows[0]?.id).toBe(`${record.id}:$.outer.inner`);
-    expect(rows[1]?.keyLabel).toBe("leaf");
+    expect(rows.map((row) => row.pathText)).toEqual([
+      "$",
+      "$.outer",
+      "$.outer.inner",
+      "$.outer.inner.leaf",
+    ]);
+    expect(rows.map((row) => row.depth)).toEqual([0, 1, 2, 3]);
+    expect(rows[2]?.id).toBe(`${record.id}:$.outer.inner`);
+    expect(rows[3]?.keyLabel).toBe("leaf");
   });
 
   it("serializes numeric object keys as quoted keys", () => {

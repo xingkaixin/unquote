@@ -109,7 +109,6 @@ export const UnquoteApp = ({
     expandedPaths: expandedStringifiedPathsByRecord,
     searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
     selectedPath,
-    focusedPath,
     scrollIntent,
   } = workspace.state;
   const selectedRecordId = detailSelection?.recordId ?? null;
@@ -294,14 +293,12 @@ export const UnquoteApp = ({
       copyError: onCopyRecordError,
       selectNode: workspace.selectNode,
       requestFullRecord: localFileSource.requestFullRecord,
-      clearFocus: workspace.clearFocus,
     }),
     [
       localFileSource.requestFullRecord,
       onCopyRawLine,
       onCopyRecord,
       onCopyRecordError,
-      workspace.clearFocus,
       workspace.selectNode,
       workspace.togglePath,
     ],
@@ -313,13 +310,11 @@ export const UnquoteApp = ({
         resolveRecord: localFileSource.resolveRecord,
         expandedStringifiedPathsByRecord: displayedExpandedStringifiedPathsByRecord,
         selectedPath,
-        focusedPath,
       },
       actions: recordViewActions,
     }),
     [
       displayedExpandedStringifiedPathsByRecord,
-      focusedPath,
       localFileSource.resolveRecord,
       recordInsights,
       recordViewActions,
