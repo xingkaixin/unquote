@@ -46,8 +46,8 @@ const TimelineEvent = ({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[12px] font-medium text-text-primary">{event.label}</span>
-          <span className="shrink-0 text-[10px] text-text-tertiary">· {config.label}</span>
+          <span className="shrink-0 text-[12px] font-medium text-text-primary">{config.label}</span>
+          <span className="truncate text-[10px] text-text-tertiary">· {event.label}</span>
         </span>
         <span className="truncate font-mono text-[10px] text-text-tertiary">
           {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}

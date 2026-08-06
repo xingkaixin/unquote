@@ -104,17 +104,19 @@ export const StatusBar = ({
       ) : null}
       <span className="flex-1" />
       {hasData ? (
-        <button
-          type="button"
-          className="shrink-0 rounded-xs border border-border px-2 py-0.5 hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onClick={onClear}
-        >
-          {t("status.clear")}
-        </button>
+        <>
+          <button
+            type="button"
+            className="shrink-0 rounded-xs border border-border px-2 py-0.5 hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onClick={onClear}
+          >
+            {t("status.clear")}
+          </button>
+          <span className="hidden shrink-0 lg:inline">{t("status.hintMatches")}</span>
+          <span className="hidden shrink-0 lg:inline">{t("status.hintPath")}</span>
+          <span className="hidden shrink-0 lg:inline">{t("status.hintPalette")}</span>
+        </>
       ) : null}
-      <span className="hidden shrink-0 lg:inline">{t("status.hintMatches")}</span>
-      <span className="hidden shrink-0 lg:inline">{t("status.hintPath")}</span>
-      <span className="hidden shrink-0 lg:inline">{t("status.hintPalette")}</span>
       {chromeWebStoreUrl ? (
         <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />
       ) : null}

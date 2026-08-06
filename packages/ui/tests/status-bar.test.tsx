@@ -98,6 +98,17 @@ describe("StatusBar summary", () => {
     expect(screen.getByText("No data loaded · waiting for import")).toBeInTheDocument();
     expect(screen.queryByText("max depth 4")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+    // The empty state disables the search field and ⌘K, so it must not
+    // advertise their shortcuts (dc:319-326 gates the hints on hasData).
+    expect(screen.queryByText("⌘K command palette")).not.toBeInTheDocument();
+    expect(screen.queryByText("↑↓ prev/next match")).not.toBeInTheDocument();
+    expect(screen.queryByText("Enter jump to path")).not.toBeInTheDocument();
+  });
+
+  it("keeps the shortcut hints once a source is loaded", () => {
+    renderBar();
+
+    expect(screen.getByText("⌘K command palette")).toBeInTheDocument();
   });
 
   it("renders store links whether or not a source is loaded", () => {

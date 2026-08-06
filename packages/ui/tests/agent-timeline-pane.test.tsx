@@ -81,10 +81,12 @@ describe("AgentTimelinePane", () => {
     expect(onSelectEvent).toHaveBeenCalledWith("event-0");
   });
 
-  it("shows the category and line meta instead of the event preview", () => {
+  it("leads with the category, then the envelope type and line meta", () => {
     renderPane([{ ...buildEvent(0), preview: "a preview line", turnIndex: 2 }]);
 
-    expect(screen.getByText("· assistant")).toBeInTheDocument();
+    // dc:587 orders the row `category · type` so the column scans by kind.
+    expect(screen.getByText("assistant")).toBeInTheDocument();
+    expect(screen.getByText("· Event 0")).toBeInTheDocument();
     expect(screen.getByText("Line 1 · Turn 2")).toBeInTheDocument();
     expect(screen.queryByText("a preview line")).not.toBeInTheDocument();
   });
@@ -107,8 +109,8 @@ describe("AgentTimelinePane", () => {
     const buttons = timelineButtons();
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.length).toBeLessThan(total);
-    expect(screen.getByText("Event 0")).toBeInTheDocument();
-    expect(screen.queryByText(`Event ${total - 1}`)).not.toBeInTheDocument();
+    expect(screen.getByText("· Event 0")).toBeInTheDocument();
+    expect(screen.queryByText(`· Event ${total - 1}`)).not.toBeInTheDocument();
   });
 
   it("selects a windowed row and reports the highlighted event as pressed", () => {
