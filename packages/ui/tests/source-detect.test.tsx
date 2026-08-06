@@ -35,14 +35,27 @@ describe("detectSourceFormat", () => {
     expect(detectSourceFormat(lines.join("\n"))).toEqual({ kind: "jsonl", lines: 60 });
   });
 
-  it("samples only the first 64 KB of a large draft", () => {
-    // ~90 KB of valid JSONL: the sample cuts mid-file, so the reported line
-    // count describes the sample rather than the whole draft.
+  it("counts every line of a draft larger than the probe budget", () => {
     const line = JSON.stringify({ value: "x".repeat(80) });
     const total = Math.ceil((90 * 1024) / (line.length + 1));
-    const detection = detectSourceFormat(Array.from({ length: total }, () => line).join("\n"));
 
-    expect(detection.kind).toBe("jsonl");
-    expect(detection.kind === "jsonl" && detection.lines).toBeLessThan(total);
+    expect(detectSourceFormat(Array.from({ length: total }, () => line).join("\n"))).toEqual({
+      kind: "jsonl",
+      lines: total,
+    });
+  });
+
+  it("detects JSONL whose lines are each longer than a probed chunk", () => {
+    const lines = Array.from({ length: 20 }, (_, index) =>
+      JSON.stringify({ index, blob: "x".repeat(4000) }),
+    );
+
+    expect(detectSourceFormat(lines.join("\n"))).toEqual({ kind: "jsonl", lines: 20 });
+  });
+
+  it("stops probing once a line has spent the budget", () => {
+    const head = JSON.stringify({ blob: "x".repeat(70 * 1024) });
+
+    expect(detectSourceFormat(`${head}\nnot json`)).toEqual({ kind: "jsonl", lines: 2 });
   });
 });
