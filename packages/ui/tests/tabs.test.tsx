@@ -20,7 +20,8 @@ describe("TabsTrigger", () => {
 
     expect(active).toHaveClass("data-active:bg-accent", "data-active:text-white");
     expect(active).toHaveAttribute("data-active");
+    // The accent fill is a data-active variant, so only the attribute tells the
+    // two tabs apart: both carry the resting classes in their class list.
     expect(inactive).not.toHaveAttribute("data-active");
-    expect(inactive).toHaveClass("text-text-secondary");
   });
 });

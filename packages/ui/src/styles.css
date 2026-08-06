@@ -117,13 +117,6 @@ pre,
   font-family: var(--font-mono);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -146,9 +139,12 @@ mark {
   color: inherit;
 }
 
-.uq-text-11 {
-  font-size: 11px;
-  line-height: 16px;
+/* Layered so a call site's own text-* utility still wins over the shared size. */
+@layer components {
+  .uq-text-11 {
+    font-size: 11px;
+    line-height: 16px;
+  }
 }
 
 /* --- Transitions --- */
