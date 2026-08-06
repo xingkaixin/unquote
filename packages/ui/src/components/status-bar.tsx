@@ -71,19 +71,18 @@ export const StatusBar = ({
           </span>
         </>
       ) : null}
-      {failedCount > 0 ? (
-        <button
-          type="button"
-          className="shrink-0 text-error hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onClick={onSelectFailed}
-        >
-          {t("status.failed", { count: failedCount })}
-        </button>
-      ) : null}
       {/* The single parse-failure announcement: a live region has to be in the
-          DOM before its content changes, so it outlives the button above. */}
-      <span className="sr-only" aria-live="polite">
-        {failedCount > 0 ? t("status.failed", { count: failedCount }) : ""}
+          DOM before its content changes, so the region outlives the button. */}
+      <span className="shrink-0" aria-live="polite">
+        {failedCount > 0 ? (
+          <button
+            type="button"
+            className="text-error hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onClick={onSelectFailed}
+          >
+            {t("status.failed", { count: failedCount })}
+          </button>
+        ) : null}
       </span>
       {sourceStatus ? (
         <div className="flex min-w-0 items-center gap-2" aria-live="polite">

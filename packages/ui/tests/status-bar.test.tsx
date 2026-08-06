@@ -84,22 +84,29 @@ describe("StatusBar summary", () => {
     expect(screen.queryByRole("button", { name: /failed/ })).not.toBeInTheDocument();
   });
 
-  it("announces a parse failure from a region that predates it", () => {
-    const { props, rerender } = renderBar({ failedCount: 0 });
-    const region = document.querySelector('[aria-live="polite"]');
-
-    // A live region only announces if it was in the DOM before its content
-    // changed, so it cannot be mounted together with the failed count.
-    expect(region).toHaveTextContent("");
+  it("announces a parse failure once, from a region that predates it", () => {
+    // Reading a file mounts its own progress region, so the failure region has
+    // to be identified by what it announces rather than by being the only one.
+    const liveRegions = () => Array.from(document.querySelectorAll("[aria-live]"));
+    const { container, props, rerender } = renderBar({
+      failedCount: 0,
+      sourceStatus: "Reading payload.jsonl",
+      sourceBusy: true,
+    });
+    const mounted = liveRegions();
 
     rerender(
       <I18nProvider>
-        <StatusBar {...props} failedCount={2} />
+        <StatusBar {...props} failedCount={2} sourceStatus="Reading payload.jsonl" sourceBusy />
       </I18nProvider>,
     );
 
-    expect(document.querySelectorAll("[aria-live]")).toHaveLength(1);
-    expect(region).toHaveTextContent("2 failed");
+    const announcing = liveRegions().filter((region) => region.textContent?.includes("2 failed"));
+    expect(announcing).toHaveLength(1);
+    // A live region only announces if it was in the DOM before its content
+    // changed, so it cannot be mounted together with the failed count.
+    expect(mounted).toContain(announcing[0]);
+    expect(container.textContent?.match(/2 failed/g)).toHaveLength(1);
   });
 
   it("clears the loaded source", async () => {
