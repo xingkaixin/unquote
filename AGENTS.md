@@ -17,7 +17,7 @@ apps/safari            Xcode host app that ships the extension to Safari (macOS)
 | Layer | Tools |
 |---|---|
 | Runtime | Node.js 24 |
-| Package Manager | pnpm 11.11.0 (workspace protocol `workspace:*`) |
+| Package Manager | pnpm 11.20.0 (workspace protocol `workspace:*`) |
 | Build / Dev | Turbo, Vite, tsup |
 | Frontend | React 19, TypeScript 7, Tailwind CSS v4 |
 | Component Primitives | Base UI (dialog, menu, tabs, tooltip, separator) |
@@ -133,13 +133,16 @@ CSS variables defined in `src/styles.css`:
 | File | Purpose |
 |---|---|
 | `app.tsx` | Root `UnquoteApp` composition root. Connects source loading, parsing, query interaction, local-file access, workspace selection, export actions, theme, and Agent/JSON output switching. |
-| `components/agent-session-view.tsx` | Agent log lens for detected Codex / Claude Code JSONL sessions. Shows session metadata, conversation turns, timeline events, and the matching raw JSONL record. |
-| `components/json-tree.tsx` | Renders one `JsonlRecord`. Uses `IntersectionObserver` to lazily mount tree rows, requests a Full Record when a Preview Record enters the render frontier, and enables row virtualization above 180 eligible rows. |
-| `components/record-list.tsx` | Maps `records` to `JsonTree` components, virtualizes long record lists, and substitutes resolved Full Records for their Preview Records. |
+| `components/app-header.tsx` | Loaded-workspace header with Agent/JSON tabs, search and match navigation, source switching, locale/theme controls, and copy/export actions. |
+| `components/import-dialog.tsx` / `source-import-panel.tsx` | Empty-state and source-replacement import flow: paste/drop/file input, bounded live format detection, samples, and explicit auto/json/jsonl mode selection. |
+| `components/json-workspace.tsx` / `workspace-columns.tsx` | Responsive three-column JSON composition: record rail, selected Record tree, and node inspector; desktop uses fixed side columns and mobile stacks the side panes. |
+| `components/record-rail.tsx` | Virtualized Record navigation with insight classification, summaries, timestamps, turn indices, active selection, and query-driven scroll targets. |
+| `components/record-tree-pane.tsx` / `json-tree.tsx` | Hydrates and renders the selected Record, exposes breadcrumb/copy/Expand All/Collapse All actions, and virtualizes trees above 180 eligible rows. |
+| `components/node-inspector.tsx` | Resolves the selected tree path within preview limits and exposes value/path copy plus nested-JSON expansion. |
+| `components/record-filter-bar.tsx` | Direct all/tool/message/event/nested filters; match and error filters remain reachable through search, the command palette, and status bar. |
+| `components/agent-session-view.tsx` | Three-column Agent lens composed from a virtualized timeline, virtualized conversation with expandable tool details, and session facts/metrics. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
-| `components/toolbar.tsx` | Sticky command toolbar with unified search/path input, match navigation, Expand/Collapse All, and overflow copy/export actions. |
-| `components/input-pane.tsx` | Textarea input + mode selector (auto/json/jsonl) + file drop zone. |
-| `components/toc-pane.tsx` | JSONL record navigation sidebar. |
+| `components/status-bar.tsx` | Parse/search progress, file metrics, error navigation, workspace shortcut hints, clear action, and extension-store links. |
 | `components/theme-toggle.tsx` / `locale-toggle.tsx` | User preference controls. |
 
 ### Hooks
@@ -147,7 +150,7 @@ CSS variables defined in `src/styles.css`:
 | File | Purpose |
 |---|---|
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
-| `hooks/use-desktop-workspace.ts` | Tracks the desktop workspace media query for responsive input and output layout. |
+| `hooks/use-desktop-workspace.ts` | Tracks the desktop workspace media query for responsive three-column or stacked layouts. |
 | `hooks/use-local-file-source.ts` | Browse-time state for local JSONL files: batched Preview-to-Full Record requests, Full Record cache eviction, copy/export resolution, and abort handling. |
 | `hooks/use-global-shortcuts.ts` | Owns document-level command palette, search navigation, expansion, and escape-key shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
@@ -156,13 +159,13 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
 | `hooks/use-record-pipeline.ts` | Derives record lookup, insight, overview, filtered records and stats, plus visible search matches from a parse result and query state. |
-| `hooks/use-workspace-query-binding.ts` | Synchronizes query matches and visible records into the workspace while preserving focus semantics. |
-| `hooks/use-workspace-session.ts` | Owns revision-scoped record/node/Agent-detail selection, focus, scroll intent, query navigation, and Stringified JSON expansion state. |
+| `hooks/use-workspace-query-binding.ts` | Synchronizes query-driven expansions and visible Records into workspace selection state. |
+| `hooks/use-workspace-session.ts` | Owns revision-scoped Record/node/Agent-detail selection, scroll intent, query navigation, and Stringified JSON expansion state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
 ### Tree Utilities (`lib/tree.ts`)
 
-- `buildRecordRows(record, expandedPaths, focusedPath?)` → `TreeRow[]` — flattens `JsonNode` tree into renderable rows.
+- `buildRecordRows(record, expandedPaths)` → `TreeRow[]` — flattens one selected Record's `JsonNode` tree into renderable rows and marks descendants inside Stringified JSON.
 - `collectStringifiedPaths(record, ...)` — finds reachable Stringified JSON boundaries; nested boundaries become reachable as their ancestors expand.
 - `materializeRecord(record)` — converts the expanded tree back to a plain JSON value for copy/export.
 
@@ -183,9 +186,9 @@ CSS variables defined in `src/styles.css`:
 - `lib/source-revision.ts` — Source Revision ownership type and stale-result guards.
 - `lib/stream-publisher.ts` — batches streamed parser records before React state updates.
 - `lib/path-codec.ts` — bottom-level JSONPath / jq parse and format helpers.
-- `lib/query-interaction.ts` — pure reducer for toolbar query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
-- `lib/source-samples.ts` — sample payloads used by the input pane, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
-- `lib/toolbar-summary.ts` — derives localized toolbar status and progress summaries from parser, file, search, and filter state.
+- `lib/query-interaction.ts` — pure reducer for header query mode, search options, path results, match navigation, record filters, and the jq/regex mutex.
+- `lib/source-samples.ts` — sample payloads used by the import panel, including escaped JSON, generic tool-call JSONL, Codex rollout JSONL, and mixed valid / invalid JSONL.
+- `lib/toolbar-summary.ts` — derives localized status and progress summaries from parser, file, search, and filter state.
 - `lib/tree-display.ts` — converts flattened tree rows into display rows and syntax classes for `JsonTree`.
 - `lib/tree-path.ts` — resolves JSONPath / jq selectors to canonical Record tree paths.
 - `lib/workspace-selection.ts` — pure selection reconciliation for record replacement and streamed record appends.
@@ -194,6 +197,7 @@ CSS variables defined in `src/styles.css`:
 
 - Detection runs only for JSONL input and currently recognizes Codex envelopes (`session_meta`, `event_msg`, `response_item`, `turn_context`) and Claude Code transcript / meta lines.
 - When a session is detected, the output area defaults to the Agent tab while keeping the normal expanded JSON tree available in the JSON tab.
+- The Agent tab uses a responsive timeline / conversation / session-overview layout; tool calls and results expand inline, and conversation items can open their canonical JSONL Record.
 - Agent sessions preserve raw line linkage so conversation and timeline selections can show the underlying parsed record.
 - Invalid JSONL lines collected during agent-session parsing become parse warnings instead of disabling the detected session.
 
@@ -228,7 +232,7 @@ Active match auto-scroll:
 - **Features:**
   - Clears legacy source-bearing URL hashes without persisting new input in browser history
   - File open dialog (`.json`, `.jsonl`)
-  - Chrome Web Store link badge
+  - Chrome Web Store and Microsoft Edge Add-ons links in the status bar
 
 ## Chrome Extension (`apps/extension`)
 

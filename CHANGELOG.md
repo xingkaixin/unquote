@@ -5,6 +5,31 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.0.0] - 2026-08-07
+
+### Added
+
+- Added a dedicated import flow with a focused empty state, modal source editor, live JSON / JSONL detection, sample inputs, paste / drop / file entry, and explicit format selection.
+- Added a persistent selected-node inspector with value and path copy actions plus one-click expansion of stringified JSON.
+- Added an Edge Add-ons shortcut alongside the Chrome Web Store link in the web app.
+
+### Changed
+
+- The JSON workspace is now a responsive three-column layout with a virtualized record rail, one selected Record tree, and the node inspector; search, filters, expansion, copy, and export remain directly accessible around that workspace.
+- The Agent session view now uses dedicated timeline, conversation, and session-overview columns, with virtualized long sessions, expandable tool call / result details, session metrics, and links back to the canonical JSONL Record.
+- Expand All and Collapse All are now explicit side-by-side actions scoped to the selected Record instead of operating across every visible Record.
+- Large JSONL rendering now mounts one selected Record tree beside the virtualized rail, substantially reducing retained DOM and memory in the high-record-count release fixture; the release benchmark and its DOM budget were recalibrated to the new workspace.
+- Chrome Web Store and Edge Add-ons screenshots were refreshed for the 1.0 interface.
+- The development and extension toolchain moved to pnpm 11.20, Vite 8, WXT 0.21, and jsdom 30; obsolete dependency overrides were removed.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.0.0`.
+
+### Fixed
+
+- Large and single-line import drafts no longer block the page during live format detection or show a false unparsable hint merely because the probe budget was reached.
+- Virtualized Record-rail and tree rows no longer overlap, and descendants expanded from stringified JSON retain their visual nesting rail.
+- Agent timelines now lead with human-readable categories and only show turn numbers actually reported by the session; active tabs, controls, and tool details retain the intended typography and state styling.
+- Parse failures are announced once to assistive technology, while loaded-source controls, timeline rows, and workspace headings expose names that match their visible labels.
+
 ## [0.13.0] - 2026-07-30
 
 ### Added
