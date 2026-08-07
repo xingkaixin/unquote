@@ -40,7 +40,9 @@ export const findSafariManifestProblems = (manifest) => {
     problems.push("manifest.json has no version");
   }
   if (manifest?.manifest_version !== 3) {
-    problems.push(`expected manifest_version 3, found ${JSON.stringify(manifest?.manifest_version)}`);
+    problems.push(
+      `expected manifest_version 3, found ${JSON.stringify(manifest?.manifest_version)}`,
+    );
   }
   if (manifest?.permissions?.includes("clipboardRead")) {
     problems.push("Safari does not support the clipboardRead permission");
@@ -54,7 +56,9 @@ export const findSafariManifestProblems = (manifest) => {
     problems.push("missing the open_unquote command");
   }
   if (manifest?.default_locale !== "en") {
-    problems.push(`expected default_locale "en", found ${JSON.stringify(manifest?.default_locale)}`);
+    problems.push(
+      `expected default_locale "en", found ${JSON.stringify(manifest?.default_locale)}`,
+    );
   }
 
   return problems;

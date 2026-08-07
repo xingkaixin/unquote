@@ -42,7 +42,9 @@ if (missing.length > 0) {
 
 const problems = findSafariManifestProblems(manifest);
 if (problems.length > 0) {
-  throw new Error(`dist/extension-safari/manifest.json is not a Safari build:\n  - ${problems.join("\n  - ")}`);
+  throw new Error(
+    `dist/extension-safari/manifest.json is not a Safari build:\n  - ${problems.join("\n  - ")}`,
+  );
 }
 
 // MARKETING_VERSION is derived from the extension manifest, so the App Store
