@@ -35,7 +35,7 @@ describe("WorkspaceColumns", () => {
   it("stacks the columns and hides the right pane behind a disclosure on mobile", () => {
     const { container } = renderColumns({ isDesktop: false });
 
-    expect(paneOf("rail")).toHaveStyle({ height: "30vh" });
+    expect(paneOf("rail").style.height).toBe("30vh");
     const disclosure = container.querySelector("details")!;
     expect(disclosure).toContainElement(screen.getByText("inspector"));
     expect(disclosure.querySelector("summary")).toHaveTextContent("Selected node");

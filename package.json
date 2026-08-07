@@ -2,6 +2,7 @@
   "name": "unquote",
   "version": "0.13.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "turbo run build",
@@ -23,25 +24,26 @@
     "build:safari": "turbo run build:safari --filter=@unquote/extension && node scripts/sync-safari-extension.mjs"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.2",
-    "@testing-library/jest-dom": "^6.8.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.6.1",
+    "@testing-library/user-event": "^14.6.3",
     "@types/node": "^24.13.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^6.0.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.10",
-    "jsdom": "^29.1.1",
-    "oxfmt": "^0.44.0",
-    "oxlint": "^1.73.0",
-    "turbo": "^2.10.4",
+    "jsdom": "^30.0.1",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "turbo": "^2.10.8",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
   "engines": {
     "node": "24.x",
-    "pnpm": "11.11.0"
+    "pnpm": "11.20.0"
   },
-  "packageManager": "pnpm@11.11.0"
+  "packageManager": "pnpm@11.20.0"
 }

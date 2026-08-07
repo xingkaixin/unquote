@@ -5,19 +5,3 @@ packages:
 allowBuilds:
   esbuild: true
   spawn-sync: true
-
-# web-ext-run is at its latest release and pins these transitive versions
-# exactly, so the advisories below cannot be cleared by upgrading wxt.
-overrides:
-  "web-ext-run@0.2.4>tmp": "0.2.7"
-  # GHSA-395f-4hp3-45gv: quadratic-complexity DoS in parse()
-  "fx-runner@1.4.0>shell-quote": "^1.8.5"
-  # GHSA-xcpc-8h2w-3j85: adm-zip path traversal
-  "firefox-profile@4.7.0>adm-zip": "^0.6.0"
-  # GHSA-3jxr-9vmj-r5cp and GHSA-mh99-v99m-4gvg: unbounded brace expansion.
-  # Only the 5.x line carries the fix for the second advisory, and it exports
-  # `expand` as a named binding, so minimatch@3 is patched to accept both.
-  "minimatch@3.1.5>brace-expansion": "^5.0.8"
-
-patchedDependencies:
-  minimatch@3.1.5: patches/minimatch@3.1.5.patch
