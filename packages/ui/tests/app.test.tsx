@@ -318,7 +318,7 @@ const setInputFormat = async (user: User, label: "Auto" | "JSON" | "JSONL") => {
       name: label,
     }),
   );
-  await user.click(within(dialog).getByRole("button", { name: "Back" }));
+  await user.click(within(dialog).getByRole("button", { name: "Parse" }));
 };
 
 const pasteFileIntoImport = async (user: User, file: File) => {
@@ -405,9 +405,25 @@ describe("UnquoteApp", () => {
       screen.queryByRole("dialog", { name: "Find, jump, and commands" }),
     ).not.toBeInTheDocument();
 
+    const formatGroup = within(dialog).getByRole("group", { name: inputFormatLabel });
+    await user.click(within(formatGroup).getByRole("button", { name: "JSONL" }));
+    expect(within(formatGroup).getByRole("button", { name: "JSONL" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
     await user.click(within(dialog).getByRole("button", { name: "Back" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelectorAll("#record-1")).toHaveLength(1);
+
+    await user.click(sourceButton());
+    const reopenedDialog = await screen.findByRole("dialog", { name: "Import data" });
+    expect(
+      within(within(reopenedDialog).getByRole("group", { name: inputFormatLabel })).getByRole(
+        "button",
+        { name: "Auto" },
+      ),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("opens straight into the workspace for an extension selection", async () => {

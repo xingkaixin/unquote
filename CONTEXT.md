@@ -8,6 +8,11 @@ Unquote 将 JSON、JSONL 与可识别的 Agent 日志转换为可浏览、可查
 用户当前打开或输入的一份 JSON 或 JSONL 内容。
 _Avoid_: Input payload, document
 
+**Source Candidate**:
+用户在导入流程中准备、但尚未成为当前 Source 的内容及其解析模式。取消导入不会产生
+Source Revision；只有确认后才会将两者原子发布为新的 Source。
+_Avoid_: Pending source, draft payload
+
 **Source Revision**:
 Source 内容及其解析模式的一个不可变版本。任何解析、搜索或视图派生结果都只属于产生它的 Source Revision。
 _Avoid_: Generation, request version
