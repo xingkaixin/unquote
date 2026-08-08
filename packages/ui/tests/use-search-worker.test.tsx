@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,7 +9,7 @@ import {
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
 import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
-import type { SearchMatch } from "../src/lib/record-search";
+import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const defaultOptions = { regex: false, caseSensitive: false, jq: false };
@@ -21,6 +21,24 @@ const matchStub = (recordId: string): SearchMatch => ({
   valueRanges: [],
   pathRanges: [],
   stringifiedPathChain: [],
+});
+
+const resultStub = (recordId?: string): SearchResultSet => ({
+  total: recordId ? 1 : 0,
+  matchLineNumbers: recordId ? Float64Array.from([1]) : new Float64Array(),
+  window: {
+    matchIndexes: recordId ? Float64Array.from([0]) : new Float64Array(),
+    matches: recordId ? [matchStub(recordId)] : [],
+  },
+});
+
+const windowResultStub = (matchIndex: number, recordId: string): SearchResultSet => ({
+  total: 200,
+  matchLineNumbers: Float64Array.from({ length: 200 }, (_, index) => index + 1),
+  window: {
+    matchIndexes: Float64Array.from([matchIndex]),
+    matches: [matchStub(recordId)],
+  },
 });
 
 class MockWorker extends MockWorkerEvents {
@@ -68,6 +86,7 @@ const Probe = ({
   debounceMs = 0,
   options = defaultOptions,
   access,
+  windowIndexes,
 }: {
   query: string;
   text: string;
@@ -76,6 +95,7 @@ const Probe = ({
   debounceMs?: number;
   options?: typeof defaultOptions;
   access?: LocalFileAccess;
+  windowIndexes?: Float64Array;
 }) => {
   const sourceAccess = useMemo(
     () => access ?? (sourceFile ? createLocalFileAccess(sourceFile) : null),
@@ -94,13 +114,18 @@ const Probe = ({
     text,
     sourceFile,
     status: result.status,
-    matches: result.matches?.[0]?.recordId ?? "",
+    matches: result.result?.window.matches[0]?.recordId ?? "",
   });
   return (
     <div>
       <div data-testid="status">{result.status}</div>
       <div data-testid="error-kind">{result.errorKind ?? ""}</div>
-      <div data-testid="record-id">{result.matches?.[0]?.recordId ?? ""}</div>
+      <div data-testid="record-id">{result.result?.window.matches[0]?.recordId ?? ""}</div>
+      {windowIndexes ? (
+        <button type="button" onClick={() => result.requestWindow(windowIndexes)}>
+          Load window
+        </button>
+      ) : null}
     </div>
   );
 };
@@ -139,7 +164,7 @@ describe("useSearchWorker", () => {
       options: defaultOptions,
     });
 
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("A")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("A") }));
     expect(worker.terminated).toBe(false);
     expect(measure).toHaveBeenCalledWith(
       "unquote:search:request",
@@ -152,7 +177,7 @@ describe("useSearchWorker", () => {
   it("reuses a worker after a completed search", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("first")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("first") }));
 
     rerender(<Probe query="b" text="text" />);
 
@@ -164,8 +189,43 @@ describe("useSearchWorker", () => {
       query: "b",
       options: defaultOptions,
     });
-    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("second")] }));
+    act(() => worker.respond({ type: "result", requestId: 2, result: resultStub("second") }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("second");
+  });
+
+  it("loads a requested window immediately from the cached source", async () => {
+    render(
+      <Probe
+        query="a"
+        text='{"value":"a"}'
+        debounceMs={250}
+        windowIndexes={Float64Array.from([128])}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    const worker = MockWorker.instances[0]!;
+    act(() =>
+      worker.respond({ type: "result", requestId: 1, result: windowResultStub(0, "first") }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+
+    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+    expect(worker.postMessage).toHaveBeenLastCalledWith({
+      type: "search-text",
+      requestId: 2,
+      source: { kind: "cached", sourceRevision: 0 },
+      query: "a",
+      options: defaultOptions,
+      windowIndexes: Float64Array.from([128]),
+    });
+    expect(screen.getByTestId("status")).toHaveTextContent("complete");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("first");
+
+    act(() =>
+      worker.respond({ type: "result", requestId: 2, result: windowResultStub(128, "next") }),
+    );
+    expect(screen.getByTestId("record-id")).toHaveTextContent("next");
   });
 
   it("terminates a superseded worker and applies only the new query", () => {
@@ -180,12 +240,10 @@ describe("useSearchWorker", () => {
       expect.objectContaining({ query: "b", requestId: 2 }),
     );
 
-    act(() => staleWorker.respond({ type: "result", requestId: 1, matches: [matchStub("stale")] }));
+    act(() => staleWorker.respond({ type: "result", requestId: 1, result: resultStub("stale") }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("");
 
-    act(() =>
-      currentWorker.respond({ type: "result", requestId: 2, matches: [matchStub("fresh")] }),
-    );
+    act(() => currentWorker.respond({ type: "result", requestId: 2, result: resultStub("fresh") }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("fresh");
   });
 
@@ -218,7 +276,7 @@ describe("useSearchWorker", () => {
     expect(MockWorker.instances).toHaveLength(2);
 
     const worker = MockWorker.instances[1]!;
-    act(() => worker.respond({ type: "result", requestId: 2, matches: [matchStub("recovered")] }));
+    act(() => worker.respond({ type: "result", requestId: 2, result: resultStub("recovered") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("recovered");
   });
@@ -302,7 +360,7 @@ describe("useSearchWorker", () => {
       }),
     );
 
-    act(() => recovered.respond({ type: "result", requestId: 2, matches: [matchStub("fresh")] }));
+    act(() => recovered.respond({ type: "result", requestId: 2, result: resultStub("fresh") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("fresh");
   });
@@ -366,13 +424,13 @@ describe("useSearchWorker", () => {
   it("ignores an aborted fallback file search while the next query is debouncing", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
     const file = new File(["{}"], "payload.jsonl");
-    let resolveSearch: ((matches: SearchMatch[] | null) => void) | undefined;
+    let resolveSearch: ((result: SearchResultSet | null) => void) | undefined;
     let searchSignal: AbortSignal | undefined;
     const access: LocalFileAccess = {
       ...createLocalFileAccess(file),
       search: vi.fn((_query, _options, signal) => {
         searchSignal = signal;
-        return new Promise<SearchMatch[] | null>((resolve) => {
+        return new Promise<SearchResultSet | null>((resolve) => {
           resolveSearch = resolve;
         });
       }),
@@ -413,7 +471,7 @@ describe("useSearchWorker", () => {
       staleWorker.respond({
         type: "result",
         requestId: 1,
-        matches: [matchStub("stale-file")],
+        result: resultStub("stale-file"),
       }),
     );
     expect(screen.getByTestId("record-id")).toHaveTextContent("");
@@ -422,7 +480,7 @@ describe("useSearchWorker", () => {
       currentWorker.respond({
         type: "result",
         requestId: 2,
-        matches: [matchStub("fresh-file")],
+        result: resultStub("fresh-file"),
       }),
     );
     expect(screen.getByTestId("record-id")).toHaveTextContent("fresh-file");
@@ -431,7 +489,7 @@ describe("useSearchWorker", () => {
   it("terminates the active worker when the hook unmounts", () => {
     const { unmount } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub() }));
 
     unmount();
 
@@ -451,7 +509,7 @@ describe("useSearchWorker", () => {
   it("resets to pending immediately on rerender when text changes, never exposing stale matches", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     const committed = rendersCommittedDuring(() =>
@@ -480,7 +538,7 @@ describe("useSearchWorker", () => {
     const fileB = new File(["{}"], "b.jsonl");
     const { rerender } = render(<Probe query="a" text="" sourceFile={fileA} />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     const committed = rendersCommittedDuring(() =>
@@ -497,7 +555,7 @@ describe("useSearchWorker", () => {
   it("resets to pending immediately on rerender when options change, never exposing stale matches", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     const committed = rendersCommittedDuring(() =>
@@ -516,7 +574,7 @@ describe("useSearchWorker", () => {
   it("keeps completed matches on rerender when inputs are unchanged", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     rerender(<Probe query="a" text="text" />);
@@ -528,7 +586,7 @@ describe("useSearchWorker", () => {
   it("goes idle immediately when the query is cleared after a completed search", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
-    act(() => worker.respond({ type: "result", requestId: 1, matches: [matchStub("record-3")] }));
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
 
     rerender(<Probe query="" text="text" />);
@@ -577,7 +635,7 @@ describe("useSearchWorker", () => {
     Reflect.deleteProperty(globalThis, "Worker");
     const file = new File(["{}"], "big.jsonl");
     Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes * 4 });
-    const search = vi.fn().mockResolvedValue([matchStub("from-file")]);
+    const search = vi.fn().mockResolvedValue(resultStub("from-file"));
     const access = { ...createLocalFileAccess(file), search } as LocalFileAccess;
 
     render(<Probe query="a" text="" access={access} />);

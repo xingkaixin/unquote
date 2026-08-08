@@ -128,29 +128,38 @@ Object.assign(globalThis, {
       forcedFormat: "json" | "jsonl" | undefined,
       query: string,
       options: unknown,
+      windowIndexes?: Float64Array,
     ) {
       Promise.all([import("../src/lib/parse-text"), import("../src/lib/record-search")]).then(
         ([{ parseTextResult }, { searchRecords }]) => {
           const parsed = parseTextResult(text, forcedFormat);
-          const matches = searchRecords(
+          const result = searchRecords(
             parsed.records,
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+            windowIndexes,
           );
-          this.respond({ type: "result", requestId, matches });
+          this.respond({ type: "result", requestId, result });
         },
       );
     }
-    completeSearchFile(requestId: number, file: File, query: string, options: unknown) {
+    completeSearchFile(
+      requestId: number,
+      file: File,
+      query: string,
+      options: unknown,
+      windowIndexes?: Float64Array,
+    ) {
       import("../src/lib/local-file-source").then(({ createLocalFileAccess }) => {
         createLocalFileAccess(file)
           .search(
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
             new AbortController().signal,
+            windowIndexes,
           )
-          .then((matches) => {
-            this.respond({ type: "result", requestId, matches });
+          .then((result) => {
+            this.respond({ type: "result", requestId, result });
           })
           .catch(() => {
             this.respond({ type: "error", requestId, message: "search failed" });
@@ -190,6 +199,7 @@ Object.assign(globalThis, {
         | { kind: "cached"; sourceRevision: number };
       query?: string;
       options?: unknown;
+      windowIndexes?: Float64Array;
     }) {
       if (payload.type === "search-text") {
         if (!this.isSearchWorker || !payload.source) {
@@ -212,6 +222,7 @@ Object.assign(globalThis, {
           this.searchSource.forcedFormat,
           payload.query ?? "",
           payload.options,
+          payload.windowIndexes,
         );
         return;
       }
@@ -225,6 +236,7 @@ Object.assign(globalThis, {
           payload.file,
           payload.query ?? "",
           payload.options,
+          payload.windowIndexes,
         );
         return;
       }
@@ -1556,6 +1568,38 @@ describe("UnquoteApp", () => {
     );
     void inputs;
   });
+
+  it(
+    "navigates forward and backward across a bounded search window",
+    { timeout: 15_000 },
+    async () => {
+      const user = userEvent.setup();
+      const input = Array.from({ length: 140 }, (_, index) =>
+        JSON.stringify({ index, msg: "needle" }),
+      ).join("\n");
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput={input} />
+        </I18nProvider>,
+      );
+      await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+      await user.type(getToolbarInput(), "needle");
+      await waitFor(() =>
+        expect(screen.getAllByText((text) => text.includes("1/140")).length).toBeGreaterThan(0),
+      );
+
+      const next = screen.getAllByRole("button", { name: /Next match/i })[0]!;
+      for (let index = 0; index < 128; index += 1) {
+        fireEvent.click(next);
+      }
+
+      await waitFor(() => expect(railRow(129)).toHaveAttribute("aria-pressed", "true"));
+      expect(screen.getAllByText((text) => text.includes("129/140")).length).toBeGreaterThan(0);
+
+      await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
+      await waitFor(() => expect(railRow(128)).toHaveAttribute("aria-pressed", "true"));
+    },
+  );
 
   it("follows a search match into a record the workspace was not showing", async () => {
     const user = userEvent.setup();

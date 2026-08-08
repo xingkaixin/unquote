@@ -5,25 +5,28 @@ import type { FileOverview } from "../lib/file-overview";
 import { createRecordDerivationState, updateRecordDerivations } from "../lib/record-derivation";
 import { filterRecords } from "../lib/record-filter";
 import type { RecordInsight } from "../lib/record-insight";
-import type { SearchMatch } from "../lib/record-search";
+import type { SearchMatch, SearchResultSet } from "../lib/record-search";
 import { isRecordAppendFrom } from "../lib/record-sequence";
 import type { RecordAppend } from "../lib/record-sequence";
 import type { QueryInteractionState } from "../lib/query-interaction";
+import { createSearchResultVisibility, projectSearchResult } from "../lib/search-result";
 import type { SourceRevision } from "../lib/source-revision";
 
 export interface RecordPipelineParams {
   sourceRevision: SourceRevision;
   result: ParseResult;
-  // Search matches from the search worker — covers both in-memory text search
-  // and whole-file search, and is null while idle, pending, or errored.
-  searchMatches: SearchMatch[] | null;
+  // The bounded result set covers both in-memory and whole-file search, and is
+  // null while search is idle, pending, or errored.
+  searchResult: SearchResultSet | null;
+  currentMatchIndex?: number;
   recordFilter: QueryInteractionState["recordFilter"];
   recordAppend?: RecordAppend | null;
 }
 
 export interface RecordPipeline {
   sourceRevision: SourceRevision;
-  matches: SearchMatch[] | null;
+  activeSearchMatch: SearchMatch | null;
+  currentMatchIndex: number;
   recordInsights: Map<string, RecordInsight>;
   recordsById: Map<string, JsonlRecord>;
   visibleRecords: JsonlRecord[];
@@ -32,6 +35,7 @@ export interface RecordPipeline {
   fileOverview: FileOverview;
   visibleMatches: SearchMatch[] | null;
   matchCount: number;
+  requestedSearchWindowIndexes: Float64Array;
 }
 
 const getRecordStats = (records: JsonlRecord[]) => {
@@ -52,7 +56,8 @@ const getRecordStats = (records: JsonlRecord[]) => {
 export const useRecordPipeline = ({
   sourceRevision,
   result,
-  searchMatches,
+  searchResult,
+  currentMatchIndex = 0,
   recordFilter,
   recordAppend = null,
 }: RecordPipelineParams): RecordPipeline => {
@@ -61,8 +66,6 @@ export const useRecordPipeline = ({
     records: JsonlRecord[] | null;
     map: Map<string, JsonlRecord>;
   }>({ records: null, map: new Map() });
-
-  const matches = searchMatches;
 
   // Insights and the file overview share one traversal per record, so they are
   // derived together rather than as two independent memos.
@@ -92,32 +95,35 @@ export const useRecordPipeline = ({
     return state.map;
   }, [recordAppend, result.records]);
   const visibleRecords = useMemo(
-    () => filterRecords(result.records, recordFilter, matches, recordInsights),
-    [matches, recordFilter, recordInsights, result.records],
+    () => filterRecords(result.records, recordFilter, searchResult, recordInsights),
+    [recordFilter, recordInsights, result.records, searchResult],
   );
   const visibleStats = useMemo(
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
     [recordFilter, result.stats, visibleRecords],
   );
-  const visibleMatches = useMemo(() => {
-    if (!matches) return null;
-
-    const visibleRecordIds = new Set(visibleRecords.map((record) => record.id));
-    return matches.filter((match) => visibleRecordIds.has(match.recordId));
-  }, [matches, visibleRecords]);
-  const matchCount = visibleMatches?.length ?? 0;
+  const searchVisibility = useMemo(
+    () => createSearchResultVisibility(searchResult, visibleRecords),
+    [searchResult, visibleRecords],
+  );
+  const searchProjection = useMemo(
+    () => projectSearchResult(searchResult, searchVisibility, currentMatchIndex),
+    [currentMatchIndex, searchResult, searchVisibility],
+  );
   const visibleRecordAppend = recordFilter === "all" ? recordAppend : null;
 
   return {
     sourceRevision,
-    matches,
+    activeSearchMatch: searchProjection.activeMatch,
+    currentMatchIndex: searchProjection.currentMatchIndex,
     recordInsights,
     recordsById,
     visibleRecords,
     visibleRecordAppend,
     visibleStats,
     fileOverview,
-    visibleMatches,
-    matchCount,
+    visibleMatches: searchProjection.windowMatches,
+    matchCount: searchProjection.matchCount,
+    requestedSearchWindowIndexes: searchProjection.requestedWindowIndexes,
   };
 };

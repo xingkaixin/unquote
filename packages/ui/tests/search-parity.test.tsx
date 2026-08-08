@@ -2,7 +2,7 @@ import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { searchRecords } from "../src/lib/record-search";
-import type { SearchMatch, SearchOptions } from "../src/lib/record-search";
+import type { SearchOptions, SearchResultSet } from "../src/lib/record-search";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
   const file = new File([contents], name, { type: "application/jsonl" });
@@ -50,10 +50,10 @@ const fixture = [JSON.stringify(line1), JSON.stringify(line2), escapedLine].join
 
 // SearchMatch order is not guaranteed to be identical between the two search
 // paths, so compare after sorting by (recordId, pathText).
-const normalize = (matches: SearchMatch[] | null) =>
-  matches === null
+const normalize = (result: SearchResultSet | null) =>
+  result === null
     ? null
-    : [...matches].sort((a, b) =>
+    : [...result.window.matches].sort((a, b) =>
         a.recordId === b.recordId
           ? a.pathText.localeCompare(b.pathText)
           : a.recordId.localeCompare(b.recordId),
@@ -68,11 +68,16 @@ const searchInFile = (query: string, options: SearchOptions) => {
 };
 
 const expectParity = async (query: string, options: SearchOptions) => {
-  const memoryMatches = searchInMemory(query, options);
-  const fileMatches = await searchInFile(query, options);
+  const memoryResult = searchInMemory(query, options);
+  const fileResult = await searchInFile(query, options);
 
-  expect(normalize(fileMatches)).toEqual(normalize(memoryMatches));
-  return { memoryMatches, fileMatches };
+  expect(fileResult?.total).toBe(memoryResult?.total);
+  expect(fileResult?.matchLineNumbers).toEqual(memoryResult?.matchLineNumbers);
+  expect(normalize(fileResult)).toEqual(normalize(memoryResult));
+  return {
+    memoryMatches: memoryResult?.window.matches ?? null,
+    fileMatches: fileResult?.window.matches ?? null,
+  };
 };
 
 describe("search parity between memory and file search paths", () => {

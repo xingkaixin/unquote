@@ -75,7 +75,8 @@ describe("search worker", () => {
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
     const [response] = workerScope.postMessage.mock.calls[0]!;
     expect(response).toMatchObject({ type: "result", requestId: 1 });
-    expect(response.matches.length).toBeGreaterThan(0);
+    expect(response.result.total).toBeGreaterThan(0);
+    expect(response.result.window.matches.length).toBeGreaterThan(0);
   });
 
   it("reuses parsed records for the same text across queries", async () => {
@@ -145,7 +146,7 @@ describe("search worker", () => {
     expect(workerScope.postMessage).toHaveBeenCalledWith({
       type: "result",
       requestId: 1,
-      matches: null,
+      result: null,
     });
   });
 
@@ -163,7 +164,7 @@ describe("search worker", () => {
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
     const [response] = workerScope.postMessage.mock.calls[0]!;
     expect(response).toMatchObject({ type: "result", requestId: 1 });
-    expect(response.matches.length).toBeGreaterThan(0);
+    expect(response.result.window.matches.length).toBeGreaterThan(0);
   });
 
   it("reports an error instead of empty matches when a file read fails", async () => {
@@ -180,7 +181,7 @@ describe("search worker", () => {
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
     const [response] = workerScope.postMessage.mock.calls[0]!;
     expect(response.type).toBe("error");
-    expect(response).not.toHaveProperty("matches");
+    expect(response).not.toHaveProperty("result");
   });
 
   it("keeps error responses free of the input text and query", async () => {

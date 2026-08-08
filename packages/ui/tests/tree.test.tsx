@@ -5,10 +5,12 @@ import { createFileOverview } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
 import { filterRecords } from "../src/lib/record-filter";
 import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
+import type { SearchResultSet } from "../src/lib/record-search";
 import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
 import { resolveTreePath, resolveTreePathMatches } from "../src/lib/tree-path";
 
 const oversizedMatchCount = 130_000;
+const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
 describe("tree paths", () => {
   it("resolves paths inside stringified JSON", () => {
@@ -125,11 +127,13 @@ describe("tree paths", () => {
     const record = result.records[0]!;
     const rows = buildRecordRows(record, new Set());
     const leaf = rows.find((row) => row.valueLabel === '"needle"');
-    const matches = searchRecords(result.records, expectedJsonPath, {
-      regex: false,
-      caseSensitive: true,
-      jq: true,
-    });
+    const matches = matchesOf(
+      searchRecords(result.records, expectedJsonPath, {
+        regex: false,
+        caseSensitive: true,
+        jq: true,
+      }),
+    );
 
     expect(leaf?.pathText).toBe(expectedJsonPath);
     expect(matches).toEqual([
@@ -212,7 +216,7 @@ describe("tree paths", () => {
   it("searches object keys without treating roots or array indexes as keys", () => {
     const result = parseInput('{"0":"object-key","items":[10,20,30]}');
     const options = { regex: false, caseSensitive: true, jq: false };
-    const matches = searchRecords(result.records, "0", options);
+    const matches = matchesOf(searchRecords(result.records, "0", options));
 
     expect(matches).toEqual([
       expect.objectContaining({
@@ -236,7 +240,7 @@ describe("tree paths", () => {
         valueRanges: [{ start: 1, end: 2 }],
       }),
     ]);
-    expect(searchRecords(result.records, "$", options)).toEqual([]);
+    expect(matchesOf(searchRecords(result.records, "$", options))).toEqual([]);
   });
 
   // Takes ~5s on slow CI runners, right at the default 5000ms timeout.
@@ -247,13 +251,15 @@ describe("tree paths", () => {
       const values = Array.from({ length: oversizedMatchCount }, () => "needle");
       const result = parseInput(JSON.stringify(values));
 
-      const matches = searchRecords(result.records, "needle", {
+      const searchResult = searchRecords(result.records, "needle", {
         regex: false,
         caseSensitive: true,
         jq: false,
       });
 
-      expect(matches).toHaveLength(oversizedMatchCount);
+      expect(searchResult?.total).toBe(oversizedMatchCount);
+      expect(searchResult?.matchLineNumbers).toHaveLength(oversizedMatchCount);
+      expect(searchResult?.window.matches).toHaveLength(128);
     },
   );
 
@@ -287,7 +293,7 @@ describe("tree paths", () => {
       regex: false,
       caseSensitive: true,
       jq: false,
-    });
+    }).window.matches;
 
     expect(parse).toHaveBeenCalledTimes(8);
     expect(matches.map((match) => match.pathText)).toEqual(["$[13]", "$[14].nested"]);
@@ -317,10 +323,10 @@ describe("tree paths", () => {
     )!;
     const options = { regex: false, caseSensitive: true, jq: false };
 
-    const visibleMatch = searchRecords(result.records, "visible", options);
-    const boundaryMatch = searchRecords(result.records, "edge", options);
-    const deepMatch = searchRecords(result.records, "deep", options);
-    const decorationMatch = searchRecords(result.records, key, options);
+    const visibleMatch = matchesOf(searchRecords(result.records, "visible", options));
+    const boundaryMatch = matchesOf(searchRecords(result.records, "edge", options));
+    const deepMatch = matchesOf(searchRecords(result.records, "deep", options));
+    const decorationMatch = matchesOf(searchRecords(result.records, key, options));
 
     expect(visibleMatch).toHaveLength(1);
     expect(

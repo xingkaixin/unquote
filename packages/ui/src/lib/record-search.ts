@@ -1,4 +1,4 @@
-import type { JsonNode, JsonlRecord } from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import { isParsed } from "@unquote/core";
 import {
   formatJsonValueLabel,
@@ -30,91 +30,166 @@ export interface SearchOptions {
   jq: boolean;
 }
 
-interface RangeScan {
-  ranges: TextRange[];
-  matched: boolean;
+export interface SearchResultWindow {
+  matchIndexes: Float64Array;
+  matches: SearchMatch[];
 }
 
+export interface SearchResultSet {
+  total: number;
+  matchLineNumbers: Float64Array;
+  window: SearchResultWindow;
+}
+
+export const searchResultWindowSize = 128;
+
+export interface SearchResultCollector {
+  addRecord: (record: JsonlRecord) => void;
+  finish: () => SearchResultSet;
+}
+
+interface InternalSearchResultCollector extends SearchResultCollector {
+  addContext: (
+    context: JsonValueWalkContext<unknown>,
+    recordId: string,
+    lineNumber: number,
+  ) => void;
+}
+
+const clonePattern = (pattern: RegExp) =>
+  new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+
+const matchesPattern = (text: string, pattern: RegExp) => clonePattern(pattern).test(text);
+
 /**
- * Scans the whole text so a match past `visibleLength` still counts, but only
- * materializes the ranges the UI can highlight. A dense pattern over a
- * megabyte-long value would otherwise allocate one object per match while the
- * view shows a few hundred characters.
+ * A materialized hit still scans only the visible label for ranges. Match
+ * existence was established separately against the complete value.
  */
-const scanRanges = (text: string, pattern: RegExp, visibleLength = text.length): RangeScan => {
+const scanRanges = (text: string, pattern: RegExp, visibleLength = text.length): TextRange[] => {
   const ranges: TextRange[] = [];
-  const clone = new RegExp(
-    pattern.source,
-    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
-  );
+  const clone = clonePattern(pattern);
   let match: RegExpExecArray | null;
   while ((match = clone.exec(text)) !== null) {
     const end = match.index + match[0].length;
     if (end > visibleLength) {
-      // Later matches end even further out, so no more ranges can become
-      // visible and the "text matches at all" fact is already settled.
-      return { ranges, matched: true };
+      return ranges;
     }
     ranges.push({ start: match.index, end });
     if (match[0].length === 0) {
       clone.lastIndex++;
     }
   }
-  return { ranges, matched: ranges.length > 0 };
+  return ranges;
 };
 
-const addSearchMatch = (
-  context: JsonValueWalkContext<unknown>,
-  recordId: string,
+const normalizeWindowIndexes = (indexes?: ArrayLike<number>) => {
+  if (!indexes) {
+    return null;
+  }
+
+  const normalized = new Set<number>();
+  for (let index = 0; index < indexes.length; index += 1) {
+    const value = indexes[index];
+    if (Number.isSafeInteger(value) && value !== undefined && value >= 0) {
+      normalized.add(value);
+      if (normalized.size === searchResultWindowSize) {
+        break;
+      }
+    }
+  }
+
+  return new Set([...normalized].sort((left, right) => left - right));
+};
+
+const createCollector = (
   pattern: RegExp,
   options: SearchOptions,
-  matches: SearchMatch[],
-) => {
-  const keySegment = context.pathSegments.at(-1);
-  const keyRanges = keySegment?.kind === "key" ? scanRanges(keySegment.value, pattern).ranges : [];
-  const value = scanRanges(
-    formatJsonValueLabel(context),
-    pattern,
-    getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
-  );
-  const pathRanges = options.jq ? scanRanges(context.jsonPath, pattern).ranges : [];
+  windowIndexes?: ArrayLike<number>,
+): InternalSearchResultCollector => {
+  const requestedIndexes = normalizeWindowIndexes(windowIndexes);
+  const matchLineNumbers: number[] = [];
+  const materializedIndexes: number[] = [];
+  const matches: SearchMatch[] = [];
 
-  if (keyRanges.length > 0 || value.matched || pathRanges.length > 0) {
+  const addContext = (
+    context: JsonValueWalkContext<unknown>,
+    recordId: string,
+    lineNumber: number,
+  ) => {
+    const keySegment = context.pathSegments.at(-1);
+    const keyText = keySegment?.kind === "key" ? keySegment.value : null;
+    const valueText = formatJsonValueLabel(context);
+    const keyMatched = keyText ? matchesPattern(keyText, pattern) : false;
+    const valueMatched = matchesPattern(valueText, pattern);
+    const pathMatched = options.jq && matchesPattern(context.jsonPath, pattern);
+
+    if (!keyMatched && !valueMatched && !pathMatched) {
+      return;
+    }
+
+    const matchIndex = matchLineNumbers.length;
+    matchLineNumbers.push(lineNumber);
+    const shouldMaterialize = requestedIndexes
+      ? requestedIndexes.has(matchIndex)
+      : matchIndex < searchResultWindowSize;
+    if (!shouldMaterialize) {
+      return;
+    }
+
+    materializedIndexes.push(matchIndex);
     matches.push({
       recordId,
       pathText: context.jsonPath,
-      keyRanges,
-      valueRanges: value.ranges,
-      pathRanges,
+      keyRanges: keyText ? scanRanges(keyText, pattern) : [],
+      valueRanges: scanRanges(
+        valueText,
+        pattern,
+        getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
+      ),
+      pathRanges: options.jq ? scanRanges(context.jsonPath, pattern) : [],
       stringifiedPathChain: [...context.stringifiedChain],
     });
-  }
+  };
+
+  return {
+    addContext,
+    addRecord(record) {
+      if (!isParsed(record)) {
+        return;
+      }
+
+      walkJsonNode(record.node, (context) => addContext(context, record.id, record.lineNumber), {
+        jsonPath: "$",
+        stringifiedAncestors: [],
+      });
+    },
+    finish: () => ({
+      total: matchLineNumbers.length,
+      matchLineNumbers: Float64Array.from(matchLineNumbers),
+      window: {
+        matchIndexes: Float64Array.from(materializedIndexes),
+        matches,
+      },
+    }),
+  };
 };
 
-const searchNode = (
-  node: JsonNode,
-  recordId: string,
+export const createSearchResultCollector = (
   pattern: RegExp,
-  stringifiedAncestors: string[],
-  matches: SearchMatch[],
   options: SearchOptions,
-  pathText = "$",
-) => {
-  walkJsonNode(node, (ctx) => addSearchMatch(ctx, recordId, pattern, options, matches), {
-    jsonPath: pathText,
-    stringifiedAncestors,
-  });
-};
+  windowIndexes?: ArrayLike<number>,
+): SearchResultCollector => createCollector(pattern, options, windowIndexes);
 
 export const searchJsonValue = (
   value: unknown,
   recordId: string,
   pattern: RegExp,
   options: SearchOptions,
-): SearchMatch[] => {
-  const matches: SearchMatch[] = [];
-  walkRawJsonValue(value, (ctx) => addSearchMatch(ctx, recordId, pattern, options, matches));
-  return matches;
+  windowIndexes?: ArrayLike<number>,
+): SearchResultSet => {
+  const collector = createCollector(pattern, options, windowIndexes);
+  walkRawJsonValue(value, (context) => collector.addContext(context, recordId, 1));
+  return collector.finish();
 };
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
@@ -140,33 +215,17 @@ export const searchRecords = (
   records: JsonlRecord[],
   query: string,
   options: SearchOptions,
-): SearchMatch[] | null =>
+  windowIndexes?: ArrayLike<number>,
+): SearchResultSet | null =>
   measurePerfFn("search:memory", () => {
     const pattern = buildSearchPattern(query, options);
     if (!pattern) {
       return null;
     }
 
-    const matches: SearchMatch[] = [];
+    const collector = createCollector(pattern, options, windowIndexes);
     for (const record of records) {
-      for (const match of searchRecord(record, pattern, options)) {
-        matches.push(match);
-      }
+      collector.addRecord(record);
     }
-
-    return matches;
+    return collector.finish();
   });
-
-export const searchRecord = (
-  record: JsonlRecord,
-  pattern: RegExp,
-  options: SearchOptions,
-): SearchMatch[] => {
-  if (!isParsed(record)) {
-    return [];
-  }
-
-  const matches: SearchMatch[] = [];
-  searchNode(record.node, record.id, pattern, [], matches, options);
-  return matches;
-};

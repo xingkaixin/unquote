@@ -3,7 +3,7 @@ import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
-import type { SearchMatch } from "../src/lib/record-search";
+import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import type { RecordAppend } from "../src/lib/record-sequence";
 
 const result = parseInput('{"value":1}\ninvalid\n{"value":2}', { forcedFormat: "jsonl" });
@@ -15,6 +15,17 @@ const createMatch = (recordId: string): SearchMatch => ({
   valueRanges: [],
   pathRanges: [],
   stringifiedPathChain: [],
+});
+
+const createSearchResult = (matches: SearchMatch[]): SearchResultSet => ({
+  total: matches.length,
+  matchLineNumbers: Float64Array.from(
+    matches.map((match) => Number(match.recordId.replace("record-", ""))),
+  ),
+  window: {
+    matchIndexes: Float64Array.from(matches.map((_, index) => index)),
+    matches,
+  },
 });
 
 const rec = (id: string): JsonlRecord => ({
@@ -38,7 +49,12 @@ describe("useRecordPipeline", () => {
   it("preserves core stats for the unfiltered record set", () => {
     const matches = [createMatch("record-1"), createMatch("record-2")];
     const { result: pipeline } = renderHook(() =>
-      useRecordPipeline({ sourceRevision: 0, result, searchMatches: matches, recordFilter: "all" }),
+      useRecordPipeline({
+        sourceRevision: 0,
+        result,
+        searchResult: createSearchResult(matches),
+        recordFilter: "all",
+      }),
     );
 
     expect(pipeline.current.visibleRecords).toEqual(result.records);
@@ -53,7 +69,7 @@ describe("useRecordPipeline", () => {
       useRecordPipeline({
         sourceRevision: 0,
         result,
-        searchMatches: matches,
+        searchResult: createSearchResult(matches),
         recordFilter: "errors",
       }),
     );
@@ -69,7 +85,7 @@ describe("useRecordPipeline", () => {
       useRecordPipeline({
         sourceRevision: 0,
         result,
-        searchMatches: null,
+        searchResult: null,
         recordFilter: "matches",
       }),
     );
@@ -92,7 +108,7 @@ describe("useRecordPipeline", () => {
         useRecordPipeline({
           sourceRevision: 0,
           result: streamed,
-          searchMatches: null,
+          searchResult: null,
           recordFilter: "all",
           recordAppend,
         }),
@@ -128,7 +144,7 @@ describe("useRecordPipeline", () => {
         useRecordPipeline({
           sourceRevision: 0,
           result: streamed,
-          searchMatches: null,
+          searchResult: null,
           recordFilter: "all",
         }),
       { initialProps: { result: buildResult([r1, r2]) } },

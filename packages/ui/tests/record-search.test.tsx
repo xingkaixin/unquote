@@ -2,6 +2,7 @@ import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { maxStringValueLabelLength } from "../src/lib/json-walk";
 import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
+import type { SearchResultSet } from "../src/lib/record-search";
 
 const defaultOptions = { regex: false, caseSensitive: false, jq: false };
 
@@ -11,9 +12,10 @@ const recordsFor = (value: unknown) =>
 // A string label is rendered as JSON, so the visible window is the truncated
 // value plus its opening quote.
 const maxVisibleStringRanges = maxStringValueLabelLength + 1;
+const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
 const valueRangesFor = (value: unknown, query: string, options = defaultOptions) => {
-  const matches = searchRecords(recordsFor(value), query, options);
+  const matches = matchesOf(searchRecords(recordsFor(value), query, options));
   expect(matches).toHaveLength(1);
   return matches![0]!.valueRanges;
 };
@@ -35,10 +37,12 @@ describe("search range materialization", () => {
   });
 
   it("still reports a node whose only match lies past the visible label", () => {
-    const matches = searchRecords(
-      recordsFor({ blob: `${"a".repeat(1_000_000)}needle` }),
-      "needle",
-      defaultOptions,
+    const matches = matchesOf(
+      searchRecords(
+        recordsFor({ blob: `${"a".repeat(1_000_000)}needle` }),
+        "needle",
+        defaultOptions,
+      ),
     );
 
     expect(matches).toHaveLength(1);
@@ -58,7 +62,7 @@ describe("search pattern semantics", () => {
     const matches = searchJsonValue({ blob: "abc" }, "record-1", /x*/g, {
       ...defaultOptions,
       regex: true,
-    });
+    }).window.matches;
     const blob = matches.find((match) => match.pathText === "$.blob");
 
     // One empty match at every position of the `"abc"` label, quotes included.
@@ -67,7 +71,7 @@ describe("search pattern semantics", () => {
   });
 
   it("scans every occurrence for a pattern that lacks the global flag", () => {
-    const matches = searchJsonValue({ blob: "aa" }, "record-1", /a/, defaultOptions);
+    const matches = searchJsonValue({ blob: "aa" }, "record-1", /a/, defaultOptions).window.matches;
 
     expect(matches[0]?.valueRanges).toEqual([
       { start: 1, end: 2 },
@@ -85,11 +89,12 @@ describe("search pattern semantics", () => {
   it("matches keys and jq paths independently of the value", () => {
     const records = recordsFor({ needle: "value" });
 
-    expect(searchRecords(records, "needle", defaultOptions)?.[0]?.keyRanges).toEqual([
+    expect(matchesOf(searchRecords(records, "needle", defaultOptions))?.[0]?.keyRanges).toEqual([
       { start: 0, end: 6 },
     ]);
     expect(
-      searchRecords(records, "$.needle", { ...defaultOptions, jq: true })?.[0]?.pathRanges,
+      matchesOf(searchRecords(records, "$.needle", { ...defaultOptions, jq: true }))?.[0]
+        ?.pathRanges,
     ).toEqual([{ start: 0, end: 8 }]);
   });
 

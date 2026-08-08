@@ -36,7 +36,7 @@ describe("tree paths for keys that shadow prototype members", () => {
 
 describe("search over keys that shadow prototype members", () => {
   it("matches the key itself at every depth", () => {
-    const matches = searchRecords(records, "__proto__", defaultOptions);
+    const matches = searchRecords(records, "__proto__", defaultOptions)?.window.matches;
 
     expect(matches?.map((match) => match.pathText)).toEqual([
       "$.__proto__",
@@ -47,7 +47,7 @@ describe("search over keys that shadow prototype members", () => {
   });
 
   it("matches values stored under such keys", () => {
-    const matches = searchRecords(records, "in-array", defaultOptions);
+    const matches = searchRecords(records, "in-array", defaultOptions)?.window.matches;
 
     expect(matches?.[0]?.pathText).toBe("$.items[0].__proto__");
   });
