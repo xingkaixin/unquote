@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Pre-commit gate: format-check + lint the staged TS/TSX/CSS/JSON files, then a
 # turbo-cached typecheck pass. Enabled via `git config core.hooksPath .githooks`
 # (see package.json "prepare"), which pnpm install runs automatically.
-set -eu
+set -euo pipefail
 set -f # staged paths are used verbatim, never as glob patterns
 
 hint() {
@@ -11,43 +11,35 @@ hint() {
   echo "如需临时跳过，可使用 git commit --no-verify" >&2
 }
 
-staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
-
-fmt_files=""
-lint_files=""
-old_ifs=$IFS
-IFS='
-'
-for f in $staged_files; do
+fmt_files=()
+lint_files=()
+while IFS= read -r -d '' f; do
   case "$f" in
     *.ts | *.tsx | *.css | *.json)
-      fmt_files="$fmt_files
-$f"
+      fmt_files+=("$f")
       ;;
   esac
   case "$f" in
     *.ts | *.tsx)
-      lint_files="$lint_files
-$f"
+      lint_files+=("$f")
       ;;
   esac
-done
-IFS=$old_ifs
+done < <(git diff --cached --name-only -z --diff-filter=ACMR)
 
 # Nothing relevant staged: skip straight to a fast, clean exit.
-if [ -z "$fmt_files" ]; then
+if ((${#fmt_files[@]} == 0)); then
   exit 0
 fi
 
-if ! pnpm exec oxfmt --check $fmt_files; then
+if ! pnpm exec oxfmt --check -- "${fmt_files[@]}"; then
   hint "oxfmt 格式检查未通过，可运行 pnpm exec oxfmt --write <file> 后重新 git add"
   exit 1
 fi
 
 # oxlint exits 1 with "No files found to lint" when given only CSS/JSON paths,
 # so only invoke it when the staged set actually contains TS/TSX files.
-if [ -n "$lint_files" ]; then
-  if ! pnpm exec oxlint $lint_files; then
+if ((${#lint_files[@]} > 0)); then
+  if ! pnpm exec oxlint -- "${lint_files[@]}"; then
     hint "oxlint 检查未通过，请修复上方问题后重新提交"
     exit 1
   fi
