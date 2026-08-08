@@ -53,11 +53,11 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 
 | 编号 | 功能 | 描述 |
 | ---- | ---- | ---- |
-| U-1 | 输入与文件打开 | 支持粘贴、示例、拖拽和打开本地 `.json` / `.jsonl` 文件，并可手动覆盖格式识别。 |
+| U-1 | Source 导入与替换 | 空状态和导入对话框支持粘贴、示例、拖拽和打开本地 `.json` / `.jsonl` 文件，并可手动覆盖格式识别；确认后的 Source 才进入工作区。 |
 | U-2 | 结构化树视图 | 渲染解析树，提供语法高亮、节点路径、选中复制和错误详情。 |
 | U-3 | Stringified 标识与展开 | 对已识别节点标识其来源，并支持逐节点展开或收起。 |
 | U-4 | 批量展开与收起 | 对当前记录范围内的 stringified 节点执行 Expand All 或 Collapse All。 |
-| U-5 | JSONL 导航 | 提供记录目录、可见记录定位、记录级展开控制与成功/失败统计。 |
+| U-5 | Record 导航 | Record rail 提供行号、摘要、洞察与解析状态，并定位当前可见 Record；工作区一次浏览一个选中 Record。 |
 | U-6 | 搜索、路径跳转与筛选 | 在键和值中搜索，支持正则、大小写、JSONPath / jq 风格路径跳转及记录过滤。 |
 | U-7 | 命令工具栏 | 在工具栏和 `Cmd/Ctrl+K` 命令面板集中执行搜索、路径跳转、展开/收起与筛选。 |
 | U-8 | Agent session 视图 | 自动识别 Codex rollout 与 Claude Code JSONL，以会话信息、对话、工具调用、时间线和原始记录的关联视图呈现。 |
@@ -84,42 +84,56 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 
 ## 5. 界面布局
 
-### 5.1 JSON 模式
+### 5.1 Source 导入
 
-输入与结构化结果并排显示；工具栏承载搜索、路径跳转、批量展开/收起及复制/导出操作。
+没有当前 Source 时，主区域显示居中的导入面板。用户可粘贴文本、拖入或选择文件、载入示例，并在
+auto / JSON / JSONL 中选择解析模式。导入内容是待确认的 Source Candidate；确认后才会原子替换
+当前 Source 与解析模式。Source 加载后不保留常驻输入编辑区，后续替换通过 header 打开同一导入
+流程。
 
-```
-┌──────────────────────┬──────────────────────┐
-│                      │                      │
-│    Input Editor      │    Tree Output       │
-│                      │                      │
-└──────────────────────┴──────────────────────┘
-```
+### 5.2 JSON workspace
 
-### 5.2 JSONL 模式
-
-记录目录、输入区和结果区并列。结果区可以在普通 JSON 树和识别出的 Agent session 视图之间切换。
+JSON 与 JSONL 共用 Record workspace；JSON Source 也以一个 Record 呈现。桌面布局由 Record rail、
+当前 Record tree 与 Node inspector 三栏组成，filter bar 位于三栏上方：
 
 ```
-┌────────┬─────────────────┬──────────────────┐
-│  TOC   │                 │ JSON / Agent     │
-│        │  Input Editor   │ ┌─ Record #1 ─┐  │
-│ #1 ◉   │                 │ │  ...         │  │
-│ #2     │                 │ └─────────────┘  │
-│ #3     │                 │ ┌─ Record #2 ─┐  │
-│ ...    │                 │ │  ...         │  │
-│ Stats  │                 │ └─────────────┘  │
-└────────┴─────────────────┴──────────────────┘
+┌──────────────────────────────── App header ────────────────────────────────┐
+├──────────────────────────────── Record filters ────────────────────────────┤
+├──────────────────┬───────────────────────────────┬─────────────────────────┤
+│   Record rail    │     Selected Record tree      │     Node inspector      │
+│ line / summary   │ breadcrumb / expand-collapse │ value / path / actions  │
+│ insight / state  │ search and path target        │                         │
+├──────────────────┴───────────────────────────────┴─────────────────────────┤
+│                                Status bar                                  │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-TOC 显示行号、摘要和解析状态；搜索和路径跳转会将目标记录带入视图，必要时先取得对应的 Full Record。
+Record rail 只负责导航，不同时渲染多张 Record card。搜索、筛选和路径跳转会同步选择目标 Record，
+并在 tree 中定位对应 JSON Node；本地大文件的目标若仍是 Preview Record，会先请求对应 Full Record。
+窄屏下 rail、tree 与 inspector 垂直排列，inspector 收入底部 disclosure。
+
+### 5.3 Agent output
+
+识别到 Agent Session 时，header 提供 Agent / JSON output 切换；默认 Agent output 仍保留返回 canonical
+Record 的入口。Agent 桌面布局为 timeline、conversation 与 session facts 三栏，窄屏使用与 JSON
+workspace 相同的堆叠策略。
+
+```
+┌────────────────────┬───────────────────────────────┬──────────────────────┐
+│ Agent timeline     │ Conversation                  │ Session facts        │
+│ event / turn       │ message / reasoning / tools   │ metadata / metrics   │
+└────────────────────┴───────────────────────────────┴──────────────────────┘
+```
+
+App header 始终承载 Source 替换、搜索、output 切换、偏好与复制/导出操作；解析、搜索、文件和错误状态
+由底部 status bar 汇总。
 
 ## 6. 非功能需求
 
 | 编号 | 类别 | 要求 |
 | ---- | ---- | ---- |
 | N-1 | 本地性 | 输入、解析、搜索、复制和导出均在浏览器或扩展本地处理，不向服务端发送用户数据。 |
-| N-2 | 响应性 | 解析与搜索通过 Web Worker 执行；没有 Worker 的环境可回退到主线程。 |
+| N-2 | 响应性 | 预算内的初始 Source 可同步完成以避免结果闪烁；其余解析与搜索通过 Web Worker 执行。没有 Worker 时只在主线程预算内回退，过大 Source 明确拒绝同步工作。 |
 | N-3 | 大文件 | JSONL 使用流式发布、记录虚拟化和按需取得 Full Record，避免为浏览少量记录而常驻完整树。 |
 | N-4 | 导出 | 大型导出分块生成并向主线程让步，避免长时间阻塞页面。 |
 | N-5 | 兼容 | Web 面向现代浏览器；Chrome 扩展使用 Manifest V3。 |
