@@ -8,8 +8,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   collectBudgetFailures,
   mergeMeasurementFailures,
-  parseBudgetSetting,
   parseIntegerSetting,
+  resolveBudgetSetting,
   summarize,
 } from "./metrics.mjs";
 
@@ -41,7 +41,7 @@ const resolveChromePath = () => {
   return executable;
 };
 
-const readBudget = (name, fallback) => parseBudgetSetting(name, process.env[name] ?? fallback);
+const readBudget = (name, fallback) => resolveBudgetSetting(name, process.env, fallback);
 
 const chromePath = resolveChromePath();
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
@@ -113,6 +113,9 @@ const budgets = {
   // regressions, so it is sized to stay off CI's back.
   firstRecordReadyMsP50: readBudget("UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS", 1500),
   completeReadyMsP50: readBudget("UNQUOTE_BENCH_COMPLETE_BUDGET_MS", 3000),
+  // Eight recent Ubuntu runs put the slowest fixture at 2169ms p50; 3000ms
+  // preserves 38% shared-runner headroom while catching a material regression.
+  searchReadyMsP50: readBudget("UNQUOTE_BENCH_SEARCH_BUDGET_MS", 3000),
   expandPathReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS", 400),
   expandAllReadyMsP50: readBudget("UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS", 800),
   // Re-derived after the three-column redesign: the N record cards became one
