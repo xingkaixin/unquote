@@ -1,8 +1,7 @@
-import type { JsonKind } from "./types.js";
+import type { JsonKind, MaterializeOptions } from "./types.js";
+import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 
 export const DEFAULT_MAX_DEPTH = 100;
-
-const SUMMARY_KEYS = ["timestamp", "type", "action", "event", "name", "message"] as const;
 
 export const getJsonKind = (value: unknown): JsonKind => {
   if (value === null) {
@@ -25,9 +24,8 @@ export const getJsonKind = (value: unknown): JsonKind => {
   }
 };
 
-const isJsonContainer = (value: unknown) => value !== null && typeof value === "object";
-
-export const parseJson = (input: string) => JSON.parse(input) as unknown;
+export const parseJson = (input: string, options: MaterializeOptions = {}) =>
+  materializeLosslessValue(parseLosslessJson(input), options);
 
 const isHighSurrogate = (codeUnit: number) => codeUnit >= 0xd800 && codeUnit <= 0xdbff;
 const isLowSurrogate = (codeUnit: number) => codeUnit >= 0xdc00 && codeUnit <= 0xdfff;
@@ -81,7 +79,7 @@ export const probeJsonl = (input: string, sampleLimit = 8): JsonlProbeResult => 
   let parsableLines = 0;
   for (const line of lines) {
     try {
-      parseJson(line);
+      parseLosslessJson(line);
       parsableLines += 1;
     } catch {
       // keep counting: parsableLines reports how many sampled lines parse
@@ -93,53 +91,4 @@ export const probeJsonl = (input: string, sampleLimit = 8): JsonlProbeResult => 
     parsableLines,
     isLikelyJsonl: lines.length >= 2 && parsableLines === lines.length,
   };
-};
-
-export const extractSummary = (value: unknown) => {
-  if (!isJsonContainer(value) || Array.isArray(value)) {
-    return summarizePrimitive(value);
-  }
-
-  const objectValue = value as Record<string, unknown>;
-  const parts = SUMMARY_KEYS.flatMap((key) => {
-    const field = objectValue[key];
-    if (typeof field === "string" && field.trim()) {
-      return `${key}:${truncateAtCodePointBoundary(field.trim(), 48)}`;
-    }
-    if (typeof field === "number" || typeof field === "boolean") {
-      return `${key}:${String(field)}`;
-    }
-    return [];
-  });
-
-  if (parts.length > 0) {
-    return parts.join(" · ");
-  }
-
-  for (const [key, field] of Object.entries(objectValue)) {
-    if (typeof field === "string" && field.trim()) {
-      return `${key}:${truncateAtCodePointBoundary(field.trim(), 72)}`;
-    }
-    if (typeof field === "number" || typeof field === "boolean") {
-      return `${key}:${String(field)}`;
-    }
-  }
-
-  return `Object(${Object.keys(objectValue).length})`;
-};
-
-const summarizePrimitive = (value: unknown) => {
-  if (Array.isArray(value)) {
-    return `Array(${value.length})`;
-  }
-
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string") {
-    return truncateAtCodePointBoundary(value, 72) || '""';
-  }
-
-  return String(value);
 };

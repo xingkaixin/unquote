@@ -7,45 +7,95 @@ import type {
   JsonNode,
   JsonlRecord,
   JsonPrimitive,
+  LosslessJsonValue,
   ParseErrorMeta,
   ParseOptions,
   ParseResult,
   PreviewJsonlRecord,
   PreviewJsonNode,
 } from "./types.js";
+import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 import { isFailedRecord, isParsed } from "./records.js";
-import {
-  DEFAULT_MAX_DEPTH,
-  extractSummary,
-  getJsonKind,
-  parseJson,
-  probeJsonl,
-  truncateAtCodePointBoundary,
-} from "./utils.js";
+import { stringifyJsonNode } from "./serialization.js";
+import { DEFAULT_MAX_DEPTH, probeJsonl, truncateAtCodePointBoundary } from "./utils.js";
 
 const maxPreviewStringLength = 160;
+const summaryKeys = ["timestamp", "type", "action", "event", "name", "message"] as const;
+
+const summarizeLosslessPrimitive = (value: LosslessJsonValue) => {
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "string") {
+    return truncateAtCodePointBoundary(value, 72) || '""';
+  }
+  if (typeof value === "boolean") {
+    return String(value);
+  }
+  if (value.type === "number") {
+    return value.rawValue;
+  }
+  return value.type === "array"
+    ? `Array(${value.items.length})`
+    : `Object(${Object.keys(value.entries).length})`;
+};
+
+const summarizeField = (key: string, value: LosslessJsonValue, maxLength: number) => {
+  if (typeof value === "string" && value.trim()) {
+    return `${key}:${truncateAtCodePointBoundary(value.trim(), maxLength)}`;
+  }
+  if (typeof value === "boolean") {
+    return `${key}:${String(value)}`;
+  }
+  if (value !== null && typeof value === "object" && value.type === "number") {
+    return `${key}:${value.rawValue}`;
+  }
+  return null;
+};
+
+const extractLosslessSummary = (value: LosslessJsonValue) => {
+  if (value === null || typeof value !== "object" || value.type !== "object") {
+    return summarizeLosslessPrimitive(value);
+  }
+
+  const preferred = summaryKeys.flatMap((key) => {
+    const field = value.entries[key];
+    const summary = field === undefined ? null : summarizeField(key, field, 48);
+    return summary ? [summary] : [];
+  });
+  if (preferred.length > 0) {
+    return preferred.join(" · ");
+  }
+
+  for (const [key, field] of Object.entries(value.entries)) {
+    const summary = summarizeField(key, field, 72);
+    if (summary) {
+      return summary;
+    }
+  }
+  return `Object(${Object.keys(value.entries).length})`;
+};
 
 const toNode = (
-  value: unknown,
+  value: LosslessJsonValue,
   depth: number,
   maxDepth: number,
   rawString?: string,
 ): FullJsonNode => {
   const source = rawString === undefined ? {} : { rawString };
 
-  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-    const objectValue = value as Record<string, unknown>;
+  if (value !== null && typeof value === "object" && value.type === "object") {
     if (depth >= maxDepth) {
       return {
         kind: "object",
-        value: objectValue,
+        value,
         truncated: true,
         ...source,
       };
     }
 
     const children = Object.fromEntries(
-      Object.entries(objectValue).map(([key, childValue]) => [
+      Object.entries(value.entries).map(([key, childValue]) => [
         key,
         buildNode(childValue, depth + 1, maxDepth),
       ]),
@@ -58,7 +108,7 @@ const toNode = (
     };
   }
 
-  if (Array.isArray(value)) {
+  if (value !== null && typeof value === "object" && value.type === "array") {
     if (depth >= maxDepth) {
       return {
         kind: "array",
@@ -68,7 +118,7 @@ const toNode = (
       };
     }
 
-    const children = value.map((childValue) => buildNode(childValue, depth + 1, maxDepth));
+    const children = value.items.map((childValue) => buildNode(childValue, depth + 1, maxDepth));
 
     return {
       kind: "array",
@@ -83,8 +133,8 @@ const toNode = (
   if (typeof value === "string") {
     return { kind: "string", value, ...source };
   }
-  if (typeof value === "number") {
-    return { kind: "number", value, ...source };
+  if (typeof value === "object") {
+    return { kind: "number", value: Number(value.rawValue), rawValue: value.rawValue, ...source };
   }
   if (typeof value === "boolean") {
     return { kind: "boolean", value, ...source };
@@ -104,14 +154,14 @@ const maybeExpandString = (value: string, depth: number, maxDepth: number) => {
   }
 
   try {
-    const parsed = parseJson(trimmed);
+    const parsed = parseLosslessJson(trimmed);
     return toNode(parsed, depth, maxDepth, value);
   } catch {
     return null;
   }
 };
 
-const buildNode = (value: unknown, depth: number, maxDepth: number): FullJsonNode => {
+const buildNode = (value: LosslessJsonValue, depth: number, maxDepth: number): FullJsonNode => {
   if (typeof value === "string") {
     const expanded = maybeExpandString(value, depth, maxDepth);
     if (expanded) {
@@ -122,7 +172,11 @@ const buildNode = (value: unknown, depth: number, maxDepth: number): FullJsonNod
   return toNode(value, depth, maxDepth);
 };
 
-const createRecord = (value: unknown, lineNumber: number, maxDepth: number): FullJsonlRecord => {
+const createRecord = (
+  value: LosslessJsonValue,
+  lineNumber: number,
+  maxDepth: number,
+): FullJsonlRecord => {
   const id = `record-${lineNumber}`;
   const node = buildNode(value, 0, maxDepth);
 
@@ -131,7 +185,7 @@ const createRecord = (value: unknown, lineNumber: number, maxDepth: number): Ful
     id,
     lineNumber,
     node,
-    summary: extractSummary(value),
+    summary: extractLosslessSummary(value),
   };
 };
 
@@ -152,13 +206,13 @@ const projectPreviewNode = (node: FullJsonNode): PreviewJsonNode => {
   if (node.kind === "object") {
     const childCount =
       node.children === undefined
-        ? Object.keys(node.value).length
+        ? Object.keys(node.value.entries).length
         : Object.keys(node.children).length;
     return { kind: "object", childCount, preview: true };
   }
 
   if (node.kind === "array") {
-    const childCount = node.children === undefined ? node.value.length : node.children.length;
+    const childCount = node.children === undefined ? node.value.items.length : node.children.length;
     return { kind: "array", childCount, preview: true };
   }
 
@@ -174,8 +228,8 @@ const projectPreviewNode = (node: FullJsonNode): PreviewJsonNode => {
   return node;
 };
 
-const createRecordPreview = (value: unknown) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+const createRecordPreview = (value: LosslessJsonValue) => {
+  if (!value || typeof value !== "object" || value.type !== "object") {
     return undefined;
   }
 
@@ -183,16 +237,19 @@ const createRecordPreview = (value: unknown) => {
   const containers: Array<[string, JsonContainerKind]> = [];
   const nestedFieldKeys: string[] = [];
 
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const kind = getJsonKind(child);
-    if (kind === "object" || kind === "array") {
-      containers.push([key, kind]);
+  for (const [key, child] of Object.entries(value.entries)) {
+    if (child !== null && typeof child === "object" && child.type !== "number") {
+      containers.push([key, child.type]);
       continue;
     }
 
     fields.push([
       key,
-      typeof child === "string" ? truncatePreviewString(child) : (child as JsonPrimitive),
+      typeof child === "string"
+        ? truncatePreviewString(child)
+        : child !== null && typeof child === "object"
+          ? Number(child.rawValue)
+          : (child as JsonPrimitive),
     ]);
     if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
       nestedFieldKeys.push(key);
@@ -212,7 +269,7 @@ const createRecordPreview = (value: unknown) => {
   };
 };
 
-const createPreviewRecord = (value: unknown, lineNumber: number): PreviewJsonlRecord => {
+const createPreviewRecord = (value: LosslessJsonValue, lineNumber: number): PreviewJsonlRecord => {
   const id = `record-${lineNumber}`;
   const node = projectPreviewNode(buildNode(value, 0, 0));
   const preview = createRecordPreview(value);
@@ -223,7 +280,7 @@ const createPreviewRecord = (value: unknown, lineNumber: number): PreviewJsonlRe
     lineNumber,
     node,
     ...(preview ? { preview } : {}),
-    summary: extractSummary(value),
+    summary: extractLosslessSummary(value),
   };
 };
 
@@ -249,18 +306,32 @@ type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
   | { record: T; value: unknown }
   | { record: FailedJsonlRecord };
 
+type JsonlRecordLineSourceResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
+  | { record: T; source: LosslessJsonValue }
+  | { record: FailedJsonlRecord };
+
 const parseJsonlRecordLineWith = <T extends FullJsonlRecord | PreviewJsonlRecord>(
   line: string,
   lineNumber: number,
-  createParsedRecord: (value: unknown) => T,
-): JsonlRecordLineResult<T> => {
+  createParsedRecord: (value: LosslessJsonValue) => T,
+): JsonlRecordLineSourceResult<T> => {
   try {
-    const value = parseJson(line);
-    return { record: createParsedRecord(value), value };
+    const source = parseLosslessJson(line);
+    return { record: createParsedRecord(source), source };
   } catch (error) {
     return { record: createParseErrorRecord(line, lineNumber, error) };
   }
 };
+
+const withApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
+  result: JsonlRecordLineSourceResult<T>,
+): JsonlRecordLineResult<T> =>
+  "source" in result
+    ? {
+        record: result.record,
+        value: materializeLosslessValue(result.source, { numbers: "approximate" }),
+      }
+    : result;
 
 export const parseJsonlRecordLineWithValue = (
   line: string,
@@ -268,8 +339,10 @@ export const parseJsonlRecordLineWithValue = (
   options: ParseOptions = {},
 ): JsonlRecordLineResult<FullJsonlRecord> => {
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  return parseJsonlRecordLineWith(line, lineNumber, (value) =>
-    createRecord(value, lineNumber, maxDepth),
+  return withApproximateValue(
+    parseJsonlRecordLineWith(line, lineNumber, (value) =>
+      createRecord(value, lineNumber, maxDepth),
+    ),
   );
 };
 
@@ -278,19 +351,24 @@ export const parseJsonlRecordLine = (
   lineNumber: number,
   options: ParseOptions = {},
 ): FullJsonlRecord | FailedJsonlRecord =>
-  parseJsonlRecordLineWithValue(line, lineNumber, options).record;
+  parseJsonlRecordLineWith(line, lineNumber, (value) =>
+    createRecord(value, lineNumber, options.maxDepth ?? DEFAULT_MAX_DEPTH),
+  ).record;
 
 export const parsePreviewJsonlRecordLineWithValue = (
   line: string,
   lineNumber: number,
 ): JsonlRecordLineResult<PreviewJsonlRecord> =>
-  parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewRecord(value, lineNumber));
+  withApproximateValue(
+    parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewRecord(value, lineNumber)),
+  );
 
 export const parsePreviewJsonlRecordLine = (
   line: string,
   lineNumber: number,
 ): PreviewJsonlRecord | FailedJsonlRecord =>
-  parsePreviewJsonlRecordLineWithValue(line, lineNumber).record;
+  parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewRecord(value, lineNumber))
+    .record;
 
 type StrictJsonlAttempt =
   | { kind: "complete"; records: JsonlRecord[]; nextLineIndex: number }
@@ -354,7 +432,7 @@ const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
 
 const parseSingleJsonResult = (input: string, maxDepth: number): ParseResult => {
   try {
-    const parsed = parseJson(input);
+    const parsed = parseLosslessJson(input);
     return {
       format: "json",
       records: [createRecord(parsed, 1, maxDepth)],
@@ -481,36 +559,12 @@ export const formatResult = (result: ParseResult, options: FormatOptions = {}) =
   const indent = options.indent ?? 2;
   if (result.format === "json") {
     const record = result.records[0];
-    return JSON.stringify(
-      record && isParsed(record) ? materializeNode(record.node) : null,
-      null,
-      indent,
-    );
+    return record && isParsed(record) ? stringifyJsonNode(record.node, { indent }) : "null";
   }
 
   return result.records
-    .map(
-      (record) => JSON.stringify(isParsed(record) ? materializeNode(record.node) : null) ?? "null",
-    )
+    .map((record) => (isParsed(record) ? stringifyJsonNode(record.node) : "null"))
     .join("\n");
-};
-
-export const materializeNode = (node: JsonNode): unknown => {
-  if (node.kind === "object" && node.children) {
-    return Object.fromEntries(
-      Object.entries(node.children).map(([key, child]) => [key, materializeNode(child)]),
-    );
-  }
-
-  if (node.kind === "array" && node.children) {
-    return node.children.map((child) => materializeNode(child));
-  }
-
-  if (node.kind === "object" || node.kind === "array") {
-    return node.preview ? null : node.value;
-  }
-
-  return node.value;
 };
 
 const matchesPath = (path: string[], paths: string[][]) =>

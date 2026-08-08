@@ -2,6 +2,29 @@ export type JsonKind = "object" | "array" | "string" | "number" | "boolean" | "n
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonContainerKind = "object" | "array";
 
+export interface LosslessJsonObjectValue {
+  type: "object";
+  entries: Record<string, LosslessJsonValue>;
+}
+
+export interface LosslessJsonArrayValue {
+  type: "array";
+  items: LosslessJsonValue[];
+}
+
+export interface LosslessJsonNumberValue {
+  type: "number";
+  rawValue: string;
+}
+
+export type LosslessJsonValue =
+  | LosslessJsonObjectValue
+  | LosslessJsonArrayValue
+  | LosslessJsonNumberValue
+  | string
+  | boolean
+  | null;
+
 interface JsonNodeBase {
   rawString?: string;
 }
@@ -24,7 +47,7 @@ export interface JsonArrayNode extends JsonNodeBase {
 
 export interface TruncatedJsonObjectNode extends JsonNodeBase {
   kind: "object";
-  value: Record<string, unknown>;
+  value: LosslessJsonObjectValue;
   truncated: true;
   children?: never;
   preview?: never;
@@ -32,7 +55,7 @@ export interface TruncatedJsonObjectNode extends JsonNodeBase {
 
 export interface TruncatedJsonArrayNode extends JsonNodeBase {
   kind: "array";
-  value: unknown[];
+  value: LosslessJsonArrayValue;
   truncated: true;
   children?: never;
   preview?: never;
@@ -83,6 +106,7 @@ export type JsonStringNode = JsonSourceStringNode | PreviewStringifiedJsonNode;
 export interface JsonNumberNode extends JsonNodeBase {
   kind: "number";
   value: number;
+  rawValue?: string;
   children?: never;
   truncated?: never;
   preview?: never;
@@ -203,4 +227,8 @@ export interface ParseOptions {
 
 export interface FormatOptions {
   indent?: number;
+}
+
+export interface MaterializeOptions {
+  numbers?: "safe" | "approximate";
 }
