@@ -62,7 +62,7 @@ export type { SearchMatch, SearchOptions } from "./record-search";
 const readAbortError = () => new DOMException("File read aborted", "AbortError");
 
 const readFileWithFileReader = (
-  file: File,
+  file: Blob,
   onProgress: (progress: number) => void,
   signal?: AbortSignal,
 ) =>
@@ -97,7 +97,7 @@ const readFileWithFileReader = (
   });
 
 const readFileText = async (
-  file: File,
+  file: Blob,
   onProgress: (progress: number) => void,
   signal?: AbortSignal,
 ) => {
@@ -149,6 +149,13 @@ const readFileText = async (
   text += decoder.decode();
   onProgress(1);
   return text;
+};
+
+export const readFileHead = (file: File, maxBytes: number, signal?: AbortSignal) => {
+  const head = file.slice(0, maxBytes);
+  return typeof head.stream !== "function" && typeof FileReader !== "undefined"
+    ? readFileWithFileReader(head, () => undefined, signal)
+    : readFileText(head, () => undefined, signal);
 };
 
 const readJsonlFileLines = async (

@@ -1,11 +1,17 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
-import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
+import {
+  createLocalFileAccess,
+  readFileHead,
+  type LocalFileAccess,
+} from "../lib/local-file-source";
 import type { SourceMode } from "../lib/source-candidate";
+import { detectSourceFormat, sourceDetectionProbeByteBudget } from "../lib/source-detect";
 import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceStreamBytes = 1_000_000;
+const sourceDetectionFileProbeBytes = sourceDetectionProbeByteBudget + 1;
 
 type PublishedSourceState =
   | { kind: "text"; text: string }
@@ -53,11 +59,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
   const readProgress = sourceState.kind === "reading" ? sourceState.progress : null;
   const importedFile = sourceState.kind === "imported" ? sourceState.file : null;
 
-  const shouldStreamFile = (file: File, sourceMode: SourceMode) =>
-    file.size > largeSourceStreamBytes &&
-    (sourceMode === "jsonl" ||
-      (sourceMode === "auto" && file.name.toLowerCase().endsWith(".jsonl")));
-
   const publishSourceRevision = () => {
     sourceRevisionRef.current += 1;
     incrementSourceRevision();
@@ -81,7 +82,8 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     fileImportIdRef.current = requestId;
     abortActiveRead();
 
-    if (shouldStreamFile(file, sourceMode)) {
+    const isLargeFile = file.size > largeSourceStreamBytes;
+    if (isLargeFile && sourceMode === "jsonl") {
       publishSource({ kind: "streaming", access: createLocalFileAccess(file) }, sourceMode);
       return;
     }
@@ -95,9 +97,21 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       previousSource: publishedSource,
     });
 
+    const access = createLocalFileAccess(file);
     let text: string;
     try {
-      const access = createLocalFileAccess(file);
+      if (isLargeFile && sourceMode === "auto") {
+        const head = await readFileHead(file, sourceDetectionFileProbeBytes, controller.signal);
+        if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
+          return;
+        }
+        if (detectSourceFormat(head).kind === "jsonl") {
+          activeReadRef.current = null;
+          publishSource({ kind: "streaming", access }, sourceMode);
+          return;
+        }
+      }
+
       text = await access.readText((nextProgress) => {
         if (fileImportIdRef.current === requestId) {
           setSourceState((prev) =>
