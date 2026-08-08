@@ -20,11 +20,7 @@ import { buildRecordRows } from "../lib/tree";
 import type { TreeRow } from "../lib/tree";
 import { Button } from "./button";
 
-// A record only virtualizes past a row count and when every row is short and
-// single-line: tall (long or multiline) values break the virtualizer's
-// fixed-size row estimate.
 const virtualizationRowThreshold = 180;
-const inlineValueLengthLimit = 160;
 const rowEstimateSize = 24;
 
 interface JsonTreeProps {
@@ -89,17 +85,12 @@ export const JsonTree = memo(function JsonTree({
     return map;
   }, [searchMatches]);
 
-  const shouldVirtualize = useMemo(
-    () =>
-      displayRows.length > virtualizationRowThreshold &&
-      displayRows.every(
-        (row) => row.valueText.length < inlineValueLengthLimit && !row.valueText.includes("\\n"),
-      ),
-    [displayRows],
-  );
+  const shouldVirtualize = displayRows.length > virtualizationRowThreshold;
+  const getRowKey = useCallback((index: number) => displayRows[index]?.id ?? index, [displayRows]);
   const rowVirtualizer = useVirtualizer({
     count: displayRows.length,
     getScrollElement: () => parentRef.current,
+    getItemKey: getRowKey,
     estimateSize: () => rowEstimateSize,
     overscan: 12,
     measureElement: (element) => element?.getBoundingClientRect().height ?? rowEstimateSize,
