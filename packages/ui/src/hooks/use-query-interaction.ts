@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useReducer } from "react";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
-  reconcileMatchIndex,
   reduceQueryInteraction,
 } from "../lib/query-interaction";
 import type {
@@ -133,25 +132,39 @@ export const useQueryInteraction = ({
     { sourceRevision: resultRevision },
     searchWorker,
   );
+  const requestedCurrentMatchIndex = mode === "search" ? state.modeState.currentMatchIndex : 0;
   const pipeline = useRecordPipeline({
     sourceRevision,
     result,
-    searchMatches: revisionsAligned ? searchWorker.matches : null,
+    searchResult: revisionsAligned ? searchWorker.result : null,
+    currentMatchIndex: requestedCurrentMatchIndex,
     recordFilter: state.recordFilter,
     recordAppend,
   });
 
-  const currentMatchIndex = reconcileMatchIndex(
-    mode === "search" ? state.modeState.currentMatchIndex : 0,
-    pipeline.matchCount,
-  );
-
-  const activeSearchMatch =
-    mode === "search"
-      ? (pipeline.visibleMatches?.[currentMatchIndex] ?? pipeline.visibleMatches?.[0] ?? null)
-      : null;
+  const currentMatchIndex = pipeline.currentMatchIndex;
+  const activeSearchMatch = mode === "search" ? pipeline.activeSearchMatch : null;
   const activeSearchRecordId = activeSearchMatch?.recordId ?? null;
   const activeSearchPathText = activeSearchMatch?.pathText ?? null;
+
+  useEffect(() => {
+    if (
+      mode !== "search" ||
+      !revisionsAligned ||
+      pipeline.matchCount === 0 ||
+      pipeline.activeSearchMatch
+    ) {
+      return;
+    }
+    searchWorker.requestWindow(pipeline.requestedSearchWindowIndexes);
+  }, [
+    mode,
+    pipeline.activeSearchMatch,
+    pipeline.matchCount,
+    pipeline.requestedSearchWindowIndexes,
+    revisionsAligned,
+    searchWorker.requestWindow,
+  ]);
 
   useEffect(() => {
     if (!activeSearchRecordId || !activeSearchPathText) {
@@ -326,8 +339,6 @@ export const useQueryInteraction = ({
       pathError,
       pathMatches,
       currentPathMatchIndex,
-      currentMatchIndex,
-      activeSearchMatch,
       mode,
       searchStatus: revisionsAligned ? searchWorker.status : searchQuery ? "pending" : "idle",
       searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,

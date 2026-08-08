@@ -17,6 +17,7 @@ const maxTransferStringLength = 4096;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 const inputFormatLabel = "Input format";
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
+let initialSearchWindowIndexes: Float64Array | undefined;
 
 const useDesktopViewport = () => {
   vi.mocked(window.matchMedia).mockImplementation((query) => {
@@ -128,29 +129,38 @@ Object.assign(globalThis, {
       forcedFormat: "json" | "jsonl" | undefined,
       query: string,
       options: unknown,
+      windowIndexes?: Float64Array,
     ) {
       Promise.all([import("../src/lib/parse-text"), import("../src/lib/record-search")]).then(
         ([{ parseTextResult }, { searchRecords }]) => {
           const parsed = parseTextResult(text, forcedFormat);
-          const matches = searchRecords(
+          const result = searchRecords(
             parsed.records,
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+            windowIndexes ?? initialSearchWindowIndexes,
           );
-          this.respond({ type: "result", requestId, matches });
+          this.respond({ type: "result", requestId, result });
         },
       );
     }
-    completeSearchFile(requestId: number, file: File, query: string, options: unknown) {
+    completeSearchFile(
+      requestId: number,
+      file: File,
+      query: string,
+      options: unknown,
+      windowIndexes?: Float64Array,
+    ) {
       import("../src/lib/local-file-source").then(({ createLocalFileAccess }) => {
         createLocalFileAccess(file)
           .search(
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
             new AbortController().signal,
+            windowIndexes,
           )
-          .then((matches) => {
-            this.respond({ type: "result", requestId, matches });
+          .then((result) => {
+            this.respond({ type: "result", requestId, result });
           })
           .catch(() => {
             this.respond({ type: "error", requestId, message: "search failed" });
@@ -190,6 +200,7 @@ Object.assign(globalThis, {
         | { kind: "cached"; sourceRevision: number };
       query?: string;
       options?: unknown;
+      windowIndexes?: Float64Array;
     }) {
       if (payload.type === "search-text") {
         if (!this.isSearchWorker || !payload.source) {
@@ -212,6 +223,7 @@ Object.assign(globalThis, {
           this.searchSource.forcedFormat,
           payload.query ?? "",
           payload.options,
+          payload.windowIndexes,
         );
         return;
       }
@@ -225,6 +237,7 @@ Object.assign(globalThis, {
           payload.file,
           payload.query ?? "",
           payload.options,
+          payload.windowIndexes,
         );
         return;
       }
@@ -278,6 +291,7 @@ Object.assign(globalThis, {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  initialSearchWindowIndexes = undefined;
   vi.mocked(window.matchMedia).mockImplementation(defaultMatchMedia);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -1555,6 +1569,31 @@ describe("UnquoteApp", () => {
       expect(screen.getAllByText((text) => text.includes("1/2")).length).toBeGreaterThan(0),
     );
     void inputs;
+  });
+
+  it("loads a missing search window for forward and backward navigation", async () => {
+    const user = userEvent.setup();
+    initialSearchWindowIndexes = Float64Array.from([0]);
+    const input = Array.from({ length: 3 }, (_, index) =>
+      JSON.stringify({ index, msg: "needle" }),
+    ).join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    await user.type(getToolbarInput(), "needle");
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("1/3")).length).toBeGreaterThan(0),
+    );
+
+    await user.click(screen.getAllByRole("button", { name: /Next match/i })[0]!);
+    await waitFor(() => expect(railRow(2)).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getAllByText((text) => text.includes("2/3")).length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
+    await waitFor(() => expect(railRow(1)).toHaveAttribute("aria-pressed", "true"));
   });
 
   it("follows a search match into a record the workspace was not showing", async () => {

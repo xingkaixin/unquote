@@ -8,7 +8,7 @@ import { useSearchWorker } from "../src/hooks/use-search-worker";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
-import type { SearchMatch } from "../src/lib/record-search";
+import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const options = { regex: false, caseSensitive: false, jq: false };
@@ -20,6 +20,12 @@ const match = (): SearchMatch => ({
   valueRanges: [],
   pathRanges: [],
   stringifiedPathChain: [],
+});
+
+const searchResult = (): SearchResultSet => ({
+  total: 1,
+  matchLineNumbers: Float64Array.from([1]),
+  window: { matchIndexes: Float64Array.from([0]), matches: [match()] },
 });
 
 class ControlledWorker extends MockWorkerEvents {
@@ -85,7 +91,7 @@ const RevisionProbe = ({
   const pipeline = useRecordPipeline({
     sourceRevision,
     result: parser.result,
-    searchMatches: aligned ? search.matches : null,
+    searchResult: aligned ? search.result : null,
     recordFilter: "all",
   });
   const records = pipeline.visibleRecords.map((record) => record.summary).join(",");
@@ -154,14 +160,14 @@ describe("Source Revision", () => {
     const parserWorker = ControlledWorker.parserWorkers[0]!;
     const firstSearchWorker = ControlledWorker.searchWorkers[0]!;
     act(() => completeParser(parserWorker, 1, first));
-    act(() => firstSearchWorker.respond({ type: "result", requestId: 1, matches: [match()] }));
+    act(() => firstSearchWorker.respond({ type: "result", requestId: 1, result: searchResult() }));
     expect(screen.getByTestId("records")).toHaveTextContent("value:old needle");
     expect(screen.getByTestId("matches")).toHaveTextContent("1");
 
     rerender(<Probe sourceRevision={2} text={second} />);
     await act(() => vi.advanceTimersByTimeAsync(121));
     const secondSearchWorker = ControlledWorker.searchWorkers.at(-1)!;
-    act(() => secondSearchWorker.respond({ type: "result", requestId: 2, matches: [match()] }));
+    act(() => secondSearchWorker.respond({ type: "result", requestId: 2, result: searchResult() }));
     act(() => completeParser(parserWorker, 1, first));
     expect(screen.getByTestId("records")).toHaveTextContent("");
     expect(screen.getByTestId("matches")).toHaveTextContent("0");
@@ -175,7 +181,7 @@ describe("Source Revision", () => {
     act(() => completeParser(parserWorker, 3, third));
     expect(screen.getByTestId("records")).toHaveTextContent("value:latest needle");
     expect(screen.getByTestId("matches")).toHaveTextContent("0");
-    act(() => thirdSearchWorker.respond({ type: "result", requestId: 3, matches: [match()] }));
+    act(() => thirdSearchWorker.respond({ type: "result", requestId: 3, result: searchResult() }));
     expect(screen.getByTestId("matches")).toHaveTextContent("1");
 
     expect(
@@ -202,7 +208,7 @@ describe("Source Revision", () => {
       ControlledWorker.searchWorkers[0]!.respond({
         type: "result",
         requestId: 1,
-        matches: [match()],
+        result: searchResult(),
       }),
     );
     expect(screen.getByTestId("matches")).toHaveTextContent("1");

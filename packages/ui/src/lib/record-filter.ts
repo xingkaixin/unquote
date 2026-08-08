@@ -1,7 +1,7 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { hasJsonNodeChildren, isParsed, isStringifiedNode } from "@unquote/core";
 import type { RecordInsight } from "./record-insight";
-import type { SearchMatch } from "./record-search";
+import type { SearchResultSet } from "./record-search";
 
 export type RecordFilterMode =
   | "all"
@@ -31,10 +31,24 @@ const recordContainsStringifiedJson = (record: JsonlRecord) =>
     ? (record.preview.nestedFieldKeys?.length ?? 0) > 0
     : isParsed(record) && containsStringifiedNode(record.node);
 
+const filterMatchedRecords = (records: JsonlRecord[], lineNumbers: Float64Array) => {
+  const matchedRecords: JsonlRecord[] = [];
+  let matchIndex = 0;
+  for (const record of records) {
+    while (matchIndex < lineNumbers.length && lineNumbers[matchIndex]! < record.lineNumber) {
+      matchIndex += 1;
+    }
+    if (lineNumbers[matchIndex] === record.lineNumber) {
+      matchedRecords.push(record);
+    }
+  }
+  return matchedRecords;
+};
+
 export const filterRecords = (
   records: JsonlRecord[],
   mode: RecordFilterMode,
-  matches: SearchMatch[] | null,
+  searchResult: SearchResultSet | null,
   insights: ReadonlyMap<string, RecordInsight> = new Map(),
 ) => {
   if (mode === "all") {
@@ -42,8 +56,7 @@ export const filterRecords = (
   }
 
   if (mode === "matches") {
-    const matchedRecordIds = new Set(matches?.map((match) => match.recordId) ?? []);
-    return records.filter((record) => matchedRecordIds.has(record.id));
+    return filterMatchedRecords(records, searchResult?.matchLineNumbers ?? new Float64Array());
   }
 
   if (mode === "errors") {

@@ -167,28 +167,28 @@ describe("local-file-source", () => {
     const file = makeStreamedFile('{"message":"needle"}\n{"message":"hay"}\n');
     const controller = new AbortController();
 
-    const matches = await createLocalFileAccess(file).search(
+    const result = await createLocalFileAccess(file).search(
       "needle",
       { regex: false, caseSensitive: false, jq: false },
       controller.signal,
     );
 
-    expect(matches).not.toBeNull();
-    expect(matches?.length).toBe(1);
-    expect(matches?.[0]?.recordId).toBe("record-1");
+    expect(result).not.toBeNull();
+    expect(result?.total).toBe(1);
+    expect(result?.window.matches[0]?.recordId).toBe("record-1");
   });
 
   it("searches the exact source lexeme of an unsafe number", async () => {
     const file = makeStreamedFile('{"value":9007199254740993}\n');
     const controller = new AbortController();
 
-    const matches = await createLocalFileAccess(file).search(
+    const result = await createLocalFileAccess(file).search(
       "9007199254740993",
       { regex: false, caseSensitive: true, jq: false },
       controller.signal,
     );
 
-    expect(matches).toEqual([
+    expect(result?.window.matches).toEqual([
       expect.objectContaining({ recordId: "record-1", pathText: "$.value" }),
     ]);
   });
@@ -200,11 +200,11 @@ describe("local-file-source", () => {
     const parse = vi.spyOn(JSON, "parse");
     const controller = new AbortController();
 
-    const matches = await createLocalFileAccess(
+    const result = await createLocalFileAccess(
       makeStreamedFile([skippedLine, matchedLine, escapedLine].join("\n")),
     ).search("needle", { regex: false, caseSensitive: false, jq: false }, controller.signal);
 
-    expect(matches?.map((match) => match.recordId)).toEqual(["record-2", "record-3"]);
+    expect(result?.window.matches.map((match) => match.recordId)).toEqual(["record-2", "record-3"]);
     expect(parse.mock.calls.filter(([input]) => input === skippedLine)).toHaveLength(0);
     expect(parse.mock.calls.filter(([input]) => input === matchedLine)).toHaveLength(1);
     expect(parse.mock.calls.filter(([input]) => input === escapedLine)).toHaveLength(1);
@@ -227,14 +227,14 @@ describe("local-file-source", () => {
       options,
     );
 
-    const matches = await createLocalFileAccess(makeStreamedFile(contents)).search(
+    const result = await createLocalFileAccess(makeStreamedFile(contents)).search(
       "needle",
       options,
       controller.signal,
     );
 
-    expect(matches).toEqual(expected);
-    expect(matches).toContainEqual({
+    expect(result).toEqual(expected);
+    expect(result?.window.matches).toContainEqual({
       recordId: "record-1",
       pathText: "$.payload.nested[0].needle",
       keyRanges: [{ start: 0, end: 6 }],
@@ -249,13 +249,32 @@ describe("local-file-source", () => {
     const file = makeStreamedFile(contents);
     const controller = new AbortController();
 
-    const matches = await createLocalFileAccess(file).search(
+    const result = await createLocalFileAccess(file).search(
       "needle",
       { regex: false, caseSensitive: true, jq: false },
       controller.signal,
     );
 
-    expect(matches).toHaveLength(oversizedMatchCount);
+    expect(result?.total).toBe(oversizedMatchCount);
+    expect(result?.matchLineNumbers).toHaveLength(oversizedMatchCount);
+    expect(result?.window.matches).toHaveLength(128);
+  });
+
+  it("materializes a distant bounded window without retaining prior rich matches", async () => {
+    const contents = JSON.stringify(Array.from({ length: 300 }, () => "needle"));
+    const file = makeStreamedFile(contents);
+    const controller = new AbortController();
+
+    const result = await createLocalFileAccess(file).search(
+      "needle",
+      { regex: false, caseSensitive: true, jq: false },
+      controller.signal,
+      Float64Array.from([250, 251]),
+    );
+
+    expect(result?.total).toBe(300);
+    expect(result?.window.matchIndexes).toEqual(Float64Array.from([250, 251]));
+    expect(result?.window.matches.map((match) => match.pathText)).toEqual(["$[250]", "$[251]"]);
   });
 
   it("returns null when aborted mid-scan", async () => {

@@ -3,7 +3,7 @@ import { createLocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/record-search";
-import type { SearchMatch, SearchOptions } from "../lib/record-search";
+import type { SearchOptions, SearchResultSet } from "../lib/record-search";
 
 type TextSearchSource =
   | {
@@ -24,6 +24,7 @@ export type SearchRequest =
       source: TextSearchSource;
       query: string;
       options: SearchOptions;
+      windowIndexes?: Float64Array;
     }
   | {
       type: "search-file";
@@ -31,10 +32,11 @@ export type SearchRequest =
       file: File;
       query: string;
       options: SearchOptions;
+      windowIndexes?: Float64Array;
     };
 
 export type SearchWorkerResponse =
-  | { type: "result"; requestId: number; matches: SearchMatch[] | null }
+  | { type: "result"; requestId: number; result: SearchResultSet | null }
   | { type: "error"; requestId: number; message: string };
 
 interface TextRecordsCache {
@@ -61,8 +63,9 @@ const searchText = ({
   source,
   query,
   options,
-}: Extract<SearchRequest, { type: "search-text" }>): SearchMatch[] | null =>
-  searchRecords(recordsForSource(source), query, options);
+  windowIndexes,
+}: Extract<SearchRequest, { type: "search-text" }>): SearchResultSet | null =>
+  searchRecords(recordsForSource(source), query, options, windowIndexes);
 
 // Cancellation is handled by the main thread terminating this worker on
 // timeout, so this signal never needs to fire.
@@ -70,8 +73,9 @@ const searchFile = ({
   file,
   query,
   options,
-}: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchMatch[] | null> =>
-  createLocalFileAccess(file).search(query, options, new AbortController().signal);
+  windowIndexes,
+}: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchResultSet | null> =>
+  createLocalFileAccess(file).search(query, options, new AbortController().signal, windowIndexes);
 
 // Never include the raw error, input text, or query in the posted message —
 // the worker must not echo user input back through unrelated channels.
@@ -82,11 +86,11 @@ self.onmessage = (event: MessageEvent<SearchRequest>) => {
 
   if (message.type === "search-text") {
     try {
-      const matches = searchText(message);
+      const result = searchText(message);
       self.postMessage({
         type: "result",
         requestId: message.requestId,
-        matches,
+        result,
       } satisfies SearchWorkerResponse);
     } catch (error) {
       self.postMessage({
@@ -99,11 +103,11 @@ self.onmessage = (event: MessageEvent<SearchRequest>) => {
   }
 
   searchFile(message)
-    .then((matches) => {
+    .then((result) => {
       self.postMessage({
         type: "result",
         requestId: message.requestId,
-        matches,
+        result,
       } satisfies SearchWorkerResponse);
     })
     .catch((error: unknown) => {

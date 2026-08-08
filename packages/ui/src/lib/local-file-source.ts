@@ -2,8 +2,8 @@ import { parseJsonlRecordLine, stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 import { measurePerfAsync } from "./perf";
-import { buildSearchPattern, searchRecord } from "./record-search";
-import type { SearchMatch, SearchOptions } from "./record-search";
+import { buildSearchPattern, createSearchResultCollector } from "./record-search";
+import type { SearchOptions, SearchResultSet } from "./record-search";
 
 export const fullRecordCacheLimit = 500;
 
@@ -432,15 +432,16 @@ const searchJsonlFile = async (
   query: string,
   options: SearchOptions,
   signal: AbortSignal,
-): Promise<SearchMatch[] | null> =>
+  windowIndexes?: ArrayLike<number>,
+): Promise<SearchResultSet | null> =>
   measurePerfAsync("search:file", async () => {
     const pattern = buildSearchPattern(query, options);
     if (!pattern) {
       return null;
     }
     const rawLineProbe = buildRawLineProbe(query, options, pattern);
+    const collector = createSearchResultCollector(pattern, options, windowIndexes);
 
-    const matches: SearchMatch[] = [];
     await readJsonlFileLines(
       file,
       (line, lineNumber) => {
@@ -451,9 +452,7 @@ const searchJsonlFile = async (
         if (line.trim() && rawLineMayMatch(line, rawLineProbe)) {
           try {
             const record = parseJsonlRecordLine(line, lineNumber);
-            for (const match of searchRecord(record, pattern, options)) {
-              matches.push(match);
-            }
+            collector.addRecord(record);
           } catch {
             // Invalid JSONL lines are excluded from search, matching the record-tree path.
           }
@@ -462,7 +461,7 @@ const searchJsonlFile = async (
       signal,
     );
 
-    return signal.aborted ? null : matches;
+    return signal.aborted ? null : collector.finish();
   });
 
 export interface LocalFileAccess {
@@ -486,7 +485,8 @@ export interface LocalFileAccess {
     query: string,
     options: SearchOptions,
     signal: AbortSignal,
-  ) => Promise<SearchMatch[] | null>;
+    windowIndexes?: ArrayLike<number>,
+  ) => Promise<SearchResultSet | null>;
 }
 
 const formatRecordText = (record: JsonlRecord) =>
@@ -526,5 +526,6 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => ({
     }
     return line;
   },
-  search: (query, options, signal) => searchJsonlFile(file, query, options, signal),
+  search: (query, options, signal, windowIndexes) =>
+    searchJsonlFile(file, query, options, signal, windowIndexes),
 });

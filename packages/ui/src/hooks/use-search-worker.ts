@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
-import type { SearchMatch, SearchOptions } from "../lib/record-search";
+import type { SearchOptions, SearchResultSet } from "../lib/record-search";
 import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
@@ -16,22 +16,26 @@ const largeFileSearchBytes = 1_000_000;
 export type SearchWorkerStatus = "idle" | "pending" | "complete" | "error";
 export type SearchWorkerErrorKind = "timeout" | "worker-error" | "too-large";
 
-export interface SearchWorkerResult {
+interface SearchWorkerState {
   sourceRevision: SourceRevision;
-  matches: SearchMatch[] | null;
+  result: SearchResultSet | null;
   status: SearchWorkerStatus;
   errorKind: SearchWorkerErrorKind | null;
 }
 
-const idleResult = (sourceRevision: SourceRevision): SearchWorkerResult => ({
+export interface SearchWorkerResult extends SearchWorkerState {
+  requestWindow: (matchIndexes: Float64Array) => void;
+}
+
+const idleResult = (sourceRevision: SourceRevision): SearchWorkerState => ({
   sourceRevision,
-  matches: null,
+  result: null,
   status: "idle",
   errorKind: null,
 });
-const pendingResult = (sourceRevision: SourceRevision): SearchWorkerResult => ({
+const pendingResult = (sourceRevision: SourceRevision): SearchWorkerState => ({
   sourceRevision,
-  matches: null,
+  result: null,
   status: "pending",
   errorKind: null,
 });
@@ -45,9 +49,17 @@ const buildSearchRequest = (
   options: SearchOptions,
   sourceRevision: SourceRevision,
   sendText: boolean,
+  windowIndexes?: Float64Array,
 ): SearchRequest =>
   sourceAccess
-    ? { type: "search-file", requestId, file: sourceAccess.getFile(), query, options }
+    ? {
+        type: "search-file",
+        requestId,
+        file: sourceAccess.getFile(),
+        query,
+        options,
+        ...(windowIndexes ? { windowIndexes } : {}),
+      }
     : {
         type: "search-text",
         requestId,
@@ -61,12 +73,46 @@ const buildSearchRequest = (
           : { kind: "cached", sourceRevision },
         query,
         options,
+        ...(windowIndexes ? { windowIndexes } : {}),
       };
 
 const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileAccess | null) =>
   sourceAccess && sourceAccess.size > largeFileSearchBytes
     ? largeFileSearchWorkerTimeoutMs
     : searchWorkerTimeoutMs;
+
+interface SearchWindowRequest {
+  sourceRevision: SourceRevision;
+  query: string;
+  regex: boolean;
+  caseSensitive: boolean;
+  jq: boolean;
+  matchIndexes: Float64Array;
+}
+
+const hasSameIndexes = (left: Float64Array, right: Float64Array) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const belongsToSearch = (
+  request: SearchWindowRequest | null,
+  sourceRevision: SourceRevision,
+  query: string,
+  options: SearchOptions,
+) =>
+  request?.sourceRevision === sourceRevision &&
+  request.query === query &&
+  request.regex === options.regex &&
+  request.caseSensitive === options.caseSensitive &&
+  request.jq === options.jq;
 
 export const useSearchWorker = (params: {
   text: string;
@@ -91,12 +137,43 @@ export const useSearchWorker = (params: {
   // Seed both states from the mount-time inputs so the first render already
   // matches what the reconciliation below would otherwise compute one pass
   // later, avoiding a guaranteed extra render-phase setState on every mount.
-  const [state, setState] = useState<SearchWorkerResult>(() =>
+  const [state, setState] = useState<SearchWorkerState>(() =>
     query ? pendingResult(sourceRevision) : idleResult(sourceRevision),
   );
   const requestIdRef = useRef(0);
   const workerRef = useRef<Worker | null>(null);
   const workerSourceRevisionRef = useRef<SourceRevision | null>(null);
+  const [windowRequest, setWindowRequest] = useState<SearchWindowRequest | null>(null);
+  const activeWindowIndexes =
+    windowRequest && belongsToSearch(windowRequest, sourceRevision, query, options)
+      ? windowRequest.matchIndexes
+      : undefined;
+  const requestWindow = useCallback(
+    (matchIndexes: Float64Array) => {
+      if (matchIndexes.length === 0) {
+        return;
+      }
+      const nextIndexes = Float64Array.from(matchIndexes);
+      setWindowRequest((current) => {
+        if (
+          current &&
+          belongsToSearch(current, sourceRevision, query, options) &&
+          hasSameIndexes(current.matchIndexes, nextIndexes)
+        ) {
+          return current;
+        }
+        return {
+          sourceRevision,
+          query,
+          regex: options.regex,
+          caseSensitive: options.caseSensitive,
+          jq: options.jq,
+          matchIndexes: nextIndexes,
+        };
+      });
+    },
+    [options.caseSensitive, options.jq, options.regex, query, sourceRevision],
+  );
 
   const [lastInputs, setLastInputs] = useState(() => ({
     text,
@@ -139,7 +216,9 @@ export const useSearchWorker = (params: {
       return;
     }
 
-    setState(pendingResult(sourceRevision));
+    if (!activeWindowIndexes) {
+      setState(pendingResult(sourceRevision));
+    }
 
     // The dispatched request's cleanup (worker listener/timeout, or the
     // fallback abort controller) doesn't exist until `dispatch` actually
@@ -158,11 +237,11 @@ export const useSearchWorker = (params: {
         if (sourceAccess) {
           const controller = new AbortController();
           sourceAccess
-            .search(query, options, controller.signal)
-            .then((matches) => {
+            .search(query, options, controller.signal, activeWindowIndexes)
+            .then((result) => {
               finishRequestMeasure();
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
-                setState({ sourceRevision, matches, status: "complete", errorKind: null });
+                setState({ sourceRevision, result, status: "complete", errorKind: null });
               }
             })
             .catch(() => {
@@ -170,7 +249,7 @@ export const useSearchWorker = (params: {
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
                 setState({
                   sourceRevision,
-                  matches: null,
+                  result: null,
                   status: "error",
                   errorKind: "worker-error",
                 });
@@ -186,16 +265,16 @@ export const useSearchWorker = (params: {
         // between chunks.
         if (!isWithinMainThreadBudget(text.length)) {
           finishRequestMeasure();
-          setState({ sourceRevision, matches: null, status: "error", errorKind: "too-large" });
+          setState({ sourceRevision, result: null, status: "error", errorKind: "too-large" });
           return;
         }
 
         const result = parseTextResult(text, forcedFormat);
-        const matches = searchRecords(result.records, query, options);
+        const searchResult = searchRecords(result.records, query, options, activeWindowIndexes);
         finishRequestMeasure();
         setState({
           sourceRevision,
-          matches,
+          result: searchResult,
           status: "complete",
           errorKind: null,
         });
@@ -253,7 +332,7 @@ export const useSearchWorker = (params: {
           return;
         }
         finishRequestMeasure();
-        setState({ sourceRevision, matches: null, status: "error", errorKind });
+        setState({ sourceRevision, result: null, status: "error", errorKind });
       }
 
       // An uncaught worker error or an undeserializable message can leave the
@@ -277,7 +356,7 @@ export const useSearchWorker = (params: {
           }
           setState({
             sourceRevision,
-            matches: null,
+            result: null,
             status: "error",
             errorKind: "worker-error",
           });
@@ -285,7 +364,7 @@ export const useSearchWorker = (params: {
         }
         setState({
           sourceRevision,
-          matches: response.matches,
+          result: response.result,
           status: "complete",
           errorKind: null,
         });
@@ -306,6 +385,7 @@ export const useSearchWorker = (params: {
           options,
           sourceRevision,
           sendText,
+          activeWindowIndexes,
         ),
       );
       if (!posted) {
@@ -324,7 +404,7 @@ export const useSearchWorker = (params: {
       dispatchCleanup = () => void finalizeRequest(true);
     };
 
-    if (debounceMs > 0) {
+    if (debounceMs > 0 && !activeWindowIndexes) {
       const debounceTimeoutId = window.setTimeout(dispatch, debounceMs);
       return () => {
         window.clearTimeout(debounceTimeoutId);
@@ -334,11 +414,21 @@ export const useSearchWorker = (params: {
 
     dispatch();
     return () => dispatchCleanup?.();
-  }, [text, forcedFormat, sourceAccess, query, options, sourceRevision, debounceMs]);
+  }, [
+    activeWindowIndexes,
+    debounceMs,
+    forcedFormat,
+    options,
+    query,
+    sourceAccess,
+    sourceRevision,
+    text,
+  ]);
 
-  return inputsChanged
+  const snapshot = inputsChanged
     ? query
       ? pendingResult(sourceRevision)
       : idleResult(sourceRevision)
     : state;
+  return { ...snapshot, requestWindow };
 };
