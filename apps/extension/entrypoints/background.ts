@@ -3,16 +3,17 @@ import { defineBackground } from "wxt/utils/define-background";
 import { createTranslator, en } from "@unquote/ui/i18n";
 import {
   claimSelectionHandoffMessageType,
-  createSelectionHandoff,
-  createSelectionHandoffClaimer,
+  createSelectionHandoffStore,
   handoffQueryParameter,
+  type HandoffAlarms,
   type HandoffSessionStorage,
 } from "../src/selection-handoff";
 
 const OPEN_MENU_ID = "unquote-open-selection";
 const t = createTranslator(en);
 const handoffStorage = browser.storage.session as unknown as HandoffSessionStorage;
-const claimSelectionHandoff = createSelectionHandoffClaimer(handoffStorage);
+const handoffAlarms = browser.alarms as unknown as HandoffAlarms;
+const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
 
 const openOptionsPage = async (handoffId?: string) => {
   const optionsUrl = new URL("/options.html", import.meta.url);
@@ -25,6 +26,12 @@ const openOptionsPage = async (handoffId?: string) => {
 };
 
 export default defineBackground(() => {
+  void handoffs.sweep();
+
+  browser.alarms.onAlarm.addListener((alarm) => {
+    void handoffs.handleAlarm(alarm);
+  });
+
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({
       id: OPEN_MENU_ID,
@@ -53,7 +60,7 @@ export default defineBackground(() => {
       return;
     }
 
-    const handoffId = await createSelectionHandoff(handoffStorage, selection);
+    const handoffId = await handoffs.create(selection);
     await openOptionsPage(handoffId ?? undefined);
   });
 
@@ -66,6 +73,6 @@ export default defineBackground(() => {
       return undefined;
     }
 
-    return claimSelectionHandoff(message);
+    return handoffs.claim(message);
   });
 });

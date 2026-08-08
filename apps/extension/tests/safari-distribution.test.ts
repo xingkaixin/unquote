@@ -53,7 +53,7 @@ describe("Safari manifest verification", () => {
   });
 
   it.each([
-    ["a Chrome manifest", { permissions: ["contextMenus", "storage", "clipboardRead"] }],
+    ["a Chrome manifest", { permissions: ["alarms", "contextMenus", "storage", "clipboardRead"] }],
     ["a missing version", { version: "" }],
     ["a manifest v2 build", { manifest_version: 2 }],
     ["a stripped permission", { permissions: ["storage"] }],

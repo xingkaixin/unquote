@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const listeners: {
     onActionClick?: () => Promise<void>;
+    onAlarm?: (alarm: { name: string }) => void;
     onCommand?: (command: string) => Promise<void>;
     onContextMenuClick?: (
       info: { menuItemId: string | number; selectionText?: string },
@@ -17,6 +18,15 @@ const mocks = vi.hoisted(() => {
       onClicked: {
         addListener: vi.fn((listener: () => Promise<void>) => {
           listeners.onActionClick = listener;
+        }),
+      },
+    },
+    alarms: {
+      clear: vi.fn(async (_name: string) => true),
+      create: vi.fn(async (_name: string, _alarmInfo: { when: number }) => undefined),
+      onAlarm: {
+        addListener: vi.fn((listener: (alarm: { name: string }) => void) => {
+          listeners.onAlarm = listener;
         }),
       },
     },
@@ -56,9 +66,13 @@ const mocks = vi.hoisted(() => {
     },
     storage: {
       session: {
-        get: vi.fn(async (key: string) => ({ [key]: storageValues.get(key) })),
-        remove: vi.fn(async (key: string) => {
-          storageValues.delete(key);
+        get: vi.fn(async (key: string | null) =>
+          key === null ? Object.fromEntries(storageValues) : { [key]: storageValues.get(key) },
+        ),
+        remove: vi.fn(async (key: string | string[]) => {
+          for (const item of Array.isArray(key) ? key : [key]) {
+            storageValues.delete(item);
+          }
         }),
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.entries(items).forEach(([key, value]) => storageValues.set(key, value));
@@ -79,6 +93,8 @@ vi.mock("wxt/utils/define-background", () => ({
 }));
 
 await import("../entrypoints/background");
+await vi.waitFor(() => expect(mocks.browser.storage.session.get).toHaveBeenCalledWith(null));
+const startupSweepRan = mocks.browser.storage.session.get.mock.calls.length > 0;
 
 const menuId = "unquote-open-selection";
 const getOpenedUrl = () => {
@@ -103,6 +119,11 @@ describe("extension background", () => {
       title: "Open in Unquote",
       contexts: ["selection"],
     });
+  });
+
+  it("sweeps retained handoffs when the background starts", () => {
+    expect(startupSweepRan).toBe(true);
+    expect(mocks.listeners.onAlarm).toBeTypeOf("function");
   });
 
   it("opens the options page from the action and supported command", async () => {
@@ -135,6 +156,7 @@ describe("extension background", () => {
 
     const handoffId = getOpenedUrl().searchParams.get("handoff");
     expect(handoffId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(JSON.stringify(mocks.browser.alarms.create.mock.calls)).not.toContain("payload");
 
     expect(mocks.listeners.onMessage?.(null)).toBeUndefined();
     expect(mocks.listeners.onMessage?.({ type: "unsupported" })).toBeUndefined();
@@ -145,6 +167,15 @@ describe("extension background", () => {
       }),
     ).resolves.toBe("payload");
     expect(mocks.storageValues).toHaveLength(0);
+  });
+
+  it("removes expired handoffs when the cleanup alarm fires", async () => {
+    const key = "unquote:selection-handoff:00000000-0000-4000-8000-000000000001";
+    mocks.storageValues.set(key, { input: "expired", expiresAt: 0 });
+
+    mocks.listeners.onAlarm?.({ name: "unquote:selection-handoff-cleanup" });
+
+    await vi.waitFor(() => expect(mocks.storageValues.has(key)).toBe(false));
   });
 
   it("still opens options when session storage rejects the handoff", async () => {
