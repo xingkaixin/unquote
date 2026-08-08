@@ -1,4 +1,3 @@
-import { parseJson } from "@unquote/core";
 import type {
   AgentAdapterBuilder,
   AgentParseWarning,
@@ -102,21 +101,6 @@ export const createAgentSessionTracker = (fileName?: string) => {
   return {
     pushParsedLine,
     pushParseWarning,
-    pushRawLine(raw: string, lineNumber: number) {
-      if (disabled || !raw.trim()) {
-        return;
-      }
-
-      try {
-        pushParsedLine({
-          lineNumber,
-          data: parseJson(raw, { numbers: "approximate" }),
-        });
-      } catch {
-        pushParseWarning(lineNumber);
-      }
-    },
-
     finish() {
       if (!builder && !disabled) {
         tryDetect(finalDetectionScore);
@@ -124,11 +108,4 @@ export const createAgentSessionTracker = (fileName?: string) => {
       return builder ? builder.finish(parseWarnings) : null;
     },
   };
-};
-
-export const createAgentSessionFromText = (text: string, fileName?: string) => {
-  const tracker = createAgentSessionTracker(fileName);
-  const lines = text.split(/\r?\n/);
-  lines.forEach((line, index) => tracker.pushRawLine(line.trim(), index + 1));
-  return tracker.finish();
 };

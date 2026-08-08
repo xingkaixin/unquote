@@ -1,10 +1,7 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import {
-  isParsed,
-  parseJsonlRecordLineWithValue,
-  parsePreviewJsonlRecordLineWithValue,
-} from "@unquote/core";
-import { createAgentSessionTracker, type AgentSession } from "../lib/agent-session";
+import { parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue } from "@unquote/core";
+import type { AgentSession } from "../lib/agent-session";
+import { createJsonlIngestion } from "../lib/jsonl-ingestion";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 import { parseText, type ParserProgress } from "../lib/parse-text";
 
@@ -70,11 +67,8 @@ interface JsonlSession {
   buffer: string;
   lineNumber: number;
   batch: JsonlRecord[];
-  processedLines: number;
-  success: number;
-  failed: number;
   compactForTransfer: boolean;
-  agentTracker: ReturnType<typeof createAgentSessionTracker>;
+  ingestion: ReturnType<typeof createJsonlIngestion>;
 }
 
 let jsonlSession: JsonlSession | null = null;
@@ -84,33 +78,29 @@ const createJsonlSession = (compactForTransfer = false, fileName?: string): Json
   buffer: "",
   lineNumber: 1,
   batch: [],
-  processedLines: 0,
-  success: 0,
-  failed: 0,
   compactForTransfer,
-  agentTracker: createAgentSessionTracker(fileName),
+  ingestion: createJsonlIngestion(fileName),
 });
 
-const statsFromSession = (session: JsonlSession) => ({
-  total: session.processedLines,
-  success: session.success,
-  failed: session.failed,
-});
+const statsFromSession = (session: JsonlSession) => session.ingestion.stats();
 
-const progressFromSession = (session: JsonlSession, done: boolean): ParserProgress => ({
-  processedLines: session.processedLines,
-  success: session.success,
-  failed: session.failed,
-  elapsedMs: elapsed(session.startedAt),
-  done,
-});
+const progressFromSession = (session: JsonlSession, done: boolean): ParserProgress => {
+  const stats = statsFromSession(session);
+  return {
+    processedLines: stats.total,
+    success: stats.success,
+    failed: stats.failed,
+    elapsedMs: elapsed(session.startedAt),
+    done,
+  };
+};
 
 const postSessionComplete = (requestId: number, session: JsonlSession) => {
   self.postMessage({
     type: "complete-stats",
     requestId,
     stats: statsFromSession(session),
-    agentSession: session.agentTracker.finish(),
+    agentSession: session.ingestion.finishAgentSession(),
     progress: progressFromSession(session, true),
   } satisfies ParserWorkerResponse);
 };
@@ -150,25 +140,11 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
   const parsedLine = session.compactForTransfer
     ? parsePreviewJsonlRecordLineWithValue(line, session.lineNumber)
     : parseJsonlRecordLineWithValue(line, session.lineNumber);
-  if ("value" in parsedLine) {
-    session.agentTracker.pushParsedLine({
-      lineNumber: session.lineNumber,
-      data: parsedLine.value,
-    });
-  } else {
-    session.agentTracker.pushParseWarning(session.lineNumber);
-  }
-  const { record } = parsedLine;
-  session.processedLines += 1;
+  const record = session.ingestion.push(parsedLine);
   session.lineNumber += 1;
-  if (isParsed(record)) {
-    session.success += 1;
-  } else {
-    session.failed += 1;
-  }
   session.batch.push(record);
 
-  if (session.processedLines === 1 || session.batch.length >= batchSize) {
+  if (session.ingestion.processedLines === 1 || session.batch.length >= batchSize) {
     postBatch(requestId, session, false);
   }
 };
