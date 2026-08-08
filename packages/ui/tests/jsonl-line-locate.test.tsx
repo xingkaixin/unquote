@@ -1,9 +1,11 @@
+import { parsePreviewJsonlRecordLine } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 
 const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY) => {
   const chunks: Uint8Array[] = [];
-  const makeFile = (bytes: Uint8Array): File => {
+  const scans: Array<{ start: number; bytesRead: number }> = [];
+  const makeFile = (bytes: Uint8Array, absoluteStart: number): File => {
     const file = new File([bytes.buffer as ArrayBuffer], "payload.jsonl", {
       type: "application/jsonl",
     });
@@ -11,6 +13,8 @@ const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY)
       configurable: true,
       // Pull-based so the recorded chunks reflect what the scan actually read.
       value: () => {
+        const scan = { start: absoluteStart, bytesRead: 0 };
+        scans.push(scan);
         let offset = 0;
         return new ReadableStream<Uint8Array>({
           pull(controller) {
@@ -20,6 +24,7 @@ const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY)
             }
             const chunk = bytes.slice(offset, offset + chunkSize);
             chunks.push(chunk);
+            scan.bytesRead += chunk.byteLength;
             controller.enqueue(chunk);
             offset += chunkSize;
           },
@@ -28,20 +33,52 @@ const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY)
     });
     Object.defineProperty(file, "slice", {
       configurable: true,
-      value: (start = 0, end = bytes.byteLength) => makeFile(bytes.slice(start, end)),
+      value: (start = 0, end = bytes.byteLength) =>
+        makeFile(bytes.slice(start, end), absoluteStart + start),
     });
     return file;
   };
 
-  return { file: makeFile(new TextEncoder().encode(contents)), chunks };
+  return { file: makeFile(new TextEncoder().encode(contents), 0), chunks, scans };
 };
 
 const jsonlLines = (count: number) =>
   Array.from({ length: count }, (_, index) => `{"i":${index + 1}}`);
+const fixedWidthJsonlLine = (lineNumber: number) =>
+  `{"i":"${String(lineNumber).padStart(6, "0")}"}`;
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("locating a JSONL line by number", () => {
+  it("bounds repeated scans across distant hydration targets", async () => {
+    const contents = Array.from({ length: 100_000 }, (_, index) =>
+      fixedWidthJsonlLine(index + 1),
+    ).join("\n");
+    const { file, scans } = makeChunkedFile(contents, 65_536);
+    const access = createLocalFileAccess(file);
+    const readTargets = async () => {
+      await expect(access.readRecordTextByLine(1_000)).resolves.toBe(fixedWidthJsonlLine(1_000));
+
+      const fullRecords = await access.readRecords(new Set([50_000]));
+      expect(fullRecords.get(50_000)?.lineNumber).toBe(50_000);
+
+      const preview = parsePreviewJsonlRecordLine(fixedWidthJsonlLine(99_000), 99_000);
+      await expect(access.readRecordText(preview)).resolves.toBe(fixedWidthJsonlLine(99_000));
+    };
+
+    const initialRecords = await access.readRecords(new Set([99_000]));
+    expect(initialRecords.get(99_000)?.lineNumber).toBe(99_000);
+    const repeatedScanStart = scans.length;
+    await readTargets();
+    await readTargets();
+
+    const repeatedScans = scans.slice(repeatedScanStart);
+    expect(Math.max(...repeatedScans.map((scan) => scan.bytesRead))).toBeLessThanOrEqual(50_000);
+    expect(repeatedScans.reduce((total, scan) => total + scan.bytesRead, 0)).toBeLessThanOrEqual(
+      300_000,
+    );
+  });
+
   it.each([
     ["the first line", 1],
     ["a middle line", 500],

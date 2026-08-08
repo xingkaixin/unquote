@@ -142,7 +142,7 @@ describe("local-file-source", () => {
     expect(records.get(300)?.lineNumber).toBe(300);
   });
 
-  it("falls back safely after old checkpoints are evicted", async () => {
+  it("reads an early line after indexing a distant region", async () => {
     const contents = Array.from({ length: 10_000 }, (_, index) => `{"i":${index}}`).join("\n");
     const { file } = makeMeasuredFile(contents);
 

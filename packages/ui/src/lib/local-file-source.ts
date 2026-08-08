@@ -7,8 +7,10 @@ import type { SearchOptions, SearchResultSet } from "./record-search";
 
 export const fullRecordCacheLimit = 500;
 
-const lineCheckpointInterval = 128;
 const lineCheckpointLimit = 64;
+// Origin + byte buckets + the furthest scanned newline stay within this limit.
+// Byte buckets bound repeated I/O; line-count spacing cannot when records vary in size.
+const checkpointByteBucketCount = lineCheckpointLimit - 1;
 
 interface LineCheckpoint {
   lineNumber: number;
@@ -16,30 +18,49 @@ interface LineCheckpoint {
 }
 
 class JsonlLineIndex {
-  private readonly checkpoints = new Map<number, number>([[1, 0]]);
+  private readonly byteBucketSize: number;
+  private readonly checkpointsByBucket = new Map<number, LineCheckpoint>();
+  private frontierLineNumber = 1;
+  private frontierByteOffset = 0;
 
-  nearestCheckpoint(lineNumber: number): LineCheckpoint {
-    let nearest: LineCheckpoint = { lineNumber: 1, byteOffset: 0 };
-    for (const [checkpointLine, byteOffset] of this.checkpoints) {
-      if (checkpointLine <= lineNumber && checkpointLine > nearest.lineNumber) {
-        nearest = { lineNumber: checkpointLine, byteOffset };
+  constructor(fileSize: number) {
+    this.byteBucketSize = Math.max(1, Math.ceil(fileSize / checkpointByteBucketCount));
+  }
+
+  scanRange(
+    firstLine: number,
+    lastLine: number,
+  ): { start: LineCheckpoint; end: LineCheckpoint | null } {
+    let start: LineCheckpoint = { lineNumber: 1, byteOffset: 0 };
+    let end: LineCheckpoint | null = null;
+    const consider = (checkpoint: LineCheckpoint) => {
+      if (checkpoint.lineNumber <= firstLine && checkpoint.lineNumber > start.lineNumber) {
+        start = checkpoint;
       }
+      if (checkpoint.lineNumber > lastLine && (!end || checkpoint.lineNumber < end.lineNumber)) {
+        end = checkpoint;
+      }
+    };
+
+    for (const checkpoint of this.checkpointsByBucket.values()) {
+      consider(checkpoint);
     }
-    return nearest;
+    consider({
+      lineNumber: this.frontierLineNumber,
+      byteOffset: this.frontierByteOffset,
+    });
+    return { start, end };
   }
 
   addCheckpoint(lineNumber: number, byteOffset: number) {
-    if ((lineNumber - 1) % lineCheckpointInterval !== 0 || this.checkpoints.has(lineNumber)) {
-      return;
+    if (byteOffset > this.frontierByteOffset) {
+      this.frontierLineNumber = lineNumber;
+      this.frontierByteOffset = byteOffset;
     }
 
-    this.checkpoints.set(lineNumber, byteOffset);
-    while (this.checkpoints.size > lineCheckpointLimit) {
-      const oldest = [...this.checkpoints.keys()].find((candidate) => candidate !== 1);
-      if (oldest === undefined) {
-        return;
-      }
-      this.checkpoints.delete(oldest);
+    const bucket = Math.floor(byteOffset / this.byteBucketSize);
+    if (bucket > 0 && bucket < checkpointByteBucketCount && !this.checkpointsByBucket.has(bucket)) {
+      this.checkpointsByBucket.set(bucket, { lineNumber, byteOffset });
     }
   }
 }
@@ -49,7 +70,7 @@ const jsonlLineIndexes = new WeakMap<File, JsonlLineIndex>();
 const lineIndexFor = (file: File) => {
   let index = jsonlLineIndexes.get(file);
   if (!index) {
-    index = new JsonlLineIndex();
+    index = new JsonlLineIndex(file.size);
     jsonlLineIndexes.set(file, index);
   }
   return index;
@@ -241,12 +262,14 @@ const readJsonlLinesByNumber = async (
   }
 
   let firstRequestedLine = Number.POSITIVE_INFINITY;
+  let lastRequestedLine = 0;
   for (const lineNumber of lineNumbers) {
     firstRequestedLine = Math.min(firstRequestedLine, lineNumber);
+    lastRequestedLine = Math.max(lastRequestedLine, lineNumber);
   }
   const lineIndex = lineIndexFor(file);
-  const checkpoint = lineIndex.nearestCheckpoint(firstRequestedLine);
-  const slicedFile = file.slice(checkpoint.byteOffset);
+  const scanRange = lineIndex.scanRange(firstRequestedLine, lastRequestedLine);
+  const slicedFile = file.slice(scanRange.start.byteOffset, scanRange.end?.byteOffset ?? file.size);
 
   if (typeof slicedFile.stream !== "function") {
     await readJsonlFileLines(
@@ -263,8 +286,8 @@ const readJsonlLinesByNumber = async (
   }
 
   const reader = slicedFile.stream().getReader();
-  let lineNumber = checkpoint.lineNumber;
-  let absoluteOffset = checkpoint.byteOffset;
+  let lineNumber = scanRange.start.lineNumber;
+  let absoluteOffset = scanRange.start.byteOffset;
   let lineChunks: Uint8Array[] = [];
   let stopped = false;
   let readerCanceled = false;
