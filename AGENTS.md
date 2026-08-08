@@ -135,9 +135,9 @@ CSS variables defined in `src/styles.css`:
 | `app.tsx` | Root `UnquoteApp` composition root. Connects source loading, parsing, query interaction, local-file access, workspace selection, export actions, theme, and Agent/JSON output switching. |
 | `components/app-header.tsx` | Loaded-workspace header with Agent/JSON tabs, search and match navigation, source switching, locale/theme controls, and copy/export actions. |
 | `components/import-dialog.tsx` / `source-import-panel.tsx` | Empty-state and source-replacement import flow: paste/drop/file input, bounded live format detection, samples, and explicit auto/json/jsonl mode selection. |
-| `components/json-workspace.tsx` / `workspace-columns.tsx` | Responsive three-column JSON composition: record rail, selected Record tree, and node inspector; desktop uses fixed side columns and mobile stacks the side panes. |
+| `components/record-workspace.tsx` / `workspace-columns.tsx` | Responsive three-column JSON composition: record rail, selected Record tree, and node inspector; desktop uses fixed side columns and mobile stacks the side panes. |
 | `components/record-rail.tsx` | Virtualized Record navigation with insight classification, summaries, timestamps, turn indices, active selection, and query-driven scroll targets. |
-| `components/record-tree-pane.tsx` / `json-tree.tsx` | Hydrates and renders the selected Record, exposes breadcrumb/copy/Expand All/Collapse All actions, and virtualizes trees above 180 eligible rows. |
+| `components/record-tree-pane.tsx` / `json-tree.tsx` | Hydrates and renders the selected Record, exposes breadcrumb/copy/Expand All/Collapse All actions, and virtualizes trees above 180 display rows, including dynamic-height values. |
 | `components/node-inspector.tsx` | Resolves the selected tree path within preview limits and exposes value/path copy plus nested-JSON expansion. |
 | `components/record-filter-bar.tsx` | Direct all/tool/message/event/nested filters; match and error filters remain reachable through search, the command palette, and status bar. |
 | `components/agent-session-view.tsx` | Three-column Agent lens composed from a virtualized timeline, virtualized conversation with expandable tool details, and session facts/metrics. |
@@ -159,7 +159,7 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
 | `hooks/use-record-pipeline.ts` | Derives record lookup, insight, overview, filtered records and stats, plus visible search matches from a parse result and query state. |
-| `hooks/use-workspace-query-binding.ts` | Synchronizes query-driven expansions and visible Records into workspace selection state. |
+| `hooks/use-record-workspace.ts` | Deep Record workspace module that combines query interaction, revision-scoped selection, local-file hydration, export actions, and selected-node projection behind one model. |
 | `hooks/use-workspace-session.ts` | Owns revision-scoped Record/node/Agent-detail selection, scroll intent, query navigation, and Stringified JSON expansion state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
 
