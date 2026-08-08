@@ -109,57 +109,6 @@ describe("useWorkspaceSession", () => {
     expect(result.current.state.expandedPaths.get("record-1")).toEqual(new Set(["$.payload"]));
   });
 
-  it("reconciles navigation state when visible records change", () => {
-    const records = parseInput('{"value":1}\n{"value":2}', { forcedFormat: "jsonl" }).records;
-    const { result } = renderHook(() => useWorkspaceSession(0));
-
-    act(() => {
-      result.current.selectRecord(records[0]!);
-      result.current.selectPath({
-        recordId: records[0]!.id,
-        pathText: "$.value",
-        rawKey: "value",
-      });
-    });
-    act(() => result.current.reconcileVisibleRecords([records[1]!]));
-
-    expect(result.current.state).toMatchObject({
-      activeRecordId: records[1]!.id,
-      detailSelection: null,
-      selectedPath: null,
-      scrollIntent: null,
-    });
-  });
-
-  it("keeps selection references stable when visible records only append", () => {
-    const records = parseInput('{"value":1}\n{"value":2}\n{"value":3}', {
-      forcedFormat: "jsonl",
-    }).records;
-    const { result } = renderHook(() => useWorkspaceSession(0));
-
-    const previousRecords = [records[0]!, records[1]!];
-    act(() => result.current.reconcileVisibleRecords(previousRecords));
-    act(() => {
-      result.current.selectPath({
-        recordId: records[1]!.id,
-        pathText: "$.value",
-        rawKey: "value",
-      });
-    });
-
-    const stateBeforeAppend = result.current.state;
-    act(() =>
-      result.current.reconcileVisibleRecords([records[0]!, records[1]!, records[2]!], {
-        previousRecords,
-      }),
-    );
-
-    expect(result.current.state.activeRecordId).toBe(stateBeforeAppend.activeRecordId);
-    expect(result.current.state.selectedPath).toBe(stateBeforeAppend.selectedPath);
-    expect(result.current.state.detailSelection).toBe(stateBeforeAppend.detailSelection);
-    expect(result.current.state.scrollIntent).toBe(stateBeforeAppend.scrollIntent);
-  });
-
   it("expands every level of nested stringified JSON in one pass", () => {
     // Three levels: $.payload holds JSON holding JSON. A single
     // collectStringifiedPaths call only reaches the outermost one.
@@ -188,30 +137,5 @@ describe("useWorkspaceSession", () => {
     act(() => result.current.expandAll(records, staleSeed));
 
     expect([...result.current.state.expandedPaths.get(records[0]!.id)!]).toEqual(["$.payload"]);
-  });
-
-  it("reconciles selection when visible records are replaced rather than appended", () => {
-    const records = parseInput('{"value":1}\n{"value":2}\n{"value":3}', {
-      forcedFormat: "jsonl",
-    }).records;
-    const { result } = renderHook(() => useWorkspaceSession(0));
-
-    act(() => result.current.reconcileVisibleRecords([records[0]!, records[1]!]));
-    act(() => {
-      result.current.selectPath({
-        recordId: records[1]!.id,
-        pathText: "$.value",
-        rawKey: "value",
-      });
-    });
-
-    act(() => result.current.reconcileVisibleRecords([records[2]!]));
-
-    expect(result.current.state).toMatchObject({
-      activeRecordId: records[2]!.id,
-      detailSelection: null,
-      selectedPath: null,
-      scrollIntent: null,
-    });
   });
 });

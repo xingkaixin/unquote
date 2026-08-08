@@ -1,10 +1,9 @@
-import { toast } from "sonner";
 import { useCallback, useMemo, useState } from "react";
 import { AppHeader } from "./components/app-header";
 import { CommandPalette } from "./components/command-palette";
 import { ImportDialog } from "./components/import-dialog";
 import { AgentSessionView } from "./components/agent-session-view";
-import { JsonWorkspace } from "./components/json-workspace";
+import { RecordWorkspace } from "./components/record-workspace";
 import { Toaster } from "./components/sonner";
 import { SourceImportPanel } from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
@@ -12,30 +11,18 @@ import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
-import { useLocalFileSource } from "./hooks/use-local-file-source";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
-import { useQueryInteraction } from "./hooks/use-query-interaction";
-import { useExportActions } from "./hooks/use-export-actions";
+import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import { useWorkspaceQueryBinding } from "./hooks/use-workspace-query-binding";
-import { useWorkspaceSession } from "./hooks/use-workspace-session";
 import { formatFileSize } from "./lib/format";
-import { getExpandedStringifiedPaths, mergeExpandedStringifiedPaths } from "./lib/record-expansion";
-import { isCopyAboveThreshold } from "./lib/record-export";
-import { narrowPathToRecord } from "./lib/record-view";
-import type { SearchMatch } from "./lib/record-search";
-import type { RecordViewActions } from "./lib/record-view";
-import { projectSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
-
-const noSearchMatches: SearchMatch[] = [];
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -61,15 +48,6 @@ export const UnquoteApp = ({
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
   } = useSourceLoader({ initialInput });
-  const workspace = useWorkspaceSession(sourceRevision);
-  const {
-    activeRecordId,
-    detailSelection,
-    expandedPaths: expandedStringifiedPathsByRecord,
-    searchExpandedPaths: searchExpandedStringifiedPathsByRecord,
-    selectedPath,
-    scrollIntent,
-  } = workspace.state;
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -92,7 +70,7 @@ export const UnquoteApp = ({
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
-  const query = useQueryInteraction({
+  const recordWorkspace = useRecordWorkspace({
     sourceRevision,
     resultRevision,
     result,
@@ -100,9 +78,10 @@ export const UnquoteApp = ({
     sourceAccess,
     forcedFormat,
     recordAppend,
+    agentSession,
     translateError,
-    onNavigate: workspace.navigate,
   });
+  const { query } = recordWorkspace;
   const {
     searchQuery,
     searchRegex,
@@ -119,11 +98,7 @@ export const UnquoteApp = ({
     searchStatus,
     searchErrorKind,
     fileOverview,
-    recordInsights,
-    recordsById,
-    visibleRecords,
     visibleStats,
-    visibleMatches,
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
@@ -159,39 +134,6 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const localFileSource = useLocalFileSource(sourceAccess, sourceRevision);
-  // Copy is disabled above a record/byte threshold: the clipboard API freezes the
-  // main thread on large strings. Export streams via Blob and stays available.
-  const estimatedSourceBytes = sourceAccess?.size ?? sourceText.length;
-  const isCopyBlocked = isCopyAboveThreshold(visibleRecords.length, estimatedSourceBytes);
-
-  const activeMatch = useWorkspaceQueryBinding({
-    query: query.snapshot,
-    workspace,
-  });
-
-  const displayedExpandedStringifiedPathsByRecord = useMemo(
-    () =>
-      mergeExpandedStringifiedPaths(
-        expandedStringifiedPathsByRecord,
-        searchExpandedStringifiedPathsByRecord,
-      ),
-    [expandedStringifiedPathsByRecord, searchExpandedStringifiedPathsByRecord],
-  );
-  // Same rule as reconcileWorkspaceSelection's fallback, applied during render:
-  // the reducer only catches up in an effect, which would otherwise leave the
-  // workspace record-less for the first paint of every parse.
-  const activeRecord = useMemo(
-    () =>
-      visibleRecords.find((record) => record.id === activeRecordId) ?? visibleRecords[0] ?? null,
-    [activeRecordId, visibleRecords],
-  );
-  const displayedRecordId = activeRecord?.id ?? "";
-  const expandedNestedCount = getExpandedStringifiedPaths(
-    displayedExpandedStringifiedPathsByRecord,
-    displayedRecordId,
-  ).size;
-
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
     setCommandPaletteOpen(true);
@@ -208,119 +150,16 @@ export const UnquoteApp = ({
 
   const handleSampleSelect = (sample: SourceSampleOption) => {
     const nextRevision = handleSourceChange(sample.value, "auto");
-    workspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
+    recordWorkspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
     setImportOpen(false);
   };
-
-  const {
-    copyText,
-    onCopyJsonl,
-    onCopyFormattedJson,
-    onExportJsonl,
-    onExportFormattedJson,
-    onCopyRecord,
-    onCopyRawLine,
-    onCopyRecordError,
-  } = useExportActions({
-    visibleRecords,
-    resolveRecords: localFileSource.resolveRecords,
-    sourceAccess,
-    format: result.format,
-    isCopyBlocked,
-    sourceRevision,
-  });
-  const recordViewActions = useMemo<RecordViewActions>(
-    () => ({
-      togglePath: workspace.togglePath,
-      copyRecord: onCopyRecord,
-      copyRawLine: onCopyRawLine,
-      copyError: onCopyRecordError,
-      selectNode: workspace.selectNode,
-      requestFullRecord: localFileSource.requestFullRecord,
-    }),
-    [
-      localFileSource.requestFullRecord,
-      onCopyRawLine,
-      onCopyRecord,
-      onCopyRecordError,
-      workspace.selectNode,
-      workspace.togglePath,
-    ],
-  );
-  const renderedActiveRecord = useMemo(
-    () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
-    [activeRecord, localFileSource.resolveRecord],
-  );
-  const selectedNodeProjection = useMemo(
-    () => projectSelectedNode(renderedActiveRecord, selectedPath),
-    [renderedActiveRecord, selectedPath],
-  );
-  const turnIndexByRecordId = useMemo(() => {
-    if (!agentSession) {
-      return null;
-    }
-
-    const turnIndexes = new Map<string, number>();
-    for (const event of agentSession.events) {
-      if (event.turnIndex !== undefined && !turnIndexes.has(event.recordId)) {
-        turnIndexes.set(event.recordId, event.turnIndex);
-      }
-    }
-    return turnIndexes;
-  }, [agentSession]);
-  const visibleMatchesByRecord = useMemo(() => {
-    const matchesByRecord = new Map<string, SearchMatch[]>();
-    for (const match of visibleMatches ?? []) {
-      const matches = matchesByRecord.get(match.recordId);
-      if (matches) {
-        matches.push(match);
-      } else {
-        matchesByRecord.set(match.recordId, [match]);
-      }
-    }
-    return matchesByRecord;
-  }, [visibleMatches]);
-
-  // Expansion is scoped to the record on screen: a Preview Record only lists
-  // top-level nested fields, so expand from the Full Record where one exists or
-  // stringified JSON under a plain container stays unreachable from here.
-  const handleExpandAll = useCallback(() => {
-    workspace.expandAll(
-      renderedActiveRecord ? [renderedActiveRecord] : [],
-      displayedExpandedStringifiedPathsByRecord,
-    );
-  }, [displayedExpandedStringifiedPathsByRecord, renderedActiveRecord, workspace.expandAll]);
-
-  const handleCollapseAll = useCallback(() => {
-    workspace.collapseAll(activeRecord ? [activeRecord.id] : []);
-  }, [activeRecord, workspace.collapseAll]);
-
-  const handleCopySelectedSubtree = useCallback(() => {
-    const selectedNodeCopy = selectedNodeProjection.copy;
-    if (selectedNodeCopy.kind === "blocked") {
-      if (selectedNodeProjection.kind === "too-large" || selectedNodeProjection.kind === "value") {
-        toast.warning(t("inspector.copyBlocked"));
-      }
-      return;
-    }
-
-    return copyText(() => selectedNodeCopy.format());
-  }, [copyText, selectedNodeProjection, t]);
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
       setOutputView("json");
-      const record = recordsById.get(recordId);
-      if (record) {
-        workspace.selectRecord(record);
-      }
+      recordWorkspace.selectRecordById(recordId);
     },
-    [recordsById, setOutputView, workspace.selectRecord],
-  );
-
-  const handleCopySelectedPath = useCallback(
-    () => copyText(async () => selectedPath?.pathText ?? null),
-    [copyText, selectedPath],
+    [recordWorkspace.selectRecordById, setOutputView],
   );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
@@ -350,7 +189,7 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!selectedPath || commandPaletteOpen) {
+        if (!recordWorkspace.hasSelectedPath || commandPaletteOpen) {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -360,7 +199,7 @@ export const UnquoteApp = ({
           return false;
         }
 
-        void handleCopySelectedSubtree();
+        void recordWorkspace.copySelectedValue();
       },
     },
   ]);
@@ -420,54 +259,14 @@ export const UnquoteApp = ({
       textareaClassName={textareaClassName}
     />
   );
-  const jsonOutput = (
-    <JsonWorkspace
-      isDesktop={isDesktop}
-      filterBar={{
-        mode: recordFilter,
-        onChange: queryIntent.setFilter,
-        shown: visibleStats.total,
-        total: result.stats.total,
-      }}
-      rail={{
-        records: visibleRecords,
-        recordInsights,
-        turnIndexByRecordId,
-        activeRecordId: displayedRecordId,
-        scrollIntent,
-        onSelect: workspace.selectRecord,
-      }}
-      tree={{
-        record: renderedActiveRecord,
-        expandedStringifiedPaths: getExpandedStringifiedPaths(
-          displayedExpandedStringifiedPathsByRecord,
-          displayedRecordId,
-        ),
-        searchMatches: visibleMatchesByRecord.get(displayedRecordId) ?? noSearchMatches,
-        activeMatchPath: narrowPathToRecord(activeMatch, displayedRecordId),
-        scrollIntent,
-        selectedPath: narrowPathToRecord(selectedPath, displayedRecordId),
-        expandedNestedCount,
-        actions: recordViewActions,
-        onExpandAll: handleExpandAll,
-        onCollapseAll: handleCollapseAll,
-      }}
-      inspector={{
-        projection: selectedNodeProjection,
-        hasNestedJson: (recordInsights.get(displayedRecordId)?.nestedJsonCount ?? 0) > 0,
-        onCopyValue: handleCopySelectedSubtree,
-        onCopyPath: handleCopySelectedPath,
-        onExpandNested: handleExpandAll,
-      }}
-    />
-  );
+  const jsonOutput = <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />;
   const output =
     agentSession && outputView === "agent" ? (
       <AgentSessionView
         session={agentSession}
         isDesktop={isDesktop}
-        detailSelection={detailSelection}
-        onDetailSelectionChange={workspace.selectAgentDetail}
+        detailSelection={recordWorkspace.detailSelection}
+        onDetailSelectionChange={recordWorkspace.selectAgentDetail}
         onOpenRecord={handleOpenRecord}
       />
     ) : (
@@ -502,7 +301,7 @@ export const UnquoteApp = ({
         data-output-view={agentSession ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
-        data-expanded-nested={expandedNestedCount}
+        data-expanded-nested={recordWorkspace.expandedNestedCount}
       >
         <a
           href="#main-content"
@@ -531,11 +330,11 @@ export const UnquoteApp = ({
           onOpenCommandPalette={handleOpenCommandPalette}
           theme={theme}
           onThemeChange={setTheme}
-          copyBlocked={isCopyBlocked}
-          onCopyJsonl={onCopyJsonl}
-          onCopyFormattedJson={onCopyFormattedJson}
-          onExportJsonl={onExportJsonl}
-          onExportFormattedJson={onExportFormattedJson}
+          copyBlocked={recordWorkspace.isCopyBlocked}
+          onCopyJsonl={recordWorkspace.exportActions.onCopyJsonl}
+          onCopyFormattedJson={recordWorkspace.exportActions.onCopyFormattedJson}
+          onExportJsonl={recordWorkspace.exportActions.onExportJsonl}
+          onExportFormattedJson={recordWorkspace.exportActions.onExportFormattedJson}
         />
 
         <main
@@ -550,7 +349,7 @@ export const UnquoteApp = ({
           failedCount={result.stats.failed}
           onSelectFailed={() => queryIntent.setFilter("errors")}
           maxDepth={fileOverview.maxDepth}
-          expandedNestedCount={expandedNestedCount}
+          expandedNestedCount={recordWorkspace.expandedNestedCount}
           sourceStatus={sourceFileStatus}
           sourceBusy={sourceFileBusy}
           sourceProgress={readingFile ? readProgress : null}
