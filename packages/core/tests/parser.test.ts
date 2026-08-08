@@ -6,6 +6,7 @@ import {
   isTruncatedJsonNode,
   materializeNode,
   parseInput,
+  parseInputForIngestion,
   parseJsonlRecordLine,
   parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
@@ -162,6 +163,35 @@ describe("parseInput", () => {
       );
       expect(calls).toHaveLength(1);
     }
+  });
+
+  it("retains parsed values and physical line numbers for JSONL ingestion", () => {
+    const input = '{"event":"one"}\n\n{bad}\n{"count":2}';
+    const parsed = parseInputForIngestion(input, { forcedFormat: "jsonl" });
+
+    expect(parsed.format).toBe("jsonl");
+    if (parsed.format !== "jsonl") {
+      throw new Error("Expected JSONL ingestion lines");
+    }
+
+    expect(parsed.lines).toMatchObject([
+      { record: { status: "full", lineNumber: 1 }, value: { event: "one" } },
+      { record: { status: "failed", lineNumber: 3 } },
+      { record: { status: "full", lineNumber: 4 }, value: { count: 2 } },
+    ]);
+    expect(parsed.lines[1]).not.toHaveProperty("value");
+    expect(parsed.lines.map(({ record }) => record)).toEqual(
+      parseInput(input, { forcedFormat: "jsonl" }).records,
+    );
+  });
+
+  it("keeps single-document JSON outside the line-ingestion seam", () => {
+    const input = '{"ok":true}';
+
+    expect(parseInputForIngestion(input)).toEqual({
+      format: "json",
+      result: parseInput(input),
+    });
   });
 
   it("parses a jsonl line with record identity", () => {

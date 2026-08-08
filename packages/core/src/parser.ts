@@ -302,7 +302,7 @@ const createParseErrorRecord = (
   };
 };
 
-type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
+export type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
   | { record: T; value: unknown }
   | { record: FailedJsonlRecord };
 
@@ -333,27 +333,24 @@ const withApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
       }
     : result;
 
+const parseFullJsonlRecordLine = (line: string, lineNumber: number, options: ParseOptions) =>
+  parseJsonlRecordLineWith(line, lineNumber, (value) =>
+    createRecord(value, lineNumber, options.maxDepth ?? DEFAULT_MAX_DEPTH),
+  );
+
 export const parseJsonlRecordLineWithValue = (
   line: string,
   lineNumber: number,
   options: ParseOptions = {},
-): JsonlRecordLineResult<FullJsonlRecord> => {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  return withApproximateValue(
-    parseJsonlRecordLineWith(line, lineNumber, (value) =>
-      createRecord(value, lineNumber, maxDepth),
-    ),
-  );
-};
+): JsonlRecordLineResult<FullJsonlRecord> =>
+  withApproximateValue(parseFullJsonlRecordLine(line, lineNumber, options));
 
 export const parseJsonlRecordLine = (
   line: string,
   lineNumber: number,
   options: ParseOptions = {},
 ): FullJsonlRecord | FailedJsonlRecord =>
-  parseJsonlRecordLineWith(line, lineNumber, (value) =>
-    createRecord(value, lineNumber, options.maxDepth ?? DEFAULT_MAX_DEPTH),
-  ).record;
+  parseFullJsonlRecordLine(line, lineNumber, options).record;
 
 export const parsePreviewJsonlRecordLineWithValue = (
   line: string,
@@ -370,39 +367,51 @@ export const parsePreviewJsonlRecordLine = (
   parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewRecord(value, lineNumber))
     .record;
 
-type StrictJsonlAttempt =
-  | { kind: "complete"; records: JsonlRecord[]; nextLineIndex: number }
-  | { kind: "failed"; records: JsonlRecord[]; nextLineIndex: number };
+type StrictJsonlAttempt<TLine> =
+  | {
+      kind: "complete";
+      lines: TLine[];
+      nextLineIndex: number;
+    }
+  | {
+      kind: "failed";
+      lines: TLine[];
+      nextLineIndex: number;
+    };
 
 // Strict pass: every non-empty line must parse, otherwise the input is not
 // clean JSONL. Preserve the parsed prefix so loose fallback can resume without
 // rebuilding records.
-const parseStrictJsonlRecords = (lines: string[], maxDepth: number): StrictJsonlAttempt => {
-  const records: JsonlRecord[] = [];
+const parseStrictJsonlLines = <TLine>(
+  lines: string[],
+  parseLine: (line: string, lineNumber: number) => TLine,
+  getRecord: (line: TLine) => FullJsonlRecord | FailedJsonlRecord,
+): StrictJsonlAttempt<TLine> => {
+  const parsedLines: TLine[] = [];
 
   for (const [index, line] of lines.entries()) {
     if (!line.trim()) {
       continue;
     }
 
-    const record = parseJsonlRecordLine(line, index + 1, { maxDepth });
-    records.push(record);
+    const parsedLine = parseLine(line, index + 1);
+    parsedLines.push(parsedLine);
 
-    if (isFailedRecord(record)) {
-      return { kind: "failed", records, nextLineIndex: index + 1 };
+    if (isFailedRecord(getRecord(parsedLine))) {
+      return { kind: "failed", lines: parsedLines, nextLineIndex: index + 1 };
     }
   }
 
-  return { kind: "complete", records, nextLineIndex: lines.length };
+  return { kind: "complete", lines: parsedLines, nextLineIndex: lines.length };
 };
 
 // Loose pass: keep every line, failed ones become error records.
-const parseLooseJsonlRecords = (
+const parseLooseJsonlLines = <TLine>(
   lines: string[],
-  maxDepth: number,
-  progress?: StrictJsonlAttempt,
-): JsonlRecord[] => {
-  const records = progress?.records ?? [];
+  parseLine: (line: string, lineNumber: number) => TLine,
+  progress?: StrictJsonlAttempt<TLine>,
+): TLine[] => {
+  const parsedLines = progress?.lines ?? [];
   const startIndex = progress?.nextLineIndex ?? 0;
 
   for (let index = startIndex; index < lines.length; index += 1) {
@@ -411,10 +420,10 @@ const parseLooseJsonlRecords = (
       continue;
     }
 
-    records.push(parseJsonlRecordLine(line, index + 1, { maxDepth }));
+    parsedLines.push(parseLine(line, index + 1));
   }
 
-  return records;
+  return parsedLines;
 };
 
 const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
@@ -462,57 +471,105 @@ const parseSingleJsonResult = (input: string, maxDepth: number): ParseResult => 
 const detectFormat = (input: string): "json" | "jsonl" =>
   probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
 
-export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
+export type ParseInputForIngestionResult =
+  | { format: "json"; result: ParseResult }
+  | { format: "jsonl"; lines: JsonlRecordLineResult<FullJsonlRecord>[] };
+
+type ParsedInputWithLines<TLine> =
+  | { format: "json"; result: ParseResult }
+  | { format: "jsonl"; lines: TLine[] };
+
+const parseInputWithJsonlLines = <TLine>(
+  input: string,
+  options: ParseOptions,
+  parseLine: (line: string, lineNumber: number) => TLine,
+  getRecord: (line: TLine) => FullJsonlRecord | FailedJsonlRecord,
+): ParsedInputWithLines<TLine> => {
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
 
   if (!input.trim()) {
-    return {
-      format: options.forcedFormat ?? detectFormat(input),
-      records: [],
-      stats: { total: 0, success: 0, failed: 0 },
-    };
+    const format = options.forcedFormat ?? detectFormat(input);
+    return format === "jsonl"
+      ? { format, lines: [] }
+      : {
+          format,
+          result: { format, records: [], stats: { total: 0, success: 0, failed: 0 } },
+        };
   }
 
   if (options.forcedFormat === "json") {
-    return parseSingleJsonResult(input, maxDepth);
+    return { format: "json", result: parseSingleJsonResult(input, maxDepth) };
   }
 
   if (options.forcedFormat === "jsonl") {
-    return buildJsonlResult(parseLooseJsonlRecords(input.split(/\r?\n/), maxDepth));
+    return { format: "jsonl", lines: parseLooseJsonlLines(input.split(/\r?\n/), parseLine) };
   }
 
   // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
   const lines = input.split(/\r?\n/);
-  const strict = parseStrictJsonlRecords(lines, maxDepth);
+  const strict = parseStrictJsonlLines(lines, parseLine, getRecord);
   if (strict.kind === "complete") {
-    if (strict.records.length > 1) {
-      return buildJsonlResult(strict.records);
+    if (strict.lines.length > 1) {
+      return { format: "jsonl", lines: strict.lines };
     }
 
     // A complete strict pass over a single non-empty line means the whole input
     // is one JSON document that already has a full node tree, so only the
     // JSON-mode record identity is left to normalize.
-    const [only] = strict.records;
-    if (only && isParsed(only)) {
-      return {
-        format: "json",
-        records: [only.lineNumber === 1 ? only : { ...only, id: "record-1", lineNumber: 1 }],
-        stats: { total: 1, success: 1, failed: 0 },
-      };
+    const [only] = strict.lines;
+    if (only) {
+      const record = getRecord(only);
+      if (isParsed(record)) {
+        return {
+          format: "json",
+          result: {
+            format: "json",
+            records: [
+              record.lineNumber === 1 ? record : { ...record, id: "record-1", lineNumber: 1 },
+            ],
+            stats: { total: 1, success: 1, failed: 0 },
+          },
+        };
+      }
     }
   }
 
   const single = parseSingleJsonResult(input, maxDepth);
   if (single.stats.success > 0) {
-    return single;
+    return { format: "json", result: single };
   }
 
-  const loose = parseLooseJsonlRecords(lines, maxDepth, strict);
-  if (loose.length > 1 && loose.some(isParsed)) {
-    return buildJsonlResult(loose);
+  const loose = parseLooseJsonlLines(lines, parseLine, strict);
+  if (loose.length > 1 && loose.some((line) => isParsed(getRecord(line)))) {
+    return { format: "jsonl", lines: loose };
   }
 
-  return single;
+  return { format: "json", result: single };
+};
+
+export const parseInputForIngestion = (
+  input: string,
+  options: ParseOptions = {},
+): ParseInputForIngestionResult => {
+  const parsed = parseInputWithJsonlLines(
+    input,
+    options,
+    (line, lineNumber) => parseFullJsonlRecordLine(line, lineNumber, options),
+    (line) => line.record,
+  );
+  return parsed.format === "json"
+    ? parsed
+    : { format: "jsonl", lines: parsed.lines.map(withApproximateValue) };
+};
+
+export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
+  const parsed = parseInputWithJsonlLines(
+    input,
+    options,
+    (line, lineNumber) => parseJsonlRecordLine(line, lineNumber, options),
+    (record) => record,
+  );
+  return parsed.format === "json" ? parsed.result : buildJsonlResult(parsed.lines);
 };
 
 const restoreNodeAtPath = (
