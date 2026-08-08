@@ -9,9 +9,9 @@ import {
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
   downloadBlob,
+  formatRecord,
   formatRecordsAsJson,
   formatRecordsAsJsonl,
-  getCopyValue,
 } from "../lib/record-export";
 import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
@@ -149,7 +149,7 @@ export const useExportActions = ({
           return null;
         }
         const [copyRecord = record] = records;
-        return JSON.stringify(getCopyValue(copyRecord), null, 2);
+        return formatRecord(copyRecord, 2);
       }),
     [copyText, resolveCopyRecords],
   );

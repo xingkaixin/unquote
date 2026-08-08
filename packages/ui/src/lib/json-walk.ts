@@ -70,19 +70,23 @@ const resolveJsonNode: JsonValueResolver<JsonNode> = (node) => {
   }
 
   if (node.kind === "object" || node.kind === "array") {
-    const value = node.preview ? null : node.value;
+    const value = null;
     return {
       node,
       value,
       kind: node.kind,
       wasStringified: isStringifiedNode(node),
-      childCount: node.preview ? node.childCount : childCountFor(node.kind, value),
+      childCount: node.preview
+        ? node.childCount
+        : node.kind === "array"
+          ? node.value.items.length
+          : Object.keys(node.value.entries).length,
     };
   }
 
   return {
     node,
-    value: node.value,
+    value: node.kind === "number" ? (node.rawValue ?? node.value) : node.value,
     kind: node.kind,
     wasStringified: isStringifiedNode(node),
     childCount: 0,

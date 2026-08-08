@@ -80,6 +80,14 @@ describe("tree paths", () => {
     expect(rows[3]?.keyLabel).toBe("leaf");
   });
 
+  it("uses the exact source lexeme for number rows", () => {
+    const record = parseInput('{"large":9007199254740993,"exponent":1e400}').records[0]!;
+    const rows = buildRecordRows(record, new Set());
+
+    expect(rows.find((row) => row.pathText === "$.large")?.valueLabel).toBe("9007199254740993");
+    expect(rows.find((row) => row.pathText === "$.exponent")?.valueLabel).toBe("1e400");
+  });
+
   it("serializes numeric object keys as quoted keys", () => {
     const result = parseInput('{"payload":"{\\"items\\":[{\\"0\\":\\"zero\\"}]}"}');
     const record = result.records[0]!;

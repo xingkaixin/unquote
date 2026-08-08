@@ -1,3 +1,4 @@
+import { parseJson } from "@unquote/core";
 import type {
   AgentAdapterBuilder,
   AgentParseWarning,
@@ -107,7 +108,10 @@ export const createAgentSessionTracker = (fileName?: string) => {
       }
 
       try {
-        pushParsedLine({ lineNumber, data: JSON.parse(raw) as unknown });
+        pushParsedLine({
+          lineNumber,
+          data: parseJson(raw, { numbers: "approximate" }),
+        });
       } catch {
         pushParseWarning(lineNumber);
       }

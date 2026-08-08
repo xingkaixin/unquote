@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { hasJsonNodeChildren } from "@unquote/core";
+import { hasJsonNodeChildren, stringifyJsonNode } from "@unquote/core";
 import { isArrayElementPath } from "./path-codec";
 import { resolveTreePath } from "./tree-path";
 import type { SelectedPath } from "./workspace-selection";
@@ -24,8 +24,8 @@ export const resolveSelectedNode = (
   return { node: resolved.target.node, rawKey: resolved.target.rawKey };
 };
 
-export const formatSelectionCopy = (selection: SelectedPath, value: unknown) => {
-  const valueText = JSON.stringify(value, null, 2);
+export const formatSelectionCopy = (selection: SelectedPath, node: JsonNode) => {
+  const valueText = stringifyJsonNode(node, { indent: 2 });
   if (selection.rawKey === "$" || isArrayElementPath(selection.pathText)) {
     return valueText;
   }

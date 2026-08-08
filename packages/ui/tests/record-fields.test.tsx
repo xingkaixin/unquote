@@ -21,6 +21,9 @@ describe("record-fields", () => {
     expect(getPrimitiveValue(node("string", "hi"))).toBe("hi");
     expect(getPrimitiveValue(node("number", 3))).toBe("3");
     expect(getPrimitiveValue(node("boolean", true))).toBe("true");
+    expect(getPrimitiveValue(parseInput("9007199254740993").records[0]!.node!)).toBe(
+      "9007199254740993",
+    );
   });
 
   it("isToolContext detects tool/function-ish segments", () => {

@@ -1,8 +1,8 @@
-import { materializeNode, parseJson, parseJsonlRecordLine } from "@unquote/core";
+import { parseJsonlRecordLine, stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 import { measurePerfAsync } from "./perf";
-import { buildSearchPattern, searchJsonValue } from "./record-search";
+import { buildSearchPattern, searchRecord } from "./record-search";
 import type { SearchMatch, SearchOptions } from "./record-search";
 
 export const fullRecordCacheLimit = 500;
@@ -443,12 +443,8 @@ const searchJsonlFile = async (
 
         if (line.trim() && rawLineMayMatch(line, rawLineProbe)) {
           try {
-            for (const match of searchJsonValue(
-              parseJson(line),
-              `record-${lineNumber}`,
-              pattern,
-              options,
-            )) {
+            const record = parseJsonlRecordLine(line, lineNumber);
+            for (const match of searchRecord(record, pattern, options)) {
               matches.push(match);
             }
           } catch {
@@ -487,9 +483,7 @@ export interface LocalFileAccess {
 }
 
 const formatRecordText = (record: JsonlRecord) =>
-  record.status === "failed"
-    ? record.rawLine
-    : (JSON.stringify(materializeNode(record.node)) ?? record.summary);
+  record.status === "failed" ? record.rawLine : stringifyJsonNode(record.node);
 
 export const createLocalFileAccess = (file: File): LocalFileAccess => ({
   name: file.name,

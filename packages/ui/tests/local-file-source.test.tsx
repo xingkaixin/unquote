@@ -178,6 +178,21 @@ describe("local-file-source", () => {
     expect(matches?.[0]?.recordId).toBe("record-1");
   });
 
+  it("searches the exact source lexeme of an unsafe number", async () => {
+    const file = makeStreamedFile('{"value":9007199254740993}\n');
+    const controller = new AbortController();
+
+    const matches = await createLocalFileAccess(file).search(
+      "9007199254740993",
+      { regex: false, caseSensitive: true, jq: false },
+      controller.signal,
+    );
+
+    expect(matches).toEqual([
+      expect.objectContaining({ recordId: "record-1", pathText: "$.value" }),
+    ]);
+  });
+
   it("skips parsing lines that cannot contain a safe literal match", async () => {
     const skippedLine = '{"message":"hay"}';
     const matchedLine = '{"message":"needle"}';

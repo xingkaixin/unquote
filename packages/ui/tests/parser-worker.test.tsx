@@ -223,7 +223,15 @@ describe("parser worker dispatch", () => {
       ),
     );
 
-    expect(parse.mock.calls.filter(([input]) => input === validLine)).toHaveLength(1);
+    expect(
+      parse.mock.calls.filter(
+        ([input]) =>
+          input === validLine ||
+          (typeof input === "string" &&
+            input.startsWith('{"value":') &&
+            input.includes("unquote:number1")),
+      ),
+    ).toHaveLength(1);
     expect(parse.mock.calls.filter(([input]) => input === invalidLine)).toHaveLength(1);
     parse.mockRestore();
 

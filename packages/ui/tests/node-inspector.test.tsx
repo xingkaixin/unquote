@@ -80,6 +80,16 @@ describe("NodeInspector", () => {
     expect(props.onCopyPath).toHaveBeenCalledOnce();
   });
 
+  it("shows an unsafe number without rounding it", () => {
+    const record = recordOf('{"large":9007199254740993}');
+    const { container } = renderInspector({
+      record,
+      selectedPath: selectionFor(record, "$.large", "large"),
+    });
+
+    expect(valuePanel(container)).toHaveTextContent("9007199254740993");
+  });
+
   it("clips an oversized value and says so", () => {
     const record = recordOf(JSON.stringify({ big: "x".repeat(inspectorCharLimit + 5_000) }));
     const { container } = renderInspector({
@@ -118,7 +128,7 @@ describe("NodeInspector", () => {
 
   it("re-materializes only when the record or the selection changes", () => {
     const record = recordOf('{"a":{"b":1}}');
-    const selectedPath = selectionFor(record, "$.a", "a");
+    const selectedPath = selectionFor(record, "$.a.b", "b");
     const stringify = vi.spyOn(JSON, "stringify");
     const { rerender } = renderInspector({ record, selectedPath });
 
@@ -126,7 +136,7 @@ describe("NodeInspector", () => {
     rerender({});
     expect(stringify.mock.calls.length).toBe(afterFirstRender);
 
-    rerender({ selectedPath: selectionFor(record, "$.a.b", "b") });
+    rerender({ selectedPath: selectionFor(record, "$.a", "a") });
     expect(stringify.mock.calls.length).toBeGreaterThan(afterFirstRender);
     stringify.mockRestore();
   });

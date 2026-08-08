@@ -11,7 +11,10 @@ export const getPrimitiveValue = (node: JsonNode): string | null => {
     return null;
   }
 
-  return node.kind === "string" ? (node.value as string) : String(node.value);
+  if (node.kind === "number") {
+    return node.rawValue ?? String(node.value);
+  }
+  return node.kind === "string" ? node.value : String(node.value);
 };
 
 // A bare `name` field denotes a tool/function when its path passes through a
