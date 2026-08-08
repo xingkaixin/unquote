@@ -2,11 +2,10 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../lib/local-file-source";
+import type { SourceMode } from "../lib/source-candidate";
 import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceStreamBytes = 1_000_000;
-
-type SourceMode = "auto" | "json" | "jsonl";
 
 type PublishedSourceState =
   | { kind: "text"; text: string }
@@ -30,7 +29,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
   const { t } = useTranslation();
   const [sourceState, setSourceState] = useState<SourceState>({ kind: "text", text: initialInput });
   const [mode, setMode] = useState<SourceMode>("auto");
-  const modeRef = useRef<SourceMode>(mode);
   const [sourceRevision, incrementSourceRevision] = useReducer((value: number) => value + 1, 0);
   const sourceRevisionRef = useRef<SourceRevision>(sourceRevision);
   const fileImportIdRef = useRef(0);
@@ -66,27 +64,28 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     return sourceRevisionRef.current;
   };
 
-  const publishStreamingFile = (file: File) => {
-    setSourceState({ kind: "streaming", access: createLocalFileAccess(file) });
-    publishSourceRevision();
-  };
-
-  const publishImportedFile = (file: File, text: string) => {
-    setSourceState({ kind: "imported", file, text });
-    publishSourceRevision();
-  };
-
-  const onSourceChange = (value: string) => {
-    fileImportIdRef.current += 1;
-    abortActiveRead();
-    setSourceState({ kind: "text", text: value });
+  const publishSource = (nextSource: PublishedSourceState, nextMode: SourceMode) => {
+    setSourceState(nextSource);
+    setMode(nextMode);
     return publishSourceRevision();
   };
 
-  const onFileDrop = async (file: File) => {
+  const onSourceChange = (value: string, sourceMode: SourceMode = mode) => {
+    fileImportIdRef.current += 1;
+    abortActiveRead();
+    return publishSource({ kind: "text", text: value }, sourceMode);
+  };
+
+  const onFileDrop = async (file: File, sourceMode: SourceMode = mode) => {
     const requestId = fileImportIdRef.current + 1;
     fileImportIdRef.current = requestId;
     abortActiveRead();
+
+    if (shouldStreamFile(file, sourceMode)) {
+      publishSource({ kind: "streaming", access: createLocalFileAccess(file) }, sourceMode);
+      return;
+    }
+
     const controller = new AbortController();
     activeReadRef.current = controller;
     setSourceState({
@@ -95,11 +94,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       progress: 0,
       previousSource: publishedSource,
     });
-
-    if (shouldStreamFile(file, modeRef.current)) {
-      publishStreamingFile(file);
-      return;
-    }
 
     let text: string;
     try {
@@ -127,43 +121,11 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     }
     activeReadRef.current = null;
 
-    if (shouldStreamFile(file, modeRef.current)) {
-      publishStreamingFile(file);
-      return;
-    }
-
-    publishImportedFile(file, text);
-  };
-
-  const setSourceMode = (nextMode: SourceMode) => {
-    if (modeRef.current === nextMode) {
-      return;
-    }
-
-    modeRef.current = nextMode;
-    setMode(nextMode);
-
-    if (publishedSource.kind === "streaming") {
-      const file = publishedSource.access.getFile();
-      if (!shouldStreamFile(file, nextMode)) {
-        void onFileDrop(file);
-        return;
-      }
-    }
-
-    if (publishedSource.kind === "imported" && shouldStreamFile(publishedSource.file, nextMode)) {
-      fileImportIdRef.current += 1;
-      abortActiveRead();
-      publishStreamingFile(publishedSource.file);
-      return;
-    }
-
-    publishSourceRevision();
+    publishSource({ kind: "imported", file, text }, sourceMode);
   };
 
   return {
     mode,
-    setMode: setSourceMode,
     sourceText,
     sourceAccess,
     readingFile,

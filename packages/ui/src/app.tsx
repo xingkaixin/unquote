@@ -32,6 +32,7 @@ import type { SearchMatch } from "./lib/record-search";
 import type { RecordViewActions } from "./lib/record-view";
 import { formatSelectionCopy, resolveSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
+import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
@@ -53,7 +54,6 @@ export const UnquoteApp = ({
   const isDesktop = useDesktopWorkspace();
   const {
     mode,
-    setMode,
     sourceText,
     sourceAccess,
     readingFile,
@@ -199,19 +199,17 @@ export const UnquoteApp = ({
     setCommandPaletteOpen(true);
   }, [queryIntent]);
 
-  const commitSource = (text: string) => {
-    handleSourceChange(text);
-    setImportOpen(false);
-  };
-
-  const importFile = (file: File) => {
-    void handleFileDrop(file);
+  const commitSourceCandidate = (candidate: SourceCandidate) => {
+    if (candidate.kind === "text") {
+      handleSourceChange(candidate.text, candidate.mode);
+    } else {
+      void handleFileDrop(candidate.file, candidate.mode);
+    }
     setImportOpen(false);
   };
 
   const handleSampleSelect = (sample: SourceSampleOption) => {
-    setMode("auto");
-    const nextRevision = handleSourceChange(sample.value);
+    const nextRevision = handleSourceChange(sample.value, "auto");
     workspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
     setImportOpen(false);
   };
@@ -422,10 +420,9 @@ export const UnquoteApp = ({
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
       initialDraft={sourceText}
-      mode={mode}
-      onModeChange={setMode}
-      onCommit={commitSource}
-      onFileDrop={importFile}
+      initialFile={sourceAccess?.getFile() ?? importedFile}
+      initialMode={mode}
+      onCommit={commitSourceCandidate}
       samples={sampleOptions}
       onSampleSelect={handleSampleSelect}
       textareaClassName={textareaClassName}

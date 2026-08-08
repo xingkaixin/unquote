@@ -5,9 +5,8 @@ import { useTranslation } from "../i18n/context";
 import { cn } from "../lib/utils";
 import { detectSourceFormat } from "../lib/source-detect";
 import type { SourceDetection } from "../lib/source-detect";
+import type { SourceCandidate, SourceMode } from "../lib/source-candidate";
 import { Button } from "./button";
-
-export type SourceMode = "auto" | "json" | "jsonl";
 
 export interface SourceSampleOption {
   id: string;
@@ -18,10 +17,9 @@ export interface SourceSampleOption {
 
 interface SourceImportPanelProps {
   initialDraft: string;
-  mode: SourceMode;
-  onModeChange: (mode: SourceMode) => void;
-  onCommit: (text: string) => void;
-  onFileDrop: (file: File) => void;
+  initialFile: File | null;
+  initialMode: SourceMode;
+  onCommit: (candidate: SourceCandidate) => void;
   samples: readonly SourceSampleOption[];
   onSampleSelect: (sample: SourceSampleOption) => void;
   textareaClassName: string;
@@ -116,16 +114,16 @@ const detectionHint = (
 
 export const SourceImportPanel = ({
   initialDraft,
-  mode,
-  onModeChange,
+  initialFile,
+  initialMode,
   onCommit,
-  onFileDrop,
   samples,
   onSampleSelect,
   textareaClassName,
 }: SourceImportPanelProps) => {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(initialDraft);
+  const [mode, setMode] = useState(initialMode);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragDepth = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +132,10 @@ export const SourceImportPanel = ({
   const resetDragState = () => {
     dragDepth.current = 0;
     setIsDraggingFile(false);
+  };
+
+  const commitFile = (file: File) => {
+    onCommit({ kind: "file", file, mode });
   };
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -176,7 +178,7 @@ export const SourceImportPanel = ({
     resetDragState();
     const file = getTransferFile(event.dataTransfer);
     if (file) {
-      onFileDrop(file);
+      commitFile(file);
     }
   };
 
@@ -184,7 +186,7 @@ export const SourceImportPanel = ({
     const file = getTransferFile(event.clipboardData);
     if (file) {
       event.preventDefault();
-      onFileDrop(file);
+      commitFile(file);
       return;
     }
 
@@ -196,7 +198,7 @@ export const SourceImportPanel = ({
     void readClipboardFile(pastedFileName ?? "clipboard.json")
       .then((clipboardFile) => {
         if (clipboardFile) {
-          onFileDrop(clipboardFile);
+          commitFile(clipboardFile);
         }
       })
       .catch(() => undefined);
@@ -206,13 +208,18 @@ export const SourceImportPanel = ({
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
     if (file) {
-      onFileDrop(file);
+      commitFile(file);
     }
   };
 
   const commitDraft = () => {
+    if (initialFile && draft === initialDraft) {
+      commitFile(initialFile);
+      return;
+    }
+
     if (draft.trim()) {
-      onCommit(draft);
+      onCommit({ kind: "text", text: draft, mode });
     }
   };
 
@@ -289,7 +296,7 @@ export const SourceImportPanel = ({
             variant="secondary"
             className="h-8 px-4 text-[11px]"
             onClick={commitDraft}
-            disabled={draft.trim().length === 0}
+            disabled={!initialFile && draft.trim().length === 0}
           >
             {t("import.parse")}
           </Button>
@@ -327,7 +334,7 @@ export const SourceImportPanel = ({
               className="rounded-sm px-2.5 font-mono"
               aria-pressed={mode === option}
               translate={option === "auto" ? undefined : "no"}
-              onClick={() => onModeChange(option)}
+              onClick={() => setMode(option)}
             >
               {t(`input.mode.${option}`)}
             </Button>

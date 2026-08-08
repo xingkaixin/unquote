@@ -26,10 +26,9 @@ const sample = {
 const renderPanel = (overrides: Partial<ComponentProps<typeof SourceImportPanel>> = {}) => {
   const props: ComponentProps<typeof SourceImportPanel> = {
     initialDraft: "",
-    mode: "auto",
-    onModeChange: vi.fn(),
+    initialFile: null,
+    initialMode: "auto",
     onCommit: vi.fn(),
-    onFileDrop: vi.fn(),
     samples: [sample],
     onSampleSelect: vi.fn(),
     textareaClassName: "h-[180px]",
@@ -68,7 +67,11 @@ describe("SourceImportPanel draft commit", () => {
     expect(props.onCommit).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Parse" }));
-    expect(props.onCommit).toHaveBeenCalledWith('{"ok":true}');
+    expect(props.onCommit).toHaveBeenCalledWith({
+      kind: "text",
+      text: '{"ok":true}',
+      mode: "auto",
+    });
   });
 
   it("publishes the draft from the keyboard", async () => {
@@ -78,7 +81,11 @@ describe("SourceImportPanel draft commit", () => {
     await user.click(screen.getByRole("textbox", { name: "Source input" }));
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
-    expect(props.onCommit).toHaveBeenCalledWith('{"seeded":true}');
+    expect(props.onCommit).toHaveBeenCalledWith({
+      kind: "text",
+      text: '{"seeded":true}',
+      mode: "auto",
+    });
   });
 
   it("reports the detected format of the draft", () => {
@@ -108,7 +115,33 @@ describe("SourceImportPanel draft commit", () => {
     );
 
     await user.click(within(group).getByRole("button", { name: "JSONL" }));
-    expect(props.onModeChange).toHaveBeenCalledWith("jsonl");
+    expect(within(group).getByRole("button", { name: "JSONL" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(props.onCommit).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Source input" }), {
+      target: { value: '{"ok":true}' },
+    });
+    await user.click(screen.getByRole("button", { name: "Parse" }));
+    expect(props.onCommit).toHaveBeenCalledWith({
+      kind: "text",
+      text: '{"ok":true}',
+      mode: "jsonl",
+    });
+  });
+
+  it("recommits an unchanged current file with the selected mode", async () => {
+    const user = userEvent.setup();
+    const file = new File(["{}"], "current.jsonl");
+    const { props } = renderPanel({ initialFile: file });
+    const group = screen.getByRole("group", { name: "Input format" });
+
+    await user.click(within(group).getByRole("button", { name: "JSON" }));
+    await user.click(screen.getByRole("button", { name: "Parse" }));
+
+    expect(props.onCommit).toHaveBeenCalledWith({ kind: "file", file, mode: "json" });
   });
 
   it("publishes a sample without waiting for Parse", async () => {
@@ -134,11 +167,11 @@ describe("SourceImportPanel file interactions", () => {
 
     const file = new File(["{}"], "payload.json", { type: "application/json" });
     fireEvent.change(fileInput, { target: { files: [file] } });
-    expect(props.onFileDrop).toHaveBeenCalledWith(file);
+    expect(props.onCommit).toHaveBeenCalledWith({ kind: "file", file, mode: "auto" });
 
-    vi.mocked(props.onFileDrop).mockClear();
+    vi.mocked(props.onCommit).mockClear();
     fireEvent.change(fileInput, { target: { files: [] } });
-    expect(props.onFileDrop).not.toHaveBeenCalled();
+    expect(props.onCommit).not.toHaveBeenCalled();
   });
 
   it("tracks nested drag depth and drops files from items or file lists", () => {
@@ -163,7 +196,11 @@ describe("SourceImportPanel file interactions", () => {
 
     fireEvent.dragEnter(target, { dataTransfer: itemTransfer });
     fireEvent.drop(target, { dataTransfer: itemTransfer });
-    expect(props.onFileDrop).toHaveBeenLastCalledWith(itemFile);
+    expect(props.onCommit).toHaveBeenLastCalledWith({
+      kind: "file",
+      file: itemFile,
+      mode: "auto",
+    });
     expect(screen.queryByText("Release to parse")).not.toBeInTheDocument();
 
     const listFile = new File(["[]"], "list.json", { type: "application/json" });
@@ -172,7 +209,11 @@ describe("SourceImportPanel file interactions", () => {
       items: [{ kind: "file", getAsFile: () => null }],
     });
     fireEvent.drop(target, { dataTransfer: listTransfer });
-    expect(props.onFileDrop).toHaveBeenLastCalledWith(listFile);
+    expect(props.onCommit).toHaveBeenLastCalledWith({
+      kind: "file",
+      file: listFile,
+      mode: "auto",
+    });
   });
 
   it("ignores non-file drags and empty drops", () => {
@@ -185,7 +226,7 @@ describe("SourceImportPanel file interactions", () => {
     fireEvent.drop(target, { dataTransfer: textTransfer });
 
     expect(textTransfer.dropEffect).toBe("none");
-    expect(props.onFileDrop).not.toHaveBeenCalled();
+    expect(props.onCommit).not.toHaveBeenCalled();
   });
 
   it("reads JSON-looking clipboard files while skipping unsupported clipboard items", async () => {
@@ -214,10 +255,14 @@ describe("SourceImportPanel file interactions", () => {
       },
     });
 
-    await waitFor(() => expect(props.onFileDrop).toHaveBeenCalledOnce());
-    expect(vi.mocked(props.onFileDrop).mock.calls[0]?.[0]).toMatchObject({
-      name: "payload.json",
-      type: "application/json",
+    await waitFor(() => expect(props.onCommit).toHaveBeenCalledOnce());
+    expect(vi.mocked(props.onCommit).mock.calls[0]?.[0]).toMatchObject({
+      kind: "file",
+      mode: "auto",
+      file: {
+        name: "payload.json",
+        type: "application/json",
+      },
     });
   });
 });

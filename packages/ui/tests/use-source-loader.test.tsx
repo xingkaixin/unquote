@@ -78,17 +78,18 @@ describe("useSourceLoader", () => {
     mocks.writeClipboardText.mockResolvedValue(true);
   });
 
-  it("publishes parsing-mode changes as new Source Revisions", () => {
+  it("publishes text and parsing mode as one Source Revision", () => {
     const { result } = setup();
+    let publishedRevision = -1;
 
-    act(() => result.current.setMode("json"));
+    act(() => {
+      publishedRevision = result.current.onSourceChange("sample", "json");
+    });
+
+    expect(publishedRevision).toBe(1);
     expect(result.current.sourceRevision).toBe(1);
-
-    act(() => result.current.setMode("json"));
-    expect(result.current.sourceRevision).toBe(1);
-
-    act(() => result.current.setMode("jsonl"));
-    expect(result.current.sourceRevision).toBe(2);
+    expect(result.current.sourceText).toBe("sample");
+    expect(result.current.mode).toBe("json");
   });
 
   it("returns the exact revision assigned to a text source", () => {
@@ -96,12 +97,11 @@ describe("useSourceLoader", () => {
     let publishedRevision = -1;
 
     act(() => {
-      result.current.setMode("json");
       publishedRevision = result.current.onSourceChange("sample");
     });
 
-    expect(publishedRevision).toBe(2);
-    expect(result.current.sourceRevision).toBe(2);
+    expect(publishedRevision).toBe(1);
+    expect(result.current.sourceRevision).toBe(1);
   });
 
   it("keeps the published Source stable while a replacement file is read", async () => {
@@ -199,22 +199,24 @@ describe("useSourceLoader", () => {
     const { file, stream } = createStreamFile(contents, "large.jsonl");
     const { result } = setup();
 
-    await act(() => result.current.onFileDrop(file));
+    await act(() => result.current.onFileDrop(file, "auto"));
     expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(result.current.sourceText).toBe("");
     expect(stream).not.toHaveBeenCalled();
 
-    act(() => result.current.setMode("json"));
+    await act(() => result.current.onFileDrop(file, "json"));
     await waitFor(() => expect(result.current.importedFile).toBe(file));
     expect(stream).toHaveBeenCalledTimes(1);
     expect(result.current.sourceText).toBe(contents);
+    expect(result.current.mode).toBe("json");
 
-    act(() => result.current.setMode("jsonl"));
+    await act(() => result.current.onFileDrop(file, "jsonl"));
     expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(result.current.sourceText).toBe("");
+    expect(result.current.mode).toBe("jsonl");
   });
 
-  it("rechecks the active mode when an asynchronous file read completes", async () => {
+  it("publishes an asynchronous file and its candidate mode together", async () => {
     const controlled = createControlledStreamFile(
       oversizedContents('{"loaded":true}'),
       "large.json",
@@ -223,16 +225,20 @@ describe("useSourceLoader", () => {
     let readPromise: Promise<void> | undefined;
 
     act(() => {
-      readPromise = result.current.onFileDrop(controlled.file);
+      readPromise = result.current.onFileDrop(controlled.file, "json");
     });
-    act(() => result.current.setMode("jsonl"));
+    expect(result.current.mode).toBe("auto");
+    expect(result.current.sourceRevision).toBe(0);
+
     await act(async () => {
       controlled.complete();
       await readPromise;
     });
 
-    expect(result.current.sourceAccess?.getFile()).toBe(controlled.file);
-    expect(result.current.importedFile).toBeNull();
+    expect(result.current.sourceAccess).toBeNull();
+    expect(result.current.importedFile).toBe(controlled.file);
+    expect(result.current.mode).toBe("json");
+    expect(result.current.sourceRevision).toBe(1);
   });
 
   it("imports a chosen file through the same path as a drop", async () => {
