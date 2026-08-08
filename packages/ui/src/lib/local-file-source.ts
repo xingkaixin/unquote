@@ -171,7 +171,7 @@ const readJsonlFileLines = async (
     processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
 
   if (typeof file.stream !== "function") {
-    const text = await readFileText(file, () => undefined);
+    const text = await readFileText(file, () => undefined, signal);
     for (const rawLine of text.split("\n")) {
       if (stopped || signal?.aborted) {
         break;
