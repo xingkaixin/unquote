@@ -1,4 +1,3 @@
-import { materializeNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { toast } from "sonner";
 import { useCallback, useMemo, useState } from "react";
@@ -310,7 +309,7 @@ export const UnquoteApp = ({
         }
 
         const resolved = copyRecord ? resolveSelectedNode(copyRecord, selectedPath) : null;
-        return resolved ? formatSelectionCopy(selectedPath, materializeNode(resolved.node)) : null;
+        return resolved ? formatSelectionCopy(selectedPath, resolved.node) : null;
       }),
     [copyText, localFileSource.resolveRecords, result.records, selectedPath, t],
   );

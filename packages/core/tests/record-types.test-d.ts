@@ -65,7 +65,7 @@ const _arrayNode: JsonNode = { kind: "array", children: [] };
 const _stringNode: JsonNode = { kind: "string", value: "value" };
 const _truncatedNode: JsonNode = {
   kind: "object",
-  value: { nested: true },
+  value: { type: "object", entries: { nested: true } },
   truncated: true,
 };
 const _previewNode: JsonNode = {

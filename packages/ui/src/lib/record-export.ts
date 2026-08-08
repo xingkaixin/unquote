@@ -1,4 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
+import { stringifyJsonNode } from "@unquote/core";
 import { materializeRecord } from "./tree";
 
 // Copy builds one giant string and hands it to the clipboard API, which freezes
@@ -24,16 +25,22 @@ export const getCopyValue = (record: JsonlRecord) => {
   };
 };
 
+export const formatRecord = (record: JsonlRecord, indent = 0) =>
+  record.status === "failed"
+    ? JSON.stringify(getCopyValue(record), null, indent)
+    : stringifyJsonNode(record.node, { indent });
+
 export const formatRecordsAsJsonl = (records: JsonlRecord[]) =>
-  records.map((record) => JSON.stringify(getCopyValue(record))).join("\n");
+  records.map((record) => formatRecord(record)).join("\n");
 
 export const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "jsonl") => {
-  const values = records.map((record) => getCopyValue(record));
   if (format === "json") {
-    return JSON.stringify(values[0] ?? null, null, 2);
+    const [record] = records;
+    return record ? formatRecord(record, 2) : "null";
   }
 
-  return JSON.stringify(values, null, 2);
+  const bodies = records.map((record) => `  ${formatRecord(record, 2).replace(/\n/g, "\n  ")}`);
+  return bodies.length === 0 ? "[]" : `[\n${bodies.join(",\n")}\n]`;
 };
 
 // Yield the main thread so a long stringify doesn't freeze the UI (toasts,
@@ -59,7 +66,7 @@ export interface ExportPartsBuilder {
 export const createJsonlPartsBuilder = (): ExportPartsBuilder => {
   const parts: BlobPart[] = [];
   return {
-    bodyFor: (record) => JSON.stringify(getCopyValue(record)),
+    bodyFor: (record) => formatRecord(record),
     addBody: (body) => {
       if (parts.length > 0) {
         parts.push("\n");
@@ -74,7 +81,7 @@ export const createJsonlPartsBuilder = (): ExportPartsBuilder => {
 // array's nesting, instead of handing JSON.stringify one 300MB+ value — that
 // single synchronous call can't be interrupted and freezes the tab.
 export const createJsonPartsBuilder = (format: "json" | "jsonl"): ExportPartsBuilder => {
-  const bodyFor = (record: JsonlRecord) => JSON.stringify(getCopyValue(record), null, 2);
+  const bodyFor = (record: JsonlRecord) => formatRecord(record, 2);
 
   if (format === "json") {
     let first: string | null = null;

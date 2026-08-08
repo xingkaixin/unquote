@@ -19,9 +19,17 @@ describe("auto detection of a single JSON document", () => {
 
     const result = parseInput(input);
 
-    // Nested calls also probe every string child for stringified JSON, so only
-    // parses of the document itself are counted.
-    expect(parse.mock.calls.filter(([text]) => text === input)).toHaveLength(1);
+    const first = input.trimStart()[0];
+    const documentCalls = parse.mock.calls.filter(([text]) => {
+      if (text === input) {
+        return true;
+      }
+      if (typeof text !== "string" || !text.includes("unquote:number")) {
+        return false;
+      }
+      return input === "42" ? text.startsWith('"\\u0000unquote:number') : text[0] === first;
+    });
+    expect(documentCalls).toHaveLength(1);
     expect(result).toEqual(parseInput(input, { forcedFormat: "json" }));
   });
 

@@ -51,12 +51,20 @@ describe("formatSelectionCopy", () => {
   const selection = (pathText: string, rawKey: string) => ({ recordId: "r", pathText, rawKey });
 
   it("copies a keyed node as a key/value pair", () => {
-    expect(formatSelectionCopy(selection("$.a", "a"), { b: 1 })).toBe('"a": {\n  "b": 1\n}');
+    expect(formatSelectionCopy(selection("$.a", "a"), rootNodeOf('{"b":1}'))).toBe(
+      '"a": {\n  "b": 1\n}',
+    );
   });
 
   it("copies the root and array elements as bare values", () => {
-    expect(formatSelectionCopy(selection("$", "$"), [1])).toBe("[\n  1\n]");
-    expect(formatSelectionCopy(selection("$.list[1]", "1"), 20)).toBe("20");
+    expect(formatSelectionCopy(selection("$", "$"), rootNodeOf("[1]"))).toBe("[\n  1\n]");
+    expect(formatSelectionCopy(selection("$.list[1]", "1"), rootNodeOf("20"))).toBe("20");
+  });
+
+  it("copies an unsafe number without rounding it", () => {
+    expect(formatSelectionCopy(selection("$.large", "large"), rootNodeOf("9007199254740993"))).toBe(
+      '"large": 9007199254740993',
+    );
   });
 });
 

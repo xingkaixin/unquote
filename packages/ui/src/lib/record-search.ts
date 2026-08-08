@@ -157,7 +157,7 @@ export const searchRecords = (
     return matches;
   });
 
-const searchRecord = (
+export const searchRecord = (
   record: JsonlRecord,
   pattern: RegExp,
   options: SearchOptions,

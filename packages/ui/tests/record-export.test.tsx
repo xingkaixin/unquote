@@ -61,6 +61,19 @@ describe("record-export", () => {
     );
   });
 
+  it("preserves unsafe number lexemes in every export shape", async () => {
+    const records = recordsFrom('{"large":9007199254740993}\n{"exponent":1e400}', "jsonl");
+
+    expect(formatRecordsAsJsonl(records)).toBe('{"large":9007199254740993}\n{"exponent":1e400}');
+    expect(formatRecordsAsJson(records, "jsonl")).toContain("9007199254740993");
+    expect(formatRecordsAsJson(records, "jsonl")).toContain("1e400");
+    await expect(formatRecordsAsJsonlParts(records)).resolves.toEqual([
+      '{"large":9007199254740993}',
+      "\n",
+      '{"exponent":1e400}',
+    ]);
+  });
+
   it("formats empty JSON and JSONL collections", async () => {
     expect(formatRecordsAsJson([], "json")).toBe("null");
     await expect(formatRecordsAsJsonParts([], "json")).resolves.toEqual(["null"]);

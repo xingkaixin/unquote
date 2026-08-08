@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { materializeNode } from "@unquote/core";
+import { stringifyJsonNode } from "@unquote/core";
 import { memo, useMemo } from "react";
 import { useTranslation } from "../i18n/context";
 import {
@@ -43,7 +43,7 @@ const resolveInspectorValue = (
     return { kind: "too-large" };
   }
 
-  const text = JSON.stringify(materializeNode(resolved.node), null, 2) ?? "";
+  const text = stringifyJsonNode(resolved.node, { indent: 2 });
   return text.length > inspectorCharLimit
     ? { kind: "value", text: text.slice(0, inspectorCharLimit), truncated: true }
     : { kind: "value", text, truncated: false };

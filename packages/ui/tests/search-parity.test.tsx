@@ -148,7 +148,7 @@ describe("search parity between memory and file search paths", () => {
   it("does not treat record roots or array indexes as searchable keys", async () => {
     const options: SearchOptions = { regex: false, caseSensitive: true, jq: false };
 
-    const indexMatches = await expectParity("0", options);
+    const indexMatches = await expectParity("[0]", options);
     const rootMatches = await expectParity("$", options);
 
     expect(indexMatches.memoryMatches).toEqual([]);
@@ -170,7 +170,7 @@ describe("search parity between memory and file search paths", () => {
     ["quote", "a Unicode-escaped string"],
     ["a/b", "an escaped solidus"],
     [String.raw`\n`, "an escaped control character"],
-    ["e-7", "a normalized number label"],
+    ["0.0000001", "a source number label"],
     ["6", "a synthesized container-count label"],
   ])("preserves parity for %s in %s", async (query) => {
     const { memoryMatches } = await expectParity(query, {

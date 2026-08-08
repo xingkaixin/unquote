@@ -150,8 +150,17 @@ describe("parseInput", () => {
     const result = parseInput(input);
 
     expect(result).toEqual(expected);
-    for (const line of physicalLines) {
-      expect(parseSpy.mock.calls.filter(([input]) => input === line)).toHaveLength(1);
+    for (const [index, line] of physicalLines.entries()) {
+      const calls = parseSpy.mock.calls.filter(
+        ([input]) =>
+          input === line ||
+          (line !== invalidLine &&
+            typeof input === "string" &&
+            !input.includes("\n") &&
+            input.startsWith('{"index":') &&
+            input.includes(`unquote:number${index}`)),
+      );
+      expect(calls).toHaveLength(1);
     }
   });
 

@@ -1,6 +1,5 @@
 export {
   formatResult,
-  materializeNode,
   parseInput,
   parseJsonlRecordLine,
   parseJsonlRecordLineWithValue,
@@ -8,6 +7,7 @@ export {
   parsePreviewJsonlRecordLineWithValue,
   restoreNode,
 } from "./parser.js";
+export { materializeNode, stringifyJsonNode } from "./serialization.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";
 export { hasJsonNodeChildren, isStringifiedNode, isTruncatedJsonNode } from "./nodes.js";
 export type {
@@ -30,6 +30,11 @@ export type {
   JsonStringNode,
   JsonlRecord,
   JsonlRecordPreview,
+  LosslessJsonArrayValue,
+  LosslessJsonNumberValue,
+  LosslessJsonObjectValue,
+  LosslessJsonValue,
+  MaterializeOptions,
   ParsedJsonlRecord,
   ParseErrorMeta,
   ParseOptions,
