@@ -1405,9 +1405,14 @@ describe("UnquoteApp", () => {
     const sourceInput = screen.getAllByPlaceholderText(
       "Paste JSON / JSONL, or drop a file here.",
     )[0]!;
-    const file = new File(["x".repeat(1_000_001)], "worker-failure.jsonl", {
-      type: "application/jsonl",
-    });
+    const failureLine = '{"event":"worker-failure"}\n';
+    const file = new File(
+      [failureLine.repeat(Math.ceil(1_000_001 / failureLine.length))],
+      "worker-failure.jsonl",
+      {
+        type: "application/jsonl",
+      },
+    );
 
     fireEvent.paste(sourceInput, {
       clipboardData: { files: [file], items: [], types: ["Files"] },
@@ -1430,7 +1435,11 @@ describe("UnquoteApp", () => {
       "Paste JSON / JSONL, or drop a file here.",
     )[0]!;
     const longValue = `${"a".repeat(maxTransferStringLength + 32)}needle${"b".repeat(1_000_000)}`;
-    const fileContents = `${JSON.stringify({ message: longValue })}\n`;
+    const fileContents = [
+      JSON.stringify({ event: "probe-start" }),
+      JSON.stringify({ event: "probe-confirm" }),
+      JSON.stringify({ message: longValue }),
+    ].join("\n");
     const file = new File([fileContents], "payload.jsonl", {
       type: "application/jsonl",
     });
@@ -1483,10 +1492,8 @@ describe("UnquoteApp", () => {
         <UnquoteApp />
       </I18nProvider>,
     );
-    const file = new File(
-      [`${JSON.stringify({ value: 1 })}\n${" ".repeat(1_000_000)}`],
-      "large.jsonl",
-    );
+    const line = `${JSON.stringify({ value: 1 })}\n`;
+    const file = new File([line.repeat(Math.ceil(1_000_001 / line.length))], "large.jsonl");
 
     fireEvent.paste(
       screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
@@ -1506,7 +1513,9 @@ describe("UnquoteApp", () => {
     await waitFor(() =>
       expect(container.querySelector(".uq-shell")).toHaveAttribute("data-source-file", ""),
     );
-    await waitFor(() => expect(screen.getAllByText("value").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(container.querySelector(".uq-shell")).toHaveAttribute("data-parse-state", "complete"),
+    );
 
     await setInputFormat(user, "JSONL");
 

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../src/i18n/context";
+import { sourceDetectionProbeByteBudget } from "../src/lib/source-detect";
 import {
   createControlledStreamFile,
   createFailingStreamFile,
@@ -23,6 +24,8 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 import { useSourceLoader } from "../src/hooks/use-source-loader";
 
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
+const oversizedJsonlContents = (line = '{"loaded":true}\n') =>
+  line.repeat(Math.ceil(1_000_001 / line.length));
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
 // Each chunk is released by the test, so the count reflects exactly how far the
@@ -60,6 +63,29 @@ const createCountingStreamFile = (name = "counted.json") => {
       releaseChunk?.();
       return releaseChunk !== null;
     },
+  };
+};
+
+const createControlledProbeFile = (name = "probe.txt") => {
+  const source = createStreamFile(oversizedJsonlContents(), name);
+  const probe = new Blob([]);
+  let canceled = false;
+  const probeStream = vi.fn(
+    () =>
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          canceled = true;
+        },
+      }),
+  );
+  Object.defineProperty(probe, "stream", { configurable: true, value: probeStream });
+  const slice = vi.spyOn(source.file, "slice").mockReturnValue(probe);
+
+  return {
+    ...source,
+    probeStream,
+    slice,
+    isProbeCanceled: () => canceled,
   };
 };
 
@@ -195,7 +221,7 @@ describe("useSourceLoader", () => {
   });
 
   it("switches a large file between streaming and imported modes", async () => {
-    const contents = oversizedContents('{"loaded":true}');
+    const contents = oversizedJsonlContents();
     const { file, stream } = createStreamFile(contents, "large.jsonl");
     const { result } = setup();
 
@@ -214,6 +240,108 @@ describe("useSourceLoader", () => {
     expect(result.current.sourceAccess?.getFile()).toBe(file);
     expect(result.current.sourceText).toBe("");
     expect(result.current.mode).toBe("jsonl");
+  });
+
+  it.each(["trace.txt", "events.json", "trace"])(
+    "streams large JSONL from content when named %s",
+    async (name) => {
+      const { file, stream } = createStreamFile(oversizedJsonlContents(), name);
+      const slice = vi.spyOn(file, "slice");
+      const { result } = setup();
+
+      await act(() => result.current.onFileDrop(file, "auto"));
+
+      expect(result.current.sourceAccess?.getFile()).toBe(file);
+      expect(result.current.importedFile).toBeNull();
+      expect(stream).not.toHaveBeenCalled();
+      expect(slice).toHaveBeenCalledWith(0, sourceDetectionProbeByteBudget + 1);
+    },
+  );
+
+  it("recognizes CRLF JSONL after a BOM and leading blank lines", async () => {
+    const contents = oversizedContents('\uFEFF\r\n\r\n{"i":1}\r\n{"i":2}\r\n');
+    const { file, stream } = createStreamFile(contents, "trace.txt");
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file, "auto"));
+
+    expect(result.current.sourceAccess?.getFile()).toBe(file);
+    expect(stream).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["large pretty JSON", `{\n  "blob": "${"x".repeat(1_000_000)}"\n}`],
+    ["large single-line JSON", `{"blob":"${"x".repeat(1_000_000)}"}`],
+    [
+      "JSONL with no complete line in the probe",
+      oversizedContents(`{"blob":"${"x".repeat(70 * 1024)}"}\n{"i":2}\n`),
+    ],
+  ])("keeps ambiguous %s on the full-read path", async (_, contents) => {
+    const { file, stream } = createStreamFile(contents, "misleading.jsonl");
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file, "auto"));
+
+    expect(result.current.sourceAccess).toBeNull();
+    expect(result.current.importedFile).toBe(file);
+    expect(stream).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a content probe superseded by a text source", async () => {
+    const controlled = createControlledProbeFile();
+    const { result } = setup();
+    let importPromise: Promise<void> | undefined;
+
+    act(() => {
+      importPromise = result.current.onFileDrop(controlled.file, "auto");
+    });
+    expect(controlled.probeStream).toHaveBeenCalledOnce();
+
+    act(() => result.current.onSourceChange("replacement"));
+    await act(async () => {
+      await importPromise;
+    });
+
+    expect(controlled.isProbeCanceled()).toBe(true);
+    expect(controlled.stream).not.toHaveBeenCalled();
+    expect(result.current.sourceText).toBe("replacement");
+    expect(result.current.sourceAccess).toBeNull();
+  });
+
+  it("cancels a content probe when a newer file is selected", async () => {
+    const stale = createControlledProbeFile("stale.txt");
+    const fresh = createStreamFile(oversizedJsonlContents(), "fresh.data");
+    const { result } = setup();
+    let stalePromise: Promise<void> | undefined;
+
+    act(() => {
+      stalePromise = result.current.onFileDrop(stale.file, "auto");
+    });
+    await act(async () => {
+      await result.current.onFileDrop(fresh.file, "jsonl");
+      await stalePromise;
+    });
+
+    expect(stale.isProbeCanceled()).toBe(true);
+    expect(stale.stream).not.toHaveBeenCalled();
+    expect(result.current.sourceAccess?.getFile()).toBe(fresh.file);
+  });
+
+  it("cancels an in-flight content probe when the owner unmounts", async () => {
+    const controlled = createControlledProbeFile();
+    const { result, unmount } = setup();
+    let importPromise: Promise<void> | undefined;
+
+    act(() => {
+      importPromise = result.current.onFileDrop(controlled.file, "auto");
+    });
+    unmount();
+    await act(async () => {
+      await importPromise;
+    });
+
+    expect(controlled.isProbeCanceled()).toBe(true);
+    expect(controlled.stream).not.toHaveBeenCalled();
   });
 
   it("publishes an asynchronous file and its candidate mode together", async () => {

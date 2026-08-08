@@ -1,6 +1,6 @@
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
-import { createLocalFileAccess } from "../src/lib/local-file-source";
+import { createLocalFileAccess, readFileHead } from "../src/lib/local-file-source";
 import { searchRecords } from "../src/lib/record-search";
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
@@ -288,6 +288,25 @@ describe("local-file-source", () => {
       controller.abort();
 
       await expect(search).rejects.toMatchObject({ name: "AbortError" });
+      expect(abort).toHaveBeenCalledOnce();
+    } finally {
+      abort.mockRestore();
+    }
+  });
+
+  it("aborts a FileReader-backed file-head probe", async () => {
+    const file = new File(["probe"], "payload.txt");
+    const head = new Blob(["probe"]);
+    Object.defineProperty(head, "stream", { configurable: true, value: undefined });
+    vi.spyOn(file, "slice").mockReturnValue(head);
+    const abort = vi.spyOn(FileReader.prototype, "abort");
+    const controller = new AbortController();
+
+    try {
+      const read = readFileHead(file, 5, controller.signal);
+      controller.abort();
+
+      await expect(read).rejects.toMatchObject({ name: "AbortError" });
       expect(abort).toHaveBeenCalledOnce();
     } finally {
       abort.mockRestore();
