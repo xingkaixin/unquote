@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  createAgentSessionFromText,
-  createAgentSessionModel,
-  createAgentSessionTracker,
-} from "../src/lib/agent-session";
+import { parseJson } from "@unquote/core";
+import { createAgentSessionModel, createAgentSessionTracker } from "../src/lib/agent-session";
 import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
@@ -16,6 +13,30 @@ const codexEvent = (type = "token_count") =>
 
 const unrelatedEvent = (index: number) => JSON.stringify({ event: "worker.tick", index });
 
+const pushRawLine = (
+  tracker: ReturnType<typeof createAgentSessionTracker>,
+  raw: string,
+  lineNumber: number,
+) => {
+  if (!raw.trim()) {
+    return;
+  }
+  try {
+    tracker.pushParsedLine({
+      lineNumber,
+      data: parseJson(raw, { numbers: "approximate" }),
+    });
+  } catch {
+    tracker.pushParseWarning(lineNumber);
+  }
+};
+
+const createAgentSessionFromText = (text: string, fileName?: string) => {
+  const tracker = createAgentSessionTracker(fileName);
+  text.split(/\r?\n/).forEach((raw, index) => pushRawLine(tracker, raw, index + 1));
+  return tracker.finish();
+};
+
 const conversationItems = (session: AgentSession | null | undefined) =>
   session ? createAgentSessionModel(session).conversation.map(({ item }) => item) : [];
 
@@ -27,7 +48,7 @@ describe("createAgentSessionTracker", () => {
       payload: { session_id: "stream-session" },
     });
 
-    tracker.pushRawLine("", 1);
+    pushRawLine(tracker, "", 1);
     tracker.pushParseWarning(2);
     tracker.pushParsedLine({
       lineNumber: 4,
@@ -49,15 +70,15 @@ describe("createAgentSessionTracker", () => {
     const tracker = createAgentSessionTracker();
 
     for (let index = 1; index <= 5; index += 1) {
-      tracker.pushRawLine(unrelatedEvent(index), index);
+      pushRawLine(tracker, unrelatedEvent(index), index);
     }
     for (let index = 6; index <= 20; index += 1) {
-      tracker.pushRawLine(codexEvent(), index);
+      pushRawLine(tracker, codexEvent(), index);
     }
     for (let index = 21; index <= 80; index += 1) {
-      tracker.pushRawLine(unrelatedEvent(index), index);
+      pushRawLine(tracker, unrelatedEvent(index), index);
     }
-    tracker.pushRawLine(codexEvent("task_complete"), 81);
+    pushRawLine(tracker, codexEvent("task_complete"), 81);
 
     const session = tracker.finish();
     expect(session?.fileType).toBe("Codex");
@@ -69,11 +90,11 @@ describe("createAgentSessionTracker", () => {
     const tracker = createAgentSessionTracker();
 
     for (let index = 1; index < 80; index += 1) {
-      tracker.pushRawLine(unrelatedEvent(index), index);
+      pushRawLine(tracker, unrelatedEvent(index), index);
     }
-    tracker.pushRawLine(codexEvent(), 80);
+    pushRawLine(tracker, codexEvent(), 80);
     for (let index = 81; index <= 160; index += 1) {
-      tracker.pushRawLine(codexEvent(), index);
+      pushRawLine(tracker, codexEvent(), index);
     }
 
     expect(tracker.finish()).toBeNull();

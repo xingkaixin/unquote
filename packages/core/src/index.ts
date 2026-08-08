@@ -1,12 +1,14 @@
 export {
   formatResult,
   parseInput,
+  parseInputForIngestion,
   parseJsonlRecordLine,
   parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
   parsePreviewJsonlRecordLineWithValue,
   restoreNode,
 } from "./parser.js";
+export type { JsonlRecordLineResult, ParseInputForIngestionResult } from "./parser.js";
 export { materializeNode, stringifyJsonNode } from "./serialization.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";
 export { hasJsonNodeChildren, isStringifiedNode, isTruncatedJsonNode } from "./nodes.js";

@@ -1,7 +1,7 @@
 import type { ParseResult } from "@unquote/core";
 import { isParsed, parseInput } from "@unquote/core";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { useMemo } from "react";
+import { StrictMode, useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { I18nProvider } from "../src/i18n/context";
@@ -205,6 +205,12 @@ const Probe = (props: ProbeProps) => (
   </I18nProvider>
 );
 
+const renderAfterMount = (props: ProbeProps) => {
+  const rendered = render(<Probe input="" />);
+  rendered.rerender(<Probe {...props} />);
+  return rendered;
+};
+
 describe("useParser", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -223,7 +229,7 @@ describe("useParser", () => {
   });
 
   it("merges batches and ignores stale responses", async () => {
-    const { rerender } = render(<Probe input="first" />);
+    const { rerender } = renderAfterMount({ input: "first" });
     await act(() => vi.advanceTimersByTimeAsync(121));
     rerender(<Probe input="second" />);
     await act(() => vi.advanceTimersByTimeAsync(121));
@@ -268,6 +274,26 @@ describe("useParser", () => {
     expect(screen.getByTestId("agent-session")).toHaveTextContent("absent");
   });
 
+  it("reuses a completed mount parse without publishing the Source to a Worker", async () => {
+    const input = JSON.stringify({
+      type: "session_meta",
+      payload: { session_id: "mount-session" },
+    });
+
+    render(
+      <StrictMode>
+        <Probe input={input} forcedFormat="jsonl" />
+      </StrictMode>,
+    );
+    expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+
+    await act(() => vi.advanceTimersByTimeAsync(121));
+
+    expect(MockWorker.instances).toHaveLength(0);
+    expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
   it("parses a file on the main thread and ignores an obsolete read", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
     let resolveOldFile: ((value: string) => void) | undefined;
@@ -307,7 +333,7 @@ describe("useParser", () => {
   });
 
   it("posts non-streaming JSON requests without an implicit format", async () => {
-    const { rerender, unmount } = render(<Probe input='{"value":1}' />);
+    const { rerender, unmount } = renderAfterMount({ input: '{"value":1}' });
     await act(() => vi.advanceTimersByTimeAsync(121));
 
     expect(MockWorker.instances[0]?.messages).toContainEqual({
@@ -332,7 +358,7 @@ describe("useParser", () => {
   it("parses on the main thread when the worker cannot be constructed", () => {
     MockWorker.failConstruction = true;
 
-    render(<Probe input='{"value":1}' forcedFormat="json" />);
+    renderAfterMount({ input: '{"value":1}', forcedFormat: "json" });
 
     expect(MockWorker.instances).toHaveLength(0);
     expect(screen.getByTestId("stats")).toHaveTextContent("1");
@@ -342,7 +368,7 @@ describe("useParser", () => {
   it("finishes the request when the worker rejects a posted message", async () => {
     MockWorker.postMessageFailsFrom = 1;
 
-    render(<Probe input='{"value":1}' forcedFormat="json" />);
+    renderAfterMount({ input: '{"value":1}', forcedFormat: "json" });
     await act(() => vi.advanceTimersByTimeAsync(121));
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
@@ -354,7 +380,7 @@ describe("useParser", () => {
     ["an uncaught worker error", (worker: MockWorker) => worker.fail()],
     ["an undeserializable message", (worker: MockWorker) => worker.failDeserialization()],
   ])("finishes a stalled parse after %s", async (_label, provokeFailure) => {
-    render(<Probe input="stalled" forcedFormat="json" />);
+    renderAfterMount({ input: "stalled", forcedFormat: "json" });
     await act(() => vi.advanceTimersByTimeAsync(121));
     expect(screen.getByTestId("progress")).toHaveTextContent("pending");
 
@@ -366,7 +392,7 @@ describe("useParser", () => {
   });
 
   it("builds a fresh worker for the request after a worker failure", async () => {
-    const { rerender } = render(<Probe input="stalled" forcedFormat="json" />);
+    const { rerender } = renderAfterMount({ input: "stalled", forcedFormat: "json" });
     await act(() => vi.advanceTimersByTimeAsync(121));
     act(() => MockWorker.instances[0]!.fail());
 
@@ -384,7 +410,7 @@ describe("useParser", () => {
     ["a mid-stream chunk cannot be posted", 3, 1],
   ])("finishes a streaming parse when %s", async (_label, failsFrom, expectedChunks) => {
     MockWorker.postMessageFailsFrom = failsFrom;
-    render(<Probe input={`${"x".repeat(256 * 1024)}\n{}`} forcedFormat="jsonl" />);
+    renderAfterMount({ input: `${"x".repeat(256 * 1024)}\n{}`, forcedFormat: "jsonl" });
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
 
@@ -399,7 +425,7 @@ describe("useParser", () => {
 
   it("streams large JSONL input in bounded chunks", async () => {
     const input = `${"x".repeat(256 * 1024)}\n{}`;
-    render(<Probe input={input} forcedFormat="jsonl" />);
+    renderAfterMount({ input, forcedFormat: "jsonl" });
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
 

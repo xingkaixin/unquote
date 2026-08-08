@@ -1,7 +1,7 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parseInputForIngestion } from "@unquote/core";
 import type { ParseOptions, ParseResult } from "@unquote/core";
-import { createAgentSessionFromText } from "./agent-session";
 import type { AgentSession } from "./agent-session";
+import { createJsonlIngestion } from "./jsonl-ingestion";
 
 export type ForcedFormat = NonNullable<ParseOptions["forcedFormat"]>;
 
@@ -29,12 +29,28 @@ export const parseTextResult = (input: string, forcedFormat?: ForcedFormat) =>
 
 export const parseText = (input: string, options: ParseTextOptions = {}): ParsedText => {
   const startedAt = performance.now();
-  const result = parseTextResult(input, options.forcedFormat);
+  const parsed = parseInputForIngestion(
+    input,
+    options.forcedFormat ? { forcedFormat: options.forcedFormat } : {},
+  );
+  let result: ParseResult;
+  let agentSession: AgentSession | null;
+  if (parsed.format === "json") {
+    result = parsed.result;
+    agentSession = null;
+  } else {
+    const ingestion = createJsonlIngestion(options.fileName);
+    result = {
+      format: "jsonl",
+      records: parsed.lines.map(ingestion.push),
+      stats: ingestion.stats(),
+    };
+    agentSession = ingestion.finishAgentSession();
+  }
 
   return {
     result,
-    agentSession:
-      result.format === "jsonl" ? createAgentSessionFromText(input, options.fileName) : null,
+    agentSession,
     progress: {
       processedLines: result.stats.total,
       success: result.stats.success,

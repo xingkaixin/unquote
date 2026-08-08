@@ -81,16 +81,26 @@ export const useParser = ({
   sourceRevision,
 }: UseParserOptions) => {
   const { t } = useTranslation();
-  const [parserState, setParserState] = useState<ParserSnapshot>(() => {
+  const [mountParse] = useState(() => {
     // Mount-time parsing is synchronous too, so an oversized initial input
     // waits for the effect below rather than blocking the first paint.
-    if (!isWithinMainThreadBudget(input.length)) {
-      return pendingSnapshot(sourceRevision, forcedFormat, sourceAccess);
+    if (sourceAccess || !isWithinMainThreadBudget(input.length)) {
+      return null;
     }
 
-    const { result, agentSession, progress } = parseText(input, { forcedFormat });
-    return { sourceRevision, result, progress, agentSession, recordAppend: null };
+    return {
+      sourceRevision,
+      input,
+      forcedFormat,
+      parsed: parseText(input, { forcedFormat }),
+    };
   });
+  const [parserState, setParserState] = useState<ParserSnapshot>(() =>
+    mountParse
+      ? { sourceRevision, ...mountParse.parsed, recordAppend: null }
+      : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+  );
+  const canReuseMountParseRef = useRef(mountParse !== null);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
   const sourceFile = sourceAccess?.getFile() ?? null;
@@ -102,6 +112,17 @@ export const useParser = ({
   });
 
   useEffect(() => {
+    if (
+      canReuseMountParseRef.current &&
+      mountParse?.sourceRevision === sourceRevision &&
+      mountParse.input === input &&
+      mountParse.forcedFormat === forcedFormat &&
+      !sourceAccess
+    ) {
+      return;
+    }
+    canReuseMountParseRef.current = false;
+
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
@@ -343,7 +364,7 @@ export const useParser = ({
       currentWorker.removeEventListener("error", abandonWorker);
       currentWorker.removeEventListener("messageerror", abandonWorker);
     };
-  }, [forcedFormat, input, sourceAccess, sourceRevision]);
+  }, [forcedFormat, input, mountParse, sourceAccess, sourceRevision]);
 
   // Terminate the worker thread when the hook's owner unmounts; the per-request
   // cleanup above only detaches listeners and timers.
