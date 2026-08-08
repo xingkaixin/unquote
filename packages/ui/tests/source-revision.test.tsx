@@ -66,6 +66,7 @@ interface ProbeProps {
   text: string;
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File | null;
+  query?: string;
 }
 
 const RevisionProbe = ({
@@ -73,6 +74,7 @@ const RevisionProbe = ({
   text,
   forcedFormat = "json",
   sourceFile = null,
+  query = "needle",
 }: ProbeProps) => {
   const sourceAccess = useMemo(
     () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
@@ -84,7 +86,7 @@ const RevisionProbe = ({
     forcedFormat,
     sourceAccess,
     sourceRevision,
-    query: "needle",
+    query,
     options,
   });
   const aligned = shareSourceRevision(sourceRevision, parser, search);
@@ -116,6 +118,12 @@ const Probe = (props: ProbeProps) => (
     <RevisionProbe {...props} />
   </I18nProvider>
 );
+
+const renderAfterMount = (props: ProbeProps) => {
+  const rendered = render(<Probe sourceRevision={0} text="" query="" />);
+  rendered.rerender(<Probe {...props} />);
+  return rendered;
+};
 
 const completeParser = (worker: ControlledWorker, requestId: number, text: string) => {
   const result = parseInput(text, { forcedFormat: "json" });
@@ -154,20 +162,20 @@ describe("Source Revision", () => {
     const first = '{"value":"old needle"}';
     const second = '{"value":"new needle"}';
     const third = '{"value":"latest needle"}';
-    const { rerender } = render(<Probe sourceRevision={1} text={first} />);
+    const { rerender } = renderAfterMount({ sourceRevision: 1, text: first });
     await act(() => vi.advanceTimersByTimeAsync(121));
 
     const parserWorker = ControlledWorker.parserWorkers[0]!;
     const firstSearchWorker = ControlledWorker.searchWorkers[0]!;
     act(() => completeParser(parserWorker, 1, first));
-    act(() => firstSearchWorker.respond({ type: "result", requestId: 1, result: searchResult() }));
+    act(() => firstSearchWorker.respond({ type: "result", requestId: 2, result: searchResult() }));
     expect(screen.getByTestId("records")).toHaveTextContent("value:old needle");
     expect(screen.getByTestId("matches")).toHaveTextContent("1");
 
     rerender(<Probe sourceRevision={2} text={second} />);
     await act(() => vi.advanceTimersByTimeAsync(121));
     const secondSearchWorker = ControlledWorker.searchWorkers.at(-1)!;
-    act(() => secondSearchWorker.respond({ type: "result", requestId: 2, result: searchResult() }));
+    act(() => secondSearchWorker.respond({ type: "result", requestId: 3, result: searchResult() }));
     act(() => completeParser(parserWorker, 1, first));
     expect(screen.getByTestId("records")).toHaveTextContent("");
     expect(screen.getByTestId("matches")).toHaveTextContent("0");
@@ -181,7 +189,7 @@ describe("Source Revision", () => {
     act(() => completeParser(parserWorker, 3, third));
     expect(screen.getByTestId("records")).toHaveTextContent("value:latest needle");
     expect(screen.getByTestId("matches")).toHaveTextContent("0");
-    act(() => thirdSearchWorker.respond({ type: "result", requestId: 3, result: searchResult() }));
+    act(() => thirdSearchWorker.respond({ type: "result", requestId: 4, result: searchResult() }));
     expect(screen.getByTestId("matches")).toHaveTextContent("1");
 
     expect(
@@ -200,14 +208,14 @@ describe("Source Revision", () => {
 
   it("invalidates committed derivations for mode and text-to-file revisions", async () => {
     const text = '{"value":"needle"}';
-    const { rerender } = render(<Probe sourceRevision={1} text={text} />);
+    const { rerender } = renderAfterMount({ sourceRevision: 1, text });
     await act(() => vi.advanceTimersByTimeAsync(121));
     const parserWorker = ControlledWorker.parserWorkers[0]!;
     act(() => completeParser(parserWorker, 1, text));
     act(() =>
       ControlledWorker.searchWorkers[0]!.respond({
         type: "result",
-        requestId: 1,
+        requestId: 2,
         result: searchResult(),
       }),
     );
