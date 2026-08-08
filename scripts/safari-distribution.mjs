@@ -47,7 +47,7 @@ export const findSafariManifestProblems = (manifest) => {
   if (manifest?.permissions?.includes("clipboardRead")) {
     problems.push("Safari does not support the clipboardRead permission");
   }
-  for (const permission of ["contextMenus", "storage"]) {
+  for (const permission of ["alarms", "contextMenus", "storage"]) {
     if (!manifest?.permissions?.includes(permission)) {
       problems.push(`missing the ${permission} permission`);
     }

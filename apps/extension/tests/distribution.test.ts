@@ -14,6 +14,7 @@ const manifestFor = (config: typeof baseConfig, browser: string) => {
 describe("extension manifest policy", () => {
   it.each(["chrome", "firefox", "edge"])("asks for clipboard access on %s", (browser) => {
     expect(createExtensionManifest(browser).permissions).toEqual([
+      "alarms",
       "contextMenus",
       "storage",
       "clipboardRead",
@@ -21,7 +22,11 @@ describe("extension manifest policy", () => {
   });
 
   it("drops clipboardRead on Safari, which has no such permission", () => {
-    expect(createExtensionManifest("safari").permissions).toEqual(["contextMenus", "storage"]);
+    expect(createExtensionManifest("safari").permissions).toEqual([
+      "alarms",
+      "contextMenus",
+      "storage",
+    ]);
   });
 
   it.each(["chrome", "safari"])("keeps commands, locale, and icons identical on %s", (browser) => {
