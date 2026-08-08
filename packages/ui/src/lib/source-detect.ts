@@ -1,14 +1,11 @@
 export type SourceDetection =
   | { kind: "empty" }
   | { kind: "json" }
-  | { kind: "jsonl"; lines: number }
+  | { kind: "jsonl"; lines: number; precision: "exact" | "lower-bound" }
   | { kind: "invalid" };
 
-// The draft is re-sniffed on every keystroke, so the scan below allocates
-// nothing per line and parses at most this budget plus the one line that
-// crosses it; any candidate longer than the budget is judged by its shape.
-const probeBudget = 64 * 1024;
-const probedLines = 40;
+export const sourceDetectionProbeByteBudget = 64 * 1024;
+export const sourceDetectionLineBudget = 40;
 
 const parses = (text: string) => {
   try {
@@ -19,63 +16,100 @@ const parses = (text: string) => {
   }
 };
 
-const isBracketed = (text: string) => {
-  const last = text.at(-1);
-  return (text[0] === "{" && last === "}") || (text[0] === "[" && last === "]");
-};
-
-const looksLikeJson = (text: string) =>
-  text.length > probeBudget ? isBracketed(text) : parses(text);
-
 interface DraftLines {
   count: number;
+  precision: "exact" | "lower-bound";
   probe: string[];
+  firstNonWhitespace: string | null;
 }
+
+const trimLine = (text: string, start: number, end: number) => {
+  while (start < end && text.charCodeAt(start) <= 32) {
+    start += 1;
+  }
+  while (end > start && text.charCodeAt(end - 1) <= 32) {
+    end -= 1;
+  }
+  return { start, end };
+};
 
 const scanLines = (text: string): DraftLines => {
   const probe: string[] = [];
   let count = 0;
-  let budget = probeBudget;
+  let bytes = 0;
   let index = 0;
+  let lineStart = 0;
+  let firstNonWhitespace: string | null = null;
 
-  for (;;) {
-    const brk = text.indexOf("\n", index);
-    const end = brk === -1 ? text.length : brk;
-    let start = index;
-    while (start < end && text.charCodeAt(start) <= 32) {
-      start += 1;
-    }
-
-    let stop = end;
-    while (stop > start && text.charCodeAt(stop - 1) <= 32) {
-      stop -= 1;
-    }
-
-    if (start < stop) {
+  const collectLine = (end: number, complete: boolean) => {
+    const trimmed = trimLine(text, lineStart, end);
+    if (trimmed.start < trimmed.end) {
       count += 1;
-      if (probe.length < probedLines && budget > 0) {
-        budget -= stop - start;
-        probe.push(text.slice(start, stop));
+      if (complete) {
+        probe.push(text.slice(trimmed.start, trimmed.end));
+      }
+    }
+  };
+
+  while (index < text.length && count < sourceDetectionLineBudget) {
+    const code = text.charCodeAt(index);
+    let byteWidth = 3;
+    let unitWidth = 1;
+    if (code <= 0x7f) {
+      byteWidth = 1;
+    } else if (code <= 0x7ff) {
+      byteWidth = 2;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        byteWidth = 4;
+        unitWidth = 2;
       }
     }
 
-    if (brk === -1) {
-      return { count, probe };
+    if (bytes + byteWidth > sourceDetectionProbeByteBudget) {
+      break;
     }
 
-    index = brk + 1;
+    if (firstNonWhitespace === null && code > 32) {
+      firstNonWhitespace = text[index] ?? null;
+    }
+
+    bytes += byteWidth;
+    index += unitWidth;
+    if (code === 10) {
+      collectLine(index - 1, true);
+      lineStart = index;
+    }
   }
+
+  if (index === text.length) {
+    collectLine(index, true);
+    return { count, precision: "exact", probe, firstNonWhitespace };
+  }
+
+  collectLine(index, false);
+  return { count, precision: "lower-bound", probe, firstNonWhitespace };
 };
 
 export const detectSourceFormat = (text: string): SourceDetection => {
-  const { count, probe } = scanLines(text);
-  if (count === 0) {
+  const scan = scanLines(text);
+  if (scan.count === 0 && scan.precision === "exact") {
     return { kind: "empty" };
   }
 
-  if (count > 1 && probe.every((line) => looksLikeJson(line))) {
-    return { kind: "jsonl", lines: count };
+  if (scan.count > 1 && scan.probe.length > 1 && scan.probe.every(parses)) {
+    return {
+      kind: "jsonl",
+      lines: scan.count,
+      precision: scan.precision,
+    };
   }
 
-  return looksLikeJson(text.trim()) ? { kind: "json" } : { kind: "invalid" };
+  const looksLikeJson =
+    scan.precision === "exact"
+      ? parses(text.trim())
+      : (scan.firstNonWhitespace === "{" && text.at(-1) === "}") ||
+        (scan.firstNonWhitespace === "[" && text.at(-1) === "]");
+  return looksLikeJson ? { kind: "json" } : { kind: "invalid" };
 };

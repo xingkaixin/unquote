@@ -80,6 +80,7 @@ export const en = {
   "input.detectWaiting": "Waiting for input",
   "input.detectJson": "Detected JSON",
   "input.detectJsonl": "Detected JSONL · {lines} lines",
+  "input.detectJsonlAtLeast": "Detected JSONL · at least {lines} lines",
   "input.detectInvalid": "Cannot parse — check the format",
   "input.readingFile": "Reading {name} · {size}",
   "input.parsingFile": "Parsing {name} · {size} · {processed} lines processed",
