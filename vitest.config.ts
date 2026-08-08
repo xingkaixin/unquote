@@ -23,8 +23,9 @@ export default defineConfig({
         "packages/core/src/**/*.ts",
         "packages/ui/src/**/*.{ts,tsx}",
         "apps/web/src/**/*.ts",
-        "apps/extension/src/**/*.ts",
+        "apps/extension/src/**/*.{ts,tsx}",
         "apps/extension/entrypoints/background.ts",
+        "apps/extension/entrypoints/options/main.tsx",
       ],
       exclude: ["**/*.d.ts", "**/types.ts", "**/index.ts"],
       thresholds: {
