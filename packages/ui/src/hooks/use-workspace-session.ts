@@ -1,15 +1,12 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AgentDetailSelection } from "../lib/agent-session";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
-import { isRecordAppendFrom } from "../lib/record-sequence";
-import type { RecordAppend } from "../lib/record-sequence";
 import {
   addExpandedStringifiedPaths,
   clearExpandedStringifiedPaths,
   getExpandedStringifiedPaths,
-  groupExpandedStringifiedPaths,
   replaceExpandedStringifiedPathsBatch,
   toggleExpandedStringifiedPath,
   type ExpandedStringifiedPathsByRecord,
@@ -39,12 +36,16 @@ interface WorkspaceSessionValue {
   selection: ReturnType<typeof createInitialWorkspaceSelectionState>;
   expandedPaths: ExpandedStringifiedPathsByRecord;
   searchExpandedPaths: ExpandedStringifiedPathsByRecord;
+  searchExpansionSource: readonly SearchMatch[];
 }
+
+export const emptyWorkspaceSearchMatches: SearchMatch[] = [];
 
 const createWorkspaceSessionValue = (): WorkspaceSessionValue => ({
   selection: createInitialWorkspaceSelectionState(),
   expandedPaths: createExpandedPaths(),
   searchExpandedPaths: createExpandedPaths(),
+  searchExpansionSource: emptyWorkspaceSearchMatches,
 });
 
 // Sample loading publishes a source and seeds that future revision in one
@@ -194,38 +195,30 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [dispatchSelection],
   );
 
-  const prevVisibleRecordsRef = useRef<RevisionedValue<readonly JsonlRecord[]> | null>(null);
-  const reconcileVisibleRecords = useCallback(
-    (records: readonly JsonlRecord[], recordAppend: RecordAppend | null = null) => {
-      const previous = prevVisibleRecordsRef.current;
-      if (previous && previous.sourceRevision > sourceRevision) {
-        return;
-      }
+  const commitQueryProjection = useCallback(
+    (
+      selection: WorkspaceSessionValue["selection"],
+      searchExpansionSource: readonly SearchMatch[],
+      searchExpandedPaths: ExpandedStringifiedPathsByRecord,
+    ) => {
+      updateWorkspace((current) => {
+        if (
+          current.selection === selection &&
+          current.searchExpansionSource === searchExpansionSource &&
+          current.searchExpandedPaths === searchExpandedPaths
+        ) {
+          return current;
+        }
 
-      const prevRecords =
-        previous && belongsToSourceRevision(sourceRevision, previous) ? previous.value : null;
-      if (isRecordAppendFrom(prevRecords, records, recordAppend)) {
-        dispatchSelection({
-          type: "recordsAppended",
-          firstRecordId: records[0]?.id ?? null,
-        });
-      } else {
-        dispatchSelection({
-          type: "recordsVisibilityChanged",
-          recordIds: records.map((record) => record.id),
-        });
-      }
-      prevVisibleRecordsRef.current = { sourceRevision, value: records };
+        return {
+          ...current,
+          selection,
+          searchExpansionSource,
+          searchExpandedPaths,
+        };
+      });
     },
-    [dispatchSelection, sourceRevision],
-  );
-
-  const synchronizeSearchExpansions = useCallback(
-    (matches: readonly SearchMatch[]) => {
-      const groupedPaths = groupExpandedStringifiedPaths(matches);
-      setSearchExpandedPaths(() => groupedPaths);
-    },
-    [setSearchExpandedPaths],
+    [updateWorkspace],
   );
 
   const setSampleExpansions = useCallback(
@@ -323,14 +316,18 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
       selectedPath: workspaceState.selection.selectedPath,
       scrollIntent: workspaceState.selection.scrollIntent,
     },
+    queryProjectionState: {
+      selection: workspaceState.selection,
+      searchExpansionSource: workspaceState.searchExpansionSource,
+      searchExpandedPaths: workspaceState.searchExpandedPaths,
+    },
     navigate,
     selectPath,
     selectNode,
     selectRecord,
     selectAgentDetail,
     scrollToPath,
-    reconcileVisibleRecords,
-    synchronizeSearchExpansions,
+    commitQueryProjection,
     setSampleExpansions,
     expandAll,
     collapseAll,
