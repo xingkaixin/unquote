@@ -6,7 +6,11 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NodeInspector } from "../src/components/node-inspector";
 import { I18nProvider } from "../src/i18n/context";
-import { inspectorCharLimit, inspectorNodeLimit } from "../src/lib/selected-node";
+import {
+  inspectorCharLimit,
+  inspectorNodeLimit,
+  projectSelectedNode,
+} from "../src/lib/selected-node";
 
 afterEach(cleanup);
 
@@ -18,10 +22,12 @@ const selectionFor = (record: JsonlRecord, pathText: string, rawKey: string) => 
   rawKey,
 });
 
+const projectionFor = (record: JsonlRecord, pathText: string, rawKey: string) =>
+  projectSelectedNode(record, selectionFor(record, pathText, rawKey));
+
 const renderInspector = (overrides: Partial<ComponentProps<typeof NodeInspector>> = {}) => {
   const props: ComponentProps<typeof NodeInspector> = {
-    record: null,
-    selectedPath: null,
+    projection: { kind: "empty", copy: { kind: "blocked" } },
     hasNestedJson: false,
     onCopyValue: vi.fn(),
     onCopyPath: vi.fn(),
@@ -46,18 +52,14 @@ const valuePanel = (container: HTMLElement) =>
   container.querySelector<HTMLElement>(".whitespace-pre-wrap");
 
 describe("NodeInspector", () => {
-  it("prompts for a selection until one belongs to the shown record", () => {
+  it("prompts for a selection until a projection is available", () => {
     const record = recordOf('{"a":1}');
-    const { container, rerender } = renderInspector({ record });
+    const { container, rerender } = renderInspector();
 
     expect(screen.getByText("Select a node in the tree")).toBeInTheDocument();
     expect(valuePanel(container)).toBeNull();
 
-    rerender({ selectedPath: { recordId: "record-9", pathText: "$.a", rawKey: "a" } });
-    expect(screen.getByText("Select a node in the tree")).toBeInTheDocument();
-
-    // A selection this record cannot resolve is the same nothing-to-show state.
-    rerender({ selectedPath: selectionFor(record, "$.gone", "gone") });
+    rerender({ projection: projectionFor(record, "$.missing", "missing") });
     expect(screen.getByText("Select a node in the tree")).toBeInTheDocument();
     expect(valuePanel(container)).toBeNull();
   });
@@ -66,8 +68,7 @@ describe("NodeInspector", () => {
     const user = userEvent.setup();
     const record = recordOf('{"a":{"b":1}}');
     const { container, props } = renderInspector({
-      record,
-      selectedPath: selectionFor(record, "$.a", "a"),
+      projection: projectionFor(record, "$.a", "a"),
     });
 
     expect(screen.getByText("a")).toBeInTheDocument();
@@ -83,38 +84,72 @@ describe("NodeInspector", () => {
   it("shows an unsafe number without rounding it", () => {
     const record = recordOf('{"large":9007199254740993}');
     const { container } = renderInspector({
-      record,
-      selectedPath: selectionFor(record, "$.large", "large"),
+      projection: projectionFor(record, "$.large", "large"),
     });
 
     expect(valuePanel(container)).toHaveTextContent("9007199254740993");
   });
 
-  it("clips an oversized value and says so", () => {
+  it("clips an oversized preview while keeping an eligible copy enabled", () => {
     const record = recordOf(JSON.stringify({ big: "x".repeat(inspectorCharLimit + 5_000) }));
     const { container } = renderInspector({
-      record,
-      selectedPath: selectionFor(record, "$.big", "big"),
+      projection: projectionFor(record, "$.big", "big"),
     });
 
     expect(valuePanel(container)?.textContent).toHaveLength(inspectorCharLimit);
     expect(screen.getByText("Value truncated for preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy value" })).toBeEnabled();
   });
 
-  it("refuses to materialize a value above the node budget", () => {
+  it("disables copy for a node above the traversal budget", async () => {
+    const user = userEvent.setup();
     const list = Array.from({ length: inspectorNodeLimit + 1 }, (_, index) => index);
     const record = recordOf(JSON.stringify({ list }));
-    renderInspector({ record, selectedPath: selectionFor(record, "$.list", "list") });
+    const onCopyValue = vi.fn();
+    renderInspector({
+      projection: projectionFor(record, "$.list", "list"),
+      onCopyValue,
+    });
 
     expect(screen.getByText("This value is too large to preview")).toBeInTheDocument();
-    expect(screen.queryByText("Value truncated for preview")).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Copy value" });
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(onCopyValue).not.toHaveBeenCalled();
   });
 
-  it("waits for a Preview Record to fill in", () => {
+  it("disables copy while a Preview Record is loading", async () => {
+    const user = userEvent.setup();
     const record = parsePreviewJsonlRecordLine('{"a":1}', 1);
-    renderInspector({ record, selectedPath: selectionFor(record, "$.a", "a") });
+    const onCopyValue = vi.fn();
+    renderInspector({
+      projection: projectionFor(record, "$.a", "a"),
+      onCopyValue,
+    });
 
     expect(screen.getByText("Loading value…")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Copy value" });
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(onCopyValue).not.toHaveBeenCalled();
+  });
+
+  it("shows the copy-blocked state separately from preview truncation", () => {
+    const record = recordOf('{"a":1}');
+    const selection = selectionFor(record, "$.a", "a");
+    renderInspector({
+      projection: {
+        kind: "value",
+        selection,
+        text: "1",
+        truncated: false,
+        copy: { kind: "blocked" },
+      },
+    });
+
+    expect(screen.getByText("This value is too large to copy")).toBeInTheDocument();
+    expect(screen.queryByText("Value truncated for preview")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy value" })).toBeDisabled();
   });
 
   it("offers to expand the record's stringified JSON", async () => {
@@ -124,20 +159,5 @@ describe("NodeInspector", () => {
     expect(screen.getByText("This record contains stringified JSON")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand all" }));
     expect(props.onExpandNested).toHaveBeenCalledOnce();
-  });
-
-  it("re-materializes only when the record or the selection changes", () => {
-    const record = recordOf('{"a":{"b":1}}');
-    const selectedPath = selectionFor(record, "$.a.b", "b");
-    const stringify = vi.spyOn(JSON, "stringify");
-    const { rerender } = renderInspector({ record, selectedPath });
-
-    const afterFirstRender = stringify.mock.calls.length;
-    rerender({});
-    expect(stringify.mock.calls.length).toBe(afterFirstRender);
-
-    rerender({ selectedPath: selectionFor(record, "$.a", "a") });
-    expect(stringify.mock.calls.length).toBeGreaterThan(afterFirstRender);
-    stringify.mockRestore();
   });
 });

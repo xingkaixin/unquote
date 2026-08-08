@@ -1,4 +1,3 @@
-import type { JsonlRecord } from "@unquote/core";
 import { toast } from "sonner";
 import { useCallback, useMemo, useState } from "react";
 import { AppHeader } from "./components/app-header";
@@ -29,7 +28,7 @@ import { isCopyAboveThreshold } from "./lib/record-export";
 import { narrowPathToRecord } from "./lib/record-view";
 import type { SearchMatch } from "./lib/record-search";
 import type { RecordViewActions } from "./lib/record-view";
-import { formatSelectionCopy, resolveSelectedNode } from "./lib/selected-node";
+import { projectSelectedNode } from "./lib/selected-node";
 import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -252,6 +251,10 @@ export const UnquoteApp = ({
     () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
     [activeRecord, localFileSource.resolveRecord],
   );
+  const selectedNodeProjection = useMemo(
+    () => projectSelectedNode(renderedActiveRecord, selectedPath),
+    [renderedActiveRecord, selectedPath],
+  );
   const turnIndexByRecordId = useMemo(() => {
     if (!agentSession) {
       return null;
@@ -292,27 +295,17 @@ export const UnquoteApp = ({
     workspace.collapseAll(activeRecord ? [activeRecord.id] : []);
   }, [activeRecord, workspace.collapseAll]);
 
-  const handleCopySelectedSubtree = useCallback(
-    () =>
-      copyText(async () => {
-        if (!selectedPath) {
-          return null;
-        }
+  const handleCopySelectedSubtree = useCallback(() => {
+    const selectedNodeCopy = selectedNodeProjection.copy;
+    if (selectedNodeCopy.kind === "blocked") {
+      if (selectedNodeProjection.kind === "too-large" || selectedNodeProjection.kind === "value") {
+        toast.warning(t("inspector.copyBlocked"));
+      }
+      return;
+    }
 
-        const record = result.records.find((candidate) => candidate.id === selectedPath.recordId);
-        let copyRecord: JsonlRecord | undefined;
-        try {
-          [copyRecord] = record ? await localFileSource.resolveRecords([record]) : [];
-        } catch {
-          toast.error(t("input.readFailed"));
-          return null;
-        }
-
-        const resolved = copyRecord ? resolveSelectedNode(copyRecord, selectedPath) : null;
-        return resolved ? formatSelectionCopy(selectedPath, resolved.node) : null;
-      }),
-    [copyText, localFileSource.resolveRecords, result.records, selectedPath, t],
-  );
+    return copyText(() => selectedNodeCopy.format());
+  }, [copyText, selectedNodeProjection, t]);
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
@@ -460,8 +453,7 @@ export const UnquoteApp = ({
         onCollapseAll: handleCollapseAll,
       }}
       inspector={{
-        record: renderedActiveRecord,
-        selectedPath,
+        projection: selectedNodeProjection,
         hasNestedJson: (recordInsights.get(displayedRecordId)?.nestedJsonCount ?? 0) > 0,
         onCopyValue: handleCopySelectedSubtree,
         onCopyPath: handleCopySelectedPath,
