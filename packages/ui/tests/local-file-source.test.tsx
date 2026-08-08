@@ -272,6 +272,52 @@ describe("local-file-source", () => {
     expect(matches).toBeNull();
   });
 
+  it("aborts a FileReader-backed line scan", async () => {
+    const file = new File(['{"message":"needle"}\n'], "payload.jsonl");
+    Object.defineProperty(file, "stream", { configurable: true, value: undefined });
+    Object.defineProperty(file, "text", { configurable: true, value: undefined });
+    const abort = vi.spyOn(FileReader.prototype, "abort");
+    const controller = new AbortController();
+
+    try {
+      const search = createLocalFileAccess(file).search(
+        "needle",
+        { regex: false, caseSensitive: true, jq: false },
+        controller.signal,
+      );
+      controller.abort();
+
+      await expect(search).rejects.toMatchObject({ name: "AbortError" });
+      expect(abort).toHaveBeenCalledOnce();
+    } finally {
+      abort.mockRestore();
+    }
+  });
+
+  it("does not scan text() results completed after cancellation", async () => {
+    let finishRead: ((value: string) => void) | undefined;
+    const file = new File([], "payload.jsonl");
+    Object.defineProperty(file, "stream", { configurable: true, value: undefined });
+    Object.defineProperty(file, "text", {
+      configurable: true,
+      value: () =>
+        new Promise<string>((resolve) => {
+          finishRead = resolve;
+        }),
+    });
+    const controller = new AbortController();
+    const search = createLocalFileAccess(file).search(
+      "needle",
+      { regex: false, caseSensitive: true, jq: false },
+      controller.signal,
+    );
+
+    controller.abort();
+    finishRead?.('{"message":"needle"}\n');
+
+    await expect(search).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("returns null for an empty query", async () => {
     const file = makeStreamedFile('{"message":"needle"}\n');
     const controller = new AbortController();
