@@ -17,6 +17,7 @@ const maxTransferStringLength = 4096;
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
 const inputFormatLabel = "Input format";
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
+let initialSearchWindowIndexes: Float64Array | undefined;
 
 const useDesktopViewport = () => {
   vi.mocked(window.matchMedia).mockImplementation((query) => {
@@ -137,7 +138,7 @@ Object.assign(globalThis, {
             parsed.records,
             query,
             options as { regex: boolean; caseSensitive: boolean; jq: boolean },
-            windowIndexes,
+            windowIndexes ?? initialSearchWindowIndexes,
           );
           this.respond({ type: "result", requestId, result });
         },
@@ -290,6 +291,7 @@ Object.assign(globalThis, {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  initialSearchWindowIndexes = undefined;
   vi.mocked(window.matchMedia).mockImplementation(defaultMatchMedia);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -1569,37 +1571,30 @@ describe("UnquoteApp", () => {
     void inputs;
   });
 
-  it(
-    "navigates forward and backward across a bounded search window",
-    { timeout: 15_000 },
-    async () => {
-      const user = userEvent.setup();
-      const input = Array.from({ length: 140 }, (_, index) =>
-        JSON.stringify({ index, msg: "needle" }),
-      ).join("\n");
-      render(
-        <I18nProvider>
-          <UnquoteApp initialInput={input} />
-        </I18nProvider>,
-      );
-      await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
-      await user.type(getToolbarInput(), "needle");
-      await waitFor(() =>
-        expect(screen.getAllByText((text) => text.includes("1/140")).length).toBeGreaterThan(0),
-      );
+  it("loads a missing search window for forward and backward navigation", async () => {
+    const user = userEvent.setup();
+    initialSearchWindowIndexes = Float64Array.from([0]);
+    const input = Array.from({ length: 3 }, (_, index) =>
+      JSON.stringify({ index, msg: "needle" }),
+    ).join("\n");
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+    await user.type(getToolbarInput(), "needle");
+    await waitFor(() =>
+      expect(screen.getAllByText((text) => text.includes("1/3")).length).toBeGreaterThan(0),
+    );
 
-      const next = screen.getAllByRole("button", { name: /Next match/i })[0]!;
-      for (let index = 0; index < 128; index += 1) {
-        fireEvent.click(next);
-      }
+    await user.click(screen.getAllByRole("button", { name: /Next match/i })[0]!);
+    await waitFor(() => expect(railRow(2)).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getAllByText((text) => text.includes("2/3")).length).toBeGreaterThan(0);
 
-      await waitFor(() => expect(railRow(129)).toHaveAttribute("aria-pressed", "true"));
-      expect(screen.getAllByText((text) => text.includes("129/140")).length).toBeGreaterThan(0);
-
-      await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
-      await waitFor(() => expect(railRow(128)).toHaveAttribute("aria-pressed", "true"));
-    },
-  );
+    await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
+    await waitFor(() => expect(railRow(1)).toHaveAttribute("aria-pressed", "true"));
+  });
 
   it("follows a search match into a record the workspace was not showing", async () => {
     const user = userEvent.setup();
