@@ -5,12 +5,14 @@ import {
   mergeMeasurementFailures,
   parseBudgetSetting,
   parseIntegerSetting,
+  resolveBudgetSetting,
   summarize,
 } from "../metrics.mjs";
 
 const budgets = {
   firstRecordReadyMsP50: 1500,
   completeReadyMsP50: 3000,
+  searchReadyMsP50: 3000,
   expandPathReadyMsP50: 400,
   expandAllReadyMsP50: 800,
   domNodesMax: 3_000,
@@ -51,6 +53,20 @@ describe("benchmark sample count settings", () => {
       /must be a non-negative number/,
     );
   });
+
+  it("uses the versioned fallback when a budget environment variable is absent", () => {
+    expect(resolveBudgetSetting("UNQUOTE_BENCH_SEARCH_BUDGET_MS", {}, 3000)).toBe(3000);
+  });
+
+  it("validates a budget environment override", () => {
+    expect(
+      resolveBudgetSetting(
+        "UNQUOTE_BENCH_SEARCH_BUDGET_MS",
+        { UNQUOTE_BENCH_SEARCH_BUDGET_MS: "2500" },
+        3000,
+      ),
+    ).toBe(2500);
+  });
 });
 
 describe("summarize", () => {
@@ -81,12 +97,12 @@ describe("collectBudgetFailures", () => {
 
   it("fails a metric that produced no samples instead of comparing it as zero", () => {
     const metrics = healthyMetrics();
-    metrics["expandPathReadyMs"] = { samples: 0, avg: null, min: null, p50: null, p95: null };
+    metrics["searchReadyMs"] = { samples: 0, avg: null, min: null, p50: null, p95: null };
 
     const failures = collectBudgetFailures({ "case.jsonl": metrics }, budgets, 3);
 
     expect(failures).toEqual([
-      "case.jsonl expandPathReadyMs produced 0 of 3 samples, so the measured path did not run",
+      "case.jsonl searchReadyMs produced 0 of 3 samples, so the measured path did not run",
     ]);
   });
 
@@ -113,7 +129,7 @@ describe("collectBudgetFailures", () => {
     "fails a metric whose statistic is %p",
     (value) => {
       const metrics = healthyMetrics();
-      metrics["domNodes"] = { samples: 3, max: value };
+      metrics["searchReadyMs"] = { samples: 3, p50: value };
 
       expect(collectBudgetFailures({ "case.jsonl": metrics }, budgets, 3)[0]).toContain(
         "is not a finite non-negative number",
@@ -123,10 +139,10 @@ describe("collectBudgetFailures", () => {
 
   it("reports a metric over budget", () => {
     const metrics = healthyMetrics();
-    metrics["jsHeapUsedSizeMB"] = { samples: 3, max: 512 };
+    metrics["searchReadyMs"] = { samples: 3, p50: 3001 };
 
     expect(collectBudgetFailures({ "case.jsonl": metrics }, budgets, 3)).toEqual([
-      "case.jsonl jsHeapUsedSizeMB.max 512 > 256",
+      "case.jsonl searchReadyMs.p50 3001 > 3000",
     ]);
   });
 });

@@ -16,6 +16,9 @@ export const parseBudgetSetting = (name, raw) => {
   return value;
 };
 
+export const resolveBudgetSetting = (name, environment, fallback) =>
+  parseBudgetSetting(name, environment[name] ?? fallback);
+
 const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 // Nearest-rank, so for small sample counts any high quantile collapses onto the
@@ -52,6 +55,7 @@ export const summarize = (values) => {
 export const budgetedRenderMetrics = [
   { metric: "firstRecordReadyMs", statistic: "p50", budget: "firstRecordReadyMsP50" },
   { metric: "completeReadyMs", statistic: "p50", budget: "completeReadyMsP50" },
+  { metric: "searchReadyMs", statistic: "p50", budget: "searchReadyMsP50" },
   { metric: "expandPathReadyMs", statistic: "p50", budget: "expandPathReadyMsP50" },
   { metric: "expandAllReadyMs", statistic: "p50", budget: "expandAllReadyMsP50" },
   { metric: "domNodes", statistic: "max", budget: "domNodesMax" },

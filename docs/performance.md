@@ -13,6 +13,7 @@ exceeded.
 Set `UNQUOTE_BENCH_CHROME` to use a Chrome executable outside the default macOS
 and Linux locations. Runner-specific budgets can be supplied with
 `UNQUOTE_BENCH_FIRST_RECORD_BUDGET_MS`, `UNQUOTE_BENCH_COMPLETE_BUDGET_MS`,
+`UNQUOTE_BENCH_SEARCH_BUDGET_MS`,
 `UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS`, `UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS`,
 `UNQUOTE_BENCH_DOM_NODES_BUDGET`, and `UNQUOTE_BENCH_HEAP_BUDGET_MB`.
 
@@ -46,6 +47,7 @@ pnpm benchmark:case4-fixture -- --rows=100000 --out=case4-100K-rows.jsonl --forc
 |---|---:|
 | First record visible p50 | 1500 ms |
 | Complete UI parse p50 | 3000 ms |
+| Search ready p50 | 3000 ms |
 | Expand Path ready p50 | 400 ms |
 | Expand All ready p50 | 800 ms |
 | DOM nodes max | 3000 |
@@ -56,19 +58,21 @@ pnpm benchmark:case4-fixture -- --rows=100000 --out=case4-100K-rows.jsonl --forc
 Captured on 2026-08-06 with Node v24.19.0, macOS arm64, 10 CPU cores, 32 GB
 memory, 3 samples and 1 warmup per fixture.
 
-| Fixture | Records | Core p95 | First record p95 | Complete p95 | DOM max | Heap max |
-|---|---:|---:|---:|---:|---:|---:|
-| `benchmark/case1.jsonl` | 431 | 26.27 ms | 196 ms | 202.7 ms | 1217 | 6.19 MB |
-| `benchmark/case2-1MB.jsonl` | 1610 | 192.93 ms | 159.4 ms | 178.8 ms | 818 | 6.42 MB |
-| `benchmark/case2-5MB.jsonl` | 7956 | 938.76 ms | 155.7 ms | 242.5 ms | 818 | 13.38 MB |
-| `benchmark/case2-10MB.jsonl` | 15765 | 2012.53 ms | 157 ms | 345.7 ms | 818 | 22.34 MB |
-| `benchmark/case4-5K-rows.jsonl` | 5260 | 339.06 ms | 169.8 ms | 459.8 ms | 1375 | 16.74 MB |
+| Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | DOM max | Heap max |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `benchmark/case1.jsonl` | 431 | 26.27 ms | 196 ms | 202.7 ms | 292.8 ms | 1217 | 6.19 MB |
+| `benchmark/case2-1MB.jsonl` | 1610 | 192.93 ms | 159.4 ms | 178.8 ms | 325.9 ms | 818 | 6.42 MB |
+| `benchmark/case2-5MB.jsonl` | 7956 | 938.76 ms | 155.7 ms | 242.5 ms | 450.6 ms | 818 | 13.38 MB |
+| `benchmark/case2-10MB.jsonl` | 15765 | 2012.53 ms | 157 ms | 345.7 ms | 605.2 ms | 818 | 22.34 MB |
+| `benchmark/case4-5K-rows.jsonl` | 5260 | 339.06 ms | 169.8 ms | 459.8 ms | 475.8 ms | 1375 | 16.74 MB |
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
 visible. `complete p95` measures the time until the UI stats show all expected
 records. `searchReadyMs` measures the header search interaction for the
-benchmark query `nested`. `expandPathReadyMs` measures one visible stringified
+benchmark query `nested`; generated case 2 and case 4 fixtures contain that term
+in every Record, so the gate exercises the high-result-count path rather than a
+no-result fast path. `expandPathReadyMs` measures one visible stringified
 JSON toggle in the first record that exposes one. `expandAllReadyMs` covers the
 displayed record only, so values recorded before the three-column redesign are
 not comparable.
@@ -83,7 +87,7 @@ construction, or expanded-path state is the active bottleneck before optimizing.
 
 `case4-5K-rows` is the high-record-count release fixture. It uses the same
 release budgets as the smaller fixtures: first record p50 under 1500 ms,
-complete p50 under 3000 ms, Expand Path p50 under 400 ms, Expand All p50 under
-800 ms, DOM nodes under 3000, and JS heap under 256 MB. Use
+complete and search p50 under 3000 ms, Expand Path p50 under 400 ms, Expand All
+p50 under 800 ms, DOM nodes under 3000, and JS heap under 256 MB. Use
 `benchmark:case4-fixture -- --rows=100000` for local 100k-row stress runs; the
 100k fixture is intentionally generated locally instead of committed.
