@@ -104,6 +104,25 @@ describe("SourceImportPanel draft commit", () => {
     expect(screen.getByText("Cannot parse — check the format")).toBeInTheDocument();
   });
 
+  it("shows a lower-bound hint without trimming the full draft during input", () => {
+    renderPanel();
+    const line = JSON.stringify({ value: "x".repeat(80) });
+    const draft = Array.from({ length: 80 }, () => line).join("\n");
+    const trim = vi.spyOn(String.prototype, "trim");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Source input" }), {
+      target: { value: draft },
+    });
+
+    const fullDraftTrimCalls = trim.mock.instances.filter(
+      (instance) => String(instance).length === draft.length,
+    ).length;
+    trim.mockRestore();
+
+    expect(screen.getByText("Detected JSONL · at least 40 lines")).toBeInTheDocument();
+    expect(fullDraftTrimCalls).toBe(0);
+  });
+
   it("selects the parse mode from the format chips", async () => {
     const user = userEvent.setup();
     const { props } = renderPanel();

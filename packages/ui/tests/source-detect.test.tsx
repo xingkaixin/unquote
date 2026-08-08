@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { detectSourceFormat } from "../src/lib/source-detect";
+import {
+  detectSourceFormat,
+  sourceDetectionLineBudget,
+  sourceDetectionProbeByteBudget,
+} from "../src/lib/source-detect";
 
 describe("detectSourceFormat", () => {
   it("reports an empty draft as empty", () => {
@@ -20,6 +24,7 @@ describe("detectSourceFormat", () => {
     expect(detectSourceFormat('{"a":1}\n\n{"b":2}\r\n{"c":3}\n')).toEqual({
       kind: "jsonl",
       lines: 3,
+      precision: "exact",
     });
   });
 
@@ -28,20 +33,25 @@ describe("detectSourceFormat", () => {
     expect(detectSourceFormat('{"a":1}\nnot json\nalso not json')).toEqual({ kind: "invalid" });
   });
 
-  it("probes only the head of a long JSONL draft", () => {
+  it("reports a lower bound after reaching the line budget", () => {
     const lines = Array.from({ length: 60 }, (_, index) => JSON.stringify({ i: index }));
     lines[50] = "not json";
 
-    expect(detectSourceFormat(lines.join("\n"))).toEqual({ kind: "jsonl", lines: 60 });
+    expect(detectSourceFormat(lines.join("\n"))).toEqual({
+      kind: "jsonl",
+      lines: sourceDetectionLineBudget,
+      precision: "lower-bound",
+    });
   });
 
-  it("counts every line of a draft larger than the probe budget", () => {
+  it("does not count the tail of a draft beyond the line budget", () => {
     const line = JSON.stringify({ value: "x".repeat(80) });
     const total = Math.ceil((90 * 1024) / (line.length + 1));
 
     expect(detectSourceFormat(Array.from({ length: total }, () => line).join("\n"))).toEqual({
       kind: "jsonl",
-      lines: total,
+      lines: sourceDetectionLineBudget,
+      precision: "lower-bound",
     });
   });
 
@@ -50,7 +60,22 @@ describe("detectSourceFormat", () => {
       JSON.stringify({ index, blob: "x".repeat(4000) }),
     );
 
-    expect(detectSourceFormat(lines.join("\n"))).toEqual({ kind: "jsonl", lines: 20 });
+    expect(detectSourceFormat(lines.join("\n"))).toEqual({
+      kind: "jsonl",
+      lines: 17,
+      precision: "lower-bound",
+    });
+  });
+
+  it("applies the probe budget to UTF-8 bytes rather than code units", () => {
+    const line = JSON.stringify({ value: "界".repeat(3000) });
+    const lines = Array.from({ length: 10 }, () => line);
+
+    expect(detectSourceFormat(lines.join("\n"))).toEqual({
+      kind: "jsonl",
+      lines: 8,
+      precision: "lower-bound",
+    });
   });
 
   it("classifies a multi-megabyte single-line document without parsing it", () => {
@@ -84,9 +109,40 @@ describe("detectSourceFormat", () => {
     parse.mockRestore();
   });
 
-  it("stops probing once a line has spent the budget", () => {
+  it("does not search past the byte budget for a distant newline", () => {
     const head = JSON.stringify({ blob: "x".repeat(70 * 1024) });
 
-    expect(detectSourceFormat(`${head}\nnot json`)).toEqual({ kind: "jsonl", lines: 2 });
+    expect(detectSourceFormat(`${head}\nnot json`)).toEqual({ kind: "invalid" });
+  });
+
+  it("bounds scanner work across repeated edits of a large draft", () => {
+    const line = JSON.stringify({ blob: "x".repeat(4000) });
+    const draft = Array.from({ length: 20 }, () => line).join("\n");
+    const edits = Array.from({ length: 4 }, (_, index) => `${draft}\n{"edit":${index}}`);
+    const indexOf = vi.spyOn(String.prototype, "indexOf");
+    const trim = vi.spyOn(String.prototype, "trim");
+    const charCodeAt = vi.spyOn(String.prototype, "charCodeAt");
+
+    const detections = edits.map(detectSourceFormat);
+    const indexOfCalls = indexOf.mock.calls.length;
+    const longestTrimmedInput = Math.max(
+      0,
+      ...trim.mock.instances.map((instance) => String(instance).length),
+    );
+    const charCodeAtCalls = charCodeAt.mock.calls.length;
+    indexOf.mockRestore();
+    trim.mockRestore();
+    charCodeAt.mockRestore();
+
+    expect(detections).toEqual(
+      Array.from({ length: edits.length }, () => ({
+        kind: "jsonl",
+        lines: 17,
+        precision: "lower-bound",
+      })),
+    );
+    expect(indexOfCalls).toBe(0);
+    expect(longestTrimmedInput).toBeLessThanOrEqual(sourceDetectionProbeByteBudget);
+    expect(charCodeAtCalls).toBeLessThanOrEqual(edits.length * sourceDetectionProbeByteBudget * 3);
   });
 });

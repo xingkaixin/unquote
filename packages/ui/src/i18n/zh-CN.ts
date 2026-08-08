@@ -82,6 +82,7 @@ export const zhCN: Messages = {
   "input.detectWaiting": "等待输入",
   "input.detectJson": "识别为 JSON",
   "input.detectJsonl": "识别为 JSONL · {lines} 行",
+  "input.detectJsonlAtLeast": "识别为 JSONL · 至少 {lines} 行",
   "input.detectInvalid": "无法解析，请检查格式",
   "input.readingFile": "正在读取 {name} · {size}",
   "input.parsingFile": "正在解析 {name} · {size} · 已处理 {processed} 行",

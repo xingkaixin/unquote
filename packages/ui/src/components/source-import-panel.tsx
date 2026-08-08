@@ -106,7 +106,9 @@ const detectionHint = (
     case "json":
       return t("input.detectJson");
     case "jsonl":
-      return t("input.detectJsonl", { lines: detection.lines });
+      return t(detection.precision === "exact" ? "input.detectJsonl" : "input.detectJsonlAtLeast", {
+        lines: detection.lines,
+      });
     case "invalid":
       return t("input.detectInvalid");
   }
@@ -296,7 +298,7 @@ export const SourceImportPanel = ({
             variant="secondary"
             className="h-8 px-4 text-[11px]"
             onClick={commitDraft}
-            disabled={!initialFile && draft.trim().length === 0}
+            disabled={!initialFile && detection.kind === "empty"}
           >
             {t("import.parse")}
           </Button>
