@@ -8,6 +8,7 @@ import { UnquoteApp } from "../src/app";
 import { memorySearchDebounceMs } from "../src/hooks/use-query-interaction";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import { isCopyAboveThreshold } from "../src/lib/record-export";
+import { inspectorNodeLimit } from "../src/lib/selected-node";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 import { createControlledStreamFile, createFailingStreamFile } from "./helpers/stub-file";
@@ -1073,6 +1074,38 @@ describe("UnquoteApp", () => {
     fireEvent.keyDown(getToolbarInput(), { key: "Enter" });
     await user.keyboard("{Control>}c{/Control}");
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith("10"));
+  });
+
+  it("blocks selected-node copy beyond its projection budget", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const input = JSON.stringify({
+      list: Array.from({ length: inspectorNodeLimit + 1 }, (_, index) => index),
+    });
+
+    const { container } = render(
+      <I18nProvider>
+        <UnquoteApp initialInput={input} />
+      </I18nProvider>,
+    );
+
+    const shell = container.querySelector<HTMLElement>(".uq-shell")!;
+    await waitFor(() => expect(shell).toHaveAttribute("data-parse-state", "complete"));
+    fireEvent.change(getToolbarInput(), { target: { value: "$.list" } });
+    fireEvent.keyDown(getToolbarInput(), { key: "Enter" });
+    expect(await screen.findByText("This value is too large to preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy value" })).toBeDisabled();
+
+    await user.keyboard("{Control>}c{/Control}");
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect((await screen.findAllByText("This value is too large to copy")).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("shows an error toast when the clipboard write fails", async () => {

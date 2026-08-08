@@ -123,6 +123,7 @@ export const en = {
   "inspector.loading": "Loading value…",
   "inspector.truncated": "Value truncated for preview",
   "inspector.tooLarge": "This value is too large to preview",
+  "inspector.copyBlocked": "This value is too large to copy",
   "inspector.copyValue": "Copy value",
   "inspector.copyPath": "Copy path",
   "inspector.nestedTitle": "This record contains stringified JSON",

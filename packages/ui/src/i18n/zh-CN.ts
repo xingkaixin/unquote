@@ -125,6 +125,7 @@ export const zhCN: Messages = {
   "inspector.loading": "正在读取值…",
   "inspector.truncated": "预览值已截断",
   "inspector.tooLarge": "这个值太大，无法预览",
+  "inspector.copyBlocked": "这个值太大，无法复制",
   "inspector.copyValue": "复制值",
   "inspector.copyPath": "复制路径",
   "inspector.nestedTitle": "这条记录里有字符串化 JSON",
