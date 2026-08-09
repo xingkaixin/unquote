@@ -1,5 +1,7 @@
 /**
- * The largest input the synchronous no-Worker fallback will parse or search.
+ * The largest input the synchronous no-Worker fallback will parse or search
+ * when work scales with source size. User regex is rejected before this budget
+ * because its backtracking cost cannot be bounded from input bytes.
  *
  * A synchronous parse or search cannot be interrupted once it starts — a timer
  * cannot preempt it — so the only protection is refusing the work up front,

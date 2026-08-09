@@ -153,6 +153,7 @@ export const zhCN: Messages = {
   "search.timeout": "搜索超时",
   "search.failed": "搜索失败",
   "search.tooLargeWithoutWorker": "内容过大，没有后台 Worker 时无法搜索",
+  "search.regexRequiresWorker": "正则搜索需要后台 Worker",
   "filter.all": "全部",
   "filter.matches": "匹配",
   "filter.errors": "错误",

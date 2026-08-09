@@ -14,7 +14,11 @@ export const largeFileSearchWorkerTimeoutMs = 15_000;
 const largeFileSearchBytes = 1_000_000;
 
 export type SearchWorkerStatus = "idle" | "pending" | "complete" | "error";
-export type SearchWorkerErrorKind = "timeout" | "worker-error" | "too-large";
+export type SearchWorkerErrorKind =
+  | "timeout"
+  | "worker-error"
+  | "too-large"
+  | "regex-without-worker";
 
 interface SearchWorkerState {
   sourceRevision: SourceRevision;
@@ -234,6 +238,17 @@ export const useSearchWorker = (params: {
       // Reached both when no Worker exists and when one fails to start: the
       // request still has to settle somewhere.
       const searchOnMainThread = () => {
+        if (options.regex) {
+          finishRequestMeasure();
+          setState({
+            sourceRevision,
+            result: null,
+            status: "error",
+            errorKind: "regex-without-worker",
+          });
+          return;
+        }
+
         if (sourceAccess) {
           const controller = new AbortController();
           sourceAccess

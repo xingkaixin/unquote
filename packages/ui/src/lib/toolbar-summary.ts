@@ -2,7 +2,7 @@ import type { ParseStats } from "@unquote/core";
 import type { createTranslator } from "../i18n/i18n";
 import type { ParserProgress } from "./parse-text";
 import type { QueryInteractionState } from "./query-interaction";
-import type { SearchWorkerStatus } from "../hooks/use-search-worker";
+import type { SearchWorkerErrorKind, SearchWorkerStatus } from "../hooks/use-search-worker";
 
 type Translator = ReturnType<typeof createTranslator>;
 type RecordFilter = QueryInteractionState["recordFilter"];
@@ -66,7 +66,7 @@ export interface ToolbarSummaryInput {
   recordFilter: RecordFilter;
   searchQuery: string;
   searchStatus: SearchWorkerStatus;
-  searchErrorKind: "timeout" | "worker-error" | "too-large" | null;
+  searchErrorKind: SearchWorkerErrorKind | null;
   pathError: string | null;
   matchCount: number;
 }
@@ -92,6 +92,7 @@ export const toolbarSummary = (input: ToolbarSummaryInput, t: Translator): strin
     timeout: "search.timeout",
     "too-large": "search.tooLargeWithoutWorker",
     "worker-error": "search.failed",
+    "regex-without-worker": "search.regexRequiresWorker",
   } as const;
   const searchErrorLabel =
     searchQuery && searchStatus === "error"
