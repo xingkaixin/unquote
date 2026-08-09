@@ -120,8 +120,11 @@ const budgets = {
   // sensitive as it was.
   domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 3000),
   jsHeapUsedSizeMBMax: readBudget("UNQUOTE_BENCH_HEAP_BUDGET_MB", 256),
-  agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 2000),
-  agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 800),
+  // Three Ubuntu runs put Agent readiness at 217-250ms p50 and tool expansion
+  // at 42-46ms p50. These limits leave shared-runner headroom while still
+  // detecting a roughly 2.4x and 3.2x regression respectively.
+  agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 600),
+  agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 150),
 };
 
 const ensureFile = (target) => {
