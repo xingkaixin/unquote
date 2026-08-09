@@ -1,4 +1,4 @@
-import type { JsonNode } from "@unquote/core";
+import type { JsonlRecordPreviewFieldValue, JsonNode } from "@unquote/core";
 import type { TreePathSegment } from "./path-codec";
 
 // record-insight also strips dots (field keys rarely contain them); file-overview
@@ -6,15 +6,23 @@ import type { TreePathSegment } from "./path-codec";
 export const normalizeKey = (key: string, stripDots = true) =>
   key.replace(stripDots ? /[-_\s.]/g : /[-_\s]/g, "").toLowerCase();
 
-export const getPrimitiveValue = (node: JsonNode): string | null => {
-  if (node.kind === "object" || node.kind === "array") {
+export const getPrimitiveValue = (
+  source: JsonNode | JsonlRecordPreviewFieldValue,
+): string | null => {
+  if (source === null || typeof source !== "object") {
+    return String(source);
+  }
+  if ("type" in source) {
+    return source.rawValue;
+  }
+  if (source.kind === "object" || source.kind === "array") {
     return null;
   }
 
-  if (node.kind === "number") {
-    return node.rawValue ?? String(node.value);
+  if (source.kind === "number") {
+    return source.rawValue ?? String(source.value);
   }
-  return node.kind === "string" ? node.value : String(node.value);
+  return source.kind === "string" ? source.value : String(source.value);
 };
 
 // A bare `name` field denotes a tool/function when its path passes through a

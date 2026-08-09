@@ -2,6 +2,7 @@ import type {
   FullJsonNode,
   JsonlRecord,
   JsonlRecordPreview,
+  JsonlRecordPreviewFieldValue,
   JsonNode,
   PreviewJsonNode,
 } from "../src";
@@ -40,6 +41,18 @@ const failed = {
 const _previewWithNestedFields: JsonlRecordPreview = {
   fields: {},
   nestedFieldKeys: ["payload"],
+};
+
+const _previewNumberField: JsonlRecordPreviewFieldValue = {
+  type: "number",
+  rawValue: "9007199254740993",
+};
+
+const _previewWithApproximateNumber: JsonlRecordPreview = {
+  fields: {
+    // @ts-expect-error Preview number fields require their source lexeme.
+    count: 9_007_199_254_740_992,
+  },
 };
 
 const _previewWithSingularNestedField: JsonlRecordPreview = {

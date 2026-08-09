@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import type { ContainerCandidate, FieldCandidate } from "../src/lib/field-extraction";
@@ -122,6 +122,22 @@ describe("field-extraction", () => {
     // Preview containers carry no child data to inspect.
     expect(containers[0]!.getChildValue(["message"])).toBeNull();
     expect(metrics).toEqual({ maxDepth: 1, nestedCount: 1 });
+  });
+
+  it.each([
+    "9007199254740991",
+    "9007199254740993",
+    "-9007199254740993",
+    "0.12345678901234567890123456789",
+    "1e3",
+    "1e309",
+    "1e400",
+  ])("keeps Preview and Full field facts equal for %s", (rawValue) => {
+    const source = `{"value":${rawValue},"stringValue":"${rawValue}","flag":true,"empty":null}`;
+    const preview = parsePreviewJsonlRecordLine(source, 1);
+    const full = parseJsonlRecordLine(source, 1);
+
+    expect(walk(preview).fields).toEqual(walk(full).fields);
   });
 
   it("does nothing for a record with neither a node nor a preview", () => {

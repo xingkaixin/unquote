@@ -111,7 +111,7 @@ const walkPreviewBranch = (
       key,
       pathSegments: getPreviewPathSegments(key),
       pathText: getPreviewPath(key),
-      primitiveValue: String(value),
+      primitiveValue: getPrimitiveValue(value),
     });
   }
 

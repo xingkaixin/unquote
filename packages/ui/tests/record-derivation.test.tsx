@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -95,6 +95,15 @@ describe("record derivation", () => {
 
     expect(derivation.insight).toMatchObject({ kind: "tool", tool: "billing.search" });
     expect(derivation.overview).toMatchObject({ hasNestedJson: true, maxDepth: 1 });
+  });
+
+  it("keeps the published timestamp fact stable after hydration", () => {
+    const source = '{"timestamp":9007199254740993,"event":"checkpoint"}';
+    const preview = deriveRecord(parsePreviewJsonlRecordLine(source, 1));
+    const full = deriveRecord(parseJsonlRecordLine(source, 1));
+
+    expect(preview).toEqual(full);
+    expect(preview.insight?.timestamp).toBe("9007199254740993");
   });
 
   it("reuses the insight map instance across appends", () => {

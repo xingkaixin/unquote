@@ -17,6 +17,8 @@ export interface LosslessJsonNumberValue {
   rawValue: string;
 }
 
+export type JsonlRecordPreviewFieldValue = string | boolean | null | LosslessJsonNumberValue;
+
 export type LosslessJsonValue =
   | LosslessJsonObjectValue
   | LosslessJsonArrayValue
@@ -167,7 +169,7 @@ export interface ParseErrorMeta {
 }
 
 export interface JsonlRecordPreview {
-  fields: Record<string, JsonPrimitive>;
+  fields: Record<string, JsonlRecordPreviewFieldValue>;
   containers?: Record<string, JsonContainerKind>;
   nestedFieldKeys?: readonly string[];
 }
