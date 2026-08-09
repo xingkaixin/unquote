@@ -78,6 +78,7 @@ const ToolCard = ({
     <div className="overflow-hidden rounded-lg border border-border bg-surface-100">
       <button
         type="button"
+        data-agent-tool-card
         aria-label={selectLabel}
         aria-pressed={expanded}
         className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"

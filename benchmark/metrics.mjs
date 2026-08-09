@@ -62,6 +62,11 @@ export const budgetedRenderMetrics = [
   { metric: "jsHeapUsedSizeMB", statistic: "max", budget: "jsHeapUsedSizeMBMax" },
 ];
 
+export const agentSessionBudgetedRenderMetrics = [
+  { metric: "agentSessionReadyMs", statistic: "p50", budget: "agentSessionReadyMsP50" },
+  { metric: "agentToolReadyMs", statistic: "p50", budget: "agentToolReadyMsP50" },
+];
+
 export const mergeMeasurementFailures = (runs) => {
   const merged = {};
   for (const run of runs) {
@@ -73,11 +78,20 @@ export const mergeMeasurementFailures = (runs) => {
   return merged;
 };
 
-export const collectBudgetFailures = (render, budgets, expectedSamples) => {
+export const collectBudgetFailures = (
+  render,
+  budgets,
+  expectedSamples,
+  additionalMetricsByFixture = {},
+) => {
   const failures = [];
 
   for (const [fixture, metrics] of Object.entries(render)) {
-    for (const { metric, statistic, budget } of budgetedRenderMetrics) {
+    const budgetedMetrics = [
+      ...budgetedRenderMetrics,
+      ...(additionalMetricsByFixture[fixture] ?? []),
+    ];
+    for (const { metric, statistic, budget } of budgetedMetrics) {
       const summary = metrics[metric];
       const samples = summary?.samples ?? 0;
       if (samples < expectedSamples) {

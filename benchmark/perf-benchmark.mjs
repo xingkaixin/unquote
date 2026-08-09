@@ -6,12 +6,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  agentSessionBudgetedRenderMetrics,
   collectBudgetFailures,
   mergeMeasurementFailures,
   parseIntegerSetting,
   resolveBudgetSetting,
   summarize,
 } from "./metrics.mjs";
+import { benchmarkScenarioFor, defaultBenchmarkFixturePaths } from "./fixture-manifest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -95,15 +97,8 @@ const readProcessTable = () => {
   }).stdout.trim();
 };
 
-const defaultFixtures = [
-  "benchmark/case1.jsonl",
-  "benchmark/case2-1MB.jsonl",
-  "benchmark/case2-5MB.jsonl",
-  "benchmark/case2-10MB.jsonl",
-  "benchmark/case4-5K-rows.jsonl",
-];
-const fixtureArgs = process.argv.slice(2);
-const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultFixtures;
+const fixtureArgs = process.argv.slice(2).filter((argument) => argument !== "--");
+const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultBenchmarkFixturePaths;
 
 const budgets = {
   // 1500 rather than 1000: first-record latency covers worker startup and first
@@ -125,6 +120,8 @@ const budgets = {
   // sensitive as it was.
   domNodesMax: readBudget("UNQUOTE_BENCH_DOM_NODES_BUDGET", 3000),
   jsHeapUsedSizeMBMax: readBudget("UNQUOTE_BENCH_HEAP_BUDGET_MB", 256),
+  agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 2000),
+  agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 800),
 };
 
 const ensureFile = (target) => {
@@ -138,6 +135,7 @@ const fixtureInfo = (relativePath) => {
   const input = fs.readFileSync(absolutePath, "utf8");
   return {
     path: relativePath,
+    scenario: benchmarkScenarioFor(relativePath),
     bytes: Buffer.byteLength(input),
     records: input.trim().split(/\r?\n/).filter(Boolean).length,
   };
@@ -381,6 +379,7 @@ const runRenderFixture = async (client, fixture) => {
   const settleExpression = `(
     async () => {
       const expectedFile = ${JSON.stringify(path.basename(fixture.path))}
+      const expectsAgentSession = ${JSON.stringify(fixture.scenario === "agent-session")}
       const start = window.__unquoteBenchmarkStart ?? performance.now()
       const waitFor = (stage, predicate, timeout = 30000) =>
         new Promise((resolve, reject) => {
@@ -428,6 +427,10 @@ const runRenderFixture = async (client, fixture) => {
           ? candidate
           : null
       })
+      let agentSessionReadyMs = null
+      if (expectsAgentSession && shell.dataset.agentSession !== 'true') {
+        throw new Error('expected Agent Session, received ' + JSON.stringify(shell.dataset))
+      }
       if (shell.dataset.agentSession === 'true') {
         await waitFor('agent-view', () => {
           const agentShell = document.querySelector('.uq-agent-shell')
@@ -435,6 +438,8 @@ const runRenderFixture = async (client, fixture) => {
           return shell.dataset.outputView === 'agent' &&
             Number(metrics?.dataset.agentMetrics) > 0
         })
+        await settleFrames()
+        agentSessionReadyMs = performance.now() - start
       } else {
         await waitFor('json-view', () => shell.dataset.outputView === 'json')
       }
@@ -444,6 +449,7 @@ const runRenderFixture = async (client, fixture) => {
       return {
         firstRecordReadyMs: firstRecordReady - start,
         completeReadyMs: completeReady - start,
+        agentSessionReadyMs,
         domNodes: document.getElementsByTagName('*').length,
         railRows: document.querySelectorAll('[data-record-rail] button[aria-pressed]').length,
       }
@@ -502,6 +508,23 @@ const runRenderFixture = async (client, fixture) => {
       const settleFrames = () =>
         new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       const shell = document.querySelector('.uq-shell')
+      const expectsAgentSession = ${JSON.stringify(fixture.scenario === "agent-session")}
+
+      let agentToolReadyMs = null
+      if (expectsAgentSession) {
+        if (shell.dataset.agentSession !== 'true' || shell.dataset.outputView !== 'agent') {
+          throw new Error('Agent interaction started outside the Agent view')
+        }
+        const toolCard = await waitFor(
+          'agent-tool-card',
+          () => document.querySelector('[data-agent-tool-card]')
+        )
+        const agentToolStart = performance.now()
+        toolCard.click()
+        await waitFor('agent-tool-expand', () => toolCard.getAttribute('aria-pressed') === 'true')
+        await settleFrames()
+        agentToolReadyMs = performance.now() - agentToolStart
+      }
 
       if (shell.dataset.agentSession === 'true') {
         const jsonTabs = document.querySelectorAll('[data-output-tab="json"]')
@@ -676,6 +699,7 @@ const runRenderFixture = async (client, fixture) => {
 
       return {
         searchReadyMs,
+        agentToolReadyMs,
         expandPathReadyMs,
         expandAllReadyMs,
         railReadyMs,
@@ -796,7 +820,9 @@ const benchmarkRender = async (fixturesInfo) => {
         {
           firstRecordReadyMs: summarize(runs.map((run) => run.firstRecordReadyMs)),
           completeReadyMs: summarize(runs.map((run) => run.completeReadyMs)),
+          agentSessionReadyMs: summarize(runs.map((run) => run.agentSessionReadyMs)),
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
+          agentToolReadyMs: summarize(runs.map((run) => run.agentToolReadyMs)),
           expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
           expandAllReadyMs: summarize(runs.map((run) => run.expandAllReadyMs)),
           railReadyMs: summarize(runs.map((run) => run.railReadyMs)),
@@ -831,7 +857,17 @@ const main = async () => {
   const [core, render] = renderOnly
     ? [{}, await benchmarkRender(fixturesInfo)]
     : await Promise.all([benchmarkCore(fixturesInfo), benchmarkRender(fixturesInfo)]);
-  const budgetFailures = collectBudgetFailures(render, budgets, sampleRuns);
+  const additionalMetricsByFixture = Object.fromEntries(
+    fixturesInfo
+      .filter(({ scenario }) => scenario === "agent-session")
+      .map(({ path: fixturePath }) => [fixturePath, agentSessionBudgetedRenderMetrics]),
+  );
+  const budgetFailures = collectBudgetFailures(
+    render,
+    budgets,
+    sampleRuns,
+    additionalMetricsByFixture,
+  );
 
   const report = {
     generatedAt: new Date().toISOString(),
