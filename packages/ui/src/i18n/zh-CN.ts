@@ -113,7 +113,6 @@ export const zhCN: Messages = {
   "status.failed": "{count} 条失败",
   "status.empty": "未载入数据 · 等待导入",
   "status.clear": "清空",
-  "status.hintMatches": "↑↓ 上下匹配",
   "status.hintPath": "Enter 跳转路径",
   "status.hintPalette": "⌘K 命令面板",
   "rail.line": "第 {line} 行",

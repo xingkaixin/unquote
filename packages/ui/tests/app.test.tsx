@@ -1610,7 +1610,7 @@ describe("UnquoteApp", () => {
     await user.type(getToolbarInput(), "needle");
 
     // One record is on screen at a time, so the match has to move both the rail
-    // selection and the centre tree or ↑↓ navigation silently does nothing.
+    // selection and the centre tree or the previous/next buttons silently do nothing.
     await waitFor(() => expect(railRow(3)).toHaveAttribute("aria-pressed", "true"));
     expect(document.getElementById("record-3")).toBeInTheDocument();
     expect(document.getElementById("record-1")).not.toBeInTheDocument();

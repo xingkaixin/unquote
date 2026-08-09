@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StatusBar } from "../src/components/status-bar";
 import { I18nProvider } from "../src/i18n/context";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 const renderBar = (overrides: Partial<ComponentProps<typeof StatusBar>> = {}) => {
   const props: ComponentProps<typeof StatusBar> = {
@@ -126,14 +129,30 @@ describe("StatusBar summary", () => {
     // The empty state disables the search field and ⌘K, so it must not
     // advertise their shortcuts (dc:319-326 gates the hints on hasData).
     expect(screen.queryByText("⌘K command palette")).not.toBeInTheDocument();
-    expect(screen.queryByText("↑↓ prev/next match")).not.toBeInTheDocument();
     expect(screen.queryByText("Enter jump to path")).not.toBeInTheDocument();
   });
 
-  it("keeps the shortcut hints once a source is loaded", () => {
-    renderBar();
+  it.each([
+    {
+      locale: "en",
+      paletteHint: "⌘K command palette",
+      pathHint: "Enter jump to path",
+      falseMatchHint: "prev/next match",
+    },
+    {
+      locale: "zh-CN",
+      paletteHint: "⌘K 命令面板",
+      pathHint: "Enter 跳转路径",
+      falseMatchHint: "上下匹配",
+    },
+  ])("advertises only registered shortcuts in $locale", (contract) => {
+    localStorage.setItem("unquote-locale", contract.locale);
+    const { container } = renderBar();
 
-    expect(screen.getByText("⌘K command palette")).toBeInTheDocument();
+    expect(screen.getByText(contract.paletteHint)).toBeInTheDocument();
+    expect(screen.getByText(contract.pathHint)).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/[↑↓]/);
+    expect(container).not.toHaveTextContent(contract.falseMatchHint);
   });
 
   it("renders store links whether or not a source is loaded", () => {
