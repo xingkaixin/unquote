@@ -124,6 +124,7 @@ export interface AgentSessionModel {
 }
 
 export interface ParsedAgentLine {
+  recordId: string;
   lineNumber: number;
   data: unknown;
 }

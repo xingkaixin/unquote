@@ -28,8 +28,6 @@ export const getBoolean = (record: Record<string, unknown>, key: string, default
   return typeof value === "boolean" ? value : defaultValue;
 };
 
-const getRecordId = (lineNumber: number) => `record-${lineNumber}`;
-
 export const addOptionalString = <T extends object, K extends keyof T>(
   target: T,
   key: K,
@@ -63,7 +61,7 @@ export const createBaseEvent = (
   preview: string,
 ): AgentTimelineEvent => ({
   id: `line-${line.lineNumber}`,
-  recordId: getRecordId(line.lineNumber),
+  recordId: line.recordId,
   lineNumber: line.lineNumber,
   category,
   kind,

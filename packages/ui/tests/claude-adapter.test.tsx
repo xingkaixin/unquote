@@ -9,6 +9,7 @@ const conversationItems = (session: AgentSession) =>
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
+  recordId: `record-${lineNumber}`,
 });
 
 const transcriptLine = (lineNumber: number): ParsedAgentLine =>
