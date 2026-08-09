@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  agentSessionBudgetedRenderMetrics,
   budgetedRenderMetrics,
   collectBudgetFailures,
   mergeMeasurementFailures,
@@ -144,6 +145,21 @@ describe("collectBudgetFailures", () => {
     expect(collectBudgetFailures({ "case.jsonl": metrics }, budgets, 3)).toEqual([
       "case.jsonl searchReadyMs.p50 3001 > 3000",
     ]);
+  });
+
+  it("requires Agent-only metrics only for the declared fixture", () => {
+    const agentMetrics = healthyMetrics();
+    agentMetrics["agentSessionReadyMs"] = { samples: 3, p50: 100 };
+    agentMetrics["agentToolReadyMs"] = { samples: 3, p50: 801 };
+
+    expect(
+      collectBudgetFailures(
+        { "agent.jsonl": agentMetrics, "plain.jsonl": healthyMetrics() },
+        { ...budgets, agentSessionReadyMsP50: 2000, agentToolReadyMsP50: 800 },
+        3,
+        { "agent.jsonl": agentSessionBudgetedRenderMetrics },
+      ),
+    ).toEqual(["agent.jsonl agentToolReadyMs.p50 801 > 800"]);
   });
 });
 
