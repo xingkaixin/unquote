@@ -285,8 +285,9 @@ Safari extensions ship inside a native macOS app, so `apps/safari` holds an Xcod
 | `pnpm format:check` | oxfmt check across all packages |
 | `pnpm test` | Run all Vitest suites |
 | `pnpm check` | format check + typecheck + lint + test + production build |
-| `pnpm benchmark` | Build and run the release performance gate |
-| `pnpm benchmark:fixtures` | Generate ignored local JSONL benchmark fixtures |
+| `pnpm benchmark` | Regenerate default fixtures, then build and run the release performance gate |
+| `pnpm benchmark:agent` | Run the performance gate against the synthetic Agent session fixture |
+| `pnpm benchmark:fixtures` | Deterministically regenerate the ignored Agent, case 2, and case 4 fixtures |
 | `pnpm benchmark:case4-fixture` | Generate high-record-count JSONL release/stress fixtures |
 | `pnpm deploy:cf` | Build web + deploy to Cloudflare Pages |
 | `pnpm zip-extension` | Build + zip extension for store upload |

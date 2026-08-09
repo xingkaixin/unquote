@@ -119,6 +119,9 @@ pnpm check
 pnpm benchmark
 ```
 
+`pnpm benchmark` 会先确定性重建默认的合成 Agent、case 2 与 case 4 fixtures，干净 checkout
+不需要预先存在的本地数据；CI 也运行同一命令。
+
 如果本次只改发布文档，可以不运行完整测试，但需要在最终说明中明确未运行。
 
 ## 8. Safari 渠道
