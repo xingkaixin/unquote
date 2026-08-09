@@ -31,6 +31,7 @@ const detectionLineLimit = 80;
 const earlyDetectionLineCount = 20;
 const confidentDetectionScore = 0.75;
 const finalDetectionScore = 0.5;
+const agentProjectionWarning = "Unable to project Agent data from this line";
 
 const adapters: AgentSessionAdapter[] = [codexRolloutAdapter, claudeTranscriptAdapter];
 
@@ -55,10 +56,18 @@ export const createAgentSessionTracker = (fileName?: string) => {
   let builder: AgentAdapterBuilder | null = null;
   let disabled = false;
 
+  const pushToBuilder = (line: ParsedAgentLine) => {
+    try {
+      builder?.push(line);
+    } catch {
+      parseWarnings.push({ lineNumber: line.lineNumber, message: agentProjectionWarning });
+    }
+  };
+
   const startBuilder = (adapter: AgentSessionAdapter) => {
     builder = adapter.createBuilder(fileName);
     for (const sample of samples) {
-      builder.push(sample);
+      pushToBuilder(sample);
     }
     samples.splice(0, samples.length);
   };
@@ -78,7 +87,7 @@ export const createAgentSessionTracker = (fileName?: string) => {
     }
 
     if (builder) {
-      builder.push(line);
+      pushToBuilder(line);
       return;
     }
 

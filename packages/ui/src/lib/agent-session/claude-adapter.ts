@@ -8,6 +8,7 @@ import type {
   AgentTimelineEvent,
   AgentTokenUsage,
 } from "./types";
+import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
 import {
   addOptionalNumber,
   addOptionalString,
@@ -19,9 +20,6 @@ import {
   isRecord,
   parseTimestamp,
   readTokenCount,
-  stringifyValue,
-  truncateBlockText,
-  truncatePreview,
 } from "./shared";
 
 const claudeMetaTypes = new Set([
@@ -71,7 +69,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
       const input = isRecord(part.input) ? part.input : {};
       blocks.push({
         type: "tool_use",
-        text: truncateBlockText(JSON.stringify(input, null, 2)),
+        text: formatAgentBlockValue(input),
         toolName: part.name,
         toolCallId: part.id,
       });
@@ -80,7 +78,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
       // block keeps its own id, status, and text rather than being merged.
       blocks.push({
         type: "tool_result",
-        text: truncateBlockText(stringifyValue(part.content)),
+        text: formatAgentBlockValue(part.content),
         status: part.is_error === true ? "failed" : "completed",
         ...(typeof part.tool_use_id === "string" ? { toolCallId: part.tool_use_id } : {}),
       });

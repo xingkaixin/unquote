@@ -11,6 +11,7 @@ import type {
   AgentSessionModel,
   AgentToolStatus,
 } from "../lib/agent-session";
+import { formatAgentFieldValue } from "../lib/agent-session/agent-value-format";
 import { formatEventMeta, formatTimestamp, roleConfig } from "./agent-session-format";
 import { Button } from "./button";
 
@@ -51,7 +52,7 @@ const parseToolFields = (text: string): ToolField[] | null => {
 
   return Object.entries(parsed).map(([key, value]) => ({
     key,
-    value: typeof value === "string" ? value : JSON.stringify(value),
+    value: formatAgentFieldValue(value),
   }));
 };
 

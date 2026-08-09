@@ -1,4 +1,3 @@
-import { truncateAtCodePointBoundary } from "@unquote/core";
 import type {
   AgentConversationItem,
   AgentEventCategory,
@@ -7,17 +6,6 @@ import type {
   AgentTimelineEvent,
   ParsedAgentLine,
 } from "./types";
-
-const previewLimit = 160;
-const blockTextLimit = 8000;
-
-export const truncateText = (value: string, limit: number) =>
-  value.length <= limit ? value : `${truncateAtCodePointBoundary(value, limit)}... [truncated]`;
-
-export const truncatePreview = (value: string) =>
-  truncateText(value.replace(/\s+/g, " ").trim(), previewLimit);
-
-export const truncateBlockText = (value: string) => truncateText(value, blockTextLimit);
 
 export const parseTimestamp = (value: unknown): number | undefined => {
   if (typeof value === "string") {
@@ -60,16 +48,6 @@ export const addOptionalNumber = <T extends object, K extends keyof T>(
   if (typeof value === "number") {
     target[key] = value as T[K];
   }
-};
-
-export const stringifyValue = (value: unknown) => {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (value === undefined || value === null) {
-    return "";
-  }
-  return JSON.stringify(value, null, 2);
 };
 
 export const readTokenCount = (usage: Record<string, unknown>, key: string): number | undefined => {

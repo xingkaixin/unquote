@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
@@ -20,8 +20,6 @@ const transcriptLine = (lineNumber: number): ParsedAgentLine =>
     },
     lineNumber,
   );
-
-afterEach(() => vi.restoreAllMocks());
 
 describe("claudeTranscriptAdapter", () => {
   it("scores transcript and metadata evidence", () => {
@@ -287,14 +285,29 @@ describe("claudeTranscriptAdapter", () => {
   });
 
   it("normalizes each event's content exactly once", () => {
-    const stringify = vi.spyOn(JSON, "stringify");
+    let inputReads = 0;
+    const toolInput = (key: string, value: string) =>
+      Object.defineProperty({}, key, {
+        enumerable: true,
+        get() {
+          inputReads += 1;
+          return value;
+        },
+      });
     const builder = claudeTranscriptAdapter.createBuilder();
     builder.push(
       parsedLine(
         {
           type: "assistant",
           message: {
-            content: [{ type: "tool_use", id: "tool-1", name: "Bash", input: { command: "ls" } }],
+            content: [
+              {
+                type: "tool_use",
+                id: "tool-1",
+                name: "Bash",
+                input: toolInput("command", "ls"),
+              },
+            ],
           },
         },
         1,
@@ -305,7 +318,14 @@ describe("claudeTranscriptAdapter", () => {
         {
           type: "assistant",
           message: {
-            content: [{ type: "tool_use", id: "tool-2", name: "Read", input: { path: "/tmp" } }],
+            content: [
+              {
+                type: "tool_use",
+                id: "tool-2",
+                name: "Read",
+                input: toolInput("path", "/tmp"),
+              },
+            ],
           },
         },
         2,
@@ -313,13 +333,32 @@ describe("claudeTranscriptAdapter", () => {
     );
     builder.finish([]);
 
-    // The label, the preview, and the conversation item all read one projection,
-    // so each tool input is serialized once rather than once per consumer.
-    const toolInputSerializations = stringify.mock.calls.filter(
-      ([value]) =>
-        typeof value === "object" && value !== null && ("command" in value || "path" in value),
+    expect(inputReads).toBe(2);
+  });
+
+  it("bounds deeply nested tool input without failing the event", () => {
+    let input: unknown = "leaf";
+    for (let depth = 0; depth < 7_000; depth += 1) {
+      input = [input];
+    }
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "tool_use", id: "tool-1", name: "Deep", input }],
+          },
+        },
+        1,
+      ),
     );
-    expect(toolInputSerializations).toHaveLength(2);
+
+    const session = builder.finish([]);
+    const block = conversationItems(session)[0]?.block;
+
+    expect(block?.text).toMatch(/\.\.\. \[truncated\]$/);
+    expect(session.events[0]?.label).toBe("tool_use Deep");
   });
 
   it("projects a string message body the same way as a single text block", () => {
