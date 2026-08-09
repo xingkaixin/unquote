@@ -59,7 +59,7 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 | U-4 | 批量展开与收起 | 对当前记录范围内的 stringified 节点执行 Expand All 或 Collapse All。 |
 | U-5 | Record 导航 | Record rail 提供行号、摘要、洞察与解析状态，并定位当前可见 Record；工作区一次浏览一个选中 Record。 |
 | U-6 | 搜索、路径跳转与筛选 | 在键和值中搜索，支持正则、大小写、JSONPath / jq 风格路径跳转及记录过滤。 |
-| U-7 | 命令工具栏 | 在工具栏和 `Cmd/Ctrl+K` 命令面板集中执行搜索、路径跳转、展开/收起与筛选。 |
+| U-7 | 工具栏与命令面板 | 当前 Record tree 工具栏执行展开/收起；`Cmd/Ctrl+K` 命令面板执行搜索、路径跳转、搜索选项与 Record 筛选。 |
 | U-8 | Agent session 视图 | 自动识别 Codex rollout 与 Claude Code JSONL，以会话信息、对话、工具调用、时间线和原始记录的关联视图呈现。 |
 | U-9 | 复制与导出 | 复制或导出可见记录为 JSONL 或格式化 JSON；大数据复制会提示改用导出。 |
 | U-10 | 文件概览与记录洞察 | 汇总成功/失败、嵌套路径和常见字段值，并识别日志、消息、事件、工具调用和错误记录。 |

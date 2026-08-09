@@ -116,7 +116,6 @@ export const StatusBar = ({
           >
             {t("status.clear")}
           </button>
-          <span className="hidden shrink-0 lg:inline">{t("status.hintMatches")}</span>
           <span className="hidden shrink-0 lg:inline">{t("status.hintPath")}</span>
           <span className="hidden shrink-0 lg:inline">{t("status.hintPalette")}</span>
         </>

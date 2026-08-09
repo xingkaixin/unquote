@@ -152,7 +152,7 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-parser.ts` | Wraps `parseInput` in a Web Worker (`parser-worker.ts`). Debounces at 120ms, publishes streamed records through `lib/stream-publisher.ts`, terminates superseded workers, and falls back to main-thread if `Worker` unavailable. |
 | `hooks/use-desktop-workspace.ts` | Tracks the desktop workspace media query for responsive three-column or stacked layouts. |
 | `hooks/use-local-file-source.ts` | Browse-time state for local JSONL files: batched Preview-to-Full Record requests, Full Record cache eviction, copy/export resolution, and abort handling. |
-| `hooks/use-global-shortcuts.ts` | Owns document-level command palette, search navigation, expansion, and escape-key shortcuts. |
+| `hooks/use-global-shortcuts.ts` | Owns document-level command-palette opening, escape dismissal, and selected-node copy shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
 | `hooks/use-output-view.ts` | Owns Agent/JSON output selection and resets it when the detected Agent session identity changes. |
 | `hooks/use-search-worker.ts` | Runs search off the main thread with cancellation and a time budget for superseded queries, with an in-process fallback when workers are unavailable. |

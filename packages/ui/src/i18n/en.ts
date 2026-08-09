@@ -111,7 +111,6 @@ export const en = {
   "status.failed": "{count} failed",
   "status.empty": "No data loaded · waiting for import",
   "status.clear": "Clear",
-  "status.hintMatches": "↑↓ prev/next match",
   "status.hintPath": "Enter jump to path",
   "status.hintPalette": "⌘K command palette",
   "rail.line": "Line {line}",
