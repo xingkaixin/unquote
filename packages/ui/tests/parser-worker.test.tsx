@@ -46,6 +46,32 @@ describe("parser worker dispatch", () => {
     );
   });
 
+  it("completes deeply nested Agent output without failing the worker request", async () => {
+    const nestedOutput = `${"[".repeat(7_000)}"ok"${"]".repeat(7_000)}`;
+    const input = [
+      '{"type":"session_meta","payload":{"session_id":"deep-worker"}}',
+      `{"type":"response_item","payload":{"type":"function_call_output","output":${nestedOutput}}}`,
+    ].join("\n");
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, { type: "parse", requestId: 1, input, forcedFormat: "jsonl" });
+
+    const response = workerScope.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message.type === "complete-result");
+    expect(response).toMatchObject({
+      requestId: 1,
+      result: { stats: { total: 2, success: 2, failed: 0 } },
+      progress: { done: true },
+    });
+    expect(response.agentSession.events[1].conversationItems[0].block.text).toMatch(
+      /\.\.\. \[truncated\]$/,
+    );
+    expect(workerScope.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+  });
+
   it("cancels the reader and posts an error terminal response", async () => {
     const reader = {
       read: vi.fn().mockRejectedValue(new Error("read failed")),
