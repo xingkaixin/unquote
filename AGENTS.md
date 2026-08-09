@@ -254,6 +254,7 @@ Safari extensions ship inside a native macOS app, so `apps/safari` holds an Xcod
 - **Manifest differences:** the Safari build drops `clipboardRead`, which Safari does not support. `wxt.safari.config.ts` only overrides the output directory — `wxt.config.ts` owns the browser-conditional manifest.
 - **Ignored paths:** `Unquote Extension/Resources` is a build output and `xcuserdata` is local state; neither belongs in git.
 - **Host app window:** `Unquote/Resources/Base.lproj/Main.html` is the app's entire interface and therefore what App Review judges. `Script.js` rewrites the `.state-*` paragraphs, so keep those elements text-only.
+- **Host bridge contract:** `Unquote/SafariHostContract.swift` owns the extension-state commands and accepted JavaScript messages. `UnquoteTests` verifies the native mapping, while `apps/safari/tests/host-script.test.ts` executes the shipped HTML and JavaScript resources under jsdom. The shared scheme and macOS CI run the native tests without signing.
 - **Release:** open the project in Xcode, pick a signing team, bump `CURRENT_PROJECT_VERSION`, then Archive and upload to the Mac App Store. `MARKETING_VERSION` syncs from the extension manifest during `pnpm build:safari`.
 
 ## TypeScript Configuration
