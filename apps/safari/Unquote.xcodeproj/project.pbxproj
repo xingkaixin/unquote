@@ -26,6 +26,8 @@
 		0A969EC130178B60000E5B1F /* options.html in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB830178B60000E5B1F /* options.html */; };
 		0A969EC230178B60000E5B1F /* _locales in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EB930178B60000E5B1F /* _locales */; };
 		0A969EC330178B60000E5B1F /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 0A969EBA30178B60000E5B1F /* assets */; };
+		0A969EC430178B60000E5B1F /* SafariHostContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A969EC730178B60000E5B1F /* SafariHostContract.swift */; };
+		0A969EC530178B60000E5B1F /* SafariHostContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A969EC830178B60000E5B1F /* SafariHostContractTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +37,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 0A969E9F30178B60000E5B1F;
 			remoteInfo = "Unquote Extension";
+		};
+		0A969EC630178B60000E5B1F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A969E7D30178B5F000E5B1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A969E8430178B5F000E5B1F;
+			remoteInfo = Unquote;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -73,6 +82,9 @@
 		0A969EB830178B60000E5B1F /* options.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = options.html; path = Resources/options.html; sourceTree = "<group>"; };
 		0A969EB930178B60000E5B1F /* _locales */ = {isa = PBXFileReference; lastKnownFileType = folder; name = _locales; path = Resources/_locales; sourceTree = "<group>"; };
 		0A969EBA30178B60000E5B1F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = Resources/assets; sourceTree = "<group>"; };
+		0A969EC730178B60000E5B1F /* SafariHostContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariHostContract.swift; sourceTree = "<group>"; };
+		0A969EC830178B60000E5B1F /* SafariHostContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariHostContractTests.swift; sourceTree = "<group>"; };
+		0A969EC930178B60000E5B1F /* UnquoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UnquoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +98,11 @@
 			files = (
 			);
 		};
+		0A969ECA30178B60000E5B1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -93,6 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				0A969E8730178B5F000E5B1F /* Unquote */,
+				0A969ECB30178B60000E5B1F /* UnquoteTests */,
 				0A969EA430178B60000E5B1F /* Unquote Extension */,
 				0A969E8630178B5F000E5B1F /* Products */,
 			);
@@ -103,6 +121,7 @@
 			children = (
 				0A969E8530178B5F000E5B1F /* Unquote.app */,
 				0A969EA030178B60000E5B1F /* Unquote Extension.appex */,
+				0A969EC930178B60000E5B1F /* UnquoteTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -111,6 +130,7 @@
 			isa = PBXGroup;
 			children = (
 				0A969E8830178B5F000E5B1F /* AppDelegate.swift */,
+				0A969EC730178B60000E5B1F /* SafariHostContract.swift */,
 				0A969E9430178B5F000E5B1F /* ViewController.swift */,
 				0A969E9630178B5F000E5B1F /* Main.storyboard */,
 				0A969E9930178B60000E5B1F /* Assets.xcassets */,
@@ -118,6 +138,14 @@
 				0A969E8A30178B5F000E5B1F /* Resources */,
 			);
 			path = Unquote;
+			sourceTree = "<group>";
+		};
+		0A969ECB30178B60000E5B1F /* UnquoteTests */ = {
+			isa = PBXGroup;
+			children = (
+				0A969EC830178B60000E5B1F /* SafariHostContractTests.swift */,
+			);
+			path = UnquoteTests;
 			sourceTree = "<group>";
 		};
 		0A969E8A30178B5F000E5B1F /* Resources */ = {
@@ -195,6 +223,24 @@
 			productReference = 0A969EA030178B60000E5B1F /* Unquote Extension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		0A969ECC30178B60000E5B1F /* UnquoteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A969ED230178B60000E5B1F /* Build configuration list for PBXNativeTarget "UnquoteTests" */;
+			buildPhases = (
+				0A969ECE30178B60000E5B1F /* Sources */,
+				0A969ECA30178B60000E5B1F /* Frameworks */,
+				0A969ECD30178B60000E5B1F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0A969ECF30178B60000E5B1F /* PBXTargetDependency */,
+			);
+			name = UnquoteTests;
+			productName = UnquoteTests;
+			productReference = 0A969EC930178B60000E5B1F /* UnquoteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -209,6 +255,9 @@
 						CreatedOnToolsVersion = 27.0;
 					};
 					0A969E9F30178B60000E5B1F = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					0A969ECC30178B60000E5B1F = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -229,6 +278,7 @@
 			targets = (
 				0A969E8430178B5F000E5B1F /* Unquote */,
 				0A969E9F30178B60000E5B1F /* Unquote Extension */,
+				0A969ECC30178B60000E5B1F /* UnquoteTests */,
 			);
 		};
 /* End PBXProject section */
@@ -259,12 +309,18 @@
 				0A969EBD30178B60000E5B1F /* icon48.png in Resources */,
 			);
 		};
+		0A969ECD30178B60000E5B1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0A969E8130178B5F000E5B1F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				0A969EC430178B60000E5B1F /* SafariHostContract.swift in Sources */,
 				0A969E9530178B5F000E5B1F /* ViewController.swift in Sources */,
 				0A969E8930178B5F000E5B1F /* AppDelegate.swift in Sources */,
 			);
@@ -275,6 +331,12 @@
 				0A969EA630178B60000E5B1F /* SafariWebExtensionHandler.swift in Sources */,
 			);
 		};
+		0A969ECE30178B60000E5B1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0A969EC530178B60000E5B1F /* SafariHostContractTests.swift in Sources */,
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -282,6 +344,11 @@
 			isa = PBXTargetDependency;
 			target = 0A969E9F30178B60000E5B1F /* Unquote Extension */;
 			targetProxy = 0A969EA230178B60000E5B1F /* PBXContainerItemProxy */;
+		};
+		0A969ECF30178B60000E5B1F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A969E8430178B5F000E5B1F /* Unquote */;
+			targetProxy = 0A969EC630178B60000E5B1F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -577,6 +644,42 @@
 			};
 			name = Release;
 		};
+		0A969ED030178B60000E5B1F /* Debug configuration for PBXNativeTarget "UnquoteTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8KNWLK4SMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Unquote.app/Contents/MacOS/Unquote";
+			};
+			name = Debug;
+		};
+		0A969ED130178B60000E5B1F /* Release configuration for PBXNativeTarget "UnquoteTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8KNWLK4SMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xingkaixin.unquote.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Unquote.app/Contents/MacOS/Unquote";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -601,6 +704,14 @@
 			buildConfigurations = (
 				0A969EAF30178B60000E5B1F /* Debug configuration for PBXNativeTarget "Unquote" */,
 				0A969EB030178B60000E5B1F /* Release configuration for PBXNativeTarget "Unquote" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0A969ED230178B60000E5B1F /* Build configuration list for PBXNativeTarget "UnquoteTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A969ED030178B60000E5B1F /* Debug configuration for PBXNativeTarget "UnquoteTests" */,
+				0A969ED130178B60000E5B1F /* Release configuration for PBXNativeTarget "UnquoteTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

@@ -20,36 +20,50 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
 
         self.webView.navigationDelegate = self
 
-        self.webView.configuration.userContentController.add(self, name: "controller")
+        self.webView.configuration.userContentController.add(
+            self,
+            name: SafariHostContract.messageHandlerName
+        )
 
         self.webView.loadFileURL(Bundle.main.url(forResource: "Main", withExtension: "html")!, allowingReadAccessTo: Bundle.main.resourceURL!)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
-            guard let state = state, error == nil else {
-                // Insert code to inform the user that something went wrong.
-                return
+            let hostState = SafariHostExtensionState(
+                isEnabled: state?.isEnabled,
+                hasError: error != nil
+            )
+
+            let useSettingsInsteadOfPreferences: Bool
+            if #available(macOS 13, *) {
+                useSettingsInsteadOfPreferences = true
+            } else {
+                useSettingsInsteadOfPreferences = false
             }
 
+            let script = SafariHostContract.showScript(
+                for: hostState,
+                useSettingsInsteadOfPreferences: useSettingsInsteadOfPreferences
+            )
+
             DispatchQueue.main.async {
-                if #available(macOS 13, *) {
-                    webView.evaluateJavaScript("show(\(state.isEnabled), true)")
-                } else {
-                    webView.evaluateJavaScript("show(\(state.isEnabled), false)")
-                }
+                webView.evaluateJavaScript(script)
             }
         }
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if (message.body as! String != "open-preferences") {
-            return;
+        guard let action = SafariHostContract.action(for: message.body) else {
+            return
         }
 
-        SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in
-            DispatchQueue.main.async {
-                NSApplication.shared.terminate(nil)
+        switch action {
+        case .openPreferences:
+            SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { _ in
+                DispatchQueue.main.async {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
     }
