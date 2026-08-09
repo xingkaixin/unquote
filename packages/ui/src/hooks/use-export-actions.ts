@@ -26,6 +26,9 @@ interface UseExportActionsParams {
   sourceRevision: SourceRevision;
 }
 
+const isAbortError = (error: unknown) =>
+  typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+
 export const useExportActions = ({
   visibleRecords,
   resolveRecords,
@@ -37,7 +40,7 @@ export const useExportActions = ({
   const { t } = useTranslation();
   const copyText = useCopyToClipboard(sourceRevision);
   // One scope per Source Revision: replacing the source or unmounting stops an
-  // export that is still reading the previous file.
+  // export that is still resolving, serializing, or reading the previous source.
   const exportScopeRef = useRef<AbortController>(new AbortController());
 
   useEffect(() => {
@@ -53,21 +56,21 @@ export const useExportActions = ({
    * the output still follows `visibleRecords`.
    */
   const buildExportParts = useCallback(
-    async (builder: ExportPartsBuilder) => {
+    async (builder: ExportPartsBuilder, signal: AbortSignal) => {
+      signal.throwIfAborted();
       if (!sourceAccess) {
-        return addRecordsToBuilder(builder, await resolveRecords(visibleRecords));
+        const records = await resolveRecords(visibleRecords);
+        signal.throwIfAborted();
+        return addRecordsToBuilder(builder, records, signal);
       }
 
-      const { signal } = exportScopeRef.current;
       const bodies = new Map<number, string>();
       await sourceAccess.streamRecords(
         new Set(visibleRecords.map((record) => record.lineNumber)),
         (record) => bodies.set(record.lineNumber, builder.bodyFor(record)),
         signal,
       );
-      if (signal.aborted) {
-        throw new DOMException("Export superseded by a new source", "AbortError");
-      }
+      signal.throwIfAborted();
 
       for (const record of visibleRecords) {
         builder.addBody(bodies.get(record.lineNumber) ?? builder.bodyFor(record));
@@ -75,6 +78,27 @@ export const useExportActions = ({
       return builder.finish();
     },
     [resolveRecords, sourceAccess, visibleRecords],
+  );
+
+  const exportWithBuilder = useCallback(
+    (builder: ExportPartsBuilder, extension: "json" | "jsonl", type: string) => {
+      const { signal } = exportScopeRef.current;
+      const operation = (async () => {
+        const parts = await buildExportParts(builder, signal);
+        signal.throwIfAborted();
+        downloadBlob(parts, createExportFilename(extension), type);
+      })();
+      void operation.catch((error: unknown) => {
+        if (!isAbortError(error)) {
+          toast.error(t("toolbar.exportFailed"));
+        }
+      });
+      toast.promise(operation, {
+        loading: t("toolbar.exporting"),
+        success: t("toolbar.exportDone"),
+      });
+    },
+    [buildExportParts, t],
   );
 
   // Copy actions are invoked fire-and-forget from onClick, so a rejected file
@@ -114,32 +138,12 @@ export const useExportActions = ({
   }, [copyText, format, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
 
   const onExportJsonl = useCallback(() => {
-    toast.promise(
-      (async () => {
-        const parts = await buildExportParts(createJsonlPartsBuilder());
-        downloadBlob(parts, createExportFilename("jsonl"), "application/jsonl;charset=utf-8");
-      })(),
-      {
-        loading: t("toolbar.exporting"),
-        success: t("toolbar.exportDone"),
-        error: t("toolbar.exportFailed"),
-      },
-    );
-  }, [buildExportParts, t]);
+    exportWithBuilder(createJsonlPartsBuilder(), "jsonl", "application/jsonl;charset=utf-8");
+  }, [exportWithBuilder]);
 
   const onExportFormattedJson = useCallback(() => {
-    toast.promise(
-      (async () => {
-        const parts = await buildExportParts(createJsonPartsBuilder(format));
-        downloadBlob(parts, createExportFilename("json"), "application/json;charset=utf-8");
-      })(),
-      {
-        loading: t("toolbar.exporting"),
-        success: t("toolbar.exportDone"),
-        error: t("toolbar.exportFailed"),
-      },
-    );
-  }, [buildExportParts, format, t]);
+    exportWithBuilder(createJsonPartsBuilder(format), "json", "application/json;charset=utf-8");
+  }, [exportWithBuilder, format]);
 
   const onCopyRecord = useCallback(
     (record: JsonlRecord) =>

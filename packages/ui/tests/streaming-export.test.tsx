@@ -1,4 +1,4 @@
-import { parsePreviewJsonlRecordLine } from "@unquote/core";
+import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -28,6 +28,8 @@ const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{childr
 
 const previewRecords = (lines: string[]) =>
   lines.map((line, index) => parsePreviewJsonlRecordLine(line, index + 1));
+const fullRecords = (lines: string[]) =>
+  parseInput(lines.join("\n"), { forcedFormat: "jsonl" }).records;
 
 const downloadedText = () => {
   const parts = exportMocks.downloadBlob.mock.calls.at(-1)?.[0] as BlobPart[];
@@ -73,9 +75,10 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
-describe("streaming local-file export", () => {
+describe("streaming export", () => {
   it.each(["jsonl", "json"] as const)(
     "produces byte-identical %s output without materializing every record",
     async (format) => {
@@ -195,6 +198,114 @@ describe("streaming local-file export", () => {
 
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
     expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("aborts an in-memory export whose source changes after a builder yield", async () => {
+    vi.useFakeTimers();
+    const lines = Array.from({ length: 401 }, (_, index) => `{"id":${index + 1}}`);
+    const { result, rerender } = renderExport({
+      visibleRecords: fullRecords(lines),
+      sourceAccess: null,
+    });
+
+    await act(async () => {
+      result.current.onExportJsonl();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    let settled: unknown;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    pending?.catch((error: unknown) => (settled = error));
+
+    rerender({ sourceRevision: 1 });
+    await act(async () => vi.runAllTimersAsync());
+
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("does not build resolved records after their source revision changes", async () => {
+    const records = fullRecords(['{"id":1}']);
+    const resolvedRecord = { ...records[0]! };
+    let serialized = false;
+    Object.defineProperty(resolvedRecord, "status", {
+      get: () => {
+        serialized = true;
+        return records[0]!.status;
+      },
+    });
+    let settleResolution!: (records: JsonlRecord[]) => void;
+    const controlledResolve = vi.fn(
+      () =>
+        new Promise<JsonlRecord[]>((resolve) => {
+          settleResolution = resolve;
+        }),
+    );
+    const { result, rerender } = renderExport({
+      visibleRecords: records,
+      sourceAccess: null,
+      resolveRecords: controlledResolve,
+    });
+
+    result.current.onExportJsonl();
+    let settled: unknown;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    pending?.catch((error: unknown) => (settled = error));
+    rerender({ sourceRevision: 1 });
+    await act(async () => {
+      settleResolution([resolvedRecord]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(serialized).toBe(false);
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("aborts an in-memory export when its owner unmounts", async () => {
+    vi.useFakeTimers();
+    const lines = Array.from({ length: 401 }, (_, index) => `{"id":${index + 1}}`);
+    const { result, unmount } = renderExport({
+      visibleRecords: fullRecords(lines),
+      sourceAccess: null,
+    });
+
+    await act(async () => {
+      result.current.onExportJsonl();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    let settled: unknown;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    pending?.catch((error: unknown) => (settled = error));
+
+    unmount();
+    await act(async () => vi.runAllTimersAsync());
+
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("reports a genuine in-memory export failure", async () => {
+    const { result } = renderExport({
+      visibleRecords: fullRecords(['{"id":1}']),
+      sourceAccess: null,
+      resolveRecords: vi.fn().mockRejectedValue(new Error("read failed")),
+    });
+
+    result.current.onExportJsonl();
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    await act(async () => {
+      await pending?.catch(() => undefined);
+    });
+
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledWith("Export failed");
   });
 
   it("scales to a large record count without resolving every record", async () => {
