@@ -146,11 +146,15 @@ pnpm build:safari
 git diff -- "apps/safari/Unquote.xcodeproj/project.pbxproj"
 ```
 
-本地可以先做一次无签名构建，确认宿主应用仍能编译（CI 的 macOS job 执行同一命令）：
+本地可以先做一次无签名构建与测试，确认宿主应用及消息协议仍然有效（CI 的 macOS job 执行同样的
+两条命令）：
 
 ```sh
 xcodebuild -project "apps/safari/Unquote.xcodeproj" -scheme Unquote -configuration Debug \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+xcodebuild -project "apps/safari/Unquote.xcodeproj" -scheme Unquote -configuration Debug \
+  -destination "platform=macOS" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" test
 ```
 
 **以下步骤需要人工在 Xcode 中完成，无法自动化：**
