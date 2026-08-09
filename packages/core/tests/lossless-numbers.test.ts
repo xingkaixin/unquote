@@ -94,6 +94,20 @@ describe("lossless JSON numbers", () => {
     expect(formatResult(truncated)).toContain(`"value": ${rawValue}`);
   });
 
+  it.each([
+    "9007199254740991",
+    "9007199254740993",
+    "-9007199254740993",
+    "0.12345678901234567890123456789",
+    "1e3",
+    "1e309",
+    "1e400",
+  ])("preserves the Preview field number lexeme %s", (rawValue) => {
+    const preview = parsePreviewJsonlRecordLine(`{"value":${rawValue}}`, 1);
+
+    expect(preview.preview?.fields.value).toEqual({ type: "number", rawValue });
+  });
+
   it("cannot confuse a user string with the internal number marker", () => {
     const markerLike = "\0unquote:number:::9007199254740993";
     const input = JSON.stringify({ markerLike, value: 9_007_199_254_740_993n.toString() }).replace(

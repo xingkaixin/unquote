@@ -6,7 +6,7 @@ import type {
   JsonContainerKind,
   JsonNode,
   JsonlRecord,
-  JsonPrimitive,
+  JsonlRecordPreviewFieldValue,
   LosslessJsonValue,
   ParseErrorMeta,
   ParseOptions,
@@ -233,24 +233,21 @@ const createRecordPreview = (value: LosslessJsonValue) => {
     return undefined;
   }
 
-  const fields: Array<[string, JsonPrimitive]> = [];
+  const fields: Array<[string, JsonlRecordPreviewFieldValue]> = [];
   const containers: Array<[string, JsonContainerKind]> = [];
   const nestedFieldKeys: string[] = [];
 
   for (const [key, child] of Object.entries(value.entries)) {
-    if (child !== null && typeof child === "object" && child.type !== "number") {
-      containers.push([key, child.type]);
+    if (child !== null && typeof child === "object") {
+      if (child.type === "number") {
+        fields.push([key, child]);
+      } else {
+        containers.push([key, child.type]);
+      }
       continue;
     }
 
-    fields.push([
-      key,
-      typeof child === "string"
-        ? truncatePreviewString(child)
-        : child !== null && typeof child === "object"
-          ? Number(child.rawValue)
-          : (child as JsonPrimitive),
-    ]);
+    fields.push([key, typeof child === "string" ? truncatePreviewString(child) : child]);
     if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
       nestedFieldKeys.push(key);
     }

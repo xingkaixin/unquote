@@ -32,6 +32,7 @@ export type {
   JsonStringNode,
   JsonlRecord,
   JsonlRecordPreview,
+  JsonlRecordPreviewFieldValue,
   LosslessJsonArrayValue,
   LosslessJsonNumberValue,
   LosslessJsonObjectValue,
