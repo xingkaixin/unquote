@@ -2,6 +2,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../src/i18n/context";
+import {
+  projectSourceImport,
+  projectSourceWork,
+  resolveSourceWork,
+} from "../src/lib/published-source";
 import { sourceDetectionProbeByteBudget } from "../src/lib/source-detect";
 import {
   createControlledStreamFile,
@@ -22,6 +27,20 @@ vi.mock("../src/lib/clipboard", () => ({
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 import { useSourceLoader } from "../src/hooks/use-source-loader";
+
+const snapshot = (current: ReturnType<typeof useSourceLoader>) => {
+  const work = resolveSourceWork(projectSourceWork(current.source));
+  const importProjection = projectSourceImport(current.source);
+  return {
+    sourceRevision: current.source.sourceRevision,
+    sourceText: work.text,
+    sourceAccess: work.sourceAccess,
+    importedFile: work.sourceAccess ? null : importProjection.file,
+    mode: importProjection.mode,
+    readingFile: current.operation.kind === "reading" ? current.operation.file : null,
+    readProgress: current.operation.kind === "reading" ? current.operation.progress : null,
+  };
+};
 
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
 const oversizedJsonlContents = (line = '{"loaded":true}\n') =>
@@ -113,9 +132,9 @@ describe("useSourceLoader", () => {
     });
 
     expect(publishedRevision).toBe(1);
-    expect(result.current.sourceRevision).toBe(1);
-    expect(result.current.sourceText).toBe("sample");
-    expect(result.current.mode).toBe("json");
+    expect(snapshot(result.current).sourceRevision).toBe(1);
+    expect(snapshot(result.current).sourceText).toBe("sample");
+    expect(snapshot(result.current).mode).toBe("json");
   });
 
   it("returns the exact revision assigned to a text source", () => {
@@ -127,7 +146,7 @@ describe("useSourceLoader", () => {
     });
 
     expect(publishedRevision).toBe(1);
-    expect(result.current.sourceRevision).toBe(1);
+    expect(snapshot(result.current).sourceRevision).toBe(1);
   });
 
   it("keeps the published Source stable while a replacement file is read", async () => {
@@ -136,22 +155,22 @@ describe("useSourceLoader", () => {
     let readPromise: Promise<void> | undefined;
 
     act(() => result.current.onSourceChange('{"current":true}'));
-    const currentRevision = result.current.sourceRevision;
+    const currentRevision = snapshot(result.current).sourceRevision;
     act(() => {
       readPromise = result.current.onFileDrop(controlled.file);
     });
 
     expect(controlled.stream).toHaveBeenCalledTimes(1);
-    expect(result.current.sourceText).toBe('{"current":true}');
-    expect(result.current.sourceAccess).toBeNull();
-    expect(result.current.sourceRevision).toBe(currentRevision);
+    expect(snapshot(result.current).sourceText).toBe('{"current":true}');
+    expect(snapshot(result.current).sourceAccess).toBeNull();
+    expect(snapshot(result.current).sourceRevision).toBe(currentRevision);
 
     await act(async () => {
       controlled.complete();
       await readPromise;
     });
-    expect(result.current.sourceText).toBe('{"replacement":true}');
-    expect(result.current.sourceRevision).toBe(currentRevision + 1);
+    expect(snapshot(result.current).sourceText).toBe('{"replacement":true}');
+    expect(snapshot(result.current).sourceRevision).toBe(currentRevision + 1);
   });
 
   it("publishes text and imported files while restoring text after a read failure", async () => {
@@ -161,18 +180,18 @@ describe("useSourceLoader", () => {
     const { result } = setup();
 
     act(() => result.current.onSourceChange("edited"));
-    expect(result.current.sourceText).toBe("edited");
-    expect(result.current.sourceRevision).toBe(1);
+    expect(snapshot(result.current).sourceText).toBe("edited");
+    expect(snapshot(result.current).sourceRevision).toBe(1);
 
     await act(() => result.current.onFileDrop(imported.file));
     expect(imported.stream).toHaveBeenCalledTimes(1);
-    expect(result.current.importedFile).toBe(imported.file);
-    expect(result.current.sourceText).toBe('{"imported":true}');
+    expect(snapshot(result.current).importedFile).toBe(imported.file);
+    expect(snapshot(result.current).sourceText).toBe('{"imported":true}');
 
     await act(() => result.current.onFileDrop(broken.file));
     expect(broken.stream).toHaveBeenCalledTimes(1);
-    expect(result.current.sourceText).toBe('{"imported":true}');
-    expect(result.current.readingFile).toBeNull();
+    expect(snapshot(result.current).sourceText).toBe('{"imported":true}');
+    expect(snapshot(result.current).readingFile).toBeNull();
     expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
   });
 
@@ -187,7 +206,7 @@ describe("useSourceLoader", () => {
     await act(async () => {
       controlled.enqueue("sl");
     });
-    expect(result.current.readProgress).toBe(0.5);
+    expect(snapshot(result.current).readProgress).toBe(0.5);
 
     act(() => result.current.onSourceChange("replacement"));
     await act(async () => {
@@ -195,7 +214,7 @@ describe("useSourceLoader", () => {
       await readPromise;
     });
 
-    expect(result.current.sourceText).toBe("replacement");
+    expect(snapshot(result.current).sourceText).toBe("replacement");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -204,7 +223,7 @@ describe("useSourceLoader", () => {
     const { result } = setup();
 
     act(() => result.current.onSourceChange("x".repeat(1_000_001)));
-    expect(result.current.sourceText).toHaveLength(1_000_001);
+    expect(snapshot(result.current).sourceText).toHaveLength(1_000_001);
 
     let readPromise: Promise<void> | undefined;
     act(() => {
@@ -216,8 +235,8 @@ describe("useSourceLoader", () => {
       await readPromise;
     });
 
-    expect(result.current.sourceText).toBe("replacement");
-    expect(result.current.importedFile).toBeNull();
+    expect(snapshot(result.current).sourceText).toBe("replacement");
+    expect(snapshot(result.current).importedFile).toBeNull();
   });
 
   it("switches a large file between streaming and imported modes", async () => {
@@ -226,20 +245,20 @@ describe("useSourceLoader", () => {
     const { result } = setup();
 
     await act(() => result.current.onFileDrop(file, "auto"));
-    expect(result.current.sourceAccess?.getFile()).toBe(file);
-    expect(result.current.sourceText).toBe("");
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
+    expect(snapshot(result.current).sourceText).toBe("");
     expect(stream).not.toHaveBeenCalled();
 
     await act(() => result.current.onFileDrop(file, "json"));
-    await waitFor(() => expect(result.current.importedFile).toBe(file));
+    await waitFor(() => expect(snapshot(result.current).importedFile).toBe(file));
     expect(stream).toHaveBeenCalledTimes(1);
-    expect(result.current.sourceText).toBe(contents);
-    expect(result.current.mode).toBe("json");
+    expect(snapshot(result.current).sourceText).toBe(contents);
+    expect(snapshot(result.current).mode).toBe("json");
 
     await act(() => result.current.onFileDrop(file, "jsonl"));
-    expect(result.current.sourceAccess?.getFile()).toBe(file);
-    expect(result.current.sourceText).toBe("");
-    expect(result.current.mode).toBe("jsonl");
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
+    expect(snapshot(result.current).sourceText).toBe("");
+    expect(snapshot(result.current).mode).toBe("jsonl");
   });
 
   it.each(["trace.txt", "events.json", "trace"])(
@@ -251,8 +270,8 @@ describe("useSourceLoader", () => {
 
       await act(() => result.current.onFileDrop(file, "auto"));
 
-      expect(result.current.sourceAccess?.getFile()).toBe(file);
-      expect(result.current.importedFile).toBeNull();
+      expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
+      expect(snapshot(result.current).importedFile).toBeNull();
       expect(stream).not.toHaveBeenCalled();
       expect(slice).toHaveBeenCalledWith(0, sourceDetectionProbeByteBudget + 1);
     },
@@ -265,7 +284,7 @@ describe("useSourceLoader", () => {
 
     await act(() => result.current.onFileDrop(file, "auto"));
 
-    expect(result.current.sourceAccess?.getFile()).toBe(file);
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
     expect(stream).not.toHaveBeenCalled();
   });
 
@@ -282,8 +301,8 @@ describe("useSourceLoader", () => {
 
     await act(() => result.current.onFileDrop(file, "auto"));
 
-    expect(result.current.sourceAccess).toBeNull();
-    expect(result.current.importedFile).toBe(file);
+    expect(snapshot(result.current).sourceAccess).toBeNull();
+    expect(snapshot(result.current).importedFile).toBe(file);
     expect(stream).toHaveBeenCalledOnce();
   });
 
@@ -304,8 +323,8 @@ describe("useSourceLoader", () => {
 
     expect(controlled.isProbeCanceled()).toBe(true);
     expect(controlled.stream).not.toHaveBeenCalled();
-    expect(result.current.sourceText).toBe("replacement");
-    expect(result.current.sourceAccess).toBeNull();
+    expect(snapshot(result.current).sourceText).toBe("replacement");
+    expect(snapshot(result.current).sourceAccess).toBeNull();
   });
 
   it("cancels a content probe when a newer file is selected", async () => {
@@ -324,7 +343,7 @@ describe("useSourceLoader", () => {
 
     expect(stale.isProbeCanceled()).toBe(true);
     expect(stale.stream).not.toHaveBeenCalled();
-    expect(result.current.sourceAccess?.getFile()).toBe(fresh.file);
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(fresh.file);
   });
 
   it("cancels an in-flight content probe when the owner unmounts", async () => {
@@ -355,18 +374,18 @@ describe("useSourceLoader", () => {
     act(() => {
       readPromise = result.current.onFileDrop(controlled.file, "json");
     });
-    expect(result.current.mode).toBe("auto");
-    expect(result.current.sourceRevision).toBe(0);
+    expect(snapshot(result.current).mode).toBe("auto");
+    expect(snapshot(result.current).sourceRevision).toBe(0);
 
     await act(async () => {
       controlled.complete();
       await readPromise;
     });
 
-    expect(result.current.sourceAccess).toBeNull();
-    expect(result.current.importedFile).toBe(controlled.file);
-    expect(result.current.mode).toBe("json");
-    expect(result.current.sourceRevision).toBe(1);
+    expect(snapshot(result.current).sourceAccess).toBeNull();
+    expect(snapshot(result.current).importedFile).toBe(controlled.file);
+    expect(snapshot(result.current).mode).toBe("json");
+    expect(snapshot(result.current).sourceRevision).toBe(1);
   });
 
   it("imports a chosen file through the same path as a drop", async () => {
@@ -376,7 +395,7 @@ describe("useSourceLoader", () => {
     await act(() => result.current.onFileDrop(file));
 
     expect(stream).toHaveBeenCalledTimes(1);
-    expect(result.current.importedFile).toBe(file);
+    expect(snapshot(result.current).importedFile).toBe(file);
   });
 
   it("cancels a superseded read instead of decoding a file nobody wants", async () => {
@@ -396,9 +415,9 @@ describe("useSourceLoader", () => {
     });
 
     expect(controlled.isCanceled()).toBe(true);
-    expect(result.current.sourceText).toBe("replacement");
-    expect(result.current.importedFile).toBeNull();
-    expect(result.current.readingFile).toBeNull();
+    expect(snapshot(result.current).sourceText).toBe("replacement");
+    expect(snapshot(result.current).importedFile).toBeNull();
+    expect(snapshot(result.current).readingFile).toBeNull();
     // Cancelling is the caller's own doing, so it must not look like a failure.
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
@@ -419,8 +438,8 @@ describe("useSourceLoader", () => {
 
     expect(stale.isCanceled()).toBe(true);
     expect(stream).toHaveBeenCalledTimes(1);
-    expect(result.current.importedFile).toBe(fresh);
-    expect(result.current.sourceText).toBe('{"fresh":true}');
+    expect(snapshot(result.current).importedFile).toBe(fresh);
+    expect(snapshot(result.current).sourceText).toBe('{"fresh":true}');
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -446,7 +465,7 @@ describe("useSourceLoader", () => {
     await act(() => result.current.onFileDrop(file));
 
     expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
-    expect(result.current.readingFile).toBeNull();
+    expect(snapshot(result.current).readingFile).toBeNull();
   });
 
   it("stops pulling chunks once a read is superseded", async () => {
@@ -481,6 +500,6 @@ describe("useSourceLoader", () => {
     }
 
     expect(counted.pulled()).toBeLessThanOrEqual(pulledBeforeAbort + 1);
-    expect(result.current.sourceText).toBe("replacement");
+    expect(snapshot(result.current).sourceText).toBe("replacement");
   });
 });

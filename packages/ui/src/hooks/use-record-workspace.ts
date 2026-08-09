@@ -4,7 +4,8 @@ import { useCallback, useMemo } from "react";
 import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
 import type { AgentSession } from "../lib/agent-session";
-import type { LocalFileAccess } from "../lib/local-file-source";
+import { resolveSourceWork } from "../lib/published-source";
+import type { SourceWorkProjection } from "../lib/published-source";
 import {
   getExpandedStringifiedPaths,
   groupExpandedStringifiedPaths,
@@ -25,12 +26,9 @@ import { useQueryInteraction } from "./use-query-interaction";
 import { emptyWorkspaceSearchMatches, useWorkspaceSession } from "./use-workspace-session";
 
 interface UseRecordWorkspaceParams {
-  sourceRevision: SourceRevision;
+  source: SourceWorkProjection;
   resultRevision: SourceRevision;
   result: ParseResult;
-  sourceText: string;
-  sourceAccess: LocalFileAccess | null;
-  forcedFormat: "json" | "jsonl" | undefined;
   recordAppend: RecordAppend | null;
   agentSession: AgentSession | null;
   translateError: (reason: "invalid" | "not-found") => string;
@@ -52,25 +50,20 @@ const projectSelection = (
       );
 
 export const useRecordWorkspace = ({
-  sourceRevision,
+  source,
   resultRevision,
   result,
-  sourceText,
-  sourceAccess,
-  forcedFormat,
   recordAppend,
   agentSession,
   translateError,
 }: UseRecordWorkspaceParams) => {
   const { t } = useTranslation();
+  const { text: sourceText, sourceAccess, sourceRevision } = resolveSourceWork(source);
   const workspace = useWorkspaceSession(sourceRevision);
   const query = useQueryInteraction({
-    sourceRevision,
+    source,
     resultRevision,
     result,
-    sourceText,
-    sourceAccess,
-    forcedFormat,
     recordAppend,
     translateError,
     onNavigate: workspace.navigate,

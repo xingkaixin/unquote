@@ -7,6 +7,8 @@ import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
 import type { LocalFileAccess } from "../lib/local-file-source";
+import { resolveSourceWork } from "../lib/published-source";
+import type { SourceWorkProjection } from "../lib/published-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
@@ -68,18 +70,11 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
 };
 
 export interface UseParserOptions {
-  input: string;
-  forcedFormat?: "json" | "jsonl" | undefined;
-  sourceAccess?: LocalFileAccess | null | undefined;
-  sourceRevision: SourceRevision;
+  source: SourceWorkProjection;
 }
 
-export const useParser = ({
-  input,
-  forcedFormat,
-  sourceAccess,
-  sourceRevision,
-}: UseParserOptions) => {
+export const useParser = ({ source }: UseParserOptions) => {
+  const { text: input, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
   const { t } = useTranslation();
   const [mountParse] = useState(() => {
     // Mount-time parsing is synchronous too, so an oversized initial input

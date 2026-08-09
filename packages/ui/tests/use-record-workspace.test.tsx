@@ -5,6 +5,7 @@ import type { PropsWithChildren } from "react";
 import { describe, expect, it } from "vitest";
 import { useRecordWorkspace } from "../src/hooks/use-record-workspace";
 import { I18nProvider } from "../src/i18n/context";
+import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
 import type { RecordAppend } from "../src/lib/record-sequence";
 
 const wrapper = ({ children }: PropsWithChildren) => <I18nProvider>{children}</I18nProvider>;
@@ -27,11 +28,10 @@ interface WorkspaceInput {
   recordAppend: RecordAppend | null;
 }
 
-const useTestWorkspace = (input: WorkspaceInput) =>
+const useTestWorkspace = ({ sourceRevision, sourceText, ...input }: WorkspaceInput) =>
   useRecordWorkspace({
     ...input,
-    sourceAccess: null,
-    forcedFormat: "jsonl",
+    source: projectSourceWork(createTextSourceRevision(sourceRevision, sourceText, "jsonl")),
     agentSession: null,
     translateError: (reason) => reason,
   });

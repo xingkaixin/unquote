@@ -18,6 +18,7 @@ import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { formatFileSize } from "./lib/format";
+import { projectSourceImport, projectSourceView, projectSourceWork } from "./lib/published-source";
 import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -38,45 +39,34 @@ export const UnquoteApp = ({
   const { t } = useTranslation();
   const isDesktop = useDesktopWorkspace();
   const {
-    mode,
-    sourceText,
-    sourceAccess,
-    readingFile,
-    readProgress,
-    importedFile,
-    sourceRevision,
+    source,
+    operation,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
   } = useSourceLoader({ initialInput });
+  const sourceWork = projectSourceWork(source);
+  const sourceImport = projectSourceImport(source);
+  const sourceView = projectSourceView(source);
   const { theme, setTheme } = useThemePreference();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const forcedFormat = sourceAccess ? "jsonl" : mode === "auto" ? undefined : mode;
   const {
     sourceRevision: resultRevision,
     result,
     progress,
     agentSession,
     recordAppend,
-  } = useParser({
-    input: sourceText,
-    forcedFormat,
-    sourceAccess,
-    sourceRevision,
-  });
-  const hasData = Boolean(sourceAccess || importedFile) || sourceText.trim().length > 0;
+  } = useParser({ source: sourceWork });
+  const hasData = sourceView.hasData;
 
   const translateError = useCallback(
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
   const recordWorkspace = useRecordWorkspace({
-    sourceRevision,
+    source: sourceWork,
     resultRevision,
     result,
-    sourceText,
-    sourceAccess,
-    forcedFormat,
     recordAppend,
     agentSession,
     translateError,
@@ -204,20 +194,20 @@ export const UnquoteApp = ({
     },
   ]);
 
-  const statusFile = sourceAccess ?? importedFile;
+  const readingFile = operation.kind === "reading" ? operation.file : null;
   const sourceFileStatus = readingFile
     ? t("input.readingFile", {
         name: readingFile.name,
         size: formatFileSize(readingFile.size),
       })
-    : statusFile
+    : sourceView.file
       ? t(progress.done ? "input.loadedFile" : "input.parsingFile", {
-          name: statusFile.name,
-          size: formatFileSize(statusFile.size),
+          name: sourceView.file.name,
+          size: formatFileSize(sourceView.file.size),
           processed: progress.processedLines,
         })
       : undefined;
-  const sourceFileBusy = Boolean(readingFile || (statusFile && !progress.done));
+  const sourceFileBusy = Boolean(readingFile || (sourceView.file && !progress.done));
   const toolbarSummary = useMemo(
     () =>
       buildToolbarSummary(
@@ -250,9 +240,9 @@ export const UnquoteApp = ({
   const toolbarInPathMode = queryMode === "path";
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
-      initialDraft={sourceText}
-      initialFile={sourceAccess?.getFile() ?? importedFile}
-      initialMode={mode}
+      initialDraft={sourceImport.draft}
+      initialFile={sourceImport.file}
+      initialMode={sourceImport.mode}
       onCommit={commitSourceCandidate}
       samples={sampleOptions}
       onSampleSelect={handleSampleSelect}
@@ -295,7 +285,7 @@ export const UnquoteApp = ({
     <TooltipProvider delay={600} closeDelay={0}>
       <div
         className="uq-shell"
-        data-source-file={sourceAccess?.name ?? ""}
+        data-source-file={sourceView.streamedFileName ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
         data-output-view={agentSession ? outputView : "json"}
@@ -311,7 +301,7 @@ export const UnquoteApp = ({
         </a>
         <AppHeader
           enabled={hasData}
-          sourceName={sourceAccess?.name ?? importedFile?.name ?? null}
+          sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setImportOpen(true)}
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
@@ -352,7 +342,7 @@ export const UnquoteApp = ({
           expandedNestedCount={recordWorkspace.expandedNestedCount}
           sourceStatus={sourceFileStatus}
           sourceBusy={sourceFileBusy}
-          sourceProgress={readingFile ? readProgress : null}
+          sourceProgress={operation.kind === "reading" ? operation.progress : null}
           hasData={hasData}
           onClear={() => handleSourceChange("")}
           {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
