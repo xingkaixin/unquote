@@ -12,7 +12,7 @@ import type {
   SearchOptionKind,
 } from "../lib/query-interaction";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
-import type { LocalFileAccess } from "../lib/local-file-source";
+import type { SourceWorkProjection } from "../lib/published-source";
 import type { SearchOptions } from "../lib/record-search";
 import type { RecordAppend } from "../lib/record-sequence";
 import { shareSourceRevision } from "../lib/source-revision";
@@ -29,12 +29,9 @@ const emptyPathMatches: TreePathMatch[] = [];
 export type { QueryNavigationTarget } from "../lib/query-navigation";
 
 interface UseQueryInteractionOptions {
-  sourceRevision: SourceRevision;
+  source: SourceWorkProjection;
   resultRevision: SourceRevision;
   result: ParseResult;
-  sourceText: string;
-  sourceAccess: LocalFileAccess | null;
-  forcedFormat: "json" | "jsonl" | undefined;
   translateError: (reason: "invalid" | "not-found") => string;
   onNavigate: (target: QueryNavigationTarget) => void;
   recordAppend?: RecordAppend | null;
@@ -69,16 +66,14 @@ const reduceRevisionedQueryState = (
 });
 
 export const useQueryInteraction = ({
-  sourceRevision,
+  source,
   resultRevision,
   result,
-  sourceText,
-  sourceAccess,
-  forcedFormat,
   translateError,
   onNavigate,
   recordAppend = null,
 }: UseQueryInteractionOptions) => {
+  const sourceRevision = source.sourceRevision;
   const [storedQuery, dispatchToRevision] = useReducer(
     reduceRevisionedQueryState,
     sourceRevision,
@@ -119,13 +114,10 @@ export const useQueryInteraction = ({
     [state.searchCaseSensitive, state.searchJq, state.searchRegex],
   );
   const searchWorker = useSearchWorker({
-    text: sourceText,
-    sourceAccess,
+    source,
     query: searchQuery,
     options: searchOptions,
-    sourceRevision,
-    debounceMs: sourceAccess ? localFileSearchDebounceMs : memorySearchDebounceMs,
-    ...(forcedFormat ? { forcedFormat } : {}),
+    debounceMs: source.kind === "local-file" ? localFileSearchDebounceMs : memorySearchDebounceMs,
   });
   const revisionsAligned = shareSourceRevision(
     sourceRevision,

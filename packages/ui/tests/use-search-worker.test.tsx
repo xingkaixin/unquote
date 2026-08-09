@@ -9,6 +9,11 @@ import {
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
 import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
+import {
+  createStreamingFileSourceRevision,
+  createTextSourceRevision,
+  projectSourceWork,
+} from "../src/lib/published-source";
 import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
@@ -97,17 +102,19 @@ const Probe = ({
   access?: LocalFileAccess;
   windowIndexes?: Float64Array;
 }) => {
-  const sourceAccess = useMemo(
-    () => access ?? (sourceFile ? createLocalFileAccess(sourceFile) : null),
-    [access, sourceFile],
-  );
+  const source = useMemo(() => {
+    const sourceAccess = access ?? (sourceFile ? createLocalFileAccess(sourceFile) : null);
+    return projectSourceWork(
+      sourceAccess
+        ? createStreamingFileSourceRevision(sourceRevision, sourceAccess, "jsonl")
+        : createTextSourceRevision(sourceRevision, text, "auto"),
+    );
+  }, [access, sourceFile, sourceRevision, text]);
   const result = useSearchWorker({
-    text,
-    sourceAccess,
+    source,
     query,
     options,
     debounceMs,
-    sourceRevision,
   });
   renderLog.push({
     query,

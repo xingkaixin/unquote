@@ -7,6 +7,11 @@ import { useRecordPipeline } from "../src/hooks/use-record-pipeline";
 import { useSearchWorker } from "../src/hooks/use-search-worker";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+import {
+  createStreamingFileSourceRevision,
+  createTextSourceRevision,
+  projectSourceWork,
+} from "../src/lib/published-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
@@ -76,16 +81,22 @@ const RevisionProbe = ({
   sourceFile = null,
   query = "needle",
 }: ProbeProps) => {
-  const sourceAccess = useMemo(
-    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
-    [sourceFile],
+  const source = useMemo(
+    () =>
+      projectSourceWork(
+        sourceFile
+          ? createStreamingFileSourceRevision(
+              sourceRevision,
+              createLocalFileAccess(sourceFile),
+              "jsonl",
+            )
+          : createTextSourceRevision(sourceRevision, text, forcedFormat),
+      ),
+    [forcedFormat, sourceFile, sourceRevision, text],
   );
-  const parser = useParser({ input: text, forcedFormat, sourceAccess, sourceRevision });
+  const parser = useParser({ source });
   const search = useSearchWorker({
-    text,
-    forcedFormat,
-    sourceAccess,
-    sourceRevision,
+    source,
     query,
     options,
   });

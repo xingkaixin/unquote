@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
+import { resolveSourceWork } from "../lib/published-source";
+import type { SourceWorkProjection } from "../lib/published-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
 import type { SourceRevision } from "../lib/source-revision";
@@ -119,25 +121,15 @@ const belongsToSearch = (
   request.jq === options.jq;
 
 export const useSearchWorker = (params: {
-  text: string;
-  forcedFormat?: "json" | "jsonl";
-  sourceAccess: LocalFileAccess | null;
+  source: SourceWorkProjection;
   query: string;
   options: SearchOptions;
-  sourceRevision: SourceRevision;
   // Delay before a request is actually dispatched; only the last query
   // within the window fires. Defaults to 0 (dispatch immediately).
   debounceMs?: number;
 }): SearchWorkerResult => {
-  const {
-    text,
-    forcedFormat,
-    sourceAccess,
-    query,
-    options,
-    sourceRevision,
-    debounceMs = 0,
-  } = params;
+  const { source, query, options, debounceMs = 0 } = params;
+  const { text, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
   // Seed both states from the mount-time inputs so the first render already
   // matches what the reconciliation below would otherwise compute one pass
   // later, avoiding a guaranteed extra render-phase setState on every mount.

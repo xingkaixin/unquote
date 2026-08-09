@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useParser } from "../src/hooks/use-parser";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
+import {
+  createStreamingFileSourceRevision,
+  createTextSourceRevision,
+  projectSourceWork,
+} from "../src/lib/published-source";
 import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
@@ -178,16 +183,16 @@ interface ProbeProps {
 }
 
 const ParserProbe = ({ input, forcedFormat, sourceFile }: ProbeProps) => {
-  const sourceAccess = useMemo(
-    () => (sourceFile ? createLocalFileAccess(sourceFile) : null),
-    [sourceFile],
+  const source = useMemo(
+    () =>
+      projectSourceWork(
+        sourceFile
+          ? createStreamingFileSourceRevision(0, createLocalFileAccess(sourceFile), "jsonl")
+          : createTextSourceRevision(0, input, forcedFormat ?? "auto"),
+      ),
+    [forcedFormat, input, sourceFile],
   );
-  const { result, progress, agentSession } = useParser({
-    sourceRevision: 0,
-    input,
-    forcedFormat,
-    sourceAccess,
-  });
+  const { result, progress, agentSession } = useParser({ source });
   return (
     <div>
       <div data-testid="records">{result.records.map((record) => record.summary).join(",")}</div>

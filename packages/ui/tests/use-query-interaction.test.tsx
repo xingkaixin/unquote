@@ -2,19 +2,20 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { parseInput } from "@unquote/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { memorySearchDebounceMs, useQueryInteraction } from "../src/hooks/use-query-interaction";
+import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
 
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
 const result = parseInput(source, { forcedFormat: "jsonl" });
 
+const sourceWork = (text: string, sourceRevision = 0) =>
+  projectSourceWork(createTextSourceRevision(sourceRevision, text, "jsonl"));
+
 const renderQuery = (onNavigate = vi.fn()) =>
   renderHook(() =>
     useQueryInteraction({
-      sourceRevision: 0,
+      source: sourceWork(source),
       resultRevision: 0,
       result,
-      sourceText: source,
-      sourceAccess: null,
-      forcedFormat: "jsonl",
       translateError: (reason) => reason,
       onNavigate,
     }),
@@ -86,12 +87,9 @@ describe("useQueryInteraction", () => {
     const { result: query, rerender } = renderHook(
       ({ parseResult }) =>
         useQueryInteraction({
-          sourceRevision: 0,
+          source: sourceWork(""),
           resultRevision: 0,
           result: parseResult,
-          sourceText: "",
-          sourceAccess: null,
-          forcedFormat: "jsonl",
           translateError: (reason) => reason,
           onNavigate: vi.fn(),
         }),
