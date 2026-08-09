@@ -18,7 +18,11 @@ export const createJsonlIngestion = (fileName?: string) => {
   ): JsonlRecord => {
     const { record } = parsedLine;
     if ("value" in parsedLine) {
-      agentTracker.pushParsedLine({ lineNumber: record.lineNumber, data: parsedLine.value });
+      agentTracker.pushParsedLine({
+        recordId: record.id,
+        lineNumber: record.lineNumber,
+        data: parsedLine.value,
+      });
     } else {
       agentTracker.pushParseWarning(record.lineNumber);
     }

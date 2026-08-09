@@ -6,6 +6,7 @@ import type { ParsedAgentLine } from "../src/lib/agent-session";
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
+  recordId: `record-${lineNumber}`,
 });
 
 const conversationItems = (session: AgentSession) =>

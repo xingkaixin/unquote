@@ -3,8 +3,13 @@ import { parseJson } from "@unquote/core";
 import { createAgentSessionModel, createAgentSessionTracker } from "../src/lib/agent-session";
 import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
 
-const line = (data: Record<string, unknown>, lineNumber = 1): ParsedAgentLine => ({
+const line = (
+  data: Record<string, unknown>,
+  lineNumber = 1,
+  recordId = `record-${lineNumber}`,
+): ParsedAgentLine => ({
   lineNumber,
+  recordId,
   data,
 });
 
@@ -24,6 +29,7 @@ const pushRawLine = (
   try {
     tracker.pushParsedLine({
       lineNumber,
+      recordId: `record-${lineNumber}`,
       data: parseJson(raw, { numbers: "approximate" }),
     });
   } catch {
@@ -52,6 +58,7 @@ describe("createAgentSessionTracker", () => {
     tracker.pushParseWarning(2);
     tracker.pushParsedLine({
       lineNumber: 4,
+      recordId: "record-4",
       data: JSON.parse(sessionMeta) as unknown,
     });
 
@@ -64,6 +71,22 @@ describe("createAgentSessionTracker", () => {
       parseWarnings: [{ lineNumber: 2, message: "Invalid JSON on this line" }],
     });
     expect(session?.events[0]).not.toHaveProperty("rawLine");
+  });
+
+  it("preserves an opaque canonical Record identity", () => {
+    const tracker = createAgentSessionTracker("rollout.jsonl");
+    tracker.pushParsedLine(
+      line(
+        { type: "session_meta", payload: { session_id: "opaque-link" } },
+        41,
+        "source-revision:9/record:opaque",
+      ),
+    );
+
+    expect(tracker.finish()?.events[0]).toMatchObject({
+      lineNumber: 41,
+      recordId: "source-revision:9/record:opaque",
+    });
   });
 
   it("locks in confident detection after twenty samples", () => {

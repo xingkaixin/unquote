@@ -1,4 +1,4 @@
-import { parseJsonlRecordLineWithValue } from "@unquote/core";
+import { parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJsonlIngestion } from "../src/lib/jsonl-ingestion";
 import { parseText } from "../src/lib/parse-text";
@@ -39,6 +39,22 @@ describe("JSONL ingestion", () => {
 
     expect(parse.mock.calls.filter(([input]) => input === validLine)).toHaveLength(1);
     expect(parse.mock.calls.filter(([input]) => input === invalidLine)).toHaveLength(1);
+  });
+
+  it("links Full and Preview Agent events to their producing Record identity", () => {
+    const input = JSON.stringify({
+      type: "session_meta",
+      payload: { session_id: "canonical-link" },
+    });
+
+    for (const parseLine of [parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue]) {
+      const ingestion = createJsonlIngestion("rollout.jsonl");
+      const record = ingestion.push(parseLine(input, 17));
+      const session = ingestion.finishAgentSession();
+
+      expect(session?.events[0]?.recordId).toBe(record.id);
+      expect(session?.events[0]?.lineNumber).toBe(record.lineNumber);
+    }
   });
 
   it.each([
@@ -88,5 +104,13 @@ describe("JSONL ingestion", () => {
 
     expect(streamed.result).toEqual(batch.result);
     expect(streamed.agentSession).toEqual(batch.agentSession);
+    for (const parsed of [batch, streamed]) {
+      for (const event of parsed.agentSession?.events ?? []) {
+        const producingRecord = parsed.result.records.find(
+          (record) => record.lineNumber === event.lineNumber,
+        );
+        expect(event.recordId).toBe(producingRecord?.id);
+      }
+    }
   });
 });
