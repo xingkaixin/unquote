@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -54,6 +54,37 @@ const transfer = ({
   items?: Array<{ kind: string; getAsFile: () => File | null }>;
   types?: string[];
 } = {}) => ({ files, items, types, dropEffect: "none" }) as unknown as DataTransfer;
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+};
+
+const clipboardItem = (source: string) => ({
+  types: ["application/json"],
+  getType: vi.fn(async () => ({ text: async () => source })),
+});
+
+const installClipboardRead = (read: () => Promise<unknown[]>) => {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { read: vi.fn(read), writeText: vi.fn() },
+  });
+};
+
+const pasteFileName = (name: string) => {
+  fireEvent.paste(screen.getByRole("textbox"), {
+    clipboardData: {
+      files: [],
+      items: [],
+      types: ["text/plain"],
+      getData: () => name,
+    },
+  });
+};
 
 describe("SourceImportPanel draft commit", () => {
   it("publishes the draft only when Parse is pressed", async () => {
@@ -283,5 +314,96 @@ describe("SourceImportPanel file interactions", () => {
         type: "application/json",
       },
     });
+  });
+
+  it("ignores a clipboard acquisition that completes after unmount", async () => {
+    const pending = deferred<unknown[]>();
+    installClipboardRead(() => pending.promise);
+    const { props, unmount } = renderPanel();
+
+    pasteFileName("pending.json");
+    unmount();
+    await act(async () => pending.resolve([clipboardItem('{"late":true}')]));
+
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("lets only the latest clipboard acquisition commit", async () => {
+    const first = deferred<unknown[]>();
+    const second = deferred<unknown[]>();
+    const read = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    installClipboardRead(read);
+    const { props } = renderPanel();
+
+    pasteFileName("first.json");
+    pasteFileName("second.json");
+    await act(async () => second.resolve([clipboardItem('{"second":true}')]));
+    await waitFor(() => expect(props.onCommit).toHaveBeenCalledOnce());
+    expect(vi.mocked(props.onCommit).mock.calls[0]?.[0]).toMatchObject({
+      kind: "file",
+      file: { name: "second.json" },
+    });
+
+    await act(async () => first.resolve([clipboardItem('{"first":true}')]));
+    expect(props.onCommit).toHaveBeenCalledOnce();
+  });
+
+  it("invalidates clipboard acquisition when a newer candidate commits", async () => {
+    const pending = deferred<unknown[]>();
+    installClipboardRead(() => pending.promise);
+    const { container, props } = renderPanel();
+
+    pasteFileName("pending.json");
+    const selectedFile = new File(["{}"], "selected.json", { type: "application/json" });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(fileInput, { target: { files: [selectedFile] } });
+    await act(async () => pending.resolve([clipboardItem('{"late":true}')]));
+
+    expect(props.onCommit).toHaveBeenCalledOnce();
+    expect(props.onCommit).toHaveBeenCalledWith({
+      kind: "file",
+      file: selectedFile,
+      mode: "auto",
+    });
+  });
+
+  it("invalidates clipboard acquisition when the draft commits", async () => {
+    const pending = deferred<unknown[]>();
+    installClipboardRead(() => pending.promise);
+    const { props } = renderPanel();
+
+    pasteFileName("pending.json");
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: '{"draft":true}' } });
+    fireEvent.click(screen.getByRole("button", { name: "Parse" }));
+    await act(async () => pending.resolve([clipboardItem('{"late":true}')]));
+
+    expect(props.onCommit).toHaveBeenCalledOnce();
+    expect(props.onCommit).toHaveBeenCalledWith({
+      kind: "text",
+      text: '{"draft":true}',
+      mode: "auto",
+    });
+  });
+
+  it("invalidates clipboard acquisition on sample selection and mode changes", async () => {
+    const samplePending = deferred<unknown[]>();
+    const modePending = deferred<unknown[]>();
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(samplePending.promise)
+      .mockReturnValueOnce(modePending.promise);
+    installClipboardRead(read);
+    const { props } = renderPanel();
+
+    pasteFileName("sample.json");
+    fireEvent.click(screen.getByRole("button", { name: "Escaped API response" }));
+    await act(async () => samplePending.resolve([clipboardItem('{"late":true}')]));
+
+    pasteFileName("mode.json");
+    fireEvent.click(screen.getByRole("button", { name: "JSONL" }));
+    await act(async () => modePending.resolve([clipboardItem('{"late":true}')]));
+
+    expect(props.onSampleSelect).toHaveBeenCalledWith(sample);
+    expect(props.onCommit).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileJson2 } from "lucide-react";
 import { useTranslation } from "../i18n/context";
 import { cn } from "../lib/utils";
@@ -129,7 +129,29 @@ export const SourceImportPanel = ({
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragDepth = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const candidateAcquisitionGeneration = useRef(0);
   const detection = useMemo(() => detectSourceFormat(draft), [draft]);
+
+  useEffect(
+    () => () => {
+      candidateAcquisitionGeneration.current += 1;
+    },
+    [],
+  );
+
+  const invalidateCandidateAcquisition = () => {
+    candidateAcquisitionGeneration.current += 1;
+  };
+
+  const beginCandidateAcquisition = () => {
+    invalidateCandidateAcquisition();
+    return candidateAcquisitionGeneration.current;
+  };
+
+  const commitCandidate = (candidate: SourceCandidate) => {
+    invalidateCandidateAcquisition();
+    onCommit(candidate);
+  };
 
   const resetDragState = () => {
     dragDepth.current = 0;
@@ -137,7 +159,7 @@ export const SourceImportPanel = ({
   };
 
   const commitFile = (file: File) => {
-    onCommit({ kind: "file", file, mode });
+    commitCandidate({ kind: "file", file, mode });
   };
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -177,6 +199,7 @@ export const SourceImportPanel = ({
     }
 
     event.preventDefault();
+    invalidateCandidateAcquisition();
     resetDragState();
     const file = getTransferFile(event.dataTransfer);
     if (file) {
@@ -185,6 +208,7 @@ export const SourceImportPanel = ({
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const acquisitionGeneration = beginCandidateAcquisition();
     const file = getTransferFile(event.clipboardData);
     if (file) {
       event.preventDefault();
@@ -199,14 +223,15 @@ export const SourceImportPanel = ({
 
     void readClipboardFile(pastedFileName ?? "clipboard.json")
       .then((clipboardFile) => {
-        if (clipboardFile) {
-          commitFile(clipboardFile);
+        if (clipboardFile && acquisitionGeneration === candidateAcquisitionGeneration.current) {
+          commitCandidate({ kind: "file", file: clipboardFile, mode });
         }
       })
       .catch(() => undefined);
   };
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    invalidateCandidateAcquisition();
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
     if (file) {
@@ -221,11 +246,12 @@ export const SourceImportPanel = ({
     }
 
     if (draft.trim()) {
-      onCommit({ kind: "text", text: draft, mode });
+      commitCandidate({ kind: "text", text: draft, mode });
     }
   };
 
   const handleTextareaKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    invalidateCandidateAcquisition();
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       commitDraft();
@@ -272,7 +298,10 @@ export const SourceImportPanel = ({
             type="button"
             variant="outline"
             className="h-8 px-3.5 text-[11px]"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              invalidateCandidateAcquisition();
+              fileInputRef.current?.click();
+            }}
           >
             {t("input.chooseFile")}
           </Button>
@@ -316,7 +345,10 @@ export const SourceImportPanel = ({
               variant="outline"
               size="sm"
               className="rounded-sm px-2.5 text-[10px]"
-              onClick={() => onSampleSelect(sample)}
+              onClick={() => {
+                invalidateCandidateAcquisition();
+                onSampleSelect(sample);
+              }}
             >
               <FileJson2 className="size-3" />
               <span>{sample.label}</span>
@@ -336,7 +368,10 @@ export const SourceImportPanel = ({
               className="rounded-sm px-2.5 font-mono"
               aria-pressed={mode === option}
               translate={option === "auto" ? undefined : "no"}
-              onClick={() => setMode(option)}
+              onClick={() => {
+                invalidateCandidateAcquisition();
+                setMode(option);
+              }}
             >
               {t(`input.mode.${option}`)}
             </Button>
