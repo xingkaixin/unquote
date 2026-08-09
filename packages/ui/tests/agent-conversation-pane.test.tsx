@@ -197,6 +197,23 @@ describe("AgentConversationPane", () => {
     expect(screen.getByText("30")).toBeInTheDocument();
   });
 
+  it("bounds deeply nested field values when a tool card expands", () => {
+    const nestedValue = `${"[".repeat(2_000)}"ok"${"]".repeat(2_000)}`;
+    const entries = [
+      buildEntry(1, {
+        type: "tool_use",
+        text: `{"payload":${nestedValue}}`,
+        toolName: "deep",
+        toolCallId: "call-1",
+      }),
+    ];
+
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getByText("payload")).toBeInTheDocument();
+    expect(screen.getByText(/\.\.\. \[truncated\]$/)).toBeInTheDocument();
+  });
+
   it("falls back to the raw text when the tool payload is not a JSON object", () => {
     const entries = [
       buildEntry(1, {

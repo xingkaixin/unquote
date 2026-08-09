@@ -99,6 +99,28 @@ describe("createAgentSessionTracker", () => {
 
     expect(tracker.finish()).toBeNull();
   });
+
+  it("keeps the session when one Agent projection fails", () => {
+    const payload: Record<string, unknown> = { type: "function_call_output" };
+    Object.defineProperty(payload, "output", {
+      enumerable: true,
+      get() {
+        throw new Error("unreadable output");
+      },
+    });
+    const tracker = createAgentSessionTracker();
+    tracker.pushParsedLine(
+      line({ type: "session_meta", payload: { session_id: "resilient-session" } }, 1),
+    );
+    tracker.pushParsedLine(line({ type: "response_item", payload }, 2));
+
+    const session = tracker.finish();
+
+    expect(session).toMatchObject({
+      meta: { sessionId: "resilient-session", eventCount: 1 },
+      parseWarnings: [{ lineNumber: 2, message: "Unable to project Agent data from this line" }],
+    });
+  });
 });
 
 describe("agent session", () => {

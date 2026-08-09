@@ -8,6 +8,12 @@ import type {
   AgentTimelineEvent,
 } from "./types";
 import {
+  formatAgentBlockValue,
+  formatAgentPreviewValue,
+  truncateBlockText,
+  truncatePreview,
+} from "./agent-value-format";
+import {
   addOptionalNumber,
   addOptionalString,
   attachConversationItem,
@@ -16,9 +22,6 @@ import {
   getString,
   isRecord,
   parseTimestamp,
-  stringifyValue,
-  truncateBlockText,
-  truncatePreview,
 } from "./shared";
 
 const codexEnvelopeTypes = new Set(["session_meta", "event_msg", "response_item", "turn_context"]);
@@ -137,7 +140,7 @@ const codexResponseBlock = (
   }
 
   if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    const text = truncateBlockText(stringifyValue(payload.output));
+    const text = formatAgentBlockValue(payload.output);
     const callId = getString(payload, "call_id");
     if (!text) {
       return undefined;
@@ -299,7 +302,7 @@ const codexPreview = (
     return truncatePreview(getString(payload, "arguments") ?? getString(payload, "input") ?? "");
   }
   if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    return truncatePreview(stringifyValue(payload.output));
+    return formatAgentPreviewValue(payload.output);
   }
   return "";
 };
