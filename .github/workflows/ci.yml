@@ -54,3 +54,14 @@ jobs:
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
           build
+      - name: Test the Safari host bridge without signing
+        run: >-
+          xcodebuild
+          -project "apps/safari/Unquote.xcodeproj"
+          -scheme Unquote
+          -configuration Debug
+          -destination "platform=macOS"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          test
