@@ -143,6 +143,7 @@ describe("useSearchWorker", () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     vi.useRealTimers();
     Reflect.deleteProperty(globalThis, "Worker");
   });
@@ -257,8 +258,8 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("idle");
   });
 
-  it("terminates the worker and reports a timeout when no response arrives", async () => {
-    render(<Probe query="a" text="text" />);
+  it("terminates a regex worker and reports a timeout when no response arrives", async () => {
+    render(<Probe query="^(a+)+$" text="aaaaaaaa!" options={{ ...defaultOptions, regex: true }} />);
     const worker = MockWorker.instances[0]!;
 
     await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
@@ -322,14 +323,36 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
   });
 
+  it("refuses a regex fallback when the worker cannot be constructed", () => {
+    MockWorker.failConstruction = true;
+    const parse = vi.spyOn(JSON, "parse");
+
+    render(
+      <Probe
+        query="^(a+)+$"
+        text='{"a":"aaaaaaaa!"}'
+        options={{ ...defaultOptions, regex: true }}
+      />,
+    );
+
+    expect(MockWorker.instances).toHaveLength(0);
+    expect(parse).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("regex-without-worker");
+    parse.mockRestore();
+  });
+
   it("reports a worker error when the request cannot be posted", () => {
     MockWorker.failPostMessage = true;
+    const parse = vi.spyOn(JSON, "parse");
 
-    render(<Probe query="a" text="text" />);
+    render(<Probe query="a" text="text" options={{ ...defaultOptions, regex: true }} />);
 
     expect(MockWorker.instances[0]?.terminated).toBe(true);
+    expect(parse).not.toHaveBeenCalled();
     expect(screen.getByTestId("status")).toHaveTextContent("error");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("worker-error");
+    parse.mockRestore();
   });
 
   it.each([
@@ -380,19 +403,36 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
   });
 
-  it("supports regex search via the synchronous fallback when Worker is unavailable", () => {
+  it("refuses regex search before entering the synchronous fallback", () => {
     Reflect.deleteProperty(globalThis, "Worker");
+    const parse = vi.spyOn(JSON, "parse");
+
     render(
-      <Probe query="hel+o" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />,
+      <Probe
+        query="^(a+)+$"
+        text='{"a":"aaaaaaaa!"}'
+        options={{ ...defaultOptions, regex: true }}
+      />,
     );
 
-    expect(screen.getByTestId("status")).toHaveTextContent("complete");
-    expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+    expect(parse).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("regex-without-worker");
+    parse.mockRestore();
   });
 
-  it("returns null matches for an invalid regex via the synchronous fallback, matching the worker path", () => {
-    Reflect.deleteProperty(globalThis, "Worker");
+  it("keeps regex search on the interruptible worker path", () => {
     render(<Probe query="[" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />);
+
+    const worker = MockWorker.instances[0]!;
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "[",
+        options: { ...defaultOptions, regex: true },
+      }),
+    );
+
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub() }));
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("");
@@ -611,7 +651,6 @@ describe("useSearchWorker", () => {
 
   it.each([
     ["a plain query", "hello", defaultOptions],
-    ["a regex query", "hel+o", { ...defaultOptions, regex: true }],
     ["a jq path query", "$.a", { ...defaultOptions, jq: true }],
   ])("searches %s within the budget", (_label, query, options) => {
     Reflect.deleteProperty(globalThis, "Worker");
@@ -643,5 +682,26 @@ describe("useSearchWorker", () => {
 
     expect(search).toHaveBeenCalledOnce();
     expect(screen.getByTestId("record-id")).toHaveTextContent("from-file");
+  });
+
+  it("refuses a regex fallback before calling a file-backed search", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const file = new File(["{}"], "payload.jsonl");
+    const search = vi.fn().mockResolvedValue(resultStub("from-file"));
+    const access = { ...createLocalFileAccess(file), search } as LocalFileAccess;
+
+    render(
+      <Probe
+        query="^(a+)+$"
+        text=""
+        access={access}
+        options={{ ...defaultOptions, regex: true }}
+      />,
+    );
+    await act(async () => undefined);
+
+    expect(search).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("regex-without-worker");
   });
 });

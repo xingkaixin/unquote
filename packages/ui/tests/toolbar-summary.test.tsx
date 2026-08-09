@@ -8,8 +8,10 @@ import {
 } from "../src/lib/toolbar-summary";
 import { createTranslator } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
+import { zhCN } from "../src/i18n/zh-CN";
 
 const t = createTranslator(en);
+const zhT = createTranslator(zhCN);
 
 const doneProgress: ParseProgress = { done: true, processedLines: 3, elapsedMs: 12 };
 const pendingProgress: ParseProgress = { done: false, processedLines: 2, elapsedMs: 45.6 };
@@ -86,6 +88,18 @@ describe("toolbarSummary", () => {
         t,
       ),
     ).toBe("Search failed");
+  });
+
+  it("explains in both locales when regex requires a background worker", () => {
+    const input: ToolbarSummaryInput = {
+      ...baseInput,
+      searchQuery: "^(a+)+$",
+      searchStatus: "error",
+      searchErrorKind: "regex-without-worker",
+    };
+
+    expect(toolbarSummary(input, t)).toBe("Regex search requires a background worker");
+    expect(toolbarSummary(input, zhT)).toBe("正则搜索需要后台 Worker");
   });
 
   it("falls back to the plain progress label with no search or filter active", () => {

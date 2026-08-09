@@ -152,6 +152,7 @@ export const en = {
   "search.timeout": "Search timed out",
   "search.failed": "Search failed",
   "search.tooLargeWithoutWorker": "Too large to search without a background worker",
+  "search.regexRequiresWorker": "Regex search requires a background worker",
   "filter.all": "All",
   "filter.matches": "Matches",
   "filter.errors": "Errors",
