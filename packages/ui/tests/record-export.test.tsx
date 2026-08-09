@@ -1,6 +1,7 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import {
+  addRecordsToBuilder,
   copyBytesLimit,
   copyRecordLimit,
   createExportFilename,
@@ -12,6 +13,7 @@ import {
   getCopyValue,
   isCopyAboveThreshold,
 } from "../src/lib/record-export";
+import type { ExportPartsBuilder } from "../src/lib/record-export";
 
 const recordsFrom = (text: string, format?: "json" | "jsonl") =>
   parseInput(text, format ? { forcedFormat: format } : {}).records;
@@ -101,6 +103,33 @@ describe("record-export", () => {
 
     expect(jsonlParts.join("").split("\n")).toHaveLength(201);
     expect(JSON.parse(jsonParts.join(""))).toHaveLength(201);
+  });
+
+  it("stops a builder at its first yield after cancellation", async () => {
+    vi.useFakeTimers();
+    const [record] = recordsFrom('{"a":1}', "jsonl");
+    const records = Array.from({ length: 401 }, () => record!);
+    const builder: ExportPartsBuilder = {
+      bodyFor: vi.fn(() => "{}"),
+      addBody: vi.fn(),
+      finish: vi.fn(() => []),
+    };
+    const controller = new AbortController();
+
+    try {
+      const parts = addRecordsToBuilder(builder, records, controller.signal);
+      const rejected = expect(parts).rejects.toMatchObject({ name: "AbortError" });
+      expect(builder.bodyFor).toHaveBeenCalledTimes(201);
+
+      controller.abort();
+      await vi.runAllTimersAsync();
+      await rejected;
+
+      expect(builder.bodyFor).toHaveBeenCalledTimes(201);
+      expect(builder.finish).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("createExportFilename produces a timestamped name without colons or dots", () => {

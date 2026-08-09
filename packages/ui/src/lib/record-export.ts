@@ -108,13 +108,17 @@ export const createJsonPartsBuilder = (format: "json" | "jsonl"): ExportPartsBui
 export const addRecordsToBuilder = async (
   builder: ExportPartsBuilder,
   records: JsonlRecord[],
+  signal?: AbortSignal,
 ): Promise<BlobPart[]> => {
+  signal?.throwIfAborted();
   for (let index = 0; index < records.length; index += 1) {
     builder.addBody(builder.bodyFor(records[index]!));
     if (index > 0 && index % exportChunkSize === 0) {
       await yieldToMain();
+      signal?.throwIfAborted();
     }
   }
+  signal?.throwIfAborted();
   return builder.finish();
 };
 
