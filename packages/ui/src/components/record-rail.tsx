@@ -39,6 +39,9 @@ const RailRow = ({
   active,
   onSelect,
   virtualized = false,
+  virtualIndex,
+  collectionSize,
+  positionInSet,
   style,
 }: {
   record: JsonlRecord;
@@ -47,6 +50,9 @@ const RailRow = ({
   active: boolean;
   onSelect: (record: JsonlRecord) => void;
   virtualized?: boolean;
+  virtualIndex?: number;
+  collectionSize?: number;
+  positionInSet?: number;
   style?: CSSProperties;
 }) => {
   const { locale, t } = useTranslation();
@@ -62,44 +68,53 @@ const RailRow = ({
     .join(" · ");
 
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      data-record-id={record.id}
-      onClick={() => onSelect(record)}
-      style={{ height: `${railRowHeight}px`, ...style }}
-      className={`flex w-full gap-2.5 overflow-hidden border-b border-l-[3px] border-b-border px-3.5 py-[11px] text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
-        virtualized ? "absolute left-0 top-0" : ""
-      } ${active ? "border-l-accent bg-accent-soft" : "border-l-transparent hover:bg-surface-200"}`}
+    <div
+      role="listitem"
+      aria-current={active ? "true" : undefined}
+      aria-setsize={collectionSize}
+      aria-posinset={positionInSet}
+      data-index={virtualized ? virtualIndex : undefined}
+      className={virtualized ? "absolute left-0 top-0 w-full" : ""}
+      style={style}
     >
-      <span className="w-[18px] shrink-0 pt-px font-mono text-[11px] text-text-tertiary">
-        #{record.lineNumber}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="flex items-center justify-between gap-2">
-          {insight?.event ? (
-            <span
-              className={`min-w-0 truncate font-mono text-[11.5px] font-medium ${
-                active ? "text-text-primary" : "text-text-secondary"
-              }`}
-            >
-              {insight.event}
+      <button
+        type="button"
+        data-record-id={record.id}
+        onClick={() => onSelect(record)}
+        style={{ height: `${railRowHeight}px` }}
+        className={`flex w-full gap-2.5 overflow-hidden border-b border-l-[3px] border-b-border px-3.5 py-[11px] text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
+          active ? "border-l-accent bg-accent-soft" : "border-l-transparent hover:bg-surface-200"
+        }`}
+      >
+        <span className="w-[18px] shrink-0 pt-px font-mono text-[11px] text-text-tertiary">
+          #{record.lineNumber}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <span className="flex items-center justify-between gap-2">
+            {insight?.event ? (
+              <span
+                className={`min-w-0 truncate font-mono text-[11.5px] font-medium ${
+                  active ? "text-text-primary" : "text-text-secondary"
+                }`}
+              >
+                {insight.event}
+              </span>
+            ) : null}
+            <span className="uq-label ml-auto flex shrink-0 items-center gap-1.5">
+              <span
+                className="size-[7px] shrink-0 rounded-full"
+                style={{ background: kindDot[kind] }}
+              />
+              {parsed ? t(kindLabel[kind]) : t("error.parseFailed")}
             </span>
-          ) : null}
-          <span className="uq-label ml-auto flex shrink-0 items-center gap-1.5">
-            <span
-              className="size-[7px] shrink-0 rounded-full"
-              style={{ background: kindDot[kind] }}
-            />
-            {parsed ? t(kindLabel[kind]) : t("error.parseFailed")}
           </span>
+          <span className="truncate text-[12px] text-text-secondary">
+            {insight?.title ?? record.summary}
+          </span>
+          <span className="truncate font-mono text-[10px] text-text-tertiary">{meta}</span>
         </span>
-        <span className="truncate text-[12px] text-text-secondary">
-          {insight?.title ?? record.summary}
-        </span>
-        <span className="truncate font-mono text-[10px] text-text-tertiary">{meta}</span>
-      </span>
-    </button>
+      </button>
+    </div>
   );
 };
 
@@ -164,7 +179,7 @@ export const RecordRail = ({
     return scrollToRecord(index);
   }, [records, scrollIntent, scrollToRecord]);
 
-  const renderRow = (record: JsonlRecord, style?: CSSProperties) => (
+  const renderRow = (record: JsonlRecord, index: number, style?: CSSProperties) => (
     <RailRow
       key={record.id}
       record={record}
@@ -172,7 +187,15 @@ export const RecordRail = ({
       turnIndex={turnIndexByRecordId?.get(record.id)}
       active={record.id === activeRecordId}
       onSelect={onSelect}
-      {...(style ? { virtualized: true, style } : {})}
+      {...(style
+        ? {
+            virtualized: true,
+            virtualIndex: index,
+            collectionSize: records.length,
+            positionInSet: index + 1,
+            style,
+          }
+        : {})}
     />
   );
 
@@ -181,16 +204,25 @@ export const RecordRail = ({
       {records.length === 0 ? (
         <p className="m-0 px-3.5 py-4 text-[12px] text-text-tertiary">{t("rail.empty")}</p>
       ) : shouldVirtualize ? (
-        <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+        <div
+          role="list"
+          aria-label={t("rail.records")}
+          className="relative w-full"
+          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+        >
           {rowVirtualizer.getVirtualItems().map((virtualItem) => {
             const record = records[virtualItem.index];
             return record
-              ? renderRow(record, { transform: `translateY(${virtualItem.start}px)` })
+              ? renderRow(record, virtualItem.index, {
+                  transform: `translateY(${virtualItem.start}px)`,
+                })
               : null;
           })}
         </div>
       ) : (
-        records.map((record) => renderRow(record))
+        <div role="list" aria-label={t("rail.records")}>
+          {records.map((record, index) => renderRow(record, index))}
+        </div>
       )}
     </div>
   );

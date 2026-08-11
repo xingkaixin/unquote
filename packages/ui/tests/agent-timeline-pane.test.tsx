@@ -42,6 +42,7 @@ const renderPane = (
 };
 
 const timelineButtons = () => screen.getAllByRole("button", { name: /^Timeline:/ });
+const timelineItem = (button: HTMLElement) => button.closest<HTMLElement>("[role='listitem']")!;
 
 // jsdom has no layout engine: the virtualizer reads the scroll container's
 // offsetHeight for its viewport size and each row's getBoundingClientRect
@@ -73,9 +74,11 @@ describe("AgentTimelinePane", () => {
 
     const buttons = timelineButtons();
     expect(buttons).toHaveLength(5);
-    expect(buttons[2]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("list", { name: "Timeline" })).toBeInTheDocument();
+    expect(timelineItem(buttons[2]!)).toHaveAttribute("aria-current", "true");
     expect(buttons[2]).toHaveClass("bg-accent-soft");
-    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(timelineItem(buttons[0]!)).not.toHaveAttribute("aria-current");
+    expect(timelineItem(buttons[2]!)).not.toHaveAttribute("aria-setsize");
 
     fireEvent.click(buttons[0]!);
     expect(onSelectEvent).toHaveBeenCalledWith("event-0");
@@ -112,16 +115,20 @@ describe("AgentTimelinePane", () => {
     expect(buttons.length).toBeLessThan(total);
     expect(screen.getByText("· Event 0")).toBeInTheDocument();
     expect(screen.queryByText(`· Event ${total - 1}`)).not.toBeInTheDocument();
+    for (const item of screen.getAllByRole("listitem")) {
+      expect(item).toHaveAttribute("aria-setsize", String(total));
+      expect(item).toHaveAttribute("aria-posinset", String(Number(item.dataset.index) + 1));
+    }
   });
 
-  it("selects a windowed row and reports the highlighted event as pressed", () => {
+  it("selects a windowed row and reports the highlighted event as current", () => {
     const total = timelineVirtualizationThreshold + 40;
     const events = Array.from({ length: total }, (_, index) => buildEvent(index));
     const { onSelectEvent } = renderPane(events, { highlightedRecordId: "record-1" });
 
     const buttons = timelineButtons();
     const highlighted = screen.getByLabelText("Timeline: assistant · Event 1");
-    expect(highlighted).toHaveAttribute("aria-pressed", "true");
+    expect(timelineItem(highlighted)).toHaveAttribute("aria-current", "true");
 
     fireEvent.click(buttons[0]!);
     expect(onSelectEvent).toHaveBeenCalled();

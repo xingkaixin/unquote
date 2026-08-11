@@ -15,6 +15,8 @@ const TimelineEvent = ({
   onSelect,
   virtualized = false,
   virtualIndex,
+  collectionSize,
+  positionInSet,
   style,
 }: {
   event: AgentTimelineEvent;
@@ -22,6 +24,8 @@ const TimelineEvent = ({
   onSelect: (eventId: string) => void;
   virtualized?: boolean;
   virtualIndex?: number;
+  collectionSize?: number;
+  positionInSet?: number;
   style?: CSSProperties;
 }) => {
   const { locale, t } = useTranslation();
@@ -29,31 +33,40 @@ const TimelineEvent = ({
   const time = formatClockTime(event.timestamp ?? event.timestampLabel, locale);
 
   return (
-    <button
-      type="button"
+    <div
+      role="listitem"
+      aria-current={selected ? "true" : undefined}
+      aria-setsize={collectionSize}
+      aria-posinset={positionInSet}
       data-index={virtualized ? virtualIndex : undefined}
-      aria-label={`${t("agent.timeline")}: ${config.label} · ${event.label}`}
-      aria-pressed={selected}
-      className={`flex h-11 w-full min-w-0 items-start gap-2.5 rounded-md px-2.5 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
-        virtualized ? "absolute left-0 top-0" : ""
-      } ${selected ? "bg-accent-soft" : "hover:bg-surface-200"}`}
+      className={virtualized ? "absolute left-0 top-0 w-full" : ""}
       style={style}
-      onClick={() => onSelect(event.id)}
     >
-      <span className="flex shrink-0 flex-col items-center gap-1 pt-1">
-        <span className="size-[7px] shrink-0 rounded-full" style={{ background: config.dot }} />
-        <span className="w-px flex-1 bg-border" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 text-[12px] font-medium text-text-primary">{config.label}</span>
-          <span className="truncate text-[10px] text-text-tertiary">· {event.label}</span>
+      <button
+        type="button"
+        aria-label={`${t("agent.timeline")}: ${config.label} · ${event.label}`}
+        className={`flex h-11 w-full min-w-0 items-start gap-2.5 rounded-md px-2.5 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
+          selected ? "bg-accent-soft" : "hover:bg-surface-200"
+        }`}
+        onClick={() => onSelect(event.id)}
+      >
+        <span className="flex shrink-0 flex-col items-center gap-1 pt-1">
+          <span className="size-[7px] shrink-0 rounded-full" style={{ background: config.dot }} />
+          <span className="w-px flex-1 bg-border" />
         </span>
-        <span className="truncate font-mono text-[10px] text-text-tertiary">
-          {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 text-[12px] font-medium text-text-primary">
+              {config.label}
+            </span>
+            <span className="truncate text-[10px] text-text-tertiary">· {event.label}</span>
+          </span>
+          <span className="truncate font-mono text-[10px] text-text-tertiary">
+            {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+    </div>
   );
 };
 
@@ -89,9 +102,18 @@ export const AgentTimelinePane = ({
           <span>· {t("agent.turn", { turn: firstTurnIndex })}</span>
         )}
       </h2>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+      <div
+        ref={scrollRef}
+        role="list"
+        aria-label={t("agent.timeline")}
+        className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
+      >
         {shouldVirtualize ? (
-          <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+          <div
+            role="presentation"
+            className="relative w-full"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          >
             {rowVirtualizer.getVirtualItems().map((virtualItem) => {
               const event = events[virtualItem.index];
               if (!event) {
@@ -106,6 +128,8 @@ export const AgentTimelinePane = ({
                   onSelect={onSelectEvent}
                   virtualized
                   virtualIndex={virtualItem.index}
+                  collectionSize={events.length}
+                  positionInSet={virtualItem.index + 1}
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 />
               );

@@ -63,6 +63,9 @@ const railButton = (lineNumber: number) =>
     .map((node) => node.closest("button"))
     .find((button): button is HTMLButtonElement => Boolean(button))!;
 
+const railItem = (lineNumber: number) =>
+  railButton(lineNumber).closest<HTMLElement>("[role='listitem']")!;
+
 // jsdom has no layout engine: the virtualizer reads the scroll container's
 // offsetHeight for its viewport size and each row's getBoundingClientRect
 // for its measured size, both of which default to 0 without this stub.
@@ -91,8 +94,10 @@ describe("RecordRail", () => {
     const records = buildRecords(5);
     const { onSelect } = renderRail(records, { activeRecordId: "record-2" });
 
-    expect(railButton(2)).toHaveAttribute("aria-pressed", "true");
-    expect(railButton(1)).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("list", { name: "Records" })).toBeInTheDocument();
+    expect(railItem(2)).toHaveAttribute("aria-current", "true");
+    expect(railItem(1)).not.toHaveAttribute("aria-current");
+    expect(railItem(2)).not.toHaveAttribute("aria-setsize");
 
     fireEvent.click(railButton(1));
     expect(onSelect).toHaveBeenCalledWith(records[0]);
@@ -122,6 +127,10 @@ describe("RecordRail", () => {
 
     expect(screen.getByText("#1")).toBeInTheDocument();
     expect(screen.queryByText(`#${total}`)).not.toBeInTheDocument();
+    for (const item of screen.getAllByRole("listitem")) {
+      expect(item).toHaveAttribute("aria-setsize", String(total));
+      expect(item).toHaveAttribute("aria-posinset", String(Number(item.dataset.index) + 1));
+    }
   });
 
   it("renders virtualized rows at exactly the height the virtualizer assumes", () => {
@@ -130,7 +139,7 @@ describe("RecordRail", () => {
     // The rail runs without `measureElement`, so a row taller than the
     // estimate would stack the absolutely positioned rows on top of each other.
     expect(railButton(1).style.height).toBe(`${railRowHeight}px`);
-    expect(railButton(2).style.transform).toBe(`translateY(${railRowHeight}px)`);
+    expect(railItem(2).style.transform).toBe(`translateY(${railRowHeight}px)`);
   });
 
   it("scrolls to the record a scroll intent targets", async () => {

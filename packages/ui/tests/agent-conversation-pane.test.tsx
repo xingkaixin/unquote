@@ -98,6 +98,7 @@ const renderPane = (
 };
 
 const conversationButtons = () => screen.getAllByRole("button", { name: /^Conversation:/ });
+const conversationItem = (button: HTMLElement) => button.closest<HTMLElement>("[role='listitem']")!;
 
 let offsetHeightSpy: ReturnType<typeof vi.spyOn>;
 
@@ -140,8 +141,10 @@ describe("AgentConversationPane", () => {
 
     const buttons = conversationButtons();
     expect(buttons).toHaveLength(5);
-    expect(buttons[2]).toHaveAttribute("aria-pressed", "true");
-    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("list", { name: "Conversation" })).toBeInTheDocument();
+    expect(conversationItem(buttons[2]!)).toHaveAttribute("aria-current", "true");
+    expect(conversationItem(buttons[0]!)).not.toHaveAttribute("aria-current");
+    expect(conversationItem(buttons[2]!)).not.toHaveAttribute("aria-setsize");
 
     fireEvent.click(buttons[0]!);
     expect(onSelectItem).toHaveBeenCalledWith("item-0");
@@ -315,17 +318,21 @@ describe("AgentConversationPane", () => {
     expect(buttons.length).toBeLessThan(total);
     expect(screen.getByText("Line 1")).toBeInTheDocument();
     expect(screen.queryByText(`Line ${total}`)).not.toBeInTheDocument();
+    for (const item of screen.getAllByRole("listitem")) {
+      expect(item).toHaveAttribute("aria-setsize", String(total));
+      expect(item).toHaveAttribute("aria-posinset", String(Number(item.dataset.index) + 1));
+    }
   });
 
-  it("selects a windowed item and reports it as pressed", () => {
+  it("selects a windowed item and reports it as current", () => {
     const total = conversationVirtualizationThreshold + 40;
     const entries = Array.from({ length: total }, (_, index) => buildEntry(index));
     const { onSelectItem } = renderPane(entries, { selectedConversationId: "item-1" });
 
-    const pressedButtons = conversationButtons().filter(
-      (button) => button.getAttribute("aria-pressed") === "true",
-    );
-    expect(pressedButtons).toHaveLength(1);
+    const currentItems = screen
+      .getAllByRole("listitem")
+      .filter((item) => item.getAttribute("aria-current") === "true");
+    expect(currentItems).toHaveLength(1);
 
     const buttons = conversationButtons();
     fireEvent.click(buttons[0]!);
