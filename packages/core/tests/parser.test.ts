@@ -238,10 +238,18 @@ describe("parseInput", () => {
 
   it("projects Preview Records from the same stringified JSON semantics", () => {
     const line = JSON.stringify({
-      nested: '{"ok":true}',
-      primitive: "true",
+      object: '{"ok":true}',
+      array: "[1,2]",
+      string: '"abc"',
+      number: "123",
+      true: "true",
+      false: "false",
+      null: "null",
+      padded: ' \n {"ok":true} \t',
       invalid: "{not json",
-      object: {},
+      empty: "",
+      whitespace: " \t ",
+      container: {},
     });
     const preview = parsePreviewJsonlRecordLine(line, 7);
     const hydrated = parseJsonlRecordLine(line, 7);
@@ -252,19 +260,14 @@ describe("parseInput", () => {
     expect(preview).toMatchObject({
       status: "preview",
       preview: {
-        fields: {
-          nested: '{"ok":true}',
-          primitive: "true",
-          invalid: "{not json",
-        },
-        containers: { object: "object" },
-        nestedFieldKeys: ["nested", "primitive"],
+        containers: { container: "object" },
+        nestedFieldKeys: ["object", "array", "string", "number", "true", "false", "null", "padded"],
       },
     });
     expect(preview.node?.children).toBeUndefined();
-    expect(isStringifiedNode(hydrated.node.children.nested!)).toBe(true);
-    expect(isStringifiedNode(hydrated.node.children.primitive!)).toBe(true);
-    expect(isStringifiedNode(hydrated.node.children.invalid!)).toBe(false);
+    for (const [key, child] of Object.entries(hydrated.node.children)) {
+      expect(isStringifiedNode(child), key).toBe(preview.preview?.nestedFieldKeys?.includes(key));
+    }
   });
 
   it("does not split a surrogate pair in Preview Record fields", () => {

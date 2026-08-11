@@ -14,6 +14,7 @@ import type {
   PreviewJsonlRecord,
   PreviewJsonNode,
 } from "./types.js";
+import { isStringifiedJson } from "./json-probe.js";
 import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 import { isFailedRecord, isParsed } from "./records.js";
 import { stringifyJsonNode } from "./serialization.js";
@@ -248,7 +249,7 @@ const createRecordPreview = (value: LosslessJsonValue) => {
     }
 
     fields.push([key, typeof child === "string" ? truncatePreviewString(child) : child]);
-    if (typeof child === "string" && buildNode(child, 1, 1).rawString !== undefined) {
+    if (typeof child === "string" && isStringifiedJson(child)) {
       nestedFieldKeys.push(key);
     }
   }
