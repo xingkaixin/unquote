@@ -454,7 +454,7 @@ const runRenderFixture = async (client, fixture) => {
         completeReadyMs: completeReady - start,
         agentSessionReadyMs,
         domNodes: document.getElementsByTagName('*').length,
-        railRows: document.querySelectorAll('[data-record-rail] button[aria-pressed]').length,
+        railRows: document.querySelectorAll('[data-record-rail] [data-record-id]').length,
       }
     }
   )()`;
@@ -574,8 +574,9 @@ const runRenderFixture = async (client, fixture) => {
           }
           return best
         })()
-      const railRow = (index) =>
-        document.querySelectorAll('[data-record-rail] button[aria-pressed]')[index] ?? null
+      const mountedRailRows = () =>
+        document.querySelectorAll('[data-record-rail] [data-record-id]')
+      const railRow = (index) => mountedRailRows()[index] ?? null
       const scanForToggleRow = async () => {
         const scroller = treeScroller()
         scroller.scrollTop = 0
@@ -690,7 +691,7 @@ const runRenderFixture = async (client, fixture) => {
       const railStart = performance.now()
       await waitFor(
         'rail-ready',
-        () => document.querySelectorAll('[data-record-rail] button[aria-pressed]').length > 0
+        () => mountedRailRows().length > 0
       )
       await settleFrames()
       const railReadyMs = performance.now() - railStart
@@ -698,7 +699,7 @@ const runRenderFixture = async (client, fixture) => {
       // domNodes is budgeted against the default mostly-collapsed view, which
       // is why the expansion steps above restore their state before returning.
       const domNodes = document.getElementsByTagName('*').length
-      const railRows = document.querySelectorAll('[data-record-rail] button[aria-pressed]').length
+      const railRows = mountedRailRows().length
 
       return {
         searchReadyMs,
