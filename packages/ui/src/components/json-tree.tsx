@@ -96,6 +96,13 @@ export const JsonTree = memo(function JsonTree({
     measureElement: (element) => element?.getBoundingClientRect().height ?? rowEstimateSize,
     enabled: shouldVirtualize,
   });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const activeDescendantId =
+    !shouldVirtualize ||
+    activeRowId === undefined ||
+    virtualRows.some(({ index }) => displayRows[index]?.id === activeRowId)
+      ? activeRowId
+      : undefined;
 
   const toggleRow = useCallback(
     (row: DisplayTreeRow) => {
@@ -275,13 +282,17 @@ export const JsonTree = memo(function JsonTree({
       className="group/tree min-h-0 flex-1 overflow-auto py-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
       role="tree"
       aria-label={record.summary}
-      aria-activedescendant={activeRowId}
+      aria-activedescendant={activeDescendantId}
       tabIndex={0}
       onKeyDown={handleTreeKeyDown}
     >
       {shouldVirtualize ? (
-        <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        <div
+          role="presentation"
+          className="relative w-full"
+          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+        >
+          {virtualRows.map((virtualRow) => {
             const row = displayRows[virtualRow.index];
             if (!row) {
               return null;
@@ -301,6 +312,8 @@ export const JsonTree = memo(function JsonTree({
                 row={row}
                 virtualized
                 virtualIndex={virtualRow.index}
+                collectionSize={interactiveRows.length}
+                positionInSet={(interactiveIndexById.get(row.id) ?? -1) + 1}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
                 measureRef={(node) => {
                   if (node) {
@@ -320,7 +333,7 @@ export const JsonTree = memo(function JsonTree({
           })}
         </div>
       ) : (
-        <div>
+        <div role="presentation">
           {displayRows.map((row) => {
             const searchMatch =
               row.kind === "close" ? undefined : searchMatchMap.get(row.source.pathText);
@@ -403,6 +416,8 @@ interface RowItemProps {
   onTogglePath: (row: DisplayTreeRow) => void;
   virtualized?: boolean;
   virtualIndex?: number;
+  collectionSize?: number;
+  positionInSet?: number;
   style?: CSSProperties;
   measureRef?: (node: HTMLDivElement | null) => void;
 }
@@ -419,6 +434,8 @@ const RowItem = memo(function RowItem({
   onTogglePath,
   virtualized = false,
   virtualIndex,
+  collectionSize,
+  positionInSet,
   style,
   measureRef,
 }: RowItemProps) {
@@ -471,6 +488,8 @@ const RowItem = memo(function RowItem({
       aria-level={row.kind === "close" ? undefined : row.depth + 1}
       aria-selected={row.kind === "close" ? undefined : isSelectedAnchor}
       aria-expanded={row.showToggle ? source.expanded : undefined}
+      aria-setsize={row.kind === "close" ? undefined : collectionSize}
+      aria-posinset={row.kind === "close" ? undefined : positionInSet}
       tabIndex={row.kind === "close" ? undefined : -1}
     >
       <span style={{ width: `${row.depth * 16}px` }} className="shrink-0" />
