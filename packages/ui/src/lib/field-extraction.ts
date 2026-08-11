@@ -36,6 +36,7 @@ export interface ContainerCandidate {
 export interface FieldExtractionMetrics {
   maxDepth: number;
   nestedCount: number;
+  precision: "exact" | "lower-bound";
 }
 
 export interface WalkRecordFieldsOptions {
@@ -132,7 +133,11 @@ export const walkRecordFields = (
   record: JsonlRecord,
   options: WalkRecordFieldsOptions,
 ): FieldExtractionMetrics => {
-  const metrics: FieldExtractionMetrics = { maxDepth: 0, nestedCount: 0 };
+  const metrics: FieldExtractionMetrics = {
+    maxDepth: 0,
+    nestedCount: 0,
+    precision: record.status === "preview" ? "lower-bound" : "exact",
+  };
 
   if (record.status === "preview" && record.preview) {
     walkPreviewBranch(record.preview, metrics, options.onField, options.onContainer);

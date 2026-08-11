@@ -9,11 +9,13 @@ export interface FileOverview {
   failed: number;
   nestedRecords: number;
   maxDepth: number;
+  structurePrecision: FieldExtractionMetrics["precision"];
 }
 
 export interface RecordOverviewSummary {
   hasNestedJson: boolean;
   maxDepth: number;
+  structurePrecision: FieldExtractionMetrics["precision"];
 }
 
 // The running aggregate across every record seen so far. record-derivation.ts
@@ -22,11 +24,13 @@ export interface FileOverviewAggregate {
   success: number;
   nestedRecords: number;
   maxDepth: number;
+  structurePrecision: FieldExtractionMetrics["precision"];
 }
 
 const emptyRecordOverviewSummary = (): RecordOverviewSummary => ({
   hasNestedJson: false,
   maxDepth: 0,
+  structurePrecision: "exact",
 });
 
 // Records with no tree of their own never reach the traversal, so their
@@ -39,12 +43,14 @@ export const toRecordOverviewSummary = (
 ): RecordOverviewSummary => ({
   hasNestedJson: metrics.nestedCount > 0,
   maxDepth: metrics.maxDepth,
+  structurePrecision: metrics.precision,
 });
 
 export const createFileOverviewAggregate = (): FileOverviewAggregate => ({
   success: 0,
   nestedRecords: 0,
   maxDepth: 0,
+  structurePrecision: "exact",
 });
 
 export const addSummaryToFileOverview = (
@@ -59,6 +65,9 @@ export const addSummaryToFileOverview = (
     state.nestedRecords += 1;
   }
   state.maxDepth = Math.max(state.maxDepth, summary.maxDepth);
+  if (summary.structurePrecision === "lower-bound") {
+    state.structurePrecision = "lower-bound";
+  }
 };
 
 export const toFileOverview = (state: FileOverviewAggregate, total: number): FileOverview => ({
@@ -67,6 +76,7 @@ export const toFileOverview = (state: FileOverviewAggregate, total: number): Fil
   failed: total - state.success,
   nestedRecords: state.nestedRecords,
   maxDepth: state.maxDepth,
+  structurePrecision: state.structurePrecision,
 });
 
 export const createFileOverview = (records: JsonlRecord[]): FileOverview => {
