@@ -350,6 +350,8 @@ const railRow = (lineNumber: number) =>
     .map((node) => node.closest("button"))
     .find((button): button is HTMLButtonElement => Boolean(button))!;
 
+const railItem = (lineNumber: number) => railRow(lineNumber).closest("[role='listitem']")!;
+
 // The workspace shows one record at a time, so reaching another record's tree
 // goes through its rail row.
 const selectRailRecord = async (user: User, lineNumber: number) => {
@@ -832,17 +834,22 @@ describe("UnquoteApp", () => {
     const conversationToolCalls = screen.getAllByRole("button", {
       name: /^Conversation: Tool call/,
     });
-    const expectPressed = (buttons: HTMLElement[], pressed: boolean) => {
+    const expectCurrent = (buttons: HTMLElement[], current: boolean) => {
       for (const button of buttons) {
-        expect(button).toHaveAttribute("aria-pressed", String(pressed));
+        const item = button.closest("[role='listitem']");
+        if (current) {
+          expect(item).toHaveAttribute("aria-current", "true");
+        } else {
+          expect(item).not.toHaveAttribute("aria-current");
+        }
       }
     };
     // task_started carries no conversation item, so line 2 selects the Event
     // itself while line 4 selects through its Tool call.
     const expectSelection = async (selectedLine: 2 | 4) => {
-      await waitFor(() => expectPressed(timelineToolCalls, selectedLine === 4));
-      expectPressed(timelineTaskStarted, selectedLine === 2);
-      expectPressed(conversationToolCalls, selectedLine === 4);
+      await waitFor(() => expectCurrent(timelineToolCalls, selectedLine === 4));
+      expectCurrent(timelineTaskStarted, selectedLine === 2);
+      expectCurrent(conversationToolCalls, selectedLine === 4);
     };
 
     await user.click(timelineToolCalls[0]!);
@@ -1017,7 +1024,7 @@ describe("UnquoteApp", () => {
       expect(observerOptions).toHaveLength(0);
       const railRows = document
         .querySelector("[data-record-rail]")!
-        .querySelectorAll("button[aria-pressed]");
+        .querySelectorAll("[role='listitem']");
       expect(railRows.length).toBeLessThan(161);
       expect(document.querySelectorAll("[id^='record-']:not([id*=':'])")).toHaveLength(1);
     } finally {
@@ -1589,11 +1596,11 @@ describe("UnquoteApp", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: /Next match/i })[0]!);
-    await waitFor(() => expect(railRow(2)).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(railItem(2)).toHaveAttribute("aria-current", "true"));
     expect(screen.getAllByText((text) => text.includes("2/3")).length).toBeGreaterThan(0);
 
     await user.click(screen.getAllByRole("button", { name: /Previous match/i })[0]!);
-    await waitFor(() => expect(railRow(1)).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(railItem(1)).toHaveAttribute("aria-current", "true"));
   });
 
   it("follows a search match into a record the workspace was not showing", async () => {
@@ -1605,13 +1612,13 @@ describe("UnquoteApp", () => {
       </I18nProvider>,
     );
     await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
-    expect(railRow(1)).toHaveAttribute("aria-pressed", "true");
+    expect(railItem(1)).toHaveAttribute("aria-current", "true");
 
     await user.type(getToolbarInput(), "needle");
 
     // One record is on screen at a time, so the match has to move both the rail
     // selection and the centre tree or the previous/next buttons silently do nothing.
-    await waitFor(() => expect(railRow(3)).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(railItem(3)).toHaveAttribute("aria-current", "true"));
     expect(document.getElementById("record-3")).toBeInTheDocument();
     expect(document.getElementById("record-1")).not.toBeInTheDocument();
   });

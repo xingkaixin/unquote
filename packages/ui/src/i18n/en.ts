@@ -115,6 +115,7 @@ export const en = {
   "status.hintPalette": "⌘K command palette",
   "rail.line": "Line {line}",
   "rail.turn": "Turn {turn}",
+  "rail.records": "Records",
   "rail.empty": "No records match this filter",
   "tree.empty": "Select a record",
   "tree.copyRecord": "Copy record",

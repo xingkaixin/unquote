@@ -127,12 +127,23 @@ describe("JsonTree virtualized keyboard navigation", () => {
     expect(indexes).toStrictEqual([...indexes].sort((left, right) => left - right));
   });
 
+  it("reports each mounted tree item's position in the full interactive set", () => {
+    const { tree } = renderWideTree();
+    const treeItems = Array.from(tree.querySelectorAll<HTMLElement>("[role='treeitem']"));
+
+    expect(treeItems.length).toBeGreaterThan(0);
+    for (const treeItem of treeItems) {
+      expect(treeItem).toHaveAttribute("aria-setsize", String(rowCount + 1));
+      expect(treeItem).toHaveAttribute("aria-posinset", String(Number(treeItem.dataset.index) + 1));
+    }
+  });
+
   it("resolves boundary navigation to the last interactive display index", () => {
     const { tree } = renderWideTree();
 
     fireEvent.keyDown(tree, { key: "End" });
 
-    expect(tree).toHaveAttribute("aria-activedescendant", `${recordId}:$.k${rowCount - 1}`);
+    expect(tree).not.toHaveAttribute("aria-activedescendant");
     expect(scrollToIndex).toHaveBeenLastCalledWith(rowCount, { align: "auto" });
 
     fireEvent.keyDown(tree, { key: "Home" });

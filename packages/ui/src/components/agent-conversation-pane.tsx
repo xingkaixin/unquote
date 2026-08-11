@@ -184,7 +184,6 @@ const ConversationTurn = ({
         <button
           type="button"
           aria-label={selectLabel}
-          aria-pressed={selected}
           className={`w-full border-l-2 py-0.5 pl-4 text-left text-[15px] leading-[26px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
             selected ? "border-l-accent text-text-primary" : "border-l-border text-text-secondary"
           }`}
@@ -267,13 +266,18 @@ export const AgentConversationPane = ({
 
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-14 pt-8">
+      <div
+        role={entries.length === 0 ? undefined : "list"}
+        aria-label={entries.length === 0 ? undefined : t("agent.conversation")}
+        className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-14 pt-8"
+      >
         {entries.length === 0 ? (
           <p className="m-0 rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-tertiary">
             {t("agent.noConversation")}
           </p>
         ) : shouldVirtualize ? (
           <div
+            role="presentation"
             className="relative w-full"
             style={{ height: `${conversationVirtualizer.getTotalSize()}px` }}
           >
@@ -286,6 +290,10 @@ export const AgentConversationPane = ({
               return (
                 <div
                   key={entry.item.id}
+                  role="listitem"
+                  aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
+                  aria-setsize={entries.length}
+                  aria-posinset={virtualItem.index + 1}
                   ref={(node) => {
                     if (node) {
                       conversationVirtualizer.measureElement(node);
@@ -301,10 +309,12 @@ export const AgentConversationPane = ({
             })}
           </div>
         ) : (
-          <div className="flex flex-col gap-6">
+          <div role="presentation" className="flex flex-col gap-6">
             {entries.map((entry) => (
               <div
                 key={entry.item.id}
+                role="listitem"
+                aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
                 ref={(node) => {
                   if (node) {
                     conversationRefs.current.set(entry.item.id, node);

@@ -117,6 +117,7 @@ export const zhCN: Messages = {
   "status.hintPalette": "⌘K 命令面板",
   "rail.line": "第 {line} 行",
   "rail.turn": "第 {turn} 轮",
+  "rail.records": "记录",
   "rail.empty": "没有符合当前过滤的记录",
   "tree.empty": "选择一条记录",
   "tree.copyRecord": "复制记录",
