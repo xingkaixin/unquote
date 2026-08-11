@@ -56,27 +56,25 @@ interface InternalSearchResultCollector extends SearchResultCollector {
   ) => void;
 }
 
-const clonePattern = (pattern: RegExp) =>
-  new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
-
-const matchesPattern = (text: string, pattern: RegExp) => clonePattern(pattern).test(text);
-
 /**
  * A materialized hit still scans only the visible label for ranges. Match
  * existence was established separately against the complete value.
  */
 const scanRanges = (text: string, pattern: RegExp, visibleLength = text.length): TextRange[] => {
   const ranges: TextRange[] = [];
-  const clone = clonePattern(pattern);
+  const rangePattern = new RegExp(
+    pattern.source,
+    pattern.global ? pattern.flags : `${pattern.flags}g`,
+  );
   let match: RegExpExecArray | null;
-  while ((match = clone.exec(text)) !== null) {
+  while ((match = rangePattern.exec(text)) !== null) {
     const end = match.index + match[0].length;
     if (end > visibleLength) {
       return ranges;
     }
     ranges.push({ start: match.index, end });
     if (match[0].length === 0) {
-      clone.lastIndex++;
+      rangePattern.lastIndex++;
     }
   }
   return ranges;
@@ -106,6 +104,13 @@ const createCollector = (
   options: SearchOptions,
   windowIndexes?: ArrayLike<number>,
 ): InternalSearchResultCollector => {
+  const testPattern = new RegExp(pattern.source, pattern.flags.replace("g", ""));
+  const matchesPattern = testPattern.sticky
+    ? (text: string) => {
+        testPattern.lastIndex = 0;
+        return testPattern.test(text);
+      }
+    : (text: string) => testPattern.test(text);
   const requestedIndexes = normalizeWindowIndexes(windowIndexes);
   const matchLineNumbers: number[] = [];
   const materializedIndexes: number[] = [];
@@ -119,9 +124,9 @@ const createCollector = (
     const keySegment = context.pathSegments.at(-1);
     const keyText = keySegment?.kind === "key" ? keySegment.value : null;
     const valueText = formatJsonValueLabel(context);
-    const keyMatched = keyText ? matchesPattern(keyText, pattern) : false;
-    const valueMatched = matchesPattern(valueText, pattern);
-    const pathMatched = options.jq && matchesPattern(context.jsonPath, pattern);
+    const keyMatched = keyText ? matchesPattern(keyText) : false;
+    const valueMatched = matchesPattern(valueText);
+    const pathMatched = options.jq && matchesPattern(context.jsonPath);
 
     if (!keyMatched && !valueMatched && !pathMatched) {
       return;
