@@ -1819,6 +1819,9 @@ describe("UnquoteApp", () => {
     const shell = container.querySelector<HTMLElement>(".uq-shell")!;
     await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "buried.jsonl"));
     await waitFor(() => expect(screen.getAllByText("meta").length).toBeGreaterThan(0));
+    expect(screen.queryByText(/max depth/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Top-level nested" })).toBeInTheDocument();
+    expect(await screen.findByText("This record contains stringified JSON")).toBeInTheDocument();
     expect(screen.queryAllByText("buried")).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Expand All" }));

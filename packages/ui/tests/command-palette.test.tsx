@@ -29,6 +29,7 @@ const renderPalette = (overrides: Partial<ComponentProps<typeof CommandPalette>>
         visibleCount={7}
         totalCount={10}
         filterMode="all"
+        nestedFilterScope="all-levels"
         {...callbacks}
         {...overrides}
       />
@@ -128,5 +129,11 @@ describe("CommandPalette", () => {
 
     await user.click(screen.getByRole("button", { name: "Close command panel" }));
     expect(callbacks.onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("labels the nested action as top-level for partial structure facts", () => {
+    renderPalette({ nestedFilterScope: "top-level" });
+
+    expect(screen.getByRole("option", { name: "Top-level nested" })).toBeInTheDocument();
   });
 });

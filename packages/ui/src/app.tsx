@@ -338,7 +338,7 @@ export const UnquoteApp = ({
           summary={hasData ? toolbarSummary : t("status.empty")}
           failedCount={result.stats.failed}
           onSelectFailed={() => queryIntent.setFilter("errors")}
-          maxDepth={fileOverview.maxDepth}
+          maxDepth={fileOverview.structurePrecision === "exact" ? fileOverview.maxDepth : null}
           expandedNestedCount={recordWorkspace.expandedNestedCount}
           sourceStatus={sourceFileStatus}
           sourceBusy={sourceFileBusy}
@@ -362,6 +362,7 @@ export const UnquoteApp = ({
           visibleCount={visibleStats.total}
           totalCount={result.stats.total}
           filterMode={recordFilter}
+          nestedFilterScope={recordWorkspace.model.filter.nestedScope}
           onClose={() => setCommandPaletteOpen(false)}
           onInputChange={queryIntent.changeCommandInput}
           onSearch={queryIntent.searchFromCommand}

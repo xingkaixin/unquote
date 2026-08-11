@@ -12,6 +12,8 @@ export type RecordFilterMode =
   | "message"
   | "events";
 
+export type NestedFilterScope = "all-levels" | "top-level";
+
 const containsStringifiedNode = (node: JsonNode): boolean => {
   if (isStringifiedNode(node)) {
     return true;
@@ -26,7 +28,7 @@ const containsStringifiedNode = (node: JsonNode): boolean => {
     : Object.values(node.children).some(containsStringifiedNode);
 };
 
-const recordContainsStringifiedJson = (record: JsonlRecord) =>
+export const recordContainsStringifiedJson = (record: JsonlRecord) =>
   record.status === "preview" && record.preview
     ? (record.preview.nestedFieldKeys?.length ?? 0) > 0
     : isParsed(record) && containsStringifiedNode(record.node);

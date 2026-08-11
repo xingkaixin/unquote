@@ -157,6 +157,7 @@ export const zhCN: Messages = {
   "filter.matches": "匹配",
   "filter.errors": "错误",
   "filter.nested": "嵌套",
+  "filter.nestedTopLevel": "顶层嵌套",
   "filter.tools": "工具",
   "filter.messages": "消息",
   "filter.events": "事件",
