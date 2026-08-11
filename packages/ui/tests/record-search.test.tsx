@@ -1,7 +1,12 @@
 import { parseInput } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { maxStringValueLabelLength } from "../src/lib/json-walk";
-import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
+import {
+  buildSearchPattern,
+  createSearchResultCollector,
+  searchJsonValue,
+  searchRecords,
+} from "../src/lib/record-search";
 import type { SearchResultSet } from "../src/lib/record-search";
 
 const defaultOptions = { regex: false, caseSensitive: false, jq: false };
@@ -96,6 +101,20 @@ describe("search pattern semantics", () => {
       matchesOf(searchRecords(records, "$.needle", { ...defaultOptions, jq: true }))?.[0]
         ?.pathRanges,
     ).toEqual([{ start: 0, end: 8 }]);
+  });
+
+  it("keeps matching after one collector consumes multiple records", () => {
+    const collector = createSearchResultCollector(/needle/gi, defaultOptions);
+    const records = parseInput(
+      ['{"message":"needle"}', '{"message":"Needle"}', '{"message":"needle"}'].join("\n"),
+      { forcedFormat: "jsonl" },
+    ).records;
+
+    for (const record of records) {
+      collector.addRecord(record);
+    }
+
+    expect([...collector.finish().matchLineNumbers]).toEqual([1, 2, 3]);
   });
 
   it("returns no matches for an invalid regex", () => {
