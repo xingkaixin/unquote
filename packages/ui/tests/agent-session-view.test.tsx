@@ -116,17 +116,19 @@ describe("AgentSessionView", () => {
       detailSelection: { kind: "conversation", id: "conversation-1", recordId: "record-2" },
     });
 
-    expect(screen.getByRole("button", { name: "Timeline: user · User message" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(
-      screen.getByRole("button", { name: "Timeline: meta · Session metadata" }),
-    ).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Conversation: User" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    const userTimelineItem = screen
+      .getByRole("button", { name: "Timeline: user · User message" })
+      .closest("[role='listitem']");
+    const metaTimelineItem = screen
+      .getByRole("button", { name: "Timeline: meta · Session metadata" })
+      .closest("[role='listitem']");
+    const conversationItem = screen
+      .getByRole("button", { name: "Conversation: User" })
+      .closest("[role='listitem']");
+
+    expect(userTimelineItem).toHaveAttribute("aria-current", "true");
+    expect(metaTimelineItem).not.toHaveAttribute("aria-current");
+    expect(conversationItem).toHaveAttribute("aria-current", "true");
   });
 
   it("opens the record behind a conversation turn", () => {
