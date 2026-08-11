@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RecordFilterMode } from "../lib/record-filter";
+import type { NestedFilterScope, RecordFilterMode } from "../lib/record-filter";
 import { isPathLikeQuery } from "../lib/query-interaction";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
@@ -31,6 +31,7 @@ interface CommandPaletteProps {
   visibleCount: number;
   totalCount: number;
   filterMode: RecordFilterMode;
+  nestedFilterScope: NestedFilterScope;
   onClose: () => void;
   onInputChange: (value: string) => void;
   onSearch: (value: string) => void;
@@ -75,6 +76,7 @@ export const CommandPalette = ({
   visibleCount,
   totalCount,
   filterMode,
+  nestedFilterScope,
   onClose,
   onInputChange,
   onSearch,
@@ -100,12 +102,15 @@ export const CommandPalette = ({
     () =>
       filterOptions.map((option) => ({
         id: `filter-${option.mode}`,
-        label: option.label,
+        label:
+          option.mode === "nested" && nestedFilterScope === "top-level"
+            ? "filter.nestedTopLevel"
+            : option.label,
         icon: option.icon,
         active: filterMode === option.mode,
         run: () => onFilterChange(option.mode),
       })),
-    [filterMode, onFilterChange],
+    [filterMode, nestedFilterScope, onFilterChange],
   );
 
   const visibleActions = useMemo(() => {

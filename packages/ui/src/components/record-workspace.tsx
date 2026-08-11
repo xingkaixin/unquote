@@ -1,6 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { useTranslation } from "../i18n/context";
 import type { RecordFilterMode } from "../lib/record-filter";
+import type { NestedFilterScope } from "../lib/record-filter";
 import type { RecordInsight } from "../lib/record-insight";
 import type { SearchMatch } from "../lib/record-search";
 import type { RecordViewActions } from "../lib/record-view";
@@ -17,6 +18,7 @@ export interface RecordWorkspaceModel {
     mode: RecordFilterMode;
     shown: number;
     total: number;
+    nestedScope: NestedFilterScope;
   };
   records: {
     visible: readonly JsonlRecord[];
@@ -62,6 +64,7 @@ export const RecordWorkspace = ({ isDesktop, model }: RecordWorkspaceProps) => {
         onChange={intent.setFilter}
         shown={filter.shown}
         total={filter.total}
+        nestedScope={filter.nestedScope}
       />
       <WorkspaceColumns
         isDesktop={isDesktop}

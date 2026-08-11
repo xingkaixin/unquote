@@ -156,6 +156,7 @@ export const en = {
   "filter.matches": "Matches",
   "filter.errors": "Errors",
   "filter.nested": "Nested",
+  "filter.nestedTopLevel": "Top-level nested",
   "filter.tools": "Tools",
   "filter.messages": "Messages",
   "filter.events": "Events",

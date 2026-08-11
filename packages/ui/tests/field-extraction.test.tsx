@@ -83,7 +83,7 @@ describe("field-extraction", () => {
 
     const { metrics } = walk(record);
 
-    expect(metrics.maxDepth).toBe(4);
+    expect(metrics).toMatchObject({ maxDepth: 4, precision: "exact" });
   });
 
   it("derives candidates from a Preview Record instead of the node tree", () => {
@@ -121,7 +121,7 @@ describe("field-extraction", () => {
     ]);
     // Preview containers carry no child data to inspect.
     expect(containers[0]!.getChildValue(["message"])).toBeNull();
-    expect(metrics).toEqual({ maxDepth: 1, nestedCount: 1 });
+    expect(metrics).toEqual({ maxDepth: 1, nestedCount: 1, precision: "lower-bound" });
   });
 
   it.each([
@@ -146,6 +146,6 @@ describe("field-extraction", () => {
 
     expect(fields).toEqual([]);
     expect(containers).toEqual([]);
-    expect(metrics).toEqual({ maxDepth: 0, nestedCount: 0 });
+    expect(metrics).toEqual({ maxDepth: 0, nestedCount: 0, precision: "exact" });
   });
 });

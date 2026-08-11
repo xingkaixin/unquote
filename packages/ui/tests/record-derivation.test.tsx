@@ -71,6 +71,7 @@ describe("record derivation", () => {
       failed: 1,
       nestedRecords: 0,
       maxDepth: 0,
+      structurePrecision: "exact",
     });
   });
 
@@ -94,15 +95,21 @@ describe("record derivation", () => {
     const derivation = deriveRecord(record);
 
     expect(derivation.insight).toMatchObject({ kind: "tool", tool: "billing.search" });
-    expect(derivation.overview).toMatchObject({ hasNestedJson: true, maxDepth: 1 });
+    expect(derivation.overview).toMatchObject({
+      hasNestedJson: true,
+      maxDepth: 1,
+      structurePrecision: "lower-bound",
+    });
   });
 
-  it("keeps the published timestamp fact stable after hydration", () => {
+  it("keeps published insights stable while upgrading structure precision", () => {
     const source = '{"timestamp":9007199254740993,"event":"checkpoint"}';
     const preview = deriveRecord(parsePreviewJsonlRecordLine(source, 1));
     const full = deriveRecord(parseJsonlRecordLine(source, 1));
 
-    expect(preview).toEqual(full);
+    expect(preview.insight).toEqual(full.insight);
+    expect(preview.overview.structurePrecision).toBe("lower-bound");
+    expect(full.overview.structurePrecision).toBe("exact");
     expect(preview.insight?.timestamp).toBe("9007199254740993");
   });
 

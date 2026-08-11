@@ -14,6 +14,7 @@ const renderBar = (overrides: Partial<ComponentProps<typeof RecordFilterBar>> = 
     onChange: vi.fn(),
     shown: 2,
     total: 5,
+    nestedScope: "all-levels",
     ...overrides,
   };
   render(
@@ -52,5 +53,12 @@ describe("RecordFilterBar", () => {
     renderBar();
 
     expect(screen.getByText("2 / 5 records match this filter")).toBeInTheDocument();
+  });
+
+  it("labels the nested filter as top-level when structure facts are partial", () => {
+    renderBar({ nestedScope: "top-level" });
+
+    expect(screen.getByRole("button", { name: "Top-level nested" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nested" })).not.toBeInTheDocument();
   });
 });

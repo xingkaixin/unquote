@@ -12,6 +12,8 @@ import {
   mergeExpandedStringifiedPaths,
 } from "../lib/record-expansion";
 import { isCopyAboveThreshold } from "../lib/record-export";
+import { recordContainsStringifiedJson } from "../lib/record-filter";
+import type { NestedFilterScope } from "../lib/record-filter";
 import type { RecordAppend } from "../lib/record-sequence";
 import type { RecordViewActions } from "../lib/record-view";
 import { narrowPathToRecord } from "../lib/record-view";
@@ -103,6 +105,10 @@ export const useRecordWorkspace = ({
     () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
     [activeRecord, localFileSource.resolveRecord],
   );
+  const activeRecordHasNestedJson = useMemo(
+    () => Boolean(renderedActiveRecord && recordContainsStringifiedJson(renderedActiveRecord)),
+    [renderedActiveRecord],
+  );
   const selectedNode = useMemo(
     () => projectSelectedNode(renderedActiveRecord, projectedSelection.selectedPath),
     [projectedSelection.selectedPath, renderedActiveRecord],
@@ -140,6 +146,8 @@ export const useRecordWorkspace = ({
     visibleRecords.length,
     sourceAccess?.size ?? sourceText.length,
   );
+  const nestedFilterScope: NestedFilterScope =
+    query.snapshot.fileOverview.structurePrecision === "exact" ? "all-levels" : "top-level";
   const exportActions = useExportActions({
     visibleRecords,
     resolveRecords: localFileSource.resolveRecords,
@@ -202,6 +210,7 @@ export const useRecordWorkspace = ({
         mode: query.snapshot.recordFilter,
         shown: visibleStats.total,
         total: result.stats.total,
+        nestedScope: nestedFilterScope,
       },
       records: {
         visible: visibleRecords,
@@ -220,7 +229,7 @@ export const useRecordWorkspace = ({
         selectedPath: narrowPathToRecord(projectedSelection.selectedPath, displayedRecordId),
         selectedNode,
         expandedNestedCount,
-        hasNestedJson: (recordInsights.get(displayedRecordId)?.nestedJsonCount ?? 0) > 0,
+        hasNestedJson: activeRecordHasNestedJson,
       },
       scrollIntent: projectedSelection.scrollIntent,
       intent: {
@@ -235,6 +244,7 @@ export const useRecordWorkspace = ({
     }),
     [
       activeSearchMatch,
+      activeRecordHasNestedJson,
       collapseAll,
       copySelectedPath,
       copySelectedValue,
@@ -245,6 +255,7 @@ export const useRecordWorkspace = ({
       projectedSelection.selectedPath,
       query.intent.setFilter,
       query.snapshot.recordFilter,
+      nestedFilterScope,
       recordInsights,
       recordView,
       renderedActiveRecord,

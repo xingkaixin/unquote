@@ -387,6 +387,7 @@ describe("tree paths", () => {
       failed: 1,
       nestedRecords: 1,
       maxDepth: 2,
+      structurePrecision: "exact",
     });
   });
 
@@ -413,6 +414,7 @@ describe("tree paths", () => {
       failed: 0,
       nestedRecords: 1,
       maxDepth: 1,
+      structurePrecision: "lower-bound",
     });
   });
 });

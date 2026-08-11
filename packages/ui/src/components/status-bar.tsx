@@ -6,7 +6,7 @@ export interface StatusBarProps {
   summary: string;
   failedCount: number;
   onSelectFailed: () => void;
-  maxDepth: number;
+  maxDepth: number | null;
   expandedNestedCount: number;
   sourceStatus: string | undefined;
   sourceBusy: boolean;
@@ -63,9 +63,11 @@ export const StatusBar = ({
       <span className="min-w-0 truncate">{summary}</span>
       {hasData ? (
         <>
-          <span className="hidden shrink-0 sm:inline">
-            {t("status.maxDepth", { depth: maxDepth })}
-          </span>
+          {maxDepth === null ? null : (
+            <span className="hidden shrink-0 sm:inline">
+              {t("status.maxDepth", { depth: maxDepth })}
+            </span>
+          )}
           <span className="hidden shrink-0 sm:inline">
             {t("status.expandedNested", { count: expandedNestedCount })}
           </span>

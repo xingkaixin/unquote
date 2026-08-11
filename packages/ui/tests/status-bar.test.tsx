@@ -72,6 +72,13 @@ describe("StatusBar summary", () => {
     expect(screen.getByText("2 nested expanded")).toBeInTheDocument();
   });
 
+  it("hides max depth when the available structure is only a lower bound", () => {
+    renderBar({ maxDepth: null });
+
+    expect(screen.queryByText(/max depth/)).not.toBeInTheDocument();
+    expect(screen.getByText("2 nested expanded")).toBeInTheDocument();
+  });
+
   it("offers the failed count as the only jump into the error filter", async () => {
     const user = userEvent.setup();
     const { props, rerender } = renderBar({ failedCount: 1 });
