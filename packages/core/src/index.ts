@@ -12,6 +12,7 @@ export type { JsonlRecordLineResult, ParseInputForIngestionResult } from "./pars
 export { materializeNode, stringifyJsonNode } from "./serialization.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";
 export { hasJsonNodeChildren, isStringifiedNode, isTruncatedJsonNode } from "./nodes.js";
+export { isStringifiedJson, mightBeStringifiedJson } from "./json-probe.js";
 export type {
   FailedJsonlRecord,
   FormatOptions,
