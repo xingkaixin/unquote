@@ -187,7 +187,7 @@ Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计�
 
 - JSON / JSONL 的递归解析、树形浏览、记录导航和错误隔离。
 - Web Worker 解析、流式 JSONL、大记录虚拟化、按需取得 Full Record 和分块导出。
-- 搜索、正则和大小写选项、JSONPath / jq 风格路径跳转、记录过滤及命令面板。
+- 顶部搜索执行文本搜索与上一个/下一个匹配导航；命令面板执行搜索、正则和大小写选项、JSONPath / jq 风格路径跳转与记录过滤。
 - Codex rollout 和 Claude Code JSONL 的 session 识别与专用浏览视图。
 - 主题与语言偏好，以及浏览器扩展的独立页面、右键菜单和快捷键。
 
