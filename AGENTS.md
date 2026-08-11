@@ -27,6 +27,10 @@ apps/safari            Xcode host app that ships the extension to Safari (macOS)
 | Lint / Format | oxlint, oxfmt |
 | Extension | WXT (web extension toolkit) |
 
+The workspace `overrides` setting pins esbuild to 0.28.2 because tsup 8.5.1 still requests the
+vulnerable `^0.27.0` line. Do not remove the override until tsup accepts a patched esbuild; verify
+the change with `pnpm audit`, `pnpm check`, and `pnpm build:safari`.
+
 ## Core Domain (`packages/core`)
 
 ### Key Types
