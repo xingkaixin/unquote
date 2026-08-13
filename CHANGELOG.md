@@ -5,6 +5,32 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.0.1] - 2026-08-13
+
+### Changed
+
+- Selected-node preview, copy, and Agent nested-value rendering are now bounded, so opening or copying a very large value no longer freezes the page; oversized copies report an explicit "too large to copy" state instead of failing silently.
+- Structure facts derived from Preview Records are now reported only as far as they are actually known: max depth is hidden while it is a lower bound, and the nested filter is labeled "Top-level nested" when deeper nesting has not been scanned.
+- Live import detection reports "at least N lines" when its probe budget is reached, instead of presenting a bounded scan as a complete count.
+- Large JSONL now chooses the streaming path from actual file content rather than size alone, so files are routed by what they contain.
+- Preview Record JSON detection, Agent session JSONL ingestion, repeated hydration scans, search result materialization, and search existence checks all do less redundant work, keeping large files and long sessions more responsive.
+- Regex search without a Web Worker is now refused with localized feedback instead of running an unbounded main-thread scan.
+- Agent session events now carry the parser's canonical Record id instead of rebuilding one from line numbers, so opening the underlying JSONL Record cannot drift from the parsed Records. Source Revision ownership and the Record workspace boundary were consolidated into single modules for the same reason.
+- Release gates cover more ground: a deterministic synthetic Agent session fixture with its own budgets (`pnpm benchmark:agent`), a search-latency budget, mounted rail-row tracking, Safari host bridge contract tests in both Swift and jsdom, and CI concurrency cancellation plus job timeouts.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.0.1`.
+
+### Fixed
+
+- JSON numbers keep their exact source lexeme through tree labels, search, the inspector, copy, and export; large integers and high-precision decimals are no longer silently rewritten by floating-point conversion, and unsafe materialization is rejected unless approximation is explicitly requested. Preview Records preserve the same lexemes.
+- Replacing the source now cancels in-flight exports and file reads, so a download or copy can no longer complete against the previous source.
+- Import no longer applies a stale clipboard read or a partially published source candidate, so the panel's text, file, and detected format always describe the same input.
+- Expired selected-text handoffs from the browser extension are actively cleaned up instead of lingering in session storage past their lifetime.
+- JSON trees with dynamic-height rows are now virtualized correctly, so records containing long values stay scrollable and responsive.
+- Virtualized Record rail and tree rows expose their position and total to assistive technology, and the rail announces itself as the Records list.
+- The status bar no longer advertises an "↑↓ prev/next match" shortcut that was not bound.
+- Dependency updates clear the `nanoid` advisory and pin `esbuild` to 0.28.2 while `tsup` still requests the vulnerable line.
+- The staged-file pre-commit gate keeps staged paths that contain whitespace instead of splitting them apart.
+
 ## [1.0.0] - 2026-08-07
 
 ### Added

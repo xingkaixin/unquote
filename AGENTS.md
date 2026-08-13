@@ -94,8 +94,10 @@ Normal container nodes own `children`; truncated containers own `value` plus
 `truncated: true`; Preview container nodes own `childCount` plus `preview: true`.
 Expanded Stringified JSON is represented by `rawString`, while a Preview Record
 can mark it with `stringifiedPreview: true`. String nodes carry `valueLength`
-directly when the displayed value is truncated. Path, depth, and Record ownership
-belong to traversal context rather than `JsonNode`.
+directly when the displayed value is truncated. Parsed number nodes carry
+`rawValue`, the exact source lexeme, beside the numeric `value`.
+Path, depth, and Record ownership belong to traversal context rather than
+`JsonNode`.
 
 Use the guards exported by `packages/core/src/records.ts` instead of rebuilding
 record-state checks: `isParsed`, `isFullRecord`, `isPreviewRecord`, and
@@ -106,7 +108,9 @@ record-state checks: `isParsed`, `isFullRecord`, `isPreviewRecord`, and
 - `parseInput(text, opts?)` — auto-detects JSON vs JSONL, recursively expands stringified JSON strings into child nodes.
 - `maxDepth` guard prevents infinite recursion.
 - `formatResult(result)` — serializes parsed records back to formatted JSON/JSONL.
-- `materializeNode` — converts expanded trees back to plain JS values.
+- `lossless-json.ts` — parses JSON while keeping number lexemes, using native parse context with an iterative fallback for older runtimes.
+- `serialization.ts` — `stringifyJsonNode` and `materializeNode`. Both preserve number lexemes; `materializeNode` rejects numbers that cannot round-trip unless `{ numbers: "approximate" }` is passed.
+- `json-probe.ts` — `mightBeStringifiedJson` / `isStringifiedJson`, the shared cheap-then-strict check for stringified JSON, also used by Preview Record detection in the UI.
 - `restoreNode` — core-level utility that rebuilds selected stringified nodes as raw strings; the current UI does not expose a restore-to-raw workflow.
 
 ## UI Layer (`packages/ui`)
@@ -175,16 +179,20 @@ CSS variables defined in `src/styles.css`:
 
 ### UI Utility Modules
 
+- `lib/jsonl-ingestion.ts` — one JSONL ingestion path shared by parsing and Agent session detection, so a line is parsed once and reused with its canonical Record id.
+- `lib/published-source.ts` — owns the published Source Revision and rejects results produced against a superseded source.
+- `lib/search-result.ts` — bounded materialization of search matches for the visible window instead of the whole result set.
+- `lib/selected-node.ts` — resolves the selected tree path and bounds its preview and copy payload.
 - `lib/local-file-source.ts` — local-file capability for line scanning, Preview and Full Record parsing, whole-file search, and record resolution for copy/export.
 - `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts; adapters build sessions and the domain model resolves timeline/conversation selection back to canonical events and Records.
 - `lib/json-walk.ts` — shared `JsonNode` tree traversal used by tree rendering, search, overview, and record insight code.
 - `lib/jsonl-lines.ts` — shared incremental JSONL line scanner with CRLF handling and early-stop support.
 - `lib/field-extraction.ts` — shared Full Record and Preview Record traversal for file overview and record-insight field candidates and nested metrics.
 - `lib/partial-record-cache.ts` — shared incremental cache for file overview and record insight aggregation while records stream in.
-- `lib/record-derivation.ts` — drives record insight and file overview through one field traversal per Record and incrementally reuses prior results.
+- `lib/record-derivation.ts` — drives record insight and file overview through one field traversal per Record and incrementally reuses prior results; structure facts derived from Preview Records are tagged `lower-bound` so the UI can withhold depth it has not actually scanned.
 - `lib/record-expansion.ts` — immutable per-Record Stringified JSON expansion state and batched update helpers.
 - `lib/record-export.ts` — pure copy/export formatting, filename, blob download, and large-copy threshold helpers.
-- `lib/record-filter.ts` — the canonical record-filter mode and Record classification logic.
+- `lib/record-filter.ts` — the canonical record-filter mode and Record classification logic, plus the nested-filter scope that marks when only top-level nesting was scanned.
 - `lib/record-fields.ts` — shared field extraction helpers for overview and insight classification.
 - `lib/record-search.ts` — searches Record keys, values, and paths and owns search match types.
 - `lib/source-revision.ts` — Source Revision ownership type and stale-result guards.
