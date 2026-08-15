@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T17:32:08.764Z",
+  "generatedAt": "2026-08-15T17:58:22.012Z",
   "environment": {
     "platform": "darwin",
     "arch": "arm64",
@@ -18,7 +18,8 @@
     "domNodesMax": 3000,
     "jsHeapUsedSizeMBMax": 256,
     "agentSessionReadyMsP50": 600,
-    "agentToolReadyMsP50": 150
+    "agentToolReadyMsP50": 150,
+    "agentTrajectoryBuildMsP50": 50
   },
   "fixtures": [
     {
@@ -62,61 +63,61 @@
     "benchmark/case1-agent-session.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 120.07,
-        "min": 118.73,
-        "p50": 119.73,
-        "p95": 121.75,
-        "max": 121.75
+        "avg": 115.68,
+        "min": 114.35,
+        "p50": 114.95,
+        "p95": 117.74,
+        "max": 117.74
       }
     },
     "benchmark/case1-agent-session-5K.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 226.16,
-        "min": 217.46,
-        "p50": 227.27,
-        "p95": 233.75,
-        "max": 233.75
+        "avg": 223.02,
+        "min": 219.19,
+        "p50": 221.98,
+        "p95": 227.9,
+        "max": 227.9
       }
     },
     "benchmark/case2-1MB.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 210.31,
-        "min": 208.48,
-        "p50": 209.77,
-        "p95": 212.69,
-        "max": 212.69
+        "avg": 207.5,
+        "min": 204.06,
+        "p50": 206.57,
+        "p95": 211.88,
+        "max": 211.88
       }
     },
     "benchmark/case2-5MB.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 1027.96,
-        "min": 1019.06,
-        "p50": 1026.05,
-        "p95": 1038.78,
-        "max": 1038.78
+        "avg": 1025.84,
+        "min": 1016.66,
+        "p50": 1026.93,
+        "p95": 1033.93,
+        "max": 1033.93
       }
     },
     "benchmark/case2-10MB.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 2035.95,
-        "min": 2011.25,
-        "p50": 2030.16,
-        "p95": 2066.44,
-        "max": 2066.44
+        "avg": 2072.06,
+        "min": 2064.45,
+        "p50": 2073.63,
+        "p95": 2078.1,
+        "max": 2078.1
       }
     },
     "benchmark/case4-5K-rows.jsonl": {
       "forcedJsonlMs": {
         "samples": 3,
-        "avg": 706.77,
-        "min": 652.56,
-        "p50": 673.71,
-        "p95": 794.05,
-        "max": 794.05
+        "avg": 648.12,
+        "min": 646.92,
+        "p50": 648.42,
+        "p95": 649.03,
+        "max": 649.03
       }
     }
   },
@@ -124,64 +125,64 @@
     "benchmark/case1-agent-session.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 181.53,
-        "min": 176.3,
-        "p50": 178.7,
-        "p95": 189.6,
-        "max": 189.6
+        "avg": 179.97,
+        "min": 172.7,
+        "p50": 176.8,
+        "p95": 190.4,
+        "max": 190.4
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 205.1,
-        "min": 199.7,
-        "p50": 200.8,
-        "p95": 214.8,
-        "max": 214.8
+        "avg": 202.6,
+        "min": 194.3,
+        "p50": 198.6,
+        "p95": 214.9,
+        "max": 214.9
       },
       "agentSessionReadyMs": {
         "samples": 3,
-        "avg": 188.4,
-        "min": 182.8,
-        "p50": 184.1,
-        "p95": 198.3,
-        "max": 198.3
+        "avg": 186.03,
+        "min": 177.9,
+        "p50": 181.8,
+        "p95": 198.4,
+        "max": 198.4
       },
       "agentTrajectoryBuildMs": {
         "samples": 3,
-        "avg": 1.37,
+        "avg": 1.33,
         "min": 1.2,
         "p50": 1.3,
-        "p95": 1.6,
-        "max": 1.6
+        "p95": 1.5,
+        "max": 1.5
       },
       "searchReadyMs": {
         "samples": 3,
         "avg": 341.57,
-        "min": 333.4,
-        "p50": 341.7,
-        "p95": 349.6,
-        "max": 349.6
+        "min": 341.5,
+        "p50": 341.6,
+        "p95": 341.6,
+        "max": 341.6
       },
       "agentToolReadyMs": {
         "samples": 3,
-        "avg": 18.23,
-        "min": 17.6,
-        "p50": 18,
-        "p95": 19.1,
-        "max": 19.1
+        "avg": 19.3,
+        "min": 18.8,
+        "p50": 19.5,
+        "p95": 19.6,
+        "max": 19.6
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 24.4,
-        "min": 23.9,
-        "p50": 24.5,
-        "p95": 24.8,
-        "max": 24.8
+        "avg": 24.87,
+        "min": 24.8,
+        "p50": 24.8,
+        "p95": 25,
+        "max": 25
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 24.83,
-        "min": 24.8,
+        "avg": 24.33,
+        "min": 23.3,
         "p50": 24.8,
         "p95": 24.9,
         "max": 24.9
@@ -189,10 +190,10 @@
       "railReadyMs": {
         "samples": 3,
         "avg": 16.5,
-        "min": 16.1,
-        "p50": 16.4,
-        "p95": 17,
-        "max": 17
+        "min": 16.2,
+        "p50": 16.6,
+        "p95": 16.7,
+        "max": 16.7
       },
       "domNodes": {
         "samples": 3,
@@ -212,27 +213,27 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 26.33,
-        "min": 26,
-        "p50": 26,
-        "p95": 27,
-        "max": 27
+        "avg": 25,
+        "min": 25,
+        "p50": 25,
+        "p95": 25,
+        "max": 25
       },
       "recalcStyleCount": {
         "samples": 3,
-        "avg": 75.67,
-        "min": 75,
+        "avg": 74.33,
+        "min": 72,
         "p50": 75,
-        "p95": 77,
-        "max": 77
+        "p95": 76,
+        "max": 76
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 216.3,
-        "min": 211.02,
-        "p50": 213.18,
-        "p95": 224.7,
-        "max": 224.7
+        "avg": 214.14,
+        "min": 208.3,
+        "p50": 211.02,
+        "p95": 223.1,
+        "max": 223.1
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
@@ -240,82 +241,82 @@
         "avg": 5.69,
         "min": 5.68,
         "p50": 5.69,
-        "p95": 5.69,
-        "max": 5.69
+        "p95": 5.7,
+        "max": 5.7
       }
     },
     "benchmark/case1-agent-session-5K.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 157.63,
-        "min": 154.3,
-        "p50": 158.8,
-        "p95": 159.8,
-        "max": 159.8
+        "avg": 158.4,
+        "min": 157.5,
+        "p50": 157.7,
+        "p95": 160,
+        "max": 160
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 239.63,
-        "min": 237.7,
-        "p50": 239,
-        "p95": 242.2,
-        "max": 242.2
+        "avg": 245.33,
+        "min": 244.7,
+        "p50": 245.6,
+        "p95": 245.7,
+        "max": 245.7
       },
       "agentSessionReadyMs": {
         "samples": 3,
-        "avg": 223.83,
-        "min": 222.5,
-        "p50": 223,
-        "p95": 226,
-        "max": 226
+        "avg": 228.93,
+        "min": 228.8,
+        "p50": 228.9,
+        "p95": 229.1,
+        "max": 229.1
       },
       "agentTrajectoryBuildMs": {
         "samples": 3,
-        "avg": 7.5,
-        "min": 6.9,
-        "p50": 7.3,
-        "p95": 8.3,
-        "max": 8.3
+        "avg": 8.97,
+        "min": 8.5,
+        "p50": 8.8,
+        "p95": 9.6,
+        "max": 9.6
       },
       "searchReadyMs": {
         "samples": 3,
-        "avg": 349.8,
-        "min": 341.7,
-        "p50": 350.1,
-        "p95": 357.6,
-        "max": 357.6
+        "avg": 350.47,
+        "min": 341.2,
+        "p50": 351.8,
+        "p95": 358.4,
+        "max": 358.4
       },
       "agentToolReadyMs": {
         "samples": 3,
-        "avg": 18.5,
-        "min": 16.7,
-        "p50": 17.2,
-        "p95": 21.6,
-        "max": 21.6
+        "avg": 21.63,
+        "min": 16,
+        "p50": 24.1,
+        "p95": 24.8,
+        "max": 24.8
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 24.7,
-        "min": 24.4,
-        "p50": 24.7,
-        "p95": 25,
-        "max": 25
+        "avg": 25.37,
+        "min": 24.1,
+        "p50": 25.1,
+        "p95": 26.9,
+        "max": 26.9
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 24.93,
-        "min": 24.8,
-        "p50": 24.9,
-        "p95": 25.1,
-        "max": 25.1
+        "avg": 24.73,
+        "min": 23.6,
+        "p50": 23.8,
+        "p95": 26.8,
+        "max": 26.8
       },
       "railReadyMs": {
         "samples": 3,
-        "avg": 16.8,
-        "min": 16.5,
-        "p50": 16.5,
-        "p95": 17.4,
-        "max": 17.4
+        "avg": 16.63,
+        "min": 16.3,
+        "p50": 16.3,
+        "p95": 17.3,
+        "max": 17.3
       },
       "domNodes": {
         "samples": 3,
@@ -335,54 +336,54 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 30,
-        "min": 29,
-        "p50": 30,
+        "avg": 30.67,
+        "min": 30,
+        "p50": 31,
         "p95": 31,
         "max": 31
       },
       "recalcStyleCount": {
         "samples": 3,
-        "avg": 79,
-        "min": 77,
-        "p50": 78,
+        "avg": 80.67,
+        "min": 80,
+        "p50": 80,
         "p95": 82,
         "max": 82
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 270.11,
-        "min": 265.34,
-        "p50": 268.74,
-        "p95": 276.26,
-        "max": 276.26
+        "avg": 279.24,
+        "min": 270.71,
+        "p50": 275.57,
+        "p95": 291.42,
+        "max": 291.42
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
         "samples": 3,
-        "avg": 11.25,
-        "min": 11.23,
-        "p50": 11.26,
-        "p95": 11.26,
-        "max": 11.26
+        "avg": 11.33,
+        "min": 11.26,
+        "p50": 11.34,
+        "p95": 11.38,
+        "max": 11.38
       }
     },
     "benchmark/case2-1MB.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 159.6,
-        "min": 158.7,
-        "p50": 159.7,
-        "p95": 160.4,
-        "max": 160.4
+        "avg": 164.07,
+        "min": 159.3,
+        "p50": 161.5,
+        "p95": 171.4,
+        "max": 171.4
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 174.67,
-        "min": 172.9,
-        "p50": 173.1,
-        "p95": 178,
-        "max": 178
+        "avg": 174.53,
+        "min": 170.8,
+        "p50": 175,
+        "p95": 177.8,
+        "max": 177.8
       },
       "agentSessionReadyMs": {
         "samples": 0,
@@ -394,11 +395,11 @@
       },
       "searchReadyMs": {
         "samples": 3,
-        "avg": 395.07,
-        "min": 392.3,
-        "p50": 392.4,
-        "p95": 400.5,
-        "max": 400.5
+        "avg": 395.1,
+        "min": 392,
+        "p50": 393.7,
+        "p95": 399.6,
+        "max": 399.6
       },
       "agentToolReadyMs": {
         "samples": 0,
@@ -410,27 +411,27 @@
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 21.67,
-        "min": 20.5,
-        "p50": 22.1,
-        "p95": 22.4,
-        "max": 22.4
+        "avg": 18.8,
+        "min": 18.1,
+        "p50": 18.4,
+        "p95": 19.9,
+        "max": 19.9
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 25.27,
-        "min": 24.9,
-        "p50": 25.1,
-        "p95": 25.8,
-        "max": 25.8
+        "avg": 26.13,
+        "min": 25.3,
+        "p50": 26.4,
+        "p95": 26.7,
+        "max": 26.7
       },
       "railReadyMs": {
         "samples": 3,
-        "avg": 16.27,
-        "min": 16.2,
-        "p50": 16.2,
-        "p95": 16.4,
-        "max": 16.4
+        "avg": 15.5,
+        "min": 14.4,
+        "p50": 15.8,
+        "p95": 16.3,
+        "max": 16.3
       },
       "domNodes": {
         "samples": 3,
@@ -450,54 +451,54 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 16.33,
+        "avg": 16.67,
         "min": 16,
-        "p50": 16,
+        "p50": 17,
         "p95": 17,
         "max": 17
       },
       "recalcStyleCount": {
         "samples": 3,
-        "avg": 53.33,
-        "min": 52,
-        "p50": 53,
+        "avg": 54.33,
+        "min": 53,
+        "p50": 55,
         "p95": 55,
         "max": 55
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 183.08,
-        "min": 181.83,
-        "p50": 183.1,
-        "p95": 184.31,
-        "max": 184.31
+        "avg": 192.44,
+        "min": 186.67,
+        "p50": 187.36,
+        "p95": 203.29,
+        "max": 203.29
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
         "samples": 3,
-        "avg": 5.76,
+        "avg": 5.78,
         "min": 5.76,
-        "p50": 5.76,
-        "p95": 5.76,
-        "max": 5.76
+        "p50": 5.77,
+        "p95": 5.79,
+        "max": 5.79
       }
     },
     "benchmark/case2-5MB.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 167.23,
-        "min": 160,
-        "p50": 162,
-        "p95": 179.7,
-        "max": 179.7
+        "avg": 164.97,
+        "min": 160.2,
+        "p50": 162.6,
+        "p95": 172.1,
+        "max": 172.1
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 219.83,
-        "min": 212.7,
-        "p50": 214.2,
-        "p95": 232.6,
-        "max": 232.6
+        "avg": 214.73,
+        "min": 211.8,
+        "p50": 214,
+        "p95": 218.4,
+        "max": 218.4
       },
       "agentSessionReadyMs": {
         "samples": 0,
@@ -509,11 +510,11 @@
       },
       "searchReadyMs": {
         "samples": 3,
-        "avg": 825.43,
-        "min": 816.6,
-        "p50": 817.2,
-        "p95": 842.5,
-        "max": 842.5
+        "avg": 816.97,
+        "min": 816.8,
+        "p50": 816.8,
+        "p95": 817.3,
+        "max": 817.3
       },
       "agentToolReadyMs": {
         "samples": 0,
@@ -525,27 +526,27 @@
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 20.43,
-        "min": 20.3,
-        "p50": 20.5,
-        "p95": 20.5,
-        "max": 20.5
+        "avg": 20.5,
+        "min": 20,
+        "p50": 20.7,
+        "p95": 20.8,
+        "max": 20.8
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 25.03,
-        "min": 25,
-        "p50": 25,
-        "p95": 25.1,
-        "max": 25.1
+        "avg": 25.27,
+        "min": 24.8,
+        "p50": 25.1,
+        "p95": 25.9,
+        "max": 25.9
       },
       "railReadyMs": {
         "samples": 3,
-        "avg": 16.4,
-        "min": 15.8,
-        "p50": 16.6,
-        "p95": 16.8,
-        "max": 16.8
+        "avg": 16.43,
+        "min": 15.2,
+        "p50": 16.5,
+        "p95": 17.6,
+        "max": 17.6
       },
       "domNodes": {
         "samples": 3,
@@ -565,8 +566,8 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 20.67,
-        "min": 20,
+        "avg": 20.33,
+        "min": 19,
         "p50": 21,
         "p95": 21,
         "max": 21
@@ -574,45 +575,45 @@
       "recalcStyleCount": {
         "samples": 3,
         "avg": 55.33,
-        "min": 55,
+        "min": 54,
         "p50": 55,
-        "p95": 56,
-        "max": 56
+        "p95": 57,
+        "max": 57
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 241.74,
-        "min": 232.36,
-        "p50": 233.96,
-        "p95": 258.9,
-        "max": 258.9
+        "avg": 236.76,
+        "min": 229.97,
+        "p50": 237.56,
+        "p95": 242.76,
+        "max": 242.76
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
         "samples": 3,
-        "avg": 10.35,
-        "min": 10.12,
-        "p50": 10.16,
-        "p95": 10.77,
-        "max": 10.77
+        "avg": 10.34,
+        "min": 10.14,
+        "p50": 10.15,
+        "p95": 10.74,
+        "max": 10.74
       }
     },
     "benchmark/case2-10MB.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 167.97,
-        "min": 158.5,
-        "p50": 172.5,
-        "p95": 172.9,
-        "max": 172.9
+        "avg": 161.5,
+        "min": 160,
+        "p50": 161.9,
+        "p95": 162.6,
+        "max": 162.6
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 269.37,
-        "min": 268.2,
-        "p50": 269.2,
-        "p95": 270.7,
-        "max": 270.7
+        "avg": 266.43,
+        "min": 262.9,
+        "p50": 263,
+        "p95": 273.4,
+        "max": 273.4
       },
       "agentSessionReadyMs": {
         "samples": 0,
@@ -624,11 +625,11 @@
       },
       "searchReadyMs": {
         "samples": 3,
-        "avg": 1315.1,
-        "min": 1300.7,
-        "p50": 1301.2,
-        "p95": 1343.4,
-        "max": 1343.4
+        "avg": 1308.93,
+        "min": 1300.9,
+        "p50": 1308.7,
+        "p95": 1317.2,
+        "max": 1317.2
       },
       "agentToolReadyMs": {
         "samples": 0,
@@ -640,27 +641,27 @@
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 21.4,
-        "min": 17.1,
-        "p50": 23.2,
-        "p95": 23.9,
-        "max": 23.9
+        "avg": 19.87,
+        "min": 17.3,
+        "p50": 19,
+        "p95": 23.3,
+        "max": 23.3
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 25.43,
-        "min": 25,
-        "p50": 25.3,
-        "p95": 26,
-        "max": 26
+        "avg": 23.9,
+        "min": 22.9,
+        "p50": 23.7,
+        "p95": 25.1,
+        "max": 25.1
       },
       "railReadyMs": {
         "samples": 3,
-        "avg": 15.7,
-        "min": 15.2,
+        "avg": 15.9,
+        "min": 15.7,
         "p50": 15.7,
-        "p95": 16.2,
-        "max": 16.2
+        "p95": 16.3,
+        "max": 16.3
       },
       "domNodes": {
         "samples": 3,
@@ -680,54 +681,54 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 26,
-        "min": 25,
-        "p50": 25,
-        "p95": 28,
-        "max": 28
+        "avg": 27,
+        "min": 27,
+        "p50": 27,
+        "p95": 27,
+        "max": 27
       },
       "recalcStyleCount": {
         "samples": 3,
         "avg": 56.67,
-        "min": 55,
-        "p50": 56,
-        "p95": 59,
-        "max": 59
+        "min": 56,
+        "p50": 57,
+        "p95": 57,
+        "max": 57
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 298.06,
-        "min": 291.77,
-        "p50": 295.86,
-        "p95": 306.56,
-        "max": 306.56
+        "avg": 288.5,
+        "min": 275.48,
+        "p50": 276.55,
+        "p95": 313.48,
+        "max": 313.48
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
         "samples": 3,
-        "avg": 15.98,
-        "min": 15.52,
-        "p50": 15.63,
-        "p95": 16.79,
-        "max": 16.79
+        "avg": 15.94,
+        "min": 15.46,
+        "p50": 15.49,
+        "p95": 16.87,
+        "max": 16.87
       }
     },
     "benchmark/case4-5K-rows.jsonl": {
       "firstRecordReadyMs": {
         "samples": 3,
-        "avg": 162.33,
-        "min": 160.2,
-        "p50": 163.2,
-        "p95": 163.6,
-        "max": 163.6
+        "avg": 175.3,
+        "min": 173.8,
+        "p50": 174.7,
+        "p95": 177.4,
+        "max": 177.4
       },
       "completeReadyMs": {
         "samples": 3,
-        "avg": 198.1,
-        "min": 195,
-        "p50": 199.6,
-        "p95": 199.7,
-        "max": 199.7
+        "avg": 206.07,
+        "min": 201.9,
+        "p50": 204.2,
+        "p95": 212.1,
+        "max": 212.1
       },
       "agentSessionReadyMs": {
         "samples": 0,
@@ -739,11 +740,11 @@
       },
       "searchReadyMs": {
         "samples": 3,
-        "avg": 617.1,
-        "min": 616.4,
-        "p50": 617.2,
-        "p95": 617.7,
-        "max": 617.7
+        "avg": 611.53,
+        "min": 607.4,
+        "p50": 608.6,
+        "p95": 618.6,
+        "max": 618.6
       },
       "agentToolReadyMs": {
         "samples": 0,
@@ -755,27 +756,27 @@
       },
       "expandPathReadyMs": {
         "samples": 3,
-        "avg": 21.6,
-        "min": 21,
-        "p50": 21.5,
-        "p95": 22.3,
-        "max": 22.3
+        "avg": 21.2,
+        "min": 20.9,
+        "p50": 21.1,
+        "p95": 21.6,
+        "max": 21.6
       },
       "expandAllReadyMs": {
         "samples": 3,
-        "avg": 25.13,
-        "min": 25,
-        "p50": 25,
-        "p95": 25.4,
-        "max": 25.4
+        "avg": 25.5,
+        "min": 24.9,
+        "p50": 25.6,
+        "p95": 26,
+        "max": 26
       },
       "railReadyMs": {
         "samples": 3,
-        "avg": 16.03,
-        "min": 15.8,
-        "p50": 15.8,
-        "p95": 16.5,
-        "max": 16.5
+        "avg": 16.17,
+        "min": 15,
+        "p50": 15.9,
+        "p95": 17.6,
+        "max": 17.6
       },
       "domNodes": {
         "samples": 3,
@@ -795,39 +796,39 @@
       },
       "layoutCount": {
         "samples": 3,
-        "avg": 19,
-        "min": 19,
-        "p50": 19,
+        "avg": 18.33,
+        "min": 18,
+        "p50": 18,
         "p95": 19,
         "max": 19
       },
       "recalcStyleCount": {
         "samples": 3,
-        "avg": 53.33,
-        "min": 52,
-        "p50": 53,
-        "p95": 55,
-        "max": 55
+        "avg": 55,
+        "min": 54,
+        "p50": 55,
+        "p95": 56,
+        "max": 56
       },
       "taskDurationMs": {
         "samples": 3,
-        "avg": 210.03,
-        "min": 207.33,
-        "p50": 210.09,
-        "p95": 212.67,
-        "max": 212.67
+        "avg": 218.96,
+        "min": 215.48,
+        "p50": 220.09,
+        "p95": 221.3,
+        "max": 221.3
       },
       "measurementFailures": {},
       "jsHeapUsedSizeMB": {
         "samples": 3,
-        "avg": 8.47,
-        "min": 8.36,
-        "p50": 8.36,
+        "avg": 8.49,
+        "min": 8.38,
+        "p50": 8.39,
         "p95": 8.68,
         "max": 8.68
       }
     }
   },
   "budgetFailures": [],
-  "totalMs": 48442.16
+  "totalMs": 47715.35
 }

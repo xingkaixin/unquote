@@ -61,6 +61,7 @@ const benchmarkGateBudgets = {
   ...budgets,
   agentSessionReadyMsP50: 600,
   agentToolReadyMsP50: 150,
+  agentTrajectoryBuildMsP50: 50,
 };
 const healthyBenchmarkGateRender = (): Record<string, Record<string, unknown>> => ({
   [agentSessionFixturePath]: healthyAgentMetrics(),
@@ -105,6 +106,16 @@ describe("benchmark sample count settings", () => {
         3000,
       ),
     ).toBe(2500);
+  });
+
+  it("reads the Agent trajectory budget environment override", () => {
+    expect(
+      resolveBudgetSetting(
+        "UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS",
+        { UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS: "49.5" },
+        50,
+      ),
+    ).toBe(49.5);
   });
 });
 
@@ -194,12 +205,14 @@ describe("Agent trajectory performance measure", () => {
     ).toBe(null);
   });
 
-  it("keeps the trajectory metric outside the Agent budget gate", () => {
+  it("assigns the trajectory p50 budget only to Agent fixtures", () => {
     expect(agentSessionBudgetedRenderMetrics).not.toContainEqual(
       expect.objectContaining({ metric: agentTrajectoryBuildMetric.metric }),
     );
-    expect(agentTrajectoryBuildMetric).toMatchObject({ statistic: "p50" });
-    expect(agentTrajectoryBuildMetric).not.toHaveProperty("budget");
+    expect(agentTrajectoryBuildMetric).toMatchObject({
+      statistic: "p50",
+      budget: "agentTrajectoryBuildMsP50",
+    });
     expect(agentSessionRequiredRenderMetrics).toEqual([
       ...agentSessionBudgetedRenderMetrics,
       agentTrajectoryBuildMetric,
@@ -326,23 +339,6 @@ describe("collectBudgetFailures", () => {
       )[0],
     ).toContain("agentTrajectoryBuildMs.p50 is not a finite non-negative number");
   });
-
-  it("does not impose a numeric budget on a valid trajectory summary", () => {
-    const agentMetrics = healthyAgentMetrics();
-    agentMetrics["agentTrajectoryBuildMs"] = {
-      samples: 3,
-      p50: Number.MAX_VALUE,
-    };
-
-    expect(
-      collectBudgetFailures(
-        { "agent.jsonl": agentMetrics },
-        { ...budgets, agentSessionReadyMsP50: 600, agentToolReadyMsP50: 150 },
-        3,
-        { "agent.jsonl": agentSessionRequiredRenderMetrics },
-      ),
-    ).toEqual([]);
-  });
 });
 
 describe("collectBenchmarkGateFailures", () => {
@@ -385,16 +381,37 @@ describe("collectBenchmarkGateFailures", () => {
     );
   });
 
-  it("accepts complete Agent trajectories without requiring one for a plain fixture", () => {
+  it.each([agentSessionFixturePath, agentSessionStressFixturePath])(
+    "accepts a trajectory p50 at or below 50ms for %s",
+    (fixturePath) => {
+      for (const p50 of [49, 50]) {
+        const render = healthyBenchmarkGateRender();
+        render[fixturePath]!["agentTrajectoryBuildMs"] = { samples: 3, p50 };
+
+        expect(
+          collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it.each([agentSessionFixturePath, agentSessionStressFixturePath])(
+    "rejects a trajectory p50 above 50ms for %s",
+    (fixturePath) => {
+      for (const p50 of [50.1, 51]) {
+        const render = healthyBenchmarkGateRender();
+        render[fixturePath]!["agentTrajectoryBuildMs"] = { samples: 3, p50 };
+
+        expect(
+          collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+        ).toEqual([`${fixturePath} agentTrajectoryBuildMs.p50 ${p50} > 50`]);
+      }
+    },
+  );
+
+  it("does not require a trajectory summary for a plain fixture", () => {
     const render = healthyBenchmarkGateRender();
-    render[agentSessionFixturePath]!["agentTrajectoryBuildMs"] = {
-      samples: 3,
-      p50: Number.MAX_VALUE,
-    };
-    render[agentSessionStressFixturePath]!["agentTrajectoryBuildMs"] = {
-      samples: 3,
-      p50: Number.MAX_VALUE,
-    };
+    delete render[plainFixturePath]?.["agentTrajectoryBuildMs"];
 
     expect(
       collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),

@@ -75,6 +75,7 @@ export const agentTrajectoryBuildMetric = {
   metric: "agentTrajectoryBuildMs",
   entryName: "unquote:agentTrajectory:build",
   statistic: "p50",
+  budget: "agentTrajectoryBuildMsP50",
 };
 
 export const agentSessionRequiredRenderMetrics = [

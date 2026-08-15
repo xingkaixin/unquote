@@ -127,6 +127,7 @@ const budgets = {
   // detecting a roughly 2.4x and 3.2x regression respectively.
   agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 600),
   agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 150),
+  agentTrajectoryBuildMsP50: readBudget("UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS", 50),
 };
 
 const ensureFile = (target) => {

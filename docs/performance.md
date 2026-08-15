@@ -24,7 +24,8 @@ and Linux locations. Runner-specific budgets can be supplied with
 `UNQUOTE_BENCH_EXPAND_PATH_BUDGET_MS`, `UNQUOTE_BENCH_EXPAND_ALL_BUDGET_MS`,
 `UNQUOTE_BENCH_DOM_NODES_BUDGET`, `UNQUOTE_BENCH_HEAP_BUDGET_MB`,
 `UNQUOTE_BENCH_AGENT_READY_BUDGET_MS`, and
-`UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS`.
+`UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS`, and
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS`.
 
 ## CI Gate
 
@@ -66,30 +67,31 @@ rollout data.
 | Expand All ready p50 | 800 ms |
 | Agent session ready p50 | 600 ms |
 | Agent tool expand ready p50 | 150 ms |
+| Agent trajectory build p50 | 50 ms |
 | DOM nodes max | 3000 |
 | JS heap used max | 256 MB |
 
 ## Baseline
 
-Captured at `2026-08-15T17:32:08.764Z` with Node v24.19.0, macOS arm64, 10 CPU
+Captured at `2026-08-15T17:58:22.012Z` with Node v24.19.0, macOS arm64, 10 CPU
 cores, 32 GB memory, 3 samples, and 1 warmup per fixture.
 
 | Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | agentTrajectoryBuildMs p50 | DOM max | Heap max |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `benchmark/case1-agent-session.jsonl` | 433 | 121.75 ms | 189.6 ms | 214.8 ms | 341.7 ms | 1.3 ms | 678 | 5.69 MB |
-| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 233.75 ms | 159.8 ms | 242.2 ms | 350.1 ms | 7.3 ms | 678 | 11.26 MB |
-| `benchmark/case2-1MB.jsonl` | 1610 | 212.69 ms | 160.4 ms | 178 ms | 392.4 ms | — | 829 | 5.76 MB |
-| `benchmark/case2-5MB.jsonl` | 7956 | 1038.78 ms | 179.7 ms | 232.6 ms | 817.2 ms | — | 829 | 10.77 MB |
-| `benchmark/case2-10MB.jsonl` | 15765 | 2066.44 ms | 172.9 ms | 270.7 ms | 1301.2 ms | — | 829 | 16.79 MB |
-| `benchmark/case4-5K-rows.jsonl` | 5000 | 794.05 ms | 163.6 ms | 199.7 ms | 617.2 ms | — | 763 | 8.68 MB |
+| `benchmark/case1-agent-session.jsonl` | 433 | 117.74 ms | 190.4 ms | 214.9 ms | 341.6 ms | 1.3 ms | 678 | 5.7 MB |
+| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 227.9 ms | 160 ms | 245.7 ms | 351.8 ms | 8.8 ms | 678 | 11.38 MB |
+| `benchmark/case2-1MB.jsonl` | 1610 | 211.88 ms | 171.4 ms | 177.8 ms | 393.7 ms | — | 829 | 5.79 MB |
+| `benchmark/case2-5MB.jsonl` | 7956 | 1033.93 ms | 172.1 ms | 218.4 ms | 816.8 ms | — | 829 | 10.74 MB |
+| `benchmark/case2-10MB.jsonl` | 15765 | 2078.1 ms | 162.6 ms | 273.4 ms | 1308.7 ms | — | 829 | 16.87 MB |
+| `benchmark/case4-5K-rows.jsonl` | 5000 | 649.03 ms | 177.4 ms | 212.1 ms | 608.6 ms | — | 763 | 8.68 MB |
 
 Both `pnpm benchmark` and `pnpm benchmark:agent` require the two synthetic
 Agent fixtures. The first contains 48 turns and 433 records in 1.13 MB; the
 second contains 556 turns and 5,005 records in 1.12 MB. Together they exercise
 streamed parsing and both virtualized Agent panes at ordinary and high session
-volume. This capture measured Agent session readiness at 184.1 ms and 223 ms
-p50, tool expansion at 18 ms and 17.2 ms p50, and trajectory projection at
-1.3 ms and 7.3 ms p50, respectively.
+volume. This capture measured Agent session readiness at 181.8 ms and 228.9 ms
+p50, tool expansion at 19.5 ms and 24.1 ms p50, and trajectory projection at
+1.3 ms and 8.8 ms p50, respectively.
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
@@ -112,10 +114,24 @@ pure trajectory projection held by the memoized Agent session model; parsing,
 React rendering, and DOM readiness are outside its duration. Missing,
 duplicate, or invalid entries are recorded under
 `measurementFailures.agentTrajectoryBuildMs` instead of being treated as zero.
-The benchmark requires one valid sample per run, so breaking this measurement
-contract fails the gate. Its numeric value remains observational and has no
-release budget or environment override until local and Ubuntu CI samples
-establish a baseline.
+The benchmark requires one valid sample per run and gates each Agent fixture's
+p50 at 50 ms; `UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS` provides the usual
+runner-specific override.
+
+The 50 ms limit comes from three successful `ubuntu-latest` reports for the
+same head SHA `b324219837d20e2358d9db9ba91051b96c8cbbb0`, each with three
+samples and no measurement or budget failures:
+
+| Workflow run | 5K p50 | 5K max |
+|---|---:|---:|
+| `31899249716` | 21.8 ms | 26.5 ms |
+| `31899354974` | 19.1 ms | 19.3 ms |
+| `31899454700` | 18.8 ms | 37.1 ms |
+
+The slowest p50 was 21.8 ms, the cross-run p50 spread was 3.0 ms, and the
+slowest individual sample was 37.1 ms. `37.1 + 3.0 = 40.1 ms`; the next 10 ms
+boundary is 50 ms. That leaves 28.2 ms above the slowest p50 and 12.9 ms above
+the slowest individual sample, while remaining below the 600 ms stop limit.
 
 Chrome Performance recordings include `unquote:*` user timing entries for the
 main hot paths: `parse:first-batch`, `parse:complete`, `search:request`,
@@ -130,6 +146,7 @@ construction, or expanded-path state is the active bottleneck before optimizing.
 release budgets as the smaller fixtures: first record p50 under 1500 ms,
 complete and search p50 under 3000 ms, Expand Path p50 under 400 ms, Expand All
 p50 under 800 ms, DOM nodes under 3000, and JS heap under 256 MB. Agent fixtures
-add session-ready p50 under 600 ms and tool-expand p50 under 150 ms. Use
+add session-ready p50 under 600 ms, tool-expand p50 under 150 ms, and trajectory
+projection p50 under 50 ms. Use
 `benchmark:case4-fixture -- --rows=100000` for local 100k-row stress runs; the
 100k fixture is intentionally generated locally instead of committed.
