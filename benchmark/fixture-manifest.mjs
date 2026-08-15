@@ -1,7 +1,9 @@
 export const agentSessionFixturePath = "benchmark/case1-agent-session.jsonl";
+export const agentSessionStressFixturePath = "benchmark/case1-agent-session-5K.jsonl";
 
 export const defaultBenchmarkFixtures = [
   { path: agentSessionFixturePath, scenario: "agent-session" },
+  { path: agentSessionStressFixturePath, scenario: "agent-session" },
   { path: "benchmark/case2-1MB.jsonl", scenario: "jsonl" },
   { path: "benchmark/case2-5MB.jsonl", scenario: "jsonl" },
   { path: "benchmark/case2-10MB.jsonl", scenario: "jsonl" },

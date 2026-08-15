@@ -2,11 +2,14 @@ import { truncateAtCodePointBoundary } from "@unquote/core";
 import type {
   AgentAdapterBuilder,
   AgentContentBlock,
+  AgentConversationItem,
   AgentConversationRole,
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
   AgentTokenUsage,
+  AgentTrajectoryEvidence,
+  AgentTrajectoryTokenUsage,
 } from "./types";
 import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
 import {
@@ -131,23 +134,31 @@ const attachBlockItems = (
   turnIndex: number | undefined,
   textRole: AgentConversationRole,
 ) => {
+  const items: AgentConversationItem[] = [];
+  const attach = (item: AgentConversationItem) => {
+    attachConversationItem(event, item);
+    items.push(item);
+  };
+
   if (blocks.length === 0) {
-    attachConversationItem(event, {
+    attach({
       id: `conv-${event.lineNumber}-${textRole}`,
       role: textRole,
       ...(turnIndex === undefined ? {} : { turnIndex }),
     });
-    return;
+    return items;
   }
 
   blocks.forEach((block, blockIndex) => {
-    attachConversationItem(event, {
+    attach({
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
       role: claudeBlockRole(block, textRole),
       ...(turnIndex === undefined ? {} : { turnIndex }),
       block,
     });
   });
+
+  return items;
 };
 
 const claudeBlockPreview = (block: AgentContentBlock) => {
@@ -207,15 +218,26 @@ const claudePreview = (
   return "";
 };
 
-const parseClaudeTokenUsage = (raw: unknown): AgentTokenUsage | undefined => {
-  if (!isRecord(raw) || !isRecord(raw.message) || !isRecord(raw.message.usage)) {
+interface ClaudeUsage {
+  display: AgentTokenUsage;
+  trajectory: AgentTrajectoryTokenUsage;
+}
+
+const parseClaudeUsage = (record: Record<string, unknown>): ClaudeUsage | undefined => {
+  const message = record.message;
+  if (!isRecord(message)) {
     return undefined;
   }
 
-  const inputTokens = readTokenCount(raw.message.usage, "input_tokens");
-  const outputTokens = readTokenCount(raw.message.usage, "output_tokens");
-  const cacheCreationInputTokens = readTokenCount(raw.message.usage, "cache_creation_input_tokens");
-  const cacheReadInputTokens = readTokenCount(raw.message.usage, "cache_read_input_tokens");
+  const rawUsage = message.usage;
+  if (!isRecord(rawUsage)) {
+    return undefined;
+  }
+
+  const inputTokens = readTokenCount(rawUsage, "input_tokens");
+  const outputTokens = readTokenCount(rawUsage, "output_tokens");
+  const cacheCreationInputTokens = readTokenCount(rawUsage, "cache_creation_input_tokens");
+  const cacheReadInputTokens = readTokenCount(rawUsage, "cache_read_input_tokens");
   if (
     inputTokens === undefined &&
     outputTokens === undefined &&
@@ -225,12 +247,94 @@ const parseClaudeTokenUsage = (raw: unknown): AgentTokenUsage | undefined => {
     return undefined;
   }
 
+  const trajectory: AgentTrajectoryTokenUsage = {};
+  if (inputTokens !== undefined) {
+    trajectory.inputTokens = inputTokens;
+  }
+  if (cacheCreationInputTokens !== undefined) {
+    trajectory.cacheCreationInputTokens = cacheCreationInputTokens;
+  }
+  if (cacheReadInputTokens !== undefined) {
+    trajectory.cacheReadInputTokens = cacheReadInputTokens;
+  }
+  if (outputTokens !== undefined) {
+    trajectory.outputTokens = outputTokens;
+  }
+
   return {
-    inputTokens: inputTokens ?? 0,
-    outputTokens: outputTokens ?? 0,
-    cacheCreationInputTokens: cacheCreationInputTokens ?? 0,
-    cacheReadInputTokens: cacheReadInputTokens ?? 0,
+    display: {
+      inputTokens: inputTokens ?? 0,
+      outputTokens: outputTokens ?? 0,
+      cacheCreationInputTokens: cacheCreationInputTokens ?? 0,
+      cacheReadInputTokens: cacheReadInputTokens ?? 0,
+    },
+    trajectory,
   };
+};
+
+const appendClaudeTrajectoryEvidence = (
+  event: AgentTimelineEvent,
+  items: AgentConversationItem[],
+  turnId: string | undefined,
+  usage: AgentTrajectoryTokenUsage | undefined,
+) => {
+  const evidence: AgentTrajectoryEvidence[] = [];
+  const turn = turnId ? { turnId } : {};
+
+  for (const item of items) {
+    const block = item.block;
+    if (!block || block.type === "text") {
+      const role =
+        item.role === "user" ? "user" : item.role === "assistant" ? "assistant" : undefined;
+      if (role) {
+        evidence.push({
+          kind: "model-output",
+          role,
+          conversationItemId: item.id,
+          ...turn,
+        });
+      }
+      continue;
+    }
+
+    if (block.type === "thinking") {
+      evidence.push({
+        kind: "model-output",
+        role: "reasoning",
+        conversationItemId: item.id,
+        ...turn,
+      });
+      continue;
+    }
+
+    if (block.type === "tool_use") {
+      evidence.push({
+        kind: "tool-lifecycle",
+        phase: "call",
+        toolName: block.toolName,
+        conversationItemId: item.id,
+        ...(block.toolCallId ? { callId: block.toolCallId } : {}),
+        ...turn,
+      });
+      continue;
+    }
+
+    evidence.push({
+      kind: "tool-lifecycle",
+      phase: "result",
+      status: block.status,
+      conversationItemId: item.id,
+      ...(block.toolCallId ? { callId: block.toolCallId } : {}),
+      ...turn,
+    });
+  }
+
+  if (usage) {
+    evidence.push({ kind: "token-usage", usage, ...turn });
+  }
+  if (evidence.length > 0) {
+    event.trajectoryEvidence = evidence;
+  }
 };
 
 const parseClaudeModel = (raw: unknown) => {
@@ -242,12 +346,23 @@ const parseClaudeModel = (raw: unknown) => {
 
 const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
-  let turnIndex = 0;
-  let lastPromptId: string | undefined;
+  let currentTurn: { index: number; turnId?: string } | undefined;
+  let turnCount = 0;
   let sessionId: string | undefined;
   let model: string | undefined;
   let cwd: string | undefined;
   let version: string | undefined;
+
+  const startPromptTurn = (turnId: string | undefined) => {
+    if (turnId !== undefined && currentTurn?.turnId === turnId) {
+      return;
+    }
+    turnCount += 1;
+    currentTurn = {
+      index: turnCount,
+      ...(turnId === undefined ? {} : { turnId }),
+    };
+  };
 
   return {
     push(line) {
@@ -257,7 +372,6 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       const record = line.data;
       const type = getString(record, "type") ?? "unknown";
-      const promptId = getString(record, "promptId") ?? `line-${line.lineNumber}`;
       sessionId ??= getString(record, "sessionId");
       cwd ??= getString(record, "cwd");
       version ??= getString(record, "version");
@@ -266,12 +380,13 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       const isToolResultTurn =
         type === "user" && blocks.some((block) => block.type === "tool_result");
 
-      if (type === "user" && promptId !== lastPromptId && !isToolResultTurn) {
-        turnIndex += 1;
+      if (type === "user" && !isToolResultTurn) {
+        startPromptTurn(getString(record, "promptId"));
       }
       // Records before the first user prompt belong to no turn, so they carry
       // no number rather than a fabricated turn 0.
-      const currentTurnIndex = turnIndex > 0 ? turnIndex : undefined;
+      const turnIndex = currentTurn?.index;
+      const turnId = currentTurn?.turnId;
 
       const event = createBaseEvent(
         line,
@@ -281,7 +396,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         claudePreview(type, record, blocks),
       );
       addOptionalNumber(event, "timestamp", parseTimestamp(record.timestamp));
-      addOptionalNumber(event, "turnIndex", currentTurnIndex);
+      addOptionalNumber(event, "turnIndex", turnIndex);
       addOptionalString(event, "requestId", getString(record, "requestId"));
       addOptionalString(event, "model", parseClaudeModel(record));
       addOptionalString(event, "uuid", getString(record, "uuid"));
@@ -294,19 +409,23 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         addOptionalString(event, "stopReason", getString(record.message, "stop_reason"));
       }
 
-      const usage = parseClaudeTokenUsage(record);
+      const usage = parseClaudeUsage(record);
       if (usage) {
-        event.usage = usage;
+        event.usage = usage.display;
       }
 
+      let items: AgentConversationItem[] = [];
       if (type === "user") {
-        lastPromptId = promptId;
         if (isToolResultTurn || !getBoolean(record, "isMeta")) {
-          attachBlockItems(event, blocks, currentTurnIndex, "user");
+          items = attachBlockItems(event, blocks, turnIndex, "user");
         }
       } else if (type === "assistant") {
         model = parseClaudeModel(record) ?? model;
-        attachBlockItems(event, blocks, currentTurnIndex, "assistant");
+        items = attachBlockItems(event, blocks, turnIndex, "assistant");
+      }
+
+      if (type === "user" || type === "assistant") {
+        appendClaudeTrajectoryEvidence(event, items, turnId, usage?.trajectory);
       }
 
       events.push(event);
@@ -318,7 +437,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           ...(fileName ? { fileName } : {}),
           meta: {
             eventCount: events.length,
-            turnCount: turnIndex,
+            turnCount,
             ...(sessionId ? { sessionId } : {}),
             ...(model ? { model } : {}),
             ...(cwd ? { cwd } : {}),

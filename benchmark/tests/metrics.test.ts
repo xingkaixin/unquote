@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  agentSessionFixturePath,
+  agentSessionStressFixturePath,
+  benchmarkScenarioFor,
+} from "../fixture-manifest.mjs";
+import {
+  agentTrajectoryBuildMetric,
+  agentTrajectoryMetricForScenario,
   agentSessionBudgetedRenderMetrics,
+  agentSessionRequiredRenderMetrics,
   budgetedRenderMetrics,
+  collectBenchmarkGateFailures,
   collectBudgetFailures,
   mergeMeasurementFailures,
   parseBudgetSetting,
   parseIntegerSetting,
+  resolvePerformanceMeasure,
+  resolveBenchmarkOutputPath,
   resolveBudgetSetting,
   summarize,
 } from "../metrics.mjs";
@@ -29,6 +40,34 @@ const healthyMetrics = (): Record<string, unknown> =>
       { samples: 3, avg: 1, min: 1, p50: 1, p95: 1, max: 1 },
     ]),
   );
+
+const healthyAgentMetrics = (): Record<string, unknown> => ({
+  ...healthyMetrics(),
+  ...Object.fromEntries(
+    agentSessionRequiredRenderMetrics.map(({ metric }: { metric: string }) => [
+      metric,
+      { samples: 3, avg: 1, min: 1, p50: 1, p95: 1, max: 1 },
+    ]),
+  ),
+});
+
+const plainFixturePath = "benchmark/case2-1MB.jsonl";
+const benchmarkGateFixtures = [
+  agentSessionFixturePath,
+  agentSessionStressFixturePath,
+  plainFixturePath,
+].map((path) => ({ path, scenario: benchmarkScenarioFor(path) }));
+const benchmarkGateBudgets = {
+  ...budgets,
+  agentSessionReadyMsP50: 600,
+  agentToolReadyMsP50: 150,
+  agentTrajectoryBuildMsP50: 50,
+};
+const healthyBenchmarkGateRender = (): Record<string, Record<string, unknown>> => ({
+  [agentSessionFixturePath]: healthyAgentMetrics(),
+  [agentSessionStressFixturePath]: healthyAgentMetrics(),
+  [plainFixturePath]: healthyMetrics(),
+});
 
 describe("benchmark sample count settings", () => {
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "abc"])(
@@ -68,6 +107,32 @@ describe("benchmark sample count settings", () => {
       ),
     ).toBe(2500);
   });
+
+  it("reads the Agent trajectory budget environment override", () => {
+    expect(
+      resolveBudgetSetting(
+        "UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS",
+        { UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS: "49.5" },
+        50,
+      ),
+    ).toBe(49.5);
+  });
+});
+
+describe("benchmark output selection", () => {
+  it("writes an unfiltered run to the tracked baseline by default", () => {
+    expect(resolveBenchmarkOutputPath({}, false)).toBe("benchmark/results/latest.json");
+  });
+
+  it("writes a filtered run to an ignored report by default", () => {
+    expect(resolveBenchmarkOutputPath({}, true)).toBe(".turbo/unquote-benchmark/selected.json");
+  });
+
+  it("always honors an explicit output path", () => {
+    expect(
+      resolveBenchmarkOutputPath({ UNQUOTE_BENCH_OUTPUT: "benchmark/results/custom.json" }, true),
+    ).toBe("benchmark/results/custom.json");
+  });
 });
 
 describe("summarize", () => {
@@ -88,6 +153,70 @@ describe("summarize", () => {
       min: 10,
       max: 20,
     });
+  });
+});
+
+describe("Agent trajectory performance measure", () => {
+  it("accepts exactly one finite non-negative duration", () => {
+    expect(resolvePerformanceMeasure(agentTrajectoryBuildMetric, [{ duration: 12.5 }])).toEqual({
+      value: 12.5,
+      failure: null,
+    });
+    expect(resolvePerformanceMeasure(agentTrajectoryBuildMetric, [{ duration: 0 }])).toEqual({
+      value: 0,
+      failure: null,
+    });
+  });
+
+  it("rejects a missing measure instead of treating it as zero", () => {
+    expect(resolvePerformanceMeasure(agentTrajectoryBuildMetric, [])).toMatchObject({
+      value: null,
+      failure: expect.stringMatching(/expected exactly 1.*received 0/),
+    });
+  });
+
+  it("rejects duplicate measures", () => {
+    expect(
+      resolvePerformanceMeasure(agentTrajectoryBuildMetric, [{ duration: 1 }, { duration: 2 }]),
+    ).toMatchObject({
+      value: null,
+      failure: expect.stringMatching(/expected exactly 1.*received 2/),
+    });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, null])(
+    "rejects an invalid duration %p",
+    (duration) => {
+      expect(resolvePerformanceMeasure(agentTrajectoryBuildMetric, [{ duration }])).toMatchObject({
+        value: null,
+        failure: expect.stringMatching(/finite non-negative number/),
+      });
+    },
+  );
+
+  it("collects the metric for both Agent fixtures but not a plain fixture", () => {
+    expect(
+      [agentSessionFixturePath, agentSessionStressFixturePath].map((fixturePath) =>
+        agentTrajectoryMetricForScenario(benchmarkScenarioFor(fixturePath)),
+      ),
+    ).toEqual([agentTrajectoryBuildMetric, agentTrajectoryBuildMetric]);
+    expect(
+      agentTrajectoryMetricForScenario(benchmarkScenarioFor("benchmark/case2-1MB.jsonl")),
+    ).toBe(null);
+  });
+
+  it("assigns the trajectory p50 budget only to Agent fixtures", () => {
+    expect(agentSessionBudgetedRenderMetrics).not.toContainEqual(
+      expect.objectContaining({ metric: agentTrajectoryBuildMetric.metric }),
+    );
+    expect(agentTrajectoryBuildMetric).toMatchObject({
+      statistic: "p50",
+      budget: "agentTrajectoryBuildMsP50",
+    });
+    expect(agentSessionRequiredRenderMetrics).toEqual([
+      ...agentSessionBudgetedRenderMetrics,
+      agentTrajectoryBuildMetric,
+    ]);
   });
 });
 
@@ -148,7 +277,7 @@ describe("collectBudgetFailures", () => {
   });
 
   it("requires Agent-only metrics only for the declared fixture", () => {
-    const agentMetrics = healthyMetrics();
+    const agentMetrics = healthyAgentMetrics();
     agentMetrics["agentSessionReadyMs"] = { samples: 3, p50: 100 };
     agentMetrics["agentToolReadyMs"] = { samples: 3, p50: 801 };
 
@@ -157,9 +286,137 @@ describe("collectBudgetFailures", () => {
         { "agent.jsonl": agentMetrics, "plain.jsonl": healthyMetrics() },
         { ...budgets, agentSessionReadyMsP50: 2000, agentToolReadyMsP50: 800 },
         3,
-        { "agent.jsonl": agentSessionBudgetedRenderMetrics },
+        { "agent.jsonl": agentSessionRequiredRenderMetrics },
       ),
     ).toEqual(["agent.jsonl agentToolReadyMs.p50 801 > 800"]);
+  });
+
+  it("fails when the required trajectory summary is missing", () => {
+    const agentMetrics = healthyAgentMetrics();
+    delete agentMetrics["agentTrajectoryBuildMs"];
+
+    expect(
+      collectBudgetFailures(
+        { "agent.jsonl": agentMetrics },
+        { ...budgets, agentSessionReadyMsP50: 600, agentToolReadyMsP50: 150 },
+        3,
+        { "agent.jsonl": agentSessionRequiredRenderMetrics },
+      ),
+    ).toEqual([
+      "agent.jsonl agentTrajectoryBuildMs produced 0 of 3 samples, so the measured path did not run",
+    ]);
+  });
+
+  it("fails when the required trajectory summary has only partial samples", () => {
+    const agentMetrics = healthyAgentMetrics();
+    agentMetrics["agentTrajectoryBuildMs"] = { samples: 2, p50: 1 };
+
+    expect(
+      collectBudgetFailures(
+        { "agent.jsonl": agentMetrics },
+        { ...budgets, agentSessionReadyMsP50: 600, agentToolReadyMsP50: 150 },
+        3,
+        { "agent.jsonl": agentSessionRequiredRenderMetrics },
+      ),
+    ).toEqual([
+      "agent.jsonl agentTrajectoryBuildMs produced 2 of 3 samples, so the measured path did not run",
+    ]);
+  });
+
+  it("fails when the required trajectory statistic is invalid", () => {
+    const agentMetrics = healthyAgentMetrics();
+    agentMetrics["agentTrajectoryBuildMs"] = {
+      samples: 3,
+      p50: Number.POSITIVE_INFINITY,
+    };
+
+    expect(
+      collectBudgetFailures(
+        { "agent.jsonl": agentMetrics },
+        { ...budgets, agentSessionReadyMsP50: 600, agentToolReadyMsP50: 150 },
+        3,
+        { "agent.jsonl": agentSessionRequiredRenderMetrics },
+      )[0],
+    ).toContain("agentTrajectoryBuildMs.p50 is not a finite non-negative number");
+  });
+});
+
+describe("collectBenchmarkGateFailures", () => {
+  it.each([agentSessionFixturePath, agentSessionStressFixturePath])(
+    "requires a trajectory summary for %s",
+    (fixturePath) => {
+      const render = healthyBenchmarkGateRender();
+      delete render[fixturePath]?.["agentTrajectoryBuildMs"];
+
+      expect(
+        collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+      ).toContain(
+        `${fixturePath} agentTrajectoryBuildMs produced 0 of 3 samples, so the measured path did not run`,
+      );
+    },
+  );
+
+  it("rejects a partial trajectory summary through the production gate mapping", () => {
+    const render = healthyBenchmarkGateRender();
+    render[agentSessionFixturePath]!["agentTrajectoryBuildMs"] = { samples: 2, p50: 1 };
+
+    expect(
+      collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+    ).toContain(
+      `${agentSessionFixturePath} agentTrajectoryBuildMs produced 2 of 3 samples, so the measured path did not run`,
+    );
+  });
+
+  it("rejects an invalid trajectory summary through the production gate mapping", () => {
+    const render = healthyBenchmarkGateRender();
+    render[agentSessionStressFixturePath]!["agentTrajectoryBuildMs"] = {
+      samples: 3,
+      p50: Number.NaN,
+    };
+
+    expect(
+      collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+    ).toContain(
+      `${agentSessionStressFixturePath} agentTrajectoryBuildMs.p50 is not a finite non-negative number: NaN`,
+    );
+  });
+
+  it.each([agentSessionFixturePath, agentSessionStressFixturePath])(
+    "accepts a trajectory p50 at or below 50ms for %s",
+    (fixturePath) => {
+      for (const p50 of [49, 50]) {
+        const render = healthyBenchmarkGateRender();
+        render[fixturePath]!["agentTrajectoryBuildMs"] = { samples: 3, p50 };
+
+        expect(
+          collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it.each([agentSessionFixturePath, agentSessionStressFixturePath])(
+    "rejects a trajectory p50 above 50ms for %s",
+    (fixturePath) => {
+      for (const p50 of [50.1, 51]) {
+        const render = healthyBenchmarkGateRender();
+        render[fixturePath]!["agentTrajectoryBuildMs"] = { samples: 3, p50 };
+
+        expect(
+          collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+        ).toEqual([`${fixturePath} agentTrajectoryBuildMs.p50 ${p50} > 50`]);
+      }
+    },
+  );
+
+  it("does not require a trajectory summary for a plain fixture", () => {
+    const render = healthyBenchmarkGateRender();
+    delete render[plainFixturePath]?.["agentTrajectoryBuildMs"];
+
+    expect(
+      collectBenchmarkGateFailures(benchmarkGateFixtures, render, benchmarkGateBudgets, 3),
+    ).toEqual([]);
+    expect(render[plainFixturePath]).not.toHaveProperty("agentTrajectoryBuildMs");
   });
 });
 
@@ -172,5 +429,28 @@ describe("mergeMeasurementFailures", () => {
         { measurementFailures: { expandPathReadyMs: "second", expandAllReadyMs: "other" } },
       ]),
     ).toEqual({ expandPathReadyMs: "first", expandAllReadyMs: "other" });
+  });
+
+  it("merges Agent readiness, tool, and trajectory failures", () => {
+    expect(
+      mergeMeasurementFailures([
+        {
+          measurementFailures: {
+            agentSessionReadyMs: "Agent view did not become ready",
+            agentTrajectoryBuildMs: "first trajectory reason",
+          },
+        },
+        {
+          measurementFailures: {
+            agentToolReadyMs: "tool card did not expand",
+            agentTrajectoryBuildMs: "later trajectory reason",
+          },
+        },
+      ]),
+    ).toEqual({
+      agentSessionReadyMs: "Agent view did not become ready",
+      agentTrajectoryBuildMs: "first trajectory reason",
+      agentToolReadyMs: "tool card did not expand",
+    });
   });
 });

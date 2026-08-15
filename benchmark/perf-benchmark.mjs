@@ -6,10 +6,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  agentSessionBudgetedRenderMetrics,
-  collectBudgetFailures,
+  agentTrajectoryBuildMetric,
+  agentTrajectoryMetricForScenario,
+  collectBenchmarkGateFailures,
   mergeMeasurementFailures,
   parseIntegerSetting,
+  resolveBenchmarkOutputPath,
+  resolvePerformanceMeasure,
   resolveBudgetSetting,
   summarize,
 } from "./metrics.mjs";
@@ -72,9 +75,11 @@ const warmupRuns = parseIntegerSetting(
   process.env.UNQUOTE_BENCH_WARMUPS ?? 1,
   0,
 );
+const fixtureArgs = process.argv.slice(2).filter((argument) => argument !== "--");
+const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultBenchmarkFixturePaths;
 const outputPath = path.resolve(
   repoRoot,
-  process.env.UNQUOTE_BENCH_OUTPUT ?? "benchmark/results/latest.json",
+  resolveBenchmarkOutputPath(process.env, fixtureArgs.length > 0),
 );
 const heapSnapshotDirectory = process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR
   ? path.resolve(repoRoot, process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR)
@@ -96,9 +101,6 @@ const readProcessTable = () => {
     encoding: "utf8",
   }).stdout.trim();
 };
-
-const fixtureArgs = process.argv.slice(2).filter((argument) => argument !== "--");
-const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultBenchmarkFixturePaths;
 
 const budgets = {
   // 1500 rather than 1000: first-record latency covers worker startup and first
@@ -125,6 +127,7 @@ const budgets = {
   // detecting a roughly 2.4x and 3.2x regression respectively.
   agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 600),
   agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 150),
+  agentTrajectoryBuildMsP50: readBudget("UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS", 50),
 };
 
 const ensureFile = (target) => {
@@ -341,8 +344,18 @@ const benchmarkCore = async (fixturesInfo) => {
   );
 };
 
+const clearPerformanceMeasure = (client, entryName) =>
+  client.invoke("Runtime.evaluate", {
+    expression: `performance.clearMeasures(${JSON.stringify(entryName)})`,
+    returnByValue: true,
+  });
+
 const runRenderFixture = async (client, fixture) => {
   debug(`Rendering ${fixture.path}`);
+  const agentTrajectoryMetric = agentTrajectoryMetricForScenario(fixture.scenario);
+  if (agentTrajectoryMetric) {
+    await clearPerformanceMeasure(client, agentTrajectoryMetric.entryName);
+  }
   await client.invoke("Page.navigate", { url: "http://127.0.0.1:4173/" });
   await client.invoke("Runtime.evaluate", {
     expression: `new Promise((resolve, reject) => {
@@ -370,6 +383,9 @@ const runRenderFixture = async (client, fixture) => {
   });
   if (!fileInput.nodeId) {
     throw new Error("File input not found");
+  }
+  if (agentTrajectoryMetric) {
+    await clearPerformanceMeasure(client, agentTrajectoryMetric.entryName);
   }
   await client.invoke("Runtime.evaluate", {
     expression: "window.__unquoteBenchmarkStart = performance.now()",
@@ -431,6 +447,7 @@ const runRenderFixture = async (client, fixture) => {
           : null
       })
       let agentSessionReadyMs = null
+      let agentTrajectoryBuildEntries = null
       if (expectsAgentSession && shell.dataset.agentSession !== 'true') {
         throw new Error('expected Agent Session, received ' + JSON.stringify(shell.dataset))
       }
@@ -443,6 +460,11 @@ const runRenderFixture = async (client, fixture) => {
         })
         await settleFrames()
         agentSessionReadyMs = performance.now() - start
+        if (expectsAgentSession) {
+          agentTrajectoryBuildEntries = performance
+            .getEntriesByName(${JSON.stringify(agentTrajectoryBuildMetric.entryName)}, 'measure')
+            .map((entry) => ({ duration: entry.duration }))
+        }
       } else {
         await waitFor('json-view', () => shell.dataset.outputView === 'json')
       }
@@ -453,6 +475,7 @@ const runRenderFixture = async (client, fixture) => {
         firstRecordReadyMs: firstRecordReady - start,
         completeReadyMs: completeReady - start,
         agentSessionReadyMs,
+        agentTrajectoryBuildEntries,
         domNodes: document.getElementsByTagName('*').length,
         railRows: document.querySelectorAll('[data-record-rail] [data-record-id]').length,
       }
@@ -467,6 +490,27 @@ const runRenderFixture = async (client, fixture) => {
 
   if (settledResult.exceptionDetails) {
     throw new Error(settledResult.exceptionDetails.text ?? "Runtime.evaluate failed");
+  }
+
+  const { agentTrajectoryBuildEntries, ...settledValues } = settledResult.result.value;
+  let settled = settledValues;
+  if (agentTrajectoryMetric) {
+    const trajectorySample = resolvePerformanceMeasure(
+      agentTrajectoryMetric,
+      agentTrajectoryBuildEntries,
+    );
+    const trajectoryFailure = trajectorySample.failure
+      ? {
+          measurementFailures: {
+            [agentTrajectoryMetric.metric]: trajectorySample.failure,
+          },
+        }
+      : {};
+    settled = {
+      ...settledValues,
+      [agentTrajectoryMetric.metric]: trajectorySample.value,
+      measurementFailures: mergeMeasurementFailures([settledValues, trajectoryFailure]),
+    };
   }
 
   const readMetrics = async () => {
@@ -722,7 +766,6 @@ const runRenderFixture = async (client, fixture) => {
     throw new Error(interactionResult.exceptionDetails.text ?? "Runtime.evaluate failed");
   }
   const interactionMetrics = await readMetrics();
-  const settled = settledResult.result.value;
   const interaction = interactionResult.result.value;
   debug(`Capturing heap snapshot for ${fixture.path}`);
   const heapSnapshot = await captureHeapSnapshot(client, fixture);
@@ -732,6 +775,7 @@ const runRenderFixture = async (client, fixture) => {
     ...interaction,
     domNodes: Math.max(settled.domNodes, interaction.domNodes),
     railRows: Math.max(settled.railRows, interaction.railRows),
+    measurementFailures: mergeMeasurementFailures([settled, interaction]),
     layoutCount: interactionMetrics.LayoutCount,
     recalcStyleCount: interactionMetrics.RecalcStyleCount,
     taskDurationMs: interactionMetrics.TaskDuration * 1000,
@@ -819,12 +863,21 @@ const benchmarkRender = async (fixturesInfo) => {
         runs.push(await runRenderFixture(client, fixture));
       }
 
+      const agentTrajectoryMetric = agentTrajectoryMetricForScenario(fixture.scenario);
+
       entries.push([
         fixture.path,
         {
           firstRecordReadyMs: summarize(runs.map((run) => run.firstRecordReadyMs)),
           completeReadyMs: summarize(runs.map((run) => run.completeReadyMs)),
           agentSessionReadyMs: summarize(runs.map((run) => run.agentSessionReadyMs)),
+          ...(agentTrajectoryMetric
+            ? {
+                [agentTrajectoryMetric.metric]: summarize(
+                  runs.map((run) => run[agentTrajectoryMetric.metric]),
+                ),
+              }
+            : {}),
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
           agentToolReadyMs: summarize(runs.map((run) => run.agentToolReadyMs)),
           expandPathReadyMs: summarize(runs.map((run) => run.expandPathReadyMs)),
@@ -861,17 +914,7 @@ const main = async () => {
   const [core, render] = renderOnly
     ? [{}, await benchmarkRender(fixturesInfo)]
     : await Promise.all([benchmarkCore(fixturesInfo), benchmarkRender(fixturesInfo)]);
-  const additionalMetricsByFixture = Object.fromEntries(
-    fixturesInfo
-      .filter(({ scenario }) => scenario === "agent-session")
-      .map(({ path: fixturePath }) => [fixturePath, agentSessionBudgetedRenderMetrics]),
-  );
-  const budgetFailures = collectBudgetFailures(
-    render,
-    budgets,
-    sampleRuns,
-    additionalMetricsByFixture,
-  );
+  const budgetFailures = collectBenchmarkGateFailures(fixturesInfo, render, budgets, sampleRuns);
 
   const report = {
     generatedAt: new Date().toISOString(),

@@ -6,6 +6,7 @@ import type {
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
+  AgentTrajectoryEvidence,
 } from "./types";
 import {
   formatAgentBlockValue,
@@ -22,9 +23,31 @@ import {
   getString,
   isRecord,
   parseTimestamp,
+  readTokenCount,
 } from "./shared";
 
-const codexEnvelopeTypes = new Set(["session_meta", "event_msg", "response_item", "turn_context"]);
+const codexEnvelopeTypes = new Set([
+  "session_meta",
+  "event_msg",
+  "response_item",
+  "turn_context",
+  "compacted",
+]);
+
+const codexToolCompletionEventTypes = new Set([
+  "mcp_tool_call_end",
+  "patch_apply_end",
+  "web_search_end",
+]);
+
+const codexPayloadTurnEventTypes = new Set([
+  "task_started",
+  "task_complete",
+  "turn_aborted",
+  "token_count",
+  "sub_agent_activity",
+  ...codexToolCompletionEventTypes,
+]);
 
 const extractCodexMessageText = (content: unknown) => {
   if (!Array.isArray(content)) {
@@ -178,6 +201,256 @@ const codexResponseBlock = (
   return undefined;
 };
 
+interface CodexResponseEvidenceContext {
+  payload: Record<string, unknown>;
+  itemType: string;
+  messageRole?: string;
+  turnId?: string;
+  conversationItemId: string;
+  block?: AgentContentBlock;
+}
+
+const withTurnId = (turnId: string | undefined) => (turnId ? { turnId } : {});
+
+const codexTokenCount = (usage: Record<string, unknown>, key: string) => {
+  const count = readTokenCount(usage, key);
+  return count !== undefined && Number.isSafeInteger(count) && count >= 0 ? count : undefined;
+};
+
+const codexTokenUsage = (usage: Record<string, unknown>) => {
+  const inputTokens = codexTokenCount(usage, "input_tokens");
+  const outputTokens = codexTokenCount(usage, "output_tokens");
+  const cacheReadInputTokens = codexTokenCount(usage, "cached_input_tokens");
+  const cacheCreationInputTokens = codexTokenCount(usage, "cache_write_input_tokens");
+  const reasoningOutputTokens = codexTokenCount(usage, "reasoning_output_tokens");
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadInputTokens === undefined &&
+    cacheCreationInputTokens === undefined &&
+    reasoningOutputTokens === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(cacheReadInputTokens === undefined ? {} : { cacheReadInputTokens }),
+    ...(cacheCreationInputTokens === undefined ? {} : { cacheCreationInputTokens }),
+    ...(reasoningOutputTokens === undefined ? {} : { reasoningOutputTokens }),
+  };
+};
+
+const codexTokenUsageEvidence = (
+  payload: Record<string, unknown>,
+  turnId: string | undefined,
+): AgentTrajectoryEvidence | undefined => {
+  const info = isObjectOutput(payload.info) ? payload.info : undefined;
+  const lastTokenUsage =
+    info && isObjectOutput(info.last_token_usage) ? info.last_token_usage : undefined;
+  const totalTokenUsage =
+    info && isObjectOutput(info.total_token_usage) ? info.total_token_usage : undefined;
+  const nestedUsage = lastTokenUsage ? codexTokenUsage(lastTokenUsage) : undefined;
+  const cumulativeUsage = totalTokenUsage ? codexTokenUsage(totalTokenUsage) : undefined;
+  const usage =
+    nestedUsage ??
+    (nestedUsage === undefined && cumulativeUsage === undefined
+      ? codexTokenUsage(payload)
+      : undefined);
+  if (usage) {
+    return {
+      kind: "token-usage",
+      ...withTurnId(turnId),
+      usage,
+      ...(cumulativeUsage === undefined ? {} : { cumulativeUsage }),
+    };
+  }
+  if (!cumulativeUsage) {
+    return undefined;
+  }
+
+  return {
+    kind: "token-usage",
+    ...withTurnId(turnId),
+    cumulativeUsage,
+  };
+};
+
+const hasOwn = (record: Record<string, unknown>, key: string) =>
+  Object.prototype.hasOwnProperty.call(record, key);
+
+const ownValue = (record: Record<string, unknown>, key: string) =>
+  hasOwn(record, key) ? record[key] : undefined;
+
+const ownString = (record: Record<string, unknown>, key: string) => {
+  const value = ownValue(record, key);
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+const codexCompletionDurationMs = (payload: Record<string, unknown>) => {
+  const duration = ownValue(payload, "duration");
+  if (typeof duration !== "number" || !Number.isFinite(duration) || duration < 0) {
+    return undefined;
+  }
+
+  const durationMs = Math.round(duration * 1000);
+  return Number.isSafeInteger(durationMs) && durationMs >= 0 ? durationMs : undefined;
+};
+
+const codexToolCompletionStatus = (eventType: string, payload: Record<string, unknown>) => {
+  const success = ownValue(payload, "success");
+  const status = ownValue(payload, "status");
+  const result = ownValue(payload, "result");
+  const resultRecord = isObjectOutput(result) ? result : undefined;
+  const hasResultError = resultRecord ? hasOwn(resultRecord, "Err") : false;
+  const hasResultOk = resultRecord ? hasOwn(resultRecord, "Ok") : false;
+  const okResult = resultRecord ? ownValue(resultRecord, "Ok") : undefined;
+  const failedOkResult = isObjectOutput(okResult) && ownValue(okResult, "isError") === true;
+  const failedStatus = status === "failed" || status === "error" || status === "declined";
+
+  if (success === false || failedStatus || hasResultError || failedOkResult) {
+    return "failed" as const;
+  }
+  if (
+    success === true ||
+    status === "completed" ||
+    status === "success" ||
+    hasResultOk ||
+    eventType === "web_search_end"
+  ) {
+    return "completed" as const;
+  }
+  return undefined;
+};
+
+const codexToolCompletionEvidence = (
+  eventType: string,
+  payload: Record<string, unknown>,
+  turnId: string | undefined,
+): AgentTrajectoryEvidence | undefined => {
+  const callId = ownString(payload, "call_id");
+  if (!callId) {
+    return undefined;
+  }
+
+  const status = codexToolCompletionStatus(eventType, payload);
+  const durationMs = codexCompletionDurationMs(payload);
+  return {
+    kind: "tool-lifecycle",
+    phase: "completion",
+    ...withTurnId(turnId),
+    ...(status === undefined ? {} : { status }),
+    callId,
+    ...(durationMs === undefined ? {} : { durationMs }),
+  };
+};
+
+const codexEventEvidence = (
+  eventType: string | undefined,
+  payload: Record<string, unknown>,
+  turnId: string | undefined,
+): AgentTrajectoryEvidence | undefined => {
+  if (eventType === "task_started") {
+    return { kind: "turn-lifecycle", phase: "start", ...withTurnId(turnId) };
+  }
+  if (eventType === "task_complete") {
+    return { kind: "turn-lifecycle", phase: "complete", ...withTurnId(turnId) };
+  }
+  if (eventType === "turn_aborted") {
+    return { kind: "turn-lifecycle", phase: "aborted", ...withTurnId(turnId) };
+  }
+  if (eventType === "token_count") {
+    return codexTokenUsageEvidence(payload, turnId);
+  }
+  if (eventType === "sub_agent_activity" && payload.kind === "started") {
+    return { kind: "subagent-activity", status: "running", ...withTurnId(turnId) };
+  }
+  if (eventType === "context_compacted") {
+    return { kind: "compaction", ...withTurnId(turnId) };
+  }
+  if (eventType && codexToolCompletionEventTypes.has(eventType)) {
+    return codexToolCompletionEvidence(eventType, payload, turnId);
+  }
+  if (eventType === "agent_message") {
+    return { kind: "model-output", role: "assistant", ...withTurnId(turnId) };
+  }
+  return undefined;
+};
+
+const codexToolResultEvidenceStatus = (
+  payload: Record<string, unknown>,
+  block: AgentContentBlock | undefined,
+) => {
+  if (block?.type === "tool_result") {
+    return block.status;
+  }
+  return payload.status === "completed" ? "completed" : undefined;
+};
+
+const codexResponseEvidence = ({
+  payload,
+  itemType,
+  messageRole,
+  turnId,
+  conversationItemId,
+  block,
+}: CodexResponseEvidenceContext): AgentTrajectoryEvidence | undefined => {
+  if (itemType === "message") {
+    if (messageRole !== "user" && messageRole !== "assistant") {
+      return undefined;
+    }
+    return {
+      kind: "model-output",
+      role: messageRole,
+      ...withTurnId(turnId),
+      conversationItemId,
+    };
+  }
+
+  if (itemType === "reasoning") {
+    return {
+      kind: "model-output",
+      role: "reasoning",
+      ...withTurnId(turnId),
+      conversationItemId,
+    };
+  }
+
+  if (itemType === "agent_message") {
+    return { kind: "subagent-activity", status: "completed", ...withTurnId(turnId) };
+  }
+
+  if (itemType === "function_call" || itemType === "custom_tool_call") {
+    if (block?.type !== "tool_use") {
+      return undefined;
+    }
+    return {
+      kind: "tool-lifecycle",
+      phase: "call",
+      toolName: block.toolName,
+      ...withTurnId(turnId),
+      ...(block.toolCallId ? { callId: block.toolCallId } : {}),
+      conversationItemId,
+    };
+  }
+
+  if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
+    const callId = block?.type === "tool_result" ? block.toolCallId : getString(payload, "call_id");
+    const status = codexToolResultEvidenceStatus(payload, block);
+    return {
+      kind: "tool-lifecycle",
+      phase: "result",
+      ...withTurnId(turnId),
+      ...(status === undefined ? {} : { status }),
+      ...(callId ? { callId } : {}),
+      conversationItemId,
+    };
+  }
+
+  return undefined;
+};
+
 const codexResponseRole = (itemType: string, role: string | undefined): AgentConversationRole => {
   if (itemType === "message") {
     return codexMessageRole(role);
@@ -236,8 +509,16 @@ const codexCategory = (
     if (kind === "agent_message") {
       return "assistant";
     }
-    if (kind === "task_started" || kind === "task_complete" || kind === "token_count") {
+    if (
+      kind === "task_started" ||
+      kind === "task_complete" ||
+      kind === "turn_aborted" ||
+      kind === "token_count"
+    ) {
       return "meta";
+    }
+    if (codexToolCompletionEventTypes.has(kind)) {
+      return "tool";
     }
     return "unknown";
   }
@@ -350,7 +631,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
 
   // Records before the first turn boundary belong to no turn: numbering them
   // would print a turn the rollout never reported.
-  const currentTurnIndex = () => (currentTurnId ? registerTurn(currentTurnId) : undefined);
+  const turnIndexFor = (turnId: string | undefined) => (turnId ? registerTurn(turnId) : undefined);
 
   return {
     push(line) {
@@ -364,6 +645,8 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
       if (!isRecord(payload)) {
         return;
       }
+      const eventType = envelopeType === "event_msg" ? getString(payload, "type") : undefined;
+      const payloadTurnId = getString(payload, "turn_id");
 
       if (envelopeType === "session_meta") {
         sessionId ??= getString(payload, "session_id") ?? getString(payload, "id");
@@ -372,22 +655,22 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
       }
 
       if (envelopeType === "turn_context") {
-        const turnId = getString(payload, "turn_id");
-        if (turnId) {
-          currentTurnId = turnId;
+        if (payloadTurnId) {
+          currentTurnId = payloadTurnId;
         }
         cwd ??= getString(payload, "cwd");
         model = getString(payload, "model") ?? model;
       }
 
-      if (envelopeType === "event_msg" && getString(payload, "type") === "task_started") {
-        const turnId = getString(payload, "turn_id");
-        if (turnId) {
-          currentTurnId = turnId;
-        }
+      if (eventType === "task_started" && payloadTurnId) {
+        currentTurnId = payloadTurnId;
       }
 
-      const turnIndex = currentTurnIndex();
+      const eventTurnId =
+        eventType && codexPayloadTurnEventTypes.has(eventType)
+          ? (payloadTurnId ?? currentTurnId)
+          : currentTurnId;
+      const turnIndex = turnIndexFor(eventTurnId);
       const itemType =
         envelopeType === "response_item" ? codexResponseItemType(payload) : undefined;
       const messageRole =
@@ -417,14 +700,32 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         addOptionalString(event, "cwd", getString(payload, "cwd") ?? cwd);
       }
 
+      let trajectoryEvidence: AgentTrajectoryEvidence | undefined;
       if (envelopeType === "response_item" && itemType) {
         const block = codexResponseBlock(payload, itemType);
+        const conversationItemId = codexResponseItemId(line.lineNumber, itemType, messageRole);
         attachConversationItem(event, {
-          id: codexResponseItemId(line.lineNumber, itemType, messageRole),
+          id: conversationItemId,
           role: codexResponseRole(itemType, messageRole),
           ...(turnIndex === undefined ? {} : { turnIndex }),
           ...(block ? { block } : {}),
         });
+        trajectoryEvidence = codexResponseEvidence({
+          payload,
+          itemType,
+          ...(messageRole === undefined ? {} : { messageRole }),
+          ...(currentTurnId === undefined ? {} : { turnId: currentTurnId }),
+          conversationItemId,
+          ...(block === undefined ? {} : { block }),
+        });
+      } else if (envelopeType === "event_msg") {
+        trajectoryEvidence = codexEventEvidence(eventType, payload, eventTurnId);
+      } else if (envelopeType === "compacted") {
+        trajectoryEvidence = { kind: "compaction", ...withTurnId(eventTurnId) };
+      }
+
+      if (trajectoryEvidence) {
+        event.trajectoryEvidence = [trajectoryEvidence];
       }
 
       events.push(event);

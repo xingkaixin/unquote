@@ -1,15 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agentSessionFixturePath } from "./fixture-manifest.mjs";
+import { agentSessionFixturePath, agentSessionStressFixturePath } from "./fixture-manifest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const defaultOutputPath = path.resolve(repoRoot, agentSessionFixturePath);
+const defaultFixtureOutputPath = path.resolve(repoRoot, agentSessionFixturePath);
+const stressFixtureOutputPath = path.resolve(repoRoot, agentSessionStressFixturePath);
+const recordsPerTurn = 9;
 
 export const syntheticAgentFixtureSeed = 0x1a2b3c4d;
 export const syntheticAgentTurnCount = 48;
-export const syntheticAgentRecordCount = 1 + syntheticAgentTurnCount * 9;
+export const syntheticAgentMatchesPerToolResult = 160;
+export const syntheticAgentStressTurnCount = 556;
+export const syntheticAgentStressMatchesPerToolResult = 2;
+export const syntheticAgentMaxRecordCount = 100_000;
+export const syntheticAgentMaxTotalMatches = 100_000;
+export const syntheticAgentMaxTurnCount = Math.floor(
+  (syntheticAgentMaxRecordCount - 1) / recordsPerTurn,
+);
+export const syntheticAgentRecordCount = 1 + syntheticAgentTurnCount * recordsPerTurn;
+export const syntheticAgentStressRecordCount = 1 + syntheticAgentStressTurnCount * recordsPerTurn;
 
 const createRandom = (seed) => {
   let state = seed >>> 0;
@@ -24,12 +35,24 @@ const pad = (value, length = 3) => String(value).padStart(length, "0");
 export const buildSyntheticAgentFixture = ({
   seed = syntheticAgentFixtureSeed,
   turnCount = syntheticAgentTurnCount,
+  matchesPerToolResult = syntheticAgentMatchesPerToolResult,
 } = {}) => {
   if (!Number.isSafeInteger(seed) || seed < 0) {
     throw new Error("seed must be a non-negative safe integer");
   }
   if (!Number.isSafeInteger(turnCount) || turnCount <= 0) {
     throw new Error("turnCount must be a positive safe integer");
+  }
+  if (turnCount > syntheticAgentMaxTurnCount) {
+    throw new Error(`turnCount exceeds record budget of ${syntheticAgentMaxRecordCount}`);
+  }
+  if (!Number.isSafeInteger(matchesPerToolResult) || matchesPerToolResult < 0) {
+    throw new Error("matchesPerToolResult must be a non-negative safe integer");
+  }
+  if (matchesPerToolResult > Math.floor(syntheticAgentMaxTotalMatches / turnCount)) {
+    throw new Error(
+      `turnCount × matchesPerToolResult exceeds total matches budget of ${syntheticAgentMaxTotalMatches}`,
+    );
   }
 
   const random = createRandom(seed);
@@ -99,7 +122,7 @@ export const buildSyntheticAgentFixture = ({
       status: successful ? "completed" : "failed",
       output: JSON.stringify({
         summary: `nested synthetic result for turn ${turn}`,
-        matches: Array.from({ length: 160 }, (_, matchIndex) => ({
+        matches: Array.from({ length: matchesPerToolResult }, (_, matchIndex) => ({
           path: `src/fixture-${pad(turn % 8, 2)}/module-${pad(matchIndex % 24, 2)}.ts`,
           line: matchIndex + 1,
           preview: `nested placeholder match ${turn}-${matchIndex} for reproducible performance data`,
@@ -124,10 +147,13 @@ export const buildSyntheticAgentFixture = ({
 };
 
 export const writeSyntheticAgentFixture = ({
-  outputPath = defaultOutputPath,
+  outputPath = defaultFixtureOutputPath,
   force = false,
+  seed = syntheticAgentFixtureSeed,
+  turnCount = syntheticAgentTurnCount,
+  matchesPerToolResult = syntheticAgentMatchesPerToolResult,
 } = {}) => {
-  const contents = buildSyntheticAgentFixture();
+  const contents = buildSyntheticAgentFixture({ seed, turnCount, matchesPerToolResult });
   if (!force && fs.existsSync(outputPath) && fs.readFileSync(outputPath, "utf8") === contents) {
     console.log(`${path.relative(repoRoot, outputPath)}: already reproducible`);
     return;
@@ -136,11 +162,25 @@ export const writeSyntheticAgentFixture = ({
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, contents);
   console.log(
-    `${path.relative(repoRoot, outputPath)}: ${syntheticAgentRecordCount} records, ${Buffer.byteLength(contents)} bytes`,
+    `${path.relative(repoRoot, outputPath)}: ${1 + turnCount * recordsPerTurn} records, ${Buffer.byteLength(contents)} bytes`,
   );
+};
+
+export const writeSyntheticAgentFixtures = ({
+  force = false,
+  defaultOutputPath = defaultFixtureOutputPath,
+  stressOutputPath = stressFixtureOutputPath,
+} = {}) => {
+  writeSyntheticAgentFixture({ outputPath: defaultOutputPath, force });
+  writeSyntheticAgentFixture({
+    outputPath: stressOutputPath,
+    force,
+    turnCount: syntheticAgentStressTurnCount,
+    matchesPerToolResult: syntheticAgentStressMatchesPerToolResult,
+  });
 };
 
 const invokedUrl = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (import.meta.url === invokedUrl) {
-  writeSyntheticAgentFixture({ force: process.argv.includes("--force") });
+  writeSyntheticAgentFixtures({ force: process.argv.includes("--force") });
 }
