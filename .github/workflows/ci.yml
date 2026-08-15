@@ -22,6 +22,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Audit high-severity dependencies
+        run: pnpm audit:high
       - run: pnpm check
       # The Safari artifact and its resource sync are pure Node work, so they
       # are verified here rather than paying for a macOS runner.

@@ -15,6 +15,7 @@
     "test:coverage": "pnpm --filter @unquote/core build && vitest run --coverage",
     "check:background-budget": "node scripts/check-background-budget.mjs",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build && pnpm check:background-budget",
+    "audit:high": "pnpm audit --audit-level high",
     "benchmark": "pnpm benchmark:fixtures && turbo run build --force && node benchmark/perf-benchmark.mjs",
     "benchmark:agent": "pnpm benchmark -- benchmark/case1-agent-session.jsonl",
     "benchmark:fixtures": "node benchmark/generate-fixtures.mjs",
