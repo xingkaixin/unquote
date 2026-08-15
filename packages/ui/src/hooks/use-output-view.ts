@@ -1,39 +1,41 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentSession } from "../lib/agent-session";
+import type { SourceRevision } from "../lib/source-revision";
 
 export type OutputView = "agent" | "json";
 
-const buildAgentSessionKey = (session: AgentSession | null) => {
-  if (!session) {
-    return null;
-  }
+interface OutputViewContext {
+  sourceRevision: SourceRevision;
+  hasDefaultedAgent: boolean;
+}
 
-  const conversationCount = session.events.reduce(
-    (count, event) => count + event.conversationItems.length,
-    0,
-  );
-  return [
-    session.fileType,
-    session.fileName ?? "",
-    session.meta.sessionId ?? "",
-    session.events.length,
-    conversationCount,
-  ].join(":");
-};
-
-export const useOutputView = (agentSession: AgentSession | null) => {
+export const useOutputView = (
+  sourceRevision: SourceRevision,
+  agentSession: AgentSession | null,
+) => {
   const [outputView, setOutputView] = useState<OutputView>("json");
-  const sessionKeyRef = useRef<string | null>(null);
-  const sessionKey = useMemo(() => buildAgentSessionKey(agentSession), [agentSession]);
+  const outputViewContextRef = useRef<OutputViewContext | null>(null);
+  const hasAgentSession = agentSession !== null;
 
   useEffect(() => {
-    if (sessionKeyRef.current === sessionKey) {
+    let outputViewContext = outputViewContextRef.current;
+    if (outputViewContext?.sourceRevision !== sourceRevision) {
+      outputViewContext = { sourceRevision, hasDefaultedAgent: false };
+      outputViewContextRef.current = outputViewContext;
+    }
+
+    if (!hasAgentSession) {
+      setOutputView("json");
       return;
     }
 
-    sessionKeyRef.current = sessionKey;
-    setOutputView(agentSession ? "agent" : "json");
-  }, [agentSession, sessionKey]);
+    if (outputViewContext.hasDefaultedAgent) {
+      return;
+    }
+
+    outputViewContext.hasDefaultedAgent = true;
+    setOutputView("agent");
+  }, [hasAgentSession, sourceRevision]);
 
   return { outputView, setOutputView };
 };
