@@ -92,7 +92,7 @@ export const UnquoteApp = ({
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
-  const { outputView, setOutputView } = useOutputView(agentSession);
+  const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
