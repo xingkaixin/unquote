@@ -40,6 +40,7 @@ const failedRecord = (lineNumber: number, summary: string): ParseResult["records
 class MockWorker extends MockWorkerEvents {
   static instances: MockWorker[] = [];
   static failConstruction = false;
+  static holdFileReads = false;
   // 1-based index of the first postMessage call that should throw.
   static postMessageFailsFrom: number | null = null;
   messages: Array<{
@@ -53,6 +54,7 @@ class MockWorker extends MockWorkerEvents {
   }> = [];
   postMessageCalls = 0;
   terminateCalls = 0;
+  preserveListenersOnTerminate = false;
 
   constructor(..._args: unknown[]) {
     super();
@@ -64,7 +66,9 @@ class MockWorker extends MockWorkerEvents {
 
   terminate() {
     this.terminateCalls += 1;
-    this.clearListeners();
+    if (!this.preserveListenersOnTerminate) {
+      this.clearListeners();
+    }
   }
 
   postMessage(payload: {
@@ -94,6 +98,9 @@ class MockWorker extends MockWorkerEvents {
       return;
     }
     if (payload.type === "file-jsonl") {
+      if (MockWorker.holdFileReads) {
+        return;
+      }
       const delay = payload.file?.name === "old.jsonl" ? 20 : 0;
       setTimeout(() => {
         this.respond({
@@ -180,17 +187,18 @@ interface ProbeProps {
   input: string;
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File;
+  revision?: number;
 }
 
-const ParserProbe = ({ input, forcedFormat, sourceFile }: ProbeProps) => {
+const ParserProbe = ({ input, forcedFormat, sourceFile, revision = 0 }: ProbeProps) => {
   const source = useMemo(
     () =>
       projectSourceWork(
         sourceFile
-          ? createStreamingFileSourceRevision(0, createLocalFileAccess(sourceFile), "jsonl")
-          : createTextSourceRevision(0, input, forcedFormat ?? "auto"),
+          ? createStreamingFileSourceRevision(revision, createLocalFileAccess(sourceFile), "jsonl")
+          : createTextSourceRevision(revision, input, forcedFormat ?? "auto"),
       ),
-    [forcedFormat, input, sourceFile],
+    [forcedFormat, input, revision, sourceFile],
   );
   const { result, progress, agentSession } = useParser({ source });
   return (
@@ -223,6 +231,7 @@ describe("useParser", () => {
     localStorage.clear();
     MockWorker.instances = [];
     MockWorker.failConstruction = false;
+    MockWorker.holdFileReads = false;
     MockWorker.postMessageFailsFrom = null;
     Object.assign(globalThis, { Worker: MockWorker });
   });
@@ -233,18 +242,79 @@ describe("useParser", () => {
     Reflect.deleteProperty(globalThis, "Worker");
   });
 
-  it("merges batches and ignores stale responses", async () => {
-    const { rerender } = renderAfterMount({ input: "first" });
+  it("terminates a busy worker and publishes only the replacement source", async () => {
+    const { rerender } = renderAfterMount({ input: "stalled", forcedFormat: "json" });
     await act(() => vi.advanceTimersByTimeAsync(121));
-    rerender(<Probe input="second" />);
+    const staleWorker = MockWorker.instances[0]!;
+    staleWorker.preserveListenersOnTerminate = true;
+
+    rerender(<Probe input="stalled" forcedFormat="json" revision={1} />);
+
+    expect(staleWorker.terminateCalls).toBe(1);
+    expect(MockWorker.instances).toHaveLength(2);
+
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    const activeWorker = MockWorker.instances[1]!;
+    act(() => {
+      activeWorker.respond({
+        type: "complete-result",
+        requestId: 2,
+        result: resultFromRecords([failedRecord(1, "replacement")]),
+        agentSession: null,
+        progress: {
+          processedLines: 1,
+          success: 0,
+          failed: 1,
+          elapsedMs: 10,
+          done: true,
+        },
+      });
+      staleWorker.respond({
+        type: "complete-result",
+        requestId: 1,
+        result: resultFromRecords([failedRecord(1, "old")]),
+        agentSession: null,
+        progress: {
+          processedLines: 1,
+          success: 0,
+          failed: 1,
+          elapsedMs: 10,
+          done: true,
+        },
+      });
+    });
+
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("records")).toHaveTextContent("replacement");
+    expect(screen.getByTestId("records")).not.toHaveTextContent("old");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(activeWorker.messages).toContainEqual({
+      type: "parse",
+      requestId: 2,
+      input: "stalled",
+      forcedFormat: "json",
+    });
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("keeps an idle worker when a replacement is removed before debounce dispatch", async () => {
+    const { rerender } = renderAfterMount({ input: "second", forcedFormat: "json" });
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+    const worker = MockWorker.instances[0]!;
+
+    rerender(<Probe input="stalled" forcedFormat="json" />);
+    rerender(<Probe input="second" forcedFormat="json" />);
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
 
-    expect(screen.getByTestId("stats")).toHaveTextContent("2");
-    expect(screen.getByTestId("records")).toHaveTextContent("new-1,new-2");
-    expect(screen.getByTestId("records")).not.toHaveTextContent("old");
-    expect(screen.getByTestId("progress")).toHaveTextContent("done");
     expect(MockWorker.instances).toHaveLength(1);
+    expect(worker.terminateCalls).toBe(0);
+    expect(worker.messages.filter((message) => message.type === "parse")).toEqual([
+      { type: "parse", requestId: 1, input: "second", forcedFormat: "json" },
+      { type: "parse", requestId: 3, input: "second", forcedFormat: "json" },
+    ]);
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("finishes when worker file reading fails", async () => {
@@ -340,16 +410,21 @@ describe("useParser", () => {
   it("posts non-streaming JSON requests without an implicit format", async () => {
     const { rerender, unmount } = renderAfterMount({ input: '{"value":1}' });
     await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
+    const worker = MockWorker.instances[0]!;
 
-    expect(MockWorker.instances[0]?.messages).toContainEqual({
+    expect(worker.messages).toContainEqual({
       type: "parse",
       requestId: 1,
       input: '{"value":1}',
     });
 
     rerender(<Probe input='{"value":2}' forcedFormat="json" />);
+    expect(MockWorker.instances).toHaveLength(1);
+    expect(worker.terminateCalls).toBe(0);
     await act(() => vi.advanceTimersByTimeAsync(121));
-    expect(MockWorker.instances[0]?.messages).toContainEqual({
+    await act(() => vi.runOnlyPendingTimersAsync());
+    expect(worker.messages).toContainEqual({
       type: "parse",
       requestId: 2,
       input: '{"value":2}',
@@ -357,7 +432,41 @@ describe("useParser", () => {
     });
 
     unmount();
-    expect(MockWorker.instances[0]?.terminateCalls).toBe(1);
+    expect(worker.terminateCalls).toBe(1);
+  });
+
+  it("terminates a busy worker once on unmount and ignores later worker activity", async () => {
+    const { unmount } = renderAfterMount({ input: "first", forcedFormat: "json" });
+    await act(() => vi.advanceTimersByTimeAsync(121));
+    const worker = MockWorker.instances[0]!;
+
+    unmount();
+    await act(() => vi.runOnlyPendingTimersAsync());
+
+    expect(worker.terminateCalls).toBe(1);
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("terminates each StrictMode worker at most once without an error toast", async () => {
+    MockWorker.holdFileReads = true;
+    const { unmount } = render(
+      <StrictMode>
+        <Probe input="" sourceFile={new File(["x"], "stalled.jsonl")} />
+      </StrictMode>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(121));
+
+    const activeWorker = MockWorker.instances.find((worker) =>
+      worker.messages.some((message) => message.type === "file-jsonl"),
+    );
+    expect(activeWorker).toBeDefined();
+
+    unmount();
+
+    expect(MockWorker.instances).not.toHaveLength(0);
+    expect(activeWorker?.terminateCalls).toBe(1);
+    expect(MockWorker.instances.every((worker) => worker.terminateCalls <= 1)).toBe(true);
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("parses on the main thread when the worker cannot be constructed", () => {

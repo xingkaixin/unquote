@@ -122,6 +122,7 @@ export const useParser = ({ source }: UseParserOptions) => {
     requestIdRef.current = requestId;
 
     let settled = false;
+    let dispatched = false;
     const isCurrentRequest = () => !settled && requestIdRef.current === requestId;
 
     const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
@@ -238,6 +239,7 @@ export const useParser = ({ source }: UseParserOptions) => {
 
     const post = (message: ParserRequest) => {
       if (postToWorker(currentWorker, message)) {
+        dispatched = true;
         return true;
       }
       abandonWorker();
@@ -350,6 +352,8 @@ export const useParser = ({ source }: UseParserOptions) => {
     currentWorker.addEventListener("error", abandonWorker);
     currentWorker.addEventListener("messageerror", abandonWorker);
     return () => {
+      const shouldTerminateWorker = dispatched && !settled && workerRef.current === currentWorker;
+      settled = true;
       window.clearTimeout(timeoutId);
       if (chunkTimeoutId !== null) {
         window.clearTimeout(chunkTimeoutId);
@@ -358,11 +362,15 @@ export const useParser = ({ source }: UseParserOptions) => {
       currentWorker.removeEventListener("message", onMessage);
       currentWorker.removeEventListener("error", abandonWorker);
       currentWorker.removeEventListener("messageerror", abandonWorker);
+      if (shouldTerminateWorker) {
+        workerRef.current = null;
+        currentWorker.terminate();
+      }
     };
   }, [forcedFormat, input, mountParse, sourceAccess, sourceRevision]);
 
-  // Terminate the worker thread when the hook's owner unmounts; the per-request
-  // cleanup above only detaches listeners and timers.
+  // Terminate an idle worker when the hook's owner unmounts; active work is
+  // terminated by the request cleanup above.
   useEffect(
     () => () => {
       workerRef.current?.terminate();
