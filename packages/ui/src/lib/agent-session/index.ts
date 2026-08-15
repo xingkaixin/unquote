@@ -43,6 +43,7 @@ export type {
   AgentTrajectoryStatus,
   AgentTrajectoryStep,
   AgentTrajectorySubagentItem,
+  AgentTrajectorySystemItem,
   AgentTrajectoryTokenUsage,
   AgentTrajectoryToolItem,
   AgentTrajectoryTurn,

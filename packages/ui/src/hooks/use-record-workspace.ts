@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useCallback, useMemo } from "react";
 import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
-import type { AgentSession } from "../lib/agent-session";
+import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
 import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
 import {
@@ -204,6 +204,15 @@ export const useRecordWorkspace = ({
     },
     [recordsById, workspace.selectRecord],
   );
+  const openAgentRecord = useCallback(
+    (selection: AgentDetailSelection, recordId: string) => {
+      if (!recordsById.has(recordId)) {
+        return;
+      }
+      workspace.openAgentRecord(selection, recordId);
+    },
+    [recordsById, workspace.openAgentRecord],
+  );
   const model = useMemo<RecordWorkspaceModel>(
     () => ({
       filter: {
@@ -289,6 +298,7 @@ export const useRecordWorkspace = ({
     copySelectedValue,
     detailSelection: projectedSelection.detailSelection,
     selectAgentDetail: workspace.selectAgentDetail,
+    openAgentRecord,
     selectRecordById,
     setSampleExpansions: workspace.setSampleExpansions,
   };

@@ -77,6 +77,31 @@ describe("reduceWorkspaceSelection", () => {
     expect(state.detailSelection).toBe(selection);
   });
 
+  it("opens tool result and completion Records without replacing trajectory selection", () => {
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: "record-call",
+    } as const;
+    const resultState = reduceWorkspaceSelection(createPopulatedState(), {
+      type: "openAgentRecord",
+      selection,
+      recordId: "record-result",
+    });
+    const completionState = reduceWorkspaceSelection(resultState, {
+      type: "openAgentRecord",
+      selection,
+      recordId: "record-completion",
+    });
+
+    expect(resultState.activeRecordId).toBe("record-result");
+    expect(resultState.scrollIntent).toEqual({ kind: "record", recordId: "record-result" });
+    expect(resultState.detailSelection).toBe(selection);
+    expect(completionState.activeRecordId).toBe("record-completion");
+    expect(completionState.scrollIntent).toEqual({ kind: "record", recordId: "record-completion" });
+    expect(completionState.detailSelection).toBe(selection);
+  });
+
   it("clears every hidden record-bound value in one visibility transition", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "recordsVisibilityChanged",
@@ -89,6 +114,31 @@ describe("reduceWorkspaceSelection", () => {
       selectedPath: null,
       scrollIntent: null,
     });
+  });
+
+  it("retains trajectory detail while its primary Record is hidden", () => {
+    const selection = {
+      kind: "trajectory",
+      id: "item-1",
+      recordId: "record-hidden",
+    } as const;
+    const state = reduceWorkspaceSelection(
+      {
+        activeRecordId: "record-hidden",
+        detailSelection: selection,
+        selectedPath: { recordId: "record-hidden", pathText: "$.payload", rawKey: "payload" },
+        scrollIntent: { kind: "record", recordId: "record-hidden" },
+      },
+      { type: "recordsVisibilityChanged", recordIds: ["record-visible"] },
+    );
+
+    expect(state).toEqual({
+      activeRecordId: "record-visible",
+      detailSelection: selection,
+      selectedPath: null,
+      scrollIntent: null,
+    });
+    expect(state.detailSelection).toBe(selection);
   });
 
   it("reconciles navigation issued before records become hidden", () => {

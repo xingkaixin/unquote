@@ -1,5 +1,5 @@
 import type {
-  AgentDetailSelection,
+  AgentCanonicalSelection,
   AgentSession,
   AgentToolCallEvidence,
   AgentToolCompletionEvidence,
@@ -10,6 +10,7 @@ import type {
   AgentTrajectoryItem,
   AgentTrajectoryItemBase,
   AgentTrajectoryModel,
+  AgentTrajectorySystemItem,
   AgentTrajectoryStatus,
   AgentTrajectorySubagentItem,
   AgentTrajectoryTokenUsage,
@@ -50,7 +51,7 @@ interface AgentTrajectoryTokenUsageDraft {
 interface WarningSource {
   recordId: string;
   lineNumber: number;
-  selection: AgentDetailSelection;
+  selection: AgentCanonicalSelection;
   turnIndex?: number;
 }
 
@@ -81,7 +82,7 @@ interface ToolOccurrenceBase<
 > {
   evidence: TEvidence;
   itemId: string;
-  selection: AgentDetailSelection;
+  selection: AgentCanonicalSelection;
   source: WarningSource;
   timestamp: number | undefined;
   draft: ItemDraft;
@@ -104,7 +105,7 @@ const toolOccurrenceFor = <
 >(
   evidence: TEvidence,
   itemId: string,
-  selection: AgentDetailSelection,
+  selection: AgentCanonicalSelection,
   source: WarningSource,
   event: AgentTimelineEvent,
   draft: ItemDraft,
@@ -148,7 +149,7 @@ const selectionFor = (
   event: AgentTimelineEvent,
   conversationItemId: string | undefined,
   canonicalConversationIds: ReadonlySet<string>,
-): AgentDetailSelection => {
+): AgentCanonicalSelection => {
   if (conversationItemId && canonicalConversationIds.has(conversationItemId)) {
     return { kind: "conversation", id: conversationItemId, recordId: event.recordId };
   }
@@ -157,7 +158,7 @@ const selectionFor = (
 
 const warningSourceFor = (
   event: AgentTimelineEvent,
-  selection: AgentDetailSelection,
+  selection: AgentCanonicalSelection,
 ): WarningSource => {
   const turnIndex = finiteTurnIndex(event.turnIndex);
   return {
@@ -176,7 +177,7 @@ const baseItem = <TKind extends AgentTrajectoryItem["kind"], TStatus extends Age
   kind: TKind,
   status: TStatus,
   event: AgentTimelineEvent,
-  selection: AgentDetailSelection,
+  selection: AgentCanonicalSelection,
 ): AgentTrajectoryItemBase<TKind, TStatus> => ({
   id,
   kind,
@@ -500,7 +501,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
     scope: TrajectoryTurnScope,
     turnIndex: number | undefined,
     event: AgentTimelineEvent,
-    selection: AgentDetailSelection,
+    selection: AgentCanonicalSelection,
   ) => {
     const id = trajectoryTurnId(scope);
     const draft: TurnDraft = {
@@ -521,7 +522,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
   const resolveTurn = (
     event: AgentTimelineEvent,
     evidence: AgentTrajectoryEvidence,
-    selection: AgentDetailSelection,
+    selection: AgentCanonicalSelection,
   ) => {
     const turnIndex = finiteTurnIndex(event.turnIndex);
     const scope = toolCorrelationScope(evidence.turnId, turnIndex);
@@ -621,6 +622,11 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
         if (evidence.role === "user") {
           const item: AgentTrajectoryUserItem = {
             ...baseItem(itemId, "user", "completed", event, selection),
+          };
+          itemDrafts.push({ turn, item });
+        } else if (evidence.role === "system") {
+          const item: AgentTrajectorySystemItem = {
+            ...baseItem(itemId, "system", "completed", event, selection),
           };
           itemDrafts.push({ turn, item });
         } else {

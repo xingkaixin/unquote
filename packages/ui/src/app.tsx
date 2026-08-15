@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { AppHeader } from "./components/app-header";
+import { AgentTrajectoryView } from "./components/agent-trajectory-view";
 import { CommandPalette } from "./components/command-palette";
 import { ImportDialog } from "./components/import-dialog";
 import { AgentSessionView } from "./components/agent-session-view";
@@ -17,6 +18,7 @@ import { useParser } from "./hooks/use-parser";
 import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useSourceLoader } from "./hooks/use-source-loader";
+import { createAgentSessionModel, type AgentDetailSelection } from "./lib/agent-session";
 import { formatFileSize } from "./lib/format";
 import { projectSourceImport, projectSourceView, projectSourceWork } from "./lib/published-source";
 import { sourceSamples } from "./lib/source-samples";
@@ -92,7 +94,12 @@ export const UnquoteApp = ({
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
+  const { setFilter } = queryIntent;
   const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
+  const agentSessionModel = useMemo(
+    () => (agentSession ? createAgentSessionModel(agentSession) : null),
+    [agentSession],
+  );
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
@@ -150,6 +157,18 @@ export const UnquoteApp = ({
       recordWorkspace.selectRecordById(recordId);
     },
     [recordWorkspace.selectRecordById, setOutputView],
+  );
+  const handleOpenTrajectoryRecord = useCallback(
+    (selection: AgentDetailSelection, endpointRecordId: string) => {
+      if (!result.records.some((record) => record.id === endpointRecordId)) {
+        return;
+      }
+
+      setFilter("all", { preserveActiveRecord: true });
+      recordWorkspace.openAgentRecord(selection, endpointRecordId);
+      setOutputView("json");
+    },
+    [recordWorkspace.openAgentRecord, result.records, setFilter, setOutputView],
   );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
@@ -251,13 +270,22 @@ export const UnquoteApp = ({
   );
   const jsonOutput = <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />;
   const output =
-    agentSession && outputView === "agent" ? (
+    agentSession && agentSessionModel && outputView === "agent" ? (
       <AgentSessionView
         session={agentSession}
+        model={agentSessionModel}
         isDesktop={isDesktop}
         detailSelection={recordWorkspace.detailSelection}
         onDetailSelectionChange={recordWorkspace.selectAgentDetail}
         onOpenRecord={handleOpenRecord}
+      />
+    ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
+      <AgentTrajectoryView
+        model={agentSessionModel}
+        isDesktop={isDesktop}
+        detailSelection={recordWorkspace.detailSelection}
+        onDetailSelectionChange={recordWorkspace.selectAgentDetail}
+        onOpenRecord={handleOpenTrajectoryRecord}
       />
     ) : (
       jsonOutput
@@ -288,7 +316,7 @@ export const UnquoteApp = ({
         data-source-file={sourceView.streamedFileName ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
-        data-output-view={agentSession ? outputView : "json"}
+        data-output-view={agentSession && agentSessionModel ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
         data-expanded-nested={recordWorkspace.expandedNestedCount}
@@ -303,7 +331,7 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setImportOpen(true)}
-          outputView={agentSession ? outputView : null}
+          outputView={agentSession && agentSessionModel ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
           search={{

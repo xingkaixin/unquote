@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useOutputView } from "../src/hooks/use-output-view";
+import { isOutputView, useOutputView } from "../src/hooks/use-output-view";
 import type { AgentSession } from "../src/lib/agent-session";
 import type { SourceRevision } from "../src/lib/source-revision";
 
@@ -37,7 +37,7 @@ const renderOutputView = (initialProps: OutputViewProps) =>
   );
 
 describe("useOutputView", () => {
-  it("defaults Agent once and preserves a manual JSON choice through updates to one revision", () => {
+  it("defaults Agent once and preserves manual output choices through updates to one revision", () => {
     const firstRevision = 1;
     const { result, rerender } = renderOutputView({
       sourceRevision: firstRevision,
@@ -53,8 +53,9 @@ describe("useOutputView", () => {
     rerender({ sourceRevision: firstRevision, agentSession: createSession(0) });
     expect(result.current.outputView).toBe("json");
 
+    act(() => result.current.setOutputView("trajectory"));
     rerender({ sourceRevision: firstRevision, agentSession: createSession(1) });
-    expect(result.current.outputView).toBe("json");
+    expect(result.current.outputView).toBe("trajectory");
   });
 
   it("defaults Agent for a new revision with the same session structure", () => {
@@ -131,7 +132,7 @@ describe("useOutputView", () => {
     expect(result.current.outputView).toBe("agent");
   });
 
-  it("does not default Agent again when a session disappears and returns within one revision", () => {
+  it("restores the active Agent view when a session disappears and returns within one revision", () => {
     const firstRevision = 1;
     const { result, rerender } = renderOutputView({
       sourceRevision: firstRevision,
@@ -145,6 +146,28 @@ describe("useOutputView", () => {
 
     rerender({ sourceRevision: firstRevision, agentSession: createSession(0) });
 
+    expect(result.current.outputView).toBe("agent");
+  });
+
+  it("restores a manual Trajectory choice after a same-revision session refresh", () => {
+    const firstRevision = 1;
+    const { result, rerender } = renderOutputView({
+      sourceRevision: firstRevision,
+      agentSession: createSession(0),
+    });
+
+    act(() => result.current.setOutputView("trajectory"));
+    rerender({ sourceRevision: firstRevision, agentSession: null });
     expect(result.current.outputView).toBe("json");
+
+    rerender({ sourceRevision: firstRevision, agentSession: createSession(1) });
+    expect(result.current.outputView).toBe("trajectory");
+  });
+
+  it("recognizes only supported output views", () => {
+    expect(isOutputView("agent")).toBe(true);
+    expect(isOutputView("trajectory")).toBe(true);
+    expect(isOutputView("json")).toBe(true);
+    expect(isOutputView("unknown")).toBe(false);
   });
 });

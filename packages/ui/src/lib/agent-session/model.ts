@@ -7,6 +7,7 @@ import type {
   AgentSessionIntegrityIssue,
   AgentSessionModel,
   AgentTimelineEvent,
+  AgentTrajectoryItem,
   AgentTrajectoryModel,
   AgentTrajectoryToolItem,
   AgentToolStatus,
@@ -119,12 +120,14 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const trajectory: AgentTrajectoryModel = measurePerfFn("agentTrajectory:build", () =>
     createAgentTrajectoryModel(session),
   );
+  const trajectoryItemById = new Map<string, AgentTrajectoryItem>();
   const trajectoryToolByConversationItem = new Map<
     AgentConversationItem,
     AgentTrajectoryToolItem
   >();
 
   for (const item of trajectory.items) {
+    trajectoryItemById.set(item.id, item);
     if (item.kind !== "tool") {
       continue;
     }
@@ -146,6 +149,11 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     if (!selection) {
       const event = events[0];
       return event ? resolveEvent(event) : null;
+    }
+
+    if (selection.kind === "trajectory") {
+      const item = trajectoryItemById.get(selection.id);
+      return item ? resolveDetail(item.selection) : null;
     }
 
     if (selection.kind === "conversation") {
@@ -176,6 +184,11 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     return entry
       ? { kind: "conversation", id: entry.item.id, recordId: entry.event.recordId }
       : null;
+  };
+
+  const selectTrajectory = (itemId: string): AgentDetailSelection | null => {
+    const item = trajectoryItemById.get(itemId);
+    return item ? { kind: "trajectory", id: item.id, recordId: item.recordId } : null;
   };
 
   const uniqueToolPairFor = (item: AgentConversationItem) => {
@@ -221,6 +234,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     resolveDetail,
     selectEvent,
     selectConversation,
+    selectTrajectory,
     resolveToolStatus,
     resolveToolName,
   };

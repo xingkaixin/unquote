@@ -65,7 +65,7 @@ export interface AgentTurnLifecycleEvidence extends AgentTrajectoryEvidenceBase 
 
 export interface AgentModelOutputEvidence extends AgentTrajectoryEvidenceBase {
   kind: "model-output";
-  role: "user" | "assistant" | "reasoning";
+  role: "user" | "assistant" | "reasoning" | "system";
   conversationItemId?: string;
 }
 
@@ -184,13 +184,18 @@ export interface AgentSession {
   parseWarnings: AgentParseWarning[];
 }
 
-export type AgentDetailSelection =
+export type AgentCanonicalSelection =
   | { readonly kind: "record"; readonly recordId: string }
   | { readonly kind: "event"; readonly id: string; readonly recordId: string }
   | { readonly kind: "conversation"; readonly id: string; readonly recordId: string };
 
+export type AgentDetailSelection =
+  | AgentCanonicalSelection
+  | { readonly kind: "trajectory"; readonly id: string; readonly recordId: string };
+
 export type AgentTrajectoryItemKind =
   | "user"
+  | "system"
   | "assistant"
   | "reasoning"
   | "tool"
@@ -211,7 +216,7 @@ export interface AgentTrajectoryItemBase<
   readonly status: TStatus;
   readonly recordId: string;
   readonly lineNumber: number;
-  readonly selection: AgentDetailSelection;
+  readonly selection: AgentCanonicalSelection;
   readonly timestamp?: number;
   readonly turnIndex?: number;
 }
@@ -222,15 +227,17 @@ export interface AgentTrajectoryToolItem extends AgentTrajectoryItemBase<
 > {
   readonly toolName?: string;
   readonly callId?: string;
-  readonly callSelection?: AgentDetailSelection;
-  readonly resultSelection?: AgentDetailSelection;
-  readonly completionSelection?: AgentDetailSelection;
+  readonly callSelection?: AgentCanonicalSelection;
+  readonly resultSelection?: AgentCanonicalSelection;
+  readonly completionSelection?: AgentCanonicalSelection;
   readonly startedAt?: number;
   readonly endedAt?: number;
   readonly durationMs?: number;
 }
 
 export type AgentTrajectoryUserItem = AgentTrajectoryItemBase<"user", "completed">;
+
+export type AgentTrajectorySystemItem = AgentTrajectoryItemBase<"system", "completed">;
 
 export type AgentTrajectoryAssistantReasoningItem = AgentTrajectoryItemBase<
   "assistant" | "reasoning",
@@ -242,6 +249,7 @@ export type AgentTrajectoryAssistantReasoningItem = AgentTrajectoryItemBase<
 
 export type AgentTrajectoryModelOutputItem =
   | AgentTrajectoryUserItem
+  | AgentTrajectorySystemItem
   | AgentTrajectoryAssistantReasoningItem;
 
 export type AgentTrajectorySubagentItem = AgentTrajectoryItemBase<
@@ -270,7 +278,7 @@ export interface AgentTrajectoryTurn {
 interface AgentTrajectoryWarningBase {
   readonly recordId: string;
   readonly lineNumber: number;
-  readonly selection: AgentDetailSelection;
+  readonly selection: AgentCanonicalSelection;
   readonly turnIndex?: number;
 }
 
@@ -374,6 +382,7 @@ export interface AgentSessionModel {
   resolveDetail(selection: AgentDetailSelection | null): AgentSessionDetail | null;
   selectEvent(eventId: string): AgentDetailSelection | null;
   selectConversation(itemId: string): AgentDetailSelection | null;
+  selectTrajectory(itemId: string): AgentDetailSelection | null;
   resolveToolStatus(item: AgentConversationItem): AgentToolStatus;
   resolveToolName(item: AgentConversationItem): string | undefined;
 }

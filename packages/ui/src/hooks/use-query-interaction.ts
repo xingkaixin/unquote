@@ -1,5 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { useCallback, useEffect, useMemo, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
@@ -35,6 +35,10 @@ interface UseQueryInteractionOptions {
   translateError: (reason: "invalid" | "not-found") => string;
   onNavigate: (target: QueryNavigationTarget) => void;
   recordAppend?: RecordAppend | null;
+}
+
+interface SetFilterOptions {
+  preserveActiveRecord?: boolean;
 }
 
 interface RevisionedQueryState {
@@ -74,6 +78,7 @@ export const useQueryInteraction = ({
   recordAppend = null,
 }: UseQueryInteractionOptions) => {
   const sourceRevision = source.sourceRevision;
+  const pausedAutomaticSearchNavigationRevisionRef = useRef<SourceRevision | null>(null);
   const [storedQuery, dispatchToRevision] = useReducer(
     reduceRevisionedQueryState,
     sourceRevision,
@@ -85,6 +90,14 @@ export const useQueryInteraction = ({
     (action: QueryInteractionAction) => dispatchToRevision({ sourceRevision, action }),
     [sourceRevision],
   );
+  const pauseAutomaticSearchNavigation = useCallback(() => {
+    pausedAutomaticSearchNavigationRevisionRef.current = sourceRevision;
+  }, [sourceRevision]);
+  const resumeAutomaticSearchNavigation = useCallback(() => {
+    if (pausedAutomaticSearchNavigationRevisionRef.current === sourceRevision) {
+      pausedAutomaticSearchNavigationRevisionRef.current = null;
+    }
+  }, [sourceRevision]);
   const resolvePathQuery = useCallback(
     (records: JsonlRecord[], value: string): PathResolution | null => {
       const query = value.trim();
@@ -159,6 +172,9 @@ export const useQueryInteraction = ({
   ]);
 
   useEffect(() => {
+    if (pausedAutomaticSearchNavigationRevisionRef.current === sourceRevision) {
+      return;
+    }
     if (!activeSearchRecordId || !activeSearchPathText) {
       return;
     }
@@ -227,13 +243,15 @@ export const useQueryInteraction = ({
 
   const changeToolbarQuery = useCallback(
     (value: string) => {
+      resumeAutomaticSearchNavigation();
       invalidateNavigation();
       dispatch({ type: "toolbarQueryChange", value });
     },
-    [invalidateNavigation],
+    [invalidateNavigation, resumeAutomaticSearchNavigation],
   );
   const submitToolbarQuery = useCallback(
     (value: string) => {
+      resumeAutomaticSearchNavigation();
       invalidateNavigation();
       const resolution = resolvePathQuery(pipeline.visibleRecords, value);
       navigate({
@@ -242,53 +260,68 @@ export const useQueryInteraction = ({
         resolution,
       });
     },
-    [invalidateNavigation, navigate, pipeline.visibleRecords, resolvePathQuery],
+    [
+      invalidateNavigation,
+      navigate,
+      pipeline.visibleRecords,
+      resolvePathQuery,
+      resumeAutomaticSearchNavigation,
+    ],
   );
   const clearToolbarQuery = useCallback(() => {
+    resumeAutomaticSearchNavigation();
     invalidateNavigation();
     dispatch({ type: "clearToolbarQuery" });
-  }, [invalidateNavigation]);
+  }, [invalidateNavigation, resumeAutomaticSearchNavigation]);
   const searchFromCommand = useCallback(
     (value: string) => {
+      resumeAutomaticSearchNavigation();
       invalidateNavigation();
       dispatch({ type: "commandSearch", value });
     },
-    [invalidateNavigation],
+    [invalidateNavigation, resumeAutomaticSearchNavigation],
   );
   const setOption = useCallback(
     (kind: SearchOptionKind, on: boolean) => {
+      resumeAutomaticSearchNavigation();
       invalidateNavigation();
       dispatch({ type: "setSearchOption", kind, on });
     },
-    [invalidateNavigation],
+    [invalidateNavigation, resumeAutomaticSearchNavigation],
   );
   const setFilter = useCallback(
-    (filter: QueryInteractionState["recordFilter"]) => {
+    (filter: QueryInteractionState["recordFilter"], options?: SetFilterOptions) => {
+      if (options?.preserveActiveRecord) {
+        pauseAutomaticSearchNavigation();
+      } else {
+        resumeAutomaticSearchNavigation();
+      }
       invalidateNavigation();
       dispatch({ type: "setRecordFilter", filter });
     },
-    [invalidateNavigation],
+    [invalidateNavigation, pauseAutomaticSearchNavigation, resumeAutomaticSearchNavigation],
   );
   const changeCommandInput = useCallback(
     (value: string) => dispatch({ type: "setCommandInput", value }),
     [dispatch],
   );
   const prepareCommandInput = useCallback(() => dispatch({ type: "seedCommandInput" }), [dispatch]);
-  const previousResult = useCallback(
-    () =>
-      mode === "path"
-        ? navigate({ type: "prevPathMatch" })
-        : navigate({ type: "prevMatch", matchCount: pipeline.matchCount }),
-    [mode, navigate, pipeline.matchCount],
-  );
-  const nextResult = useCallback(
-    () =>
-      mode === "path"
-        ? navigate({ type: "nextPathMatch" })
-        : navigate({ type: "nextMatch", matchCount: pipeline.matchCount }),
-    [mode, navigate, pipeline.matchCount],
-  );
-  const reset = useCallback(() => dispatch({ type: "resetAll" }), [dispatch]);
+  const previousResult = useCallback(() => {
+    resumeAutomaticSearchNavigation();
+    return mode === "path"
+      ? navigate({ type: "prevPathMatch" })
+      : navigate({ type: "prevMatch", matchCount: pipeline.matchCount });
+  }, [mode, navigate, pipeline.matchCount, resumeAutomaticSearchNavigation]);
+  const nextResult = useCallback(() => {
+    resumeAutomaticSearchNavigation();
+    return mode === "path"
+      ? navigate({ type: "nextPathMatch" })
+      : navigate({ type: "nextMatch", matchCount: pipeline.matchCount });
+  }, [mode, navigate, pipeline.matchCount, resumeAutomaticSearchNavigation]);
+  const reset = useCallback(() => {
+    resumeAutomaticSearchNavigation();
+    dispatch({ type: "resetAll" });
+  }, [dispatch, resumeAutomaticSearchNavigation]);
 
   const intent = useMemo(
     () => ({

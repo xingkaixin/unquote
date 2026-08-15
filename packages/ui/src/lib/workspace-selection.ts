@@ -26,6 +26,7 @@ export type WorkspaceSelectionAction =
   | { type: "selectPath"; selection: SelectedPath }
   | { type: "selectRecord"; recordId: string }
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
+  | { type: "openAgentRecord"; selection: AgentDetailSelection; recordId: string }
   | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
   | { type: "recordsAppended"; firstRecordId: string | null }
   | { type: "clearScrollIntent" };
@@ -34,6 +35,14 @@ const retainVisibleRecordValue = <Value extends { recordId: string }>(
   value: Value | null,
   visibleRecordIds: ReadonlySet<string>,
 ) => (value && !visibleRecordIds.has(value.recordId) ? null : value);
+
+const retainVisibleDetailSelection = (
+  selection: AgentDetailSelection | null,
+  visibleRecordIds: ReadonlySet<string>,
+) =>
+  selection?.kind === "trajectory"
+    ? selection
+    : retainVisibleRecordValue(selection, visibleRecordIds);
 
 export const reconcileWorkspaceSelection = (
   state: WorkspaceSelectionState,
@@ -44,7 +53,7 @@ export const reconcileWorkspaceSelection = (
     state.activeRecordId && visibleRecordIds.has(state.activeRecordId)
       ? state.activeRecordId
       : (recordIds[0] ?? null);
-  const detailSelection = retainVisibleRecordValue(state.detailSelection, visibleRecordIds);
+  const detailSelection = retainVisibleDetailSelection(state.detailSelection, visibleRecordIds);
   const selectedPath = retainVisibleRecordValue(state.selectedPath, visibleRecordIds);
   const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibleRecordIds);
 
@@ -108,6 +117,14 @@ export const reduceWorkspaceSelection = (
         ...state,
         activeRecordId: action.selection.recordId,
         detailSelection: action.selection,
+      };
+
+    case "openAgentRecord":
+      return {
+        ...state,
+        activeRecordId: action.recordId,
+        detailSelection: action.selection,
+        scrollIntent: issueScrollIntent({ kind: "record", recordId: action.recordId }),
       };
 
     case "recordsVisibilityChanged":

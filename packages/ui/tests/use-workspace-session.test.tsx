@@ -4,6 +4,43 @@ import { describe, expect, it } from "vitest";
 import { useWorkspaceSession } from "../src/hooks/use-workspace-session";
 
 describe("useWorkspaceSession", () => {
+  it("keeps a trajectory selection while opening an endpoint Record", () => {
+    const { result, rerender } = renderHook(
+      ({ sourceRevision }) => useWorkspaceSession(sourceRevision),
+      { initialProps: { sourceRevision: 0 } },
+    );
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: "record-call",
+    } as const;
+    const openAgentRecordFromRevisionZero = result.current.openAgentRecord;
+
+    act(() => openAgentRecordFromRevisionZero(selection, "record-completion"));
+
+    expect(result.current.state.activeRecordId).toBe("record-completion");
+    expect(result.current.state.scrollIntent).toEqual({
+      kind: "record",
+      recordId: "record-completion",
+    });
+    expect(result.current.state.detailSelection).toBe(selection);
+
+    rerender({ sourceRevision: 1 });
+
+    expect(result.current.state).toMatchObject({
+      sourceRevision: 1,
+      activeRecordId: null,
+      detailSelection: null,
+      scrollIntent: null,
+    });
+
+    act(() => openAgentRecordFromRevisionZero(selection, "record-result"));
+
+    expect(result.current.state.activeRecordId).toBeNull();
+    expect(result.current.state.detailSelection).toBeNull();
+    expect(result.current.state.scrollIntent).toBeNull();
+  });
+
   it("invalidates selection and expansion when the Source Revision changes", () => {
     const { result, rerender } = renderHook(
       ({ sourceRevision }) => useWorkspaceSession(sourceRevision),

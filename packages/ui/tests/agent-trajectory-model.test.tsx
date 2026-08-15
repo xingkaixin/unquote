@@ -3,12 +3,16 @@ import {
   createAgentSessionModel,
   createAgentTrajectoryModel,
   type AgentConversationItem,
+  type AgentDetailSelection,
   type AgentTokenUsageEvidence,
   type AgentTrajectoryEvidence,
   type AgentTrajectoryAssistantReasoningItem,
   type AgentTrajectoryItem,
   type AgentTrajectoryModel,
+  type AgentTrajectorySystemItem,
+  type AgentTrajectoryToolItem,
   type AgentTrajectoryUserItem,
+  type AgentTrajectoryWarning,
   type AgentTimelineEvent,
   type AgentSession,
 } from "../src/lib/agent-session";
@@ -59,7 +63,7 @@ const lifecycle = (
 ): AgentTrajectoryEvidence => ({ kind: "turn-lifecycle", turnId, phase });
 
 const modelOutput = (
-  role: "user" | "assistant" | "reasoning",
+  role: "user" | "assistant" | "reasoning" | "system",
   conversationItemId?: string,
 ): AgentTrajectoryEvidence => ({
   kind: "model-output",
@@ -236,7 +240,83 @@ const assertTrajectoryOutputIsReadonly = (model: AgentTrajectoryModel) => {
 
 void assertTrajectoryOutputIsReadonly;
 
+const assertTrajectorySelectionsCannotNest = () => {
+  const trajectorySelection = {
+    kind: "trajectory",
+    id: "trajectory-item",
+    recordId: "record-trajectory",
+  } satisfies AgentDetailSelection;
+  const canonicalSelection = {
+    kind: "event",
+    id: "event-1",
+    recordId: "record-1",
+  } as const;
+
+  const item: AgentTrajectoryUserItem = {
+    id: "item-1",
+    kind: "user",
+    status: "completed",
+    recordId: "record-1",
+    lineNumber: 1,
+    // @ts-expect-error A trajectory item must resolve through a canonical selection.
+    selection: trajectorySelection,
+  };
+  const tool: AgentTrajectoryToolItem = {
+    id: "tool-1",
+    kind: "tool",
+    status: "completed",
+    recordId: "record-1",
+    lineNumber: 1,
+    selection: canonicalSelection,
+    // @ts-expect-error A tool call must resolve through a canonical selection.
+    callSelection: trajectorySelection,
+    // @ts-expect-error A tool result must resolve through a canonical selection.
+    resultSelection: trajectorySelection,
+    // @ts-expect-error A tool completion must resolve through a canonical selection.
+    completionSelection: trajectorySelection,
+  };
+  const warning: AgentTrajectoryWarning = {
+    kind: "unpaired-tool-call",
+    recordId: "record-1",
+    lineNumber: 1,
+    // @ts-expect-error A warning must resolve through a canonical selection.
+    selection: trajectorySelection,
+  };
+
+  void item;
+  void tool;
+  void warning;
+};
+
+void assertTrajectorySelectionsCannotNest;
+
 describe("createAgentTrajectoryModel", () => {
+  it("keeps projected selections canonical when trajectory tokens are available", () => {
+    const output = conversation("output-1", "assistant");
+    const source = session([
+      event("event-1", "record-1", 1, {
+        conversationItems: [output],
+        trajectoryEvidence: [modelOutput("assistant", output.id)],
+      }),
+    ]);
+    const projected = createAgentTrajectoryModel(source);
+    const model = createAgentSessionModel(source);
+
+    expect(model.trajectory).toEqual(projected);
+    expect(projected.items[0]?.selection).toEqual({
+      kind: "conversation",
+      id: "output-1",
+      recordId: "record-1",
+    });
+    expect(projected.items[0]).not.toHaveProperty("label");
+    expect(projected.items[0]).not.toHaveProperty("preview");
+    expect(model.selectTrajectory("event-1:evidence-0")).toEqual({
+      kind: "trajectory",
+      id: "event-1:evidence-0",
+      recordId: "record-1",
+    });
+  });
+
   it("requires at least one token evidence source", () => {
     const cumulativeOnly = {
       kind: "token-usage",
@@ -265,6 +345,94 @@ describe("createAgentTrajectoryModel", () => {
     expect("step" in user).toBe(false);
     expect("tokenUsage" in user).toBe(false);
     expectTypeOf(user).toEqualTypeOf<AgentTrajectoryUserItem>();
+  });
+
+  it("projects system output without becoming a token or derived-step anchor", () => {
+    const initialAssistant = conversation("initial-assistant", "assistant");
+    const systemOutput = conversation("system-output", "system");
+    const recoveredAssistant = conversation("recovered-assistant", "assistant");
+    const source = session([
+      event("initial-assistant", "record-initial-assistant", 1, {
+        turnIndex: 1,
+        conversationItems: [initialAssistant],
+        trajectoryEvidence: [
+          { ...modelOutput("assistant", initialAssistant.id), turnId: "turn-system-output" },
+        ],
+      }),
+      event("tool-call", "record-tool-call", 2, {
+        turnIndex: 1,
+        trajectoryEvidence: [
+          { ...toolCall("read_file", "call-system-output"), turnId: "turn-system-output" },
+        ],
+      }),
+      event("tool-result", "record-tool-result", 3, {
+        turnIndex: 1,
+        trajectoryEvidence: [
+          {
+            ...toolResult("completed", "call-system-output"),
+            turnId: "turn-system-output",
+          },
+        ],
+      }),
+      event("system-output", "record-system-output", 4, {
+        turnIndex: 1,
+        conversationItems: [systemOutput],
+        trajectoryEvidence: [
+          { ...modelOutput("system", systemOutput.id), turnId: "turn-system-output" },
+        ],
+      }),
+      event("token-usage", "record-token-usage", 5, {
+        turnIndex: 1,
+        trajectoryEvidence: [tokenUsage({ inputTokens: 3 }, "turn-system-output")],
+      }),
+      event("recovered-assistant", "record-recovered-assistant", 6, {
+        turnIndex: 1,
+        conversationItems: [recoveredAssistant],
+        trajectoryEvidence: [
+          {
+            ...modelOutput("assistant", recoveredAssistant.id),
+            turnId: "turn-system-output",
+          },
+        ],
+      }),
+    ]);
+
+    const trajectory = createAgentTrajectoryModel(source);
+    const canonical = createAgentSessionModel(source);
+    const system = trajectory.items.find(
+      (item): item is AgentTrajectorySystemItem => item.kind === "system",
+    );
+
+    expect(system).toMatchObject({
+      id: "system-output:evidence-0",
+      status: "completed",
+      recordId: "record-system-output",
+      selection: {
+        kind: "conversation",
+        id: "system-output",
+        recordId: "record-system-output",
+      },
+    });
+    expect(system).toBeDefined();
+    if (!system) {
+      throw new Error("Missing system trajectory item");
+    }
+    expect("step" in system).toBe(false);
+    expect("tokenUsage" in system).toBe(false);
+    expectTypeOf(system).toEqualTypeOf<AgentTrajectorySystemItem>();
+    expect(itemById(trajectory, "initial-assistant:evidence-0").tokenUsage).toEqual({
+      inputTokens: 3,
+    });
+    expect(itemById(trajectory, "recovered-assistant:evidence-0").step).toEqual({
+      index: 1,
+      source: "derived",
+    });
+    expect(canonical.resolveDetail(system.selection)?.recordId).toBe("record-system-output");
+    expect(canonical.selectTrajectory(system.id)).toEqual({
+      kind: "trajectory",
+      id: system.id,
+      recordId: "record-system-output",
+    });
   });
 
   it("projects ordered lifecycle turns with their terminal states", () => {
