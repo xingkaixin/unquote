@@ -9,7 +9,13 @@ pnpm benchmark
 The command deterministically regenerates every default fixture, force-builds
 the app, runs the benchmark in headless Chrome, writes
 `benchmark/results/latest.json`, and exits with a non-zero status when a budget
-is exceeded. It does not depend on workstation-only input.
+is exceeded or a required measurement path fails. It does not depend on
+workstation-only input.
+
+Runs with fixture path arguments are partial reports and default to the ignored
+`.turbo/unquote-benchmark/selected.json` instead of replacing the tracked full
+baseline. This includes `pnpm benchmark:agent`. `UNQUOTE_BENCH_OUTPUT` always
+overrides either default when a specific report path is required.
 
 Set `UNQUOTE_BENCH_CHROME` to use a Chrome executable outside the default macOS
 and Linux locations. Runner-specific budgets can be supplied with
@@ -65,24 +71,25 @@ rollout data.
 
 ## Baseline
 
-Captured on 2026-08-09 with Node v24.19.0, macOS arm64, 10 CPU cores, 32 GB
-memory, 3 samples and 1 warmup per fixture.
+Captured at `2026-08-15T17:32:08.764Z` with Node v24.19.0, macOS arm64, 10 CPU
+cores, 32 GB memory, 3 samples, and 1 warmup per fixture.
 
-| Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | DOM max | Heap max |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `benchmark/case1-agent-session.jsonl` | 433 | 120.2 ms | 182.6 ms | 211.2 ms | 350.1 ms | 652 | 5.52 MB |
-| `benchmark/case2-1MB.jsonl` | 1610 | 204.99 ms | 162.8 ms | 202.5 ms | 417.3 ms | 810 | 5.73 MB |
-| `benchmark/case2-5MB.jsonl` | 7956 | 1060 ms | 170.8 ms | 362.1 ms | 875.1 ms | 810 | 10.18 MB |
-| `benchmark/case2-10MB.jsonl` | 15765 | 2137.67 ms | 172.4 ms | 539.7 ms | 1426.3 ms | 810 | 15.56 MB |
-| `benchmark/case4-5K-rows.jsonl` | 5000 | 692.76 ms | 173.6 ms | 290.6 ms | 658.6 ms | 744 | 8.38 MB |
+| Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | agentTrajectoryBuildMs p50 | DOM max | Heap max |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `benchmark/case1-agent-session.jsonl` | 433 | 121.75 ms | 189.6 ms | 214.8 ms | 341.7 ms | 1.3 ms | 678 | 5.69 MB |
+| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 233.75 ms | 159.8 ms | 242.2 ms | 350.1 ms | 7.3 ms | 678 | 11.26 MB |
+| `benchmark/case2-1MB.jsonl` | 1610 | 212.69 ms | 160.4 ms | 178 ms | 392.4 ms | — | 829 | 5.76 MB |
+| `benchmark/case2-5MB.jsonl` | 7956 | 1038.78 ms | 179.7 ms | 232.6 ms | 817.2 ms | — | 829 | 10.77 MB |
+| `benchmark/case2-10MB.jsonl` | 15765 | 2066.44 ms | 172.9 ms | 270.7 ms | 1301.2 ms | — | 829 | 16.79 MB |
+| `benchmark/case4-5K-rows.jsonl` | 5000 | 794.05 ms | 163.6 ms | 199.7 ms | 617.2 ms | — | 763 | 8.68 MB |
 
-The synthetic Agent fixture contains 48 turns and 433 records in 1.13 MB. It is
-large enough to exercise streamed parsing and both virtualized Agent panes.
-Locally, Agent session readiness was 187.3 ms p50 and tool expansion was 18.3 ms
-p50. Three consecutive Ubuntu CI runs measured readiness at 216.9-250 ms p50
-and tool expansion at 42-46.3 ms p50. The 600 ms and 150 ms budgets retain
-shared-runner headroom while detecting an approximately 2.4x and 3.2x regression
-from the slowest observed medians.
+Both `pnpm benchmark` and `pnpm benchmark:agent` require the two synthetic
+Agent fixtures. The first contains 48 turns and 433 records in 1.13 MB; the
+second contains 556 turns and 5,005 records in 1.12 MB. Together they exercise
+streamed parsing and both virtualized Agent panes at ordinary and high session
+volume. This capture measured Agent session readiness at 184.1 ms and 223 ms
+p50, tool expansion at 18 ms and 17.2 ms p50, and trajectory projection at
+1.3 ms and 7.3 ms p50, respectively.
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
@@ -99,10 +106,22 @@ its details. The benchmark requires both metrics for fixtures declared as
 `agent-session`; a schema drift that falls back to the JSON view fails the run
 instead of recording a misleading fast sample.
 
+Agent fixtures also report `agentTrajectoryBuildMs` from exactly one
+`unquote:agentTrajectory:build` PerformanceMeasure. The entry covers only the
+pure trajectory projection held by the memoized Agent session model; parsing,
+React rendering, and DOM readiness are outside its duration. Missing,
+duplicate, or invalid entries are recorded under
+`measurementFailures.agentTrajectoryBuildMs` instead of being treated as zero.
+The benchmark requires one valid sample per run, so breaking this measurement
+contract fails the gate. Its numeric value remains observational and has no
+release budget or environment override until local and Ubuntu CI samples
+establish a baseline.
+
 Chrome Performance recordings include `unquote:*` user timing entries for the
 main hot paths: `parse:first-batch`, `parse:complete`, `search:request`,
 `search:memory`, `search:file`, `recordRows:build`, `expand:all:collect`, and
-`expand:path`. `search:request` spans dispatch to a terminal worker response,
+`expand:path`, plus `agentTrajectory:build` for Agent fixtures. `search:request`
+spans dispatch to a terminal worker response,
 while `search:memory` and `search:file` isolate the two execution paths. Use
 these entries with the React Profiler to confirm whether search, tree row
 construction, or expanded-path state is the active bottleneck before optimizing.

@@ -17,7 +17,7 @@
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm build && pnpm check:background-budget",
     "audit:high": "pnpm audit --audit-level high",
     "benchmark": "pnpm benchmark:fixtures && turbo run build --force && node benchmark/perf-benchmark.mjs",
-    "benchmark:agent": "pnpm benchmark -- benchmark/case1-agent-session.jsonl",
+    "benchmark:agent": "pnpm benchmark -- benchmark/case1-agent-session.jsonl benchmark/case1-agent-session-5K.jsonl",
     "benchmark:fixtures": "node benchmark/generate-fixtures.mjs",
     "benchmark:case4-fixture": "node benchmark/generate-case4-fixture.mjs",
     "deploy:cf": "pnpm --filter @unquote/web build && wrangler pages deploy dist/web --project-name=unquote",

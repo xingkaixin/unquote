@@ -19,6 +19,10 @@ export const parseBudgetSetting = (name, raw) => {
 export const resolveBudgetSetting = (name, environment, fallback) =>
   parseBudgetSetting(name, environment[name] ?? fallback);
 
+export const resolveBenchmarkOutputPath = (environment, hasFixtureFilter) =>
+  environment.UNQUOTE_BENCH_OUTPUT ??
+  (hasFixtureFilter ? ".turbo/unquote-benchmark/selected.json" : "benchmark/results/latest.json");
+
 const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 // Nearest-rank, so for small sample counts any high quantile collapses onto the
@@ -67,6 +71,40 @@ export const agentSessionBudgetedRenderMetrics = [
   { metric: "agentToolReadyMs", statistic: "p50", budget: "agentToolReadyMsP50" },
 ];
 
+export const agentTrajectoryBuildMetric = {
+  metric: "agentTrajectoryBuildMs",
+  entryName: "unquote:agentTrajectory:build",
+  statistic: "p50",
+};
+
+export const agentSessionRequiredRenderMetrics = [
+  ...agentSessionBudgetedRenderMetrics,
+  agentTrajectoryBuildMetric,
+];
+
+export const agentTrajectoryMetricForScenario = (scenario) =>
+  scenario === "agent-session" ? agentTrajectoryBuildMetric : null;
+
+export const resolvePerformanceMeasure = (descriptor, entries) => {
+  if (!Array.isArray(entries) || entries.length !== 1) {
+    const received = Array.isArray(entries) ? entries.length : "an invalid payload";
+    return {
+      value: null,
+      failure: `expected exactly 1 PerformanceMeasure named ${descriptor.entryName}, received ${received}`,
+    };
+  }
+
+  const duration = entries[0]?.duration;
+  if (!Number.isFinite(duration) || duration < 0) {
+    return {
+      value: null,
+      failure: `${descriptor.entryName} duration must be a finite non-negative number, received ${String(duration)}`,
+    };
+  }
+
+  return { value: duration, failure: null };
+};
+
 export const mergeMeasurementFailures = (runs) => {
   const merged = {};
   for (const run of runs) {
@@ -87,11 +125,11 @@ export const collectBudgetFailures = (
   const failures = [];
 
   for (const [fixture, metrics] of Object.entries(render)) {
-    const budgetedMetrics = [
+    const requiredMetrics = [
       ...budgetedRenderMetrics,
       ...(additionalMetricsByFixture[fixture] ?? []),
     ];
-    for (const { metric, statistic, budget } of budgetedMetrics) {
+    for (const { metric, statistic, budget } of requiredMetrics) {
       const summary = metrics[metric];
       const samples = summary?.samples ?? 0;
       if (samples < expectedSamples) {
@@ -112,11 +150,21 @@ export const collectBudgetFailures = (
         continue;
       }
 
-      if (value > budgets[budget]) {
+      if (budget !== undefined && value > budgets[budget]) {
         failures.push(`${fixture} ${metric}.${statistic} ${value} > ${budgets[budget]}`);
       }
     }
   }
 
   return failures;
+};
+
+export const collectBenchmarkGateFailures = (fixturesInfo, render, budgets, expectedSamples) => {
+  const requiredMetricsByFixture = Object.fromEntries(
+    fixturesInfo
+      .filter(({ scenario }) => scenario === "agent-session")
+      .map(({ path }) => [path, agentSessionRequiredRenderMetrics]),
+  );
+
+  return collectBudgetFailures(render, budgets, expectedSamples, requiredMetricsByFixture);
 };
