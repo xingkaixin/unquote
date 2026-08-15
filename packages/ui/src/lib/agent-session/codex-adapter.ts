@@ -92,22 +92,43 @@ const codexMessageCategory = (role: string | undefined): AgentEventCategory => {
 const codexResponseItemType = (payload: Record<string, unknown>) =>
   getString(payload, "type") ?? "response_item";
 
-const isFailedCodexToolOutput = (payload: Record<string, unknown>) => {
-  const output = getString(payload, "output");
-  if (output) {
-    try {
-      const parsed = JSON.parse(output) as unknown;
-      if (
-        isRecord(parsed) &&
-        isRecord(parsed.metadata) &&
-        typeof parsed.metadata.exit_code === "number"
-      ) {
-        return parsed.metadata.exit_code !== 0;
-      }
-    } catch {}
+const isObjectOutput = (value: unknown): value is Record<string, unknown> =>
+  isRecord(value) && !Array.isArray(value);
+
+const parseObjectOutput = (output: unknown): Record<string, unknown> | undefined => {
+  if (isObjectOutput(output)) {
+    return output;
+  }
+  if (typeof output !== "string") {
+    return undefined;
   }
 
-  return getString(payload, "status") === "failed";
+  try {
+    const parsed = JSON.parse(output) as unknown;
+    return isObjectOutput(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isNonZeroExitCode = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) && value !== 0;
+
+const isFailedStructuredToolOutput = (output: Record<string, unknown>) => {
+  if (output.isError === true || output.success === false || isNonZeroExitCode(output.exit_code)) {
+    return true;
+  }
+
+  return isObjectOutput(output.metadata) && isNonZeroExitCode(output.metadata.exit_code);
+};
+
+const isFailedCodexToolOutput = (payload: Record<string, unknown>) => {
+  if (payload.status === "failed") {
+    return true;
+  }
+
+  const output = parseObjectOutput(payload.output);
+  return output ? isFailedStructuredToolOutput(output) : false;
 };
 
 const codexResponseBlock = (
@@ -142,14 +163,15 @@ const codexResponseBlock = (
   if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
     const text = formatAgentBlockValue(payload.output);
     const callId = getString(payload, "call_id");
-    if (!text) {
+    const status = isFailedCodexToolOutput(payload) ? "failed" : "completed";
+    if (!text && status !== "failed") {
       return undefined;
     }
     return {
       type: "tool_result",
       text,
       ...(callId ? { toolCallId: callId } : {}),
-      status: isFailedCodexToolOutput(payload) ? "failed" : "completed",
+      status,
     };
   }
 

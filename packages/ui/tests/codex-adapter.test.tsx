@@ -181,6 +181,110 @@ describe("codexRolloutAdapter", () => {
     expect(items[11]).not.toHaveProperty("block");
   });
 
+  it.each([
+    { name: "object isError true", output: { isError: true }, expected: "failed" },
+    { name: "string isError true", output: '{"isError":true}', expected: "failed" },
+    { name: "object isError false", output: { isError: false }, expected: "completed" },
+    { name: "string isError false", output: '{"isError":false}', expected: "completed" },
+    { name: "object success false", output: { success: false }, expected: "failed" },
+    { name: "string success false", output: '{"success":false}', expected: "failed" },
+    { name: "object success true", output: { success: true }, expected: "completed" },
+    { name: "string success true", output: '{"success":true}', expected: "completed" },
+    { name: "object top-level exit code 1", output: { exit_code: 1 }, expected: "failed" },
+    { name: "string top-level exit code 1", output: '{"exit_code":1}', expected: "failed" },
+    { name: "object top-level exit code 0", output: { exit_code: 0 }, expected: "completed" },
+    { name: "string top-level exit code 0", output: '{"exit_code":0}', expected: "completed" },
+    {
+      name: "object metadata exit code 1",
+      output: { metadata: { exit_code: 1 } },
+      expected: "failed",
+    },
+    {
+      name: "string metadata exit code 1",
+      output: '{"metadata":{"exit_code":1}}',
+      expected: "failed",
+    },
+    {
+      name: "object metadata exit code 0",
+      output: { metadata: { exit_code: 0 } },
+      expected: "completed",
+    },
+    {
+      name: "string metadata exit code 0",
+      output: '{"metadata":{"exit_code":0}}',
+      expected: "completed",
+    },
+    {
+      name: "arrays do not carry structured failure evidence",
+      output: [{ isError: true }],
+      expected: "completed",
+    },
+    { name: "null output", output: null, expected: "pending" },
+    { name: "non-JSON output", output: "error: command failed", expected: "completed" },
+    {
+      name: "non-finite exit code",
+      output: { exit_code: Number.POSITIVE_INFINITY },
+      expected: "completed",
+    },
+    { name: "string exit code", output: { exit_code: "1" }, expected: "completed" },
+    {
+      name: "conflicting structured evidence",
+      output: { isError: true, success: true, exit_code: 0 },
+      expected: "failed",
+    },
+    {
+      name: "outer failed status wins over structured success",
+      output: { isError: false, success: true, exit_code: 0 },
+      outerStatus: "failed",
+      expected: "failed",
+    },
+    {
+      name: "outer failed status is preserved without output text",
+      outerStatus: "failed",
+      expected: "failed",
+    },
+  ])("normalizes $name as $expected", (testCase) => {
+    const { outerStatus, expected } = testCase;
+    const callId = "call-status";
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          payload: { type: "function_call", name: "status_tool", call_id: callId },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          payload: {
+            type: "function_call_output",
+            call_id: callId,
+            ...("output" in testCase ? { output: testCase.output } : {}),
+            ...(outerStatus ? { status: outerStatus } : {}),
+          },
+        },
+        2,
+      ),
+    );
+
+    const model = createAgentSessionModel(builder.finish([]));
+    const [call, result] = model.conversation.map(({ item }) => item);
+
+    expect(call).toBeDefined();
+    expect(result).toBeDefined();
+    expect(model.resolveToolStatus(call!)).toBe(expected);
+    expect(model.resolveToolStatus(result!)).toBe(expected);
+    if (expected === "pending") {
+      expect(result?.block).toBeUndefined();
+    } else {
+      expect(result?.block).toMatchObject({ type: "tool_result", status: expected });
+    }
+  });
+
   it("previews a large tool payload without parsing or retaining it", () => {
     const parse = vi.spyOn(JSON, "parse");
     const args = JSON.stringify({ values: Array.from({ length: 20_000 }, (_, index) => index) });
