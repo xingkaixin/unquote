@@ -5,6 +5,7 @@ import {
   type AgentSession,
 } from "../src/lib/agent-session";
 import { codexRolloutAdapter } from "../src/lib/agent-session/codex-adapter";
+import { createAgentTrajectoryPresentation } from "../src/lib/agent-session/trajectory-presentation";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
@@ -1999,5 +2000,113 @@ describe("codexRolloutAdapter", () => {
     expect(block?.text.length).toBeLessThan(args.length);
     // The canonical record still carries the untouched payload.
     expect(session.events[0]?.lineNumber).toBe(1);
+  });
+
+  it("projects developer and system messages as system trajectory activity", () => {
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "turn_context",
+          timestamp: 10,
+          payload: { turn_id: "turn-system" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          timestamp: 20,
+          payload: {
+            type: "message",
+            role: "developer",
+            content: [{ type: "input_text", text: "Developer instructions" }],
+          },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          timestamp: 30,
+          payload: {
+            type: "message",
+            role: "system",
+            content: [{ type: "input_text", text: "System instructions" }],
+          },
+        },
+        3,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          timestamp: 40,
+          payload: {
+            type: "message",
+            role: "other",
+            content: [{ type: "input_text", text: "Unrecognized role" }],
+          },
+        },
+        4,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const model = createAgentSessionModel(session);
+    const presentation = createAgentTrajectoryPresentation(model);
+
+    expect(session.events.map((event) => event.category)).toEqual([
+      "meta",
+      "system",
+      "system",
+      "unknown",
+    ]);
+    expect(model.conversation.slice(0, 2).map(({ item }) => item.role)).toEqual([
+      "system",
+      "system",
+    ]);
+    expect(session.events.slice(1, 3).map((event) => event.trajectoryEvidence)).toEqual([
+      [
+        {
+          kind: "model-output",
+          role: "system",
+          turnId: "turn-system",
+          conversationItemId: "conv-2-system",
+        },
+      ],
+      [
+        {
+          kind: "model-output",
+          role: "system",
+          turnId: "turn-system",
+          conversationItemId: "conv-3-system",
+        },
+      ],
+    ]);
+    expect(session.events[3]?.trajectoryEvidence).toBeUndefined();
+    expect(model.trajectory.items).toMatchObject([
+      {
+        kind: "system",
+        status: "completed",
+        recordId: "record-2",
+        selection: { kind: "conversation", id: "conv-2-system", recordId: "record-2" },
+      },
+      {
+        kind: "system",
+        status: "completed",
+        recordId: "record-3",
+        selection: { kind: "conversation", id: "conv-3-system", recordId: "record-3" },
+      },
+    ]);
+    expect(presentation.items.map(({ item, lane }) => ({ kind: item.kind, lane }))).toEqual([
+      { kind: "system", lane: "activity" },
+      { kind: "system", lane: "activity" },
+    ]);
   });
 });

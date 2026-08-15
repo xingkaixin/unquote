@@ -70,6 +70,6 @@ Agent Session 对话中的一项用户消息、助手消息、推理、工具调
 _Avoid_: Message row, conversation block
 
 **Agent Detail**:
-由 Agent Session 根据 timeline、conversation 或 Record 选择解析出的统一投影，包含
+由 Agent Session 根据 Agent Event、Conversation Item、Record 或 Agent Trajectory 选择解析出的统一投影，包含
 canonical Agent Event、可选 Conversation Item 与对应 Record 身份。
 _Avoid_: Raw pane state, selected message

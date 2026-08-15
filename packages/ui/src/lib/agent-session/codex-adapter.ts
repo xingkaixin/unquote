@@ -4,6 +4,7 @@ import type {
   AgentContentBlock,
   AgentConversationRole,
   AgentEventCategory,
+  AgentModelOutputEvidence,
   AgentSessionAdapter,
   AgentTimelineEvent,
   AgentTrajectoryEvidence,
@@ -110,6 +111,18 @@ const codexMessageCategory = (role: string | undefined): AgentEventCategory => {
     return "assistant";
   }
   return "unknown";
+};
+
+const codexModelOutputRole = (
+  role: string | undefined,
+): AgentModelOutputEvidence["role"] | undefined => {
+  if (role === "developer" || role === "system") {
+    return "system";
+  }
+  if (role === "user" || role === "assistant") {
+    return role;
+  }
+  return undefined;
 };
 
 const codexResponseItemType = (payload: Record<string, unknown>) =>
@@ -397,12 +410,13 @@ const codexResponseEvidence = ({
   block,
 }: CodexResponseEvidenceContext): AgentTrajectoryEvidence | undefined => {
   if (itemType === "message") {
-    if (messageRole !== "user" && messageRole !== "assistant") {
+    const role = codexModelOutputRole(messageRole);
+    if (!role) {
       return undefined;
     }
     return {
       kind: "model-output",
-      role: messageRole,
+      role,
       ...withTurnId(turnId),
       conversationItemId,
     };

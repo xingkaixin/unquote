@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   agentTrajectoryBuildMetric,
   agentTrajectoryMetricForScenario,
+  agentTrajectoryRenderBudgetContract,
   collectBenchmarkGateFailures,
   mergeMeasurementFailures,
   parseIntegerSetting,
@@ -128,6 +129,14 @@ const budgets = {
   agentSessionReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_READY_BUDGET_MS", 600),
   agentToolReadyMsP50: readBudget("UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS", 150),
   agentTrajectoryBuildMsP50: readBudget("UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS", 50),
+  // The trajectory contract owns its thresholds and runner overrides; see
+  // docs/performance.md for the retained baseline rationale.
+  ...Object.fromEntries(
+    agentTrajectoryRenderBudgetContract.map(({ budgetKey, envKey, defaultBudget }) => [
+      budgetKey,
+      readBudget(envKey, defaultBudget),
+    ]),
+  ),
 };
 
 const ensureFile = (target) => {
@@ -554,10 +563,31 @@ const runRenderFixture = async (client, fixture) => {
         })
       const settleFrames = () =>
         new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const visibleTrajectoryLedgerItem = (trajectoryRoot) => {
+        for (const candidate of trajectoryRoot.querySelectorAll('[data-trajectory-item-token]')) {
+          if (!(candidate instanceof HTMLElement)) continue
+          const ledger = candidate.closest('[role="list"]')
+          if (!(ledger instanceof HTMLElement)) continue
+          const itemRect = candidate.getBoundingClientRect()
+          const ledgerRect = ledger.getBoundingClientRect()
+          const isVisible = itemRect.width > 0 &&
+            itemRect.height > 0 &&
+            itemRect.left < ledgerRect.right &&
+            itemRect.right > ledgerRect.left &&
+            itemRect.top < ledgerRect.bottom &&
+            itemRect.bottom > ledgerRect.top
+          if (isVisible) return candidate
+        }
+        return null
+      }
       const shell = document.querySelector('.uq-shell')
       const expectsAgentSession = ${JSON.stringify(fixture.scenario === "agent-session")}
 
       let agentToolReadyMs = null
+      let agentTrajectoryReadyMs = null
+      let agentTrajectoryItemSelectionReadyMs = null
+      let agentTrajectoryDomNodes = null
+      let trajectoryPageDomNodes = null
       if (expectsAgentSession) {
         if (shell.dataset.agentSession !== 'true' || shell.dataset.outputView !== 'agent') {
           throw new Error('Agent interaction started outside the Agent view')
@@ -571,6 +601,54 @@ const runRenderFixture = async (client, fixture) => {
         await waitFor('agent-tool-expand', () => toolCard.getAttribute('aria-pressed') === 'true')
         await settleFrames()
         agentToolReadyMs = performance.now() - agentToolStart
+
+        const trajectoryTab = await waitFor(
+          'trajectory-tab',
+          () => document.querySelector('[data-output-tab="trajectory"]')
+        )
+        if (!(trajectoryTab instanceof HTMLElement)) {
+          throw new Error('Trajectory tab is not an HTML element')
+        }
+        const trajectoryReadyStart = performance.now()
+        trajectoryTab.click()
+        const trajectoryState = await waitFor('trajectory-ready', () => {
+          const trajectoryRoot = document.querySelector('[data-trajectory-ready]')
+          if (!(trajectoryRoot instanceof HTMLElement) || shell.dataset.outputView !== 'trajectory') {
+            return null
+          }
+          const overview = trajectoryRoot.querySelector('[data-trajectory-overview]')
+          if (Number(overview?.getAttribute('data-bucket-count')) <= 0) {
+            return null
+          }
+          const ledgerItem = visibleTrajectoryLedgerItem(trajectoryRoot)
+          return ledgerItem ? { trajectoryRoot, ledgerItem } : null
+        })
+        await settleFrames()
+        const trajectoryRoot = trajectoryState.trajectoryRoot
+        const ledgerItem = visibleTrajectoryLedgerItem(trajectoryRoot)
+        if (!ledgerItem) {
+          throw new Error('No geometrically visible trajectory ledger item after settling')
+        }
+        agentTrajectoryReadyMs = performance.now() - trajectoryReadyStart
+        agentTrajectoryDomNodes = 1 + trajectoryRoot.querySelectorAll('*').length
+        trajectoryPageDomNodes = document.getElementsByTagName('*').length
+
+        const selectedItemToken = ledgerItem.getAttribute('data-trajectory-item-token')
+        if (!selectedItemToken) {
+          throw new Error('Visible trajectory ledger item is missing its identity')
+        }
+        const itemSelectionStart = performance.now()
+        ledgerItem.click()
+        await waitFor(
+          'trajectory-item-selection',
+          () =>
+            ledgerItem.getAttribute('aria-current') === 'true' &&
+            trajectoryRoot
+              .querySelector('[data-trajectory-detail-item-token]')
+              ?.getAttribute('data-trajectory-detail-item-token') === selectedItemToken,
+        )
+        await settleFrames()
+        agentTrajectoryItemSelectionReadyMs = performance.now() - itemSelectionStart
       }
 
       if (shell.dataset.agentSession === 'true') {
@@ -748,6 +826,10 @@ const runRenderFixture = async (client, fixture) => {
       return {
         searchReadyMs,
         agentToolReadyMs,
+        agentTrajectoryReadyMs,
+        agentTrajectoryItemSelectionReadyMs,
+        agentTrajectoryDomNodes,
+        trajectoryPageDomNodes,
         expandPathReadyMs,
         expandAllReadyMs,
         railReadyMs,
@@ -773,7 +855,11 @@ const runRenderFixture = async (client, fixture) => {
   return {
     ...settled,
     ...interaction,
-    domNodes: Math.max(settled.domNodes, interaction.domNodes),
+    domNodes: Math.max(
+      settled.domNodes,
+      interaction.domNodes,
+      interaction.trajectoryPageDomNodes ?? 0,
+    ),
     railRows: Math.max(settled.railRows, interaction.railRows),
     measurementFailures: mergeMeasurementFailures([settled, interaction]),
     layoutCount: interactionMetrics.LayoutCount,
@@ -877,6 +963,14 @@ const benchmarkRender = async (fixturesInfo) => {
                   runs.map((run) => run[agentTrajectoryMetric.metric]),
                 ),
               }
+            : {}),
+          ...(fixture.scenario === "agent-session"
+            ? Object.fromEntries(
+                agentTrajectoryRenderBudgetContract.map(({ metric }) => [
+                  metric,
+                  summarize(runs.map((run) => run[metric])),
+                ]),
+              )
             : {}),
           searchReadyMs: summarize(runs.map((run) => run.searchReadyMs)),
           agentToolReadyMs: summarize(runs.map((run) => run.agentToolReadyMs)),

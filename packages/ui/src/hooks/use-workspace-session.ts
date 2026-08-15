@@ -195,6 +195,13 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [dispatchSelection],
   );
 
+  const openAgentRecord = useCallback(
+    (selection: AgentDetailSelection, recordId: string) => {
+      dispatchSelection({ type: "openAgentRecord", selection, recordId });
+    },
+    [dispatchSelection],
+  );
+
   const commitQueryProjection = useCallback(
     (
       selection: WorkspaceSessionValue["selection"],
@@ -326,6 +333,7 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     selectNode,
     selectRecord,
     selectAgentDetail,
+    openAgentRecord,
     scrollToPath,
     commitQueryProjection,
     setSampleExpansions,

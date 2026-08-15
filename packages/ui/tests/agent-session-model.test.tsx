@@ -145,6 +145,46 @@ describe("createAgentSessionModel", () => {
     ).toMatchObject({ event: linkedEvent, recordId: "record-1" });
   });
 
+  it("resolves each trajectory item through its canonical selection", () => {
+    const first = { id: "conversation-1", role: "assistant" } as const;
+    const second = { id: "conversation-2", role: "thinking" } as const;
+    const sourceEvent = {
+      ...event("event-1", "record-1", [first, second]),
+      trajectoryEvidence: [
+        { kind: "model-output", role: "assistant", conversationItemId: first.id },
+        { kind: "model-output", role: "reasoning", conversationItemId: second.id },
+      ],
+    } satisfies AgentTimelineEvent;
+    const model = createAgentSessionModel(session([sourceEvent]));
+    const firstSelection = model.selectTrajectory("event-1:evidence-0");
+    const secondSelection = model.selectTrajectory("event-1:evidence-1");
+
+    expect(firstSelection).toEqual({
+      kind: "trajectory",
+      id: "event-1:evidence-0",
+      recordId: "record-1",
+    });
+    expect(secondSelection).toEqual({
+      kind: "trajectory",
+      id: "event-1:evidence-1",
+      recordId: "record-1",
+    });
+    expect(model.resolveDetail({ ...firstSelection!, recordId: "forged-record" })).toMatchObject({
+      event: sourceEvent,
+      conversationItem: first,
+      recordId: "record-1",
+    });
+    expect(model.resolveDetail(secondSelection)).toMatchObject({
+      event: sourceEvent,
+      conversationItem: second,
+      recordId: "record-1",
+    });
+    expect(model.selectTrajectory("missing")).toBeNull();
+    expect(
+      model.resolveDetail({ kind: "trajectory", id: "missing", recordId: "record-1" }),
+    ).toBeNull();
+  });
+
   it("defaults only an empty selection and rejects missing associations", () => {
     const first = event("event-1", "record-1");
     const model = createAgentSessionModel(session([first]));

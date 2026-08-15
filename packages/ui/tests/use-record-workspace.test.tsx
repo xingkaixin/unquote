@@ -37,6 +37,95 @@ const useTestWorkspace = ({ sourceRevision, sourceText, ...input }: WorkspaceInp
   });
 
 describe("useRecordWorkspace", () => {
+  it("opens an existing endpoint Record without replacing trajectory detail", () => {
+    const sourceText = '{"value":1}\n{"value":2}';
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: result.records[0]!.id,
+    } as const;
+
+    act(() => workspace.current.openAgentRecord(selection, result.records[1]!.id));
+
+    expect(workspace.current.model.active.id).toBe(result.records[1]!.id);
+    expect(workspace.current.detailSelection).toBe(selection);
+    expect(workspace.current.model.scrollIntent).toEqual({
+      kind: "record",
+      recordId: result.records[1]!.id,
+    });
+    expect(workspace.current.query.snapshot.recordFilter).toBe("all");
+  });
+
+  it("does not change an existing filter while opening a visible endpoint Record", () => {
+    const sourceText = "invalid-one\ninvalid-two";
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: result.records[0]!.id,
+    } as const;
+
+    act(() => workspace.current.query.intent.setFilter("errors"));
+    act(() => workspace.current.openAgentRecord(selection, result.records[1]!.id));
+
+    expect(workspace.current.query.snapshot.recordFilter).toBe("errors");
+    expect(workspace.current.model.active.id).toBe(result.records[1]!.id);
+    expect(workspace.current.detailSelection).toBe(selection);
+  });
+
+  it("does not update selection when an endpoint Record is absent", () => {
+    const sourceText = '{"value":1}\n{"value":2}';
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: result.records[0]!.id,
+    } as const;
+    const activeRecordId = workspace.current.model.active.id;
+    const detailSelection = workspace.current.detailSelection;
+    const scrollIntent = workspace.current.model.scrollIntent;
+
+    act(() => workspace.current.openAgentRecord(selection, "missing-record"));
+
+    expect(workspace.current.model.active.id).toBe(activeRecordId);
+    expect(workspace.current.detailSelection).toBe(detailSelection);
+    expect(workspace.current.model.scrollIntent).toBe(scrollIntent);
+  });
+
   it("projects the first visible Record before descendants commit", () => {
     const sourceText = '{"value":1}\n{"value":2}';
     const result = parseInput(sourceText, { forcedFormat: "jsonl" });
@@ -86,6 +175,37 @@ describe("useRecordWorkspace", () => {
     expect(workspace.current.detailSelection).toBeNull();
   });
 
+  it("preserves trajectory detail when a Record filter hides its primary Record", () => {
+    const sourceText = 'invalid\n{"value":2}';
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+    const endpointRecord = result.records[0]!;
+    const selection = {
+      kind: "trajectory",
+      id: "item-1",
+      recordId: result.records[1]!.id,
+    } as const;
+
+    act(() => workspace.current.openAgentRecord(selection, endpointRecord.id));
+    act(() => workspace.current.query.intent.setFilter("errors"));
+
+    expect(workspace.current.query.snapshot.recordFilter).toBe("errors");
+    expect(workspace.current.model.active.id).toBe(endpointRecord.id);
+    expect(workspace.current.model.active.record).toBe(endpointRecord);
+    expect(workspace.current.detailSelection).toBe(selection);
+    expect(workspace.current.model.scrollIntent).toBeNull();
+  });
+
   it("preserves selection references across an authenticated stream append", () => {
     const sourceText = '{"value":1}\n{"value":2}\n{"value":3}';
     const fullResult = parseInput(sourceText, { forcedFormat: "jsonl" });
@@ -119,6 +239,43 @@ describe("useRecordWorkspace", () => {
 
     expect(workspace.current.model.active.id).toBe(initialResult.records[1]!.id);
     expect(workspace.current.detailSelection).toBe(detailSelection);
+    expect(workspace.current.model.scrollIntent).toBe(scrollIntent);
+  });
+
+  it("preserves a trajectory selection while its endpoint Record survives an append", () => {
+    const sourceText = '{"value":1}\n{"value":2}\n{"value":3}';
+    const fullResult = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const initialResult = resultPrefix(fullResult, 2);
+    const initialProps: WorkspaceInput = {
+      sourceRevision: 0,
+      resultRevision: 0,
+      sourceText,
+      result: initialResult,
+      recordAppend: null,
+    };
+    const { result: workspace, rerender } = renderHook(
+      (input: WorkspaceInput) => useTestWorkspace(input),
+      { initialProps, wrapper },
+    );
+    const selection = {
+      kind: "trajectory",
+      id: "tool-call:evidence-0",
+      recordId: initialResult.records[0]!.id,
+    } as const;
+
+    act(() => workspace.current.openAgentRecord(selection, initialResult.records[1]!.id));
+    const scrollIntent = workspace.current.model.scrollIntent;
+
+    rerender({
+      sourceRevision: 0,
+      resultRevision: 0,
+      sourceText,
+      result: fullResult,
+      recordAppend: { previousRecords: initialResult.records },
+    });
+
+    expect(workspace.current.model.active.id).toBe(initialResult.records[1]!.id);
+    expect(workspace.current.detailSelection).toBe(selection);
     expect(workspace.current.model.scrollIntent).toBe(scrollIntent);
   });
 

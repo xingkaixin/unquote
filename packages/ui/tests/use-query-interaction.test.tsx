@@ -1,8 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ParseResult } from "@unquote/core";
 import { parseInput } from "@unquote/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { memorySearchDebounceMs, useQueryInteraction } from "../src/hooks/use-query-interaction";
+import {
+  memorySearchDebounceMs,
+  type QueryNavigationTarget,
+  useQueryInteraction,
+} from "../src/hooks/use-query-interaction";
 import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
+import type { SourceRevision } from "../src/lib/source-revision";
 
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
 const result = parseInput(source, { forcedFormat: "jsonl" });
@@ -19,6 +25,25 @@ const renderQuery = (onNavigate = vi.fn()) =>
       translateError: (reason) => reason,
       onNavigate,
     }),
+  );
+
+interface RevisionedQueryProps {
+  sourceRevision: SourceRevision;
+  parseResult: ParseResult;
+  onNavigate: (target: QueryNavigationTarget) => void;
+}
+
+const renderRevisionedQuery = (initialProps: RevisionedQueryProps) =>
+  renderHook(
+    ({ sourceRevision, parseResult, onNavigate }: RevisionedQueryProps) =>
+      useQueryInteraction({
+        source: sourceWork(source, sourceRevision),
+        resultRevision: sourceRevision,
+        result: parseResult,
+        translateError: (reason) => reason,
+        onNavigate,
+      }),
+    { initialProps },
   );
 
 describe("useQueryInteraction", () => {
@@ -174,5 +199,72 @@ describe("useQueryInteraction", () => {
 
     act(() => query.current.intent.setOption("regex", true));
     expect(query.current.snapshot).toMatchObject({ searchJq: false, searchRegex: true });
+  });
+
+  it("pauses automatic navigation while restoring all Records for an endpoint", async () => {
+    const firstNavigation = vi.fn<(target: QueryNavigationTarget) => void>();
+    const replacementNavigation = vi.fn<(target: QueryNavigationTarget) => void>();
+    const { result: query, rerender } = renderRevisionedQuery({
+      sourceRevision: 0,
+      parseResult: result,
+      onNavigate: firstNavigation,
+    });
+
+    act(() => query.current.intent.searchFromCommand("needle"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
+    firstNavigation.mockClear();
+
+    act(() => query.current.intent.setFilter("all", { preserveActiveRecord: true }));
+    expect(query.current.snapshot).toMatchObject({
+      recordFilter: "all",
+      searchQuery: "needle",
+    });
+
+    rerender({
+      sourceRevision: 0,
+      parseResult: parseInput(source, { forcedFormat: "jsonl" }),
+      onNavigate: replacementNavigation,
+    });
+    await act(async () => undefined);
+
+    expect(firstNavigation).toHaveBeenLastCalledWith({ sourceRevision: 0, kind: "clear" });
+    expect(firstNavigation).toHaveBeenCalledTimes(1);
+    expect(replacementNavigation).not.toHaveBeenCalled();
+
+    act(() => query.current.intent.nextResult());
+    await waitFor(() =>
+      expect(replacementNavigation).toHaveBeenLastCalledWith({
+        sourceRevision: 0,
+        kind: "search",
+        recordId: "record-2",
+        pathText: "$.payload",
+      }),
+    );
+  });
+
+  it("does not carry a paused automatic navigation into a new Source Revision", async () => {
+    const navigation = vi.fn<(target: QueryNavigationTarget) => void>();
+    const { result: query, rerender } = renderRevisionedQuery({
+      sourceRevision: 0,
+      parseResult: result,
+      onNavigate: navigation,
+    });
+
+    act(() => query.current.intent.searchFromCommand("needle"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
+    act(() => query.current.intent.setFilter("all", { preserveActiveRecord: true }));
+    navigation.mockClear();
+
+    rerender({ sourceRevision: 1, parseResult: result, onNavigate: navigation });
+    act(() => query.current.intent.searchFromCommand("needle"));
+
+    await waitFor(() =>
+      expect(navigation).toHaveBeenLastCalledWith({
+        sourceRevision: 1,
+        kind: "search",
+        recordId: "record-1",
+        pathText: "$.payload",
+      }),
+    );
   });
 });

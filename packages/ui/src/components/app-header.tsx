@@ -1,6 +1,6 @@
 import { Braces, ClipboardCopy, Download, List } from "lucide-react";
 import { useTranslation } from "../i18n/context";
-import type { OutputView } from "../hooks/use-output-view";
+import { isOutputView, type OutputView } from "../hooks/use-output-view";
 import type { ThemeToggleProps } from "./theme-toggle";
 import { Button } from "./button";
 import {
@@ -56,27 +56,44 @@ export const AppHeader = ({
   const sourceLabel = sourceName ?? t(enabled ? "source.pasted" : "source.none");
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-surface-100 px-4">
-      <h1 className="m-0 shrink-0 font-mono text-[12.5px] font-bold tracking-[var(--tracking-tag)] text-text-primary">
+    <header className="flex h-[52px] shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-surface-100 px-3 sm:gap-3 sm:px-4">
+      <h1 className="m-0 hidden shrink-0 font-mono text-[12.5px] font-bold tracking-[var(--tracking-tag)] text-text-primary md:block">
         UNQUOTE
       </h1>
       {outputView ? (
         <Tabs
           className="shrink-0"
           value={outputView}
-          onValueChange={(value) => onOutputViewChange(value === "agent" ? "agent" : "json")}
+          onValueChange={(value) => {
+            if (typeof value !== "string" || !isOutputView(value)) {
+              return;
+            }
+            onOutputViewChange(value);
+          }}
         >
           <TabsList className="h-7 border-border-medium p-0">
-            <TabsTrigger value="agent" data-output-tab="agent" className="h-full px-4">
+            <TabsTrigger value="agent" data-output-tab="agent" className="h-full px-2 sm:px-4">
               {t("app.tab.agent")}
             </TabsTrigger>
-            <TabsTrigger value="json" data-output-tab="json" translate="no" className="h-full px-4">
+            <TabsTrigger
+              value="trajectory"
+              data-output-tab="trajectory"
+              className="h-full px-2 sm:px-4"
+            >
+              {t("app.tab.trajectory")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="json"
+              data-output-tab="json"
+              translate="no"
+              className="h-full px-2 sm:px-4"
+            >
               {jsonTabLabel}
             </TabsTrigger>
           </TabsList>
         </Tabs>
       ) : null}
-      <div className="flex h-8 min-w-0 max-w-[560px] flex-1 items-center gap-1.5 rounded-md border border-border-medium bg-surface-50 px-2.5">
+      <div className="flex h-8 min-w-40 max-w-[560px] flex-1 items-center gap-1.5 rounded-md border border-border-medium bg-surface-50 px-2.5">
         <SearchField {...search} />
         <Tooltip>
           <TooltipTrigger
@@ -95,10 +112,10 @@ export const AppHeader = ({
           <TooltipContent>{`${t("command.open")} · ${shortcut}`}</TooltipContent>
         </Tooltip>
       </div>
-      <span className="flex-1" />
+      <span className="hidden flex-1 lg:block" />
       <button
         type="button"
-        className="flex h-7 min-w-0 max-w-[280px] shrink items-center gap-2 rounded-md border border-border-medium bg-surface-50 px-2.5 text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="flex h-7 min-w-0 max-w-40 shrink items-center gap-2 rounded-md border border-border-medium bg-surface-50 px-2.5 text-text-secondary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:max-w-[280px]"
         onClick={onOpenImport}
         // Names the button after what it shows: adjacent spans would otherwise
         // run together into "payload.jsonlChange" (WCAG 2.5.3 Label in Name).

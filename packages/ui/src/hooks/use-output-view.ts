@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentSession } from "../lib/agent-session";
 import type { SourceRevision } from "../lib/source-revision";
 
-export type OutputView = "agent" | "json";
+export type OutputView = "agent" | "trajectory" | "json";
+
+export const isOutputView = (value: string): value is OutputView =>
+  value === "agent" || value === "trajectory" || value === "json";
 
 interface OutputViewContext {
   sourceRevision: SourceRevision;
@@ -13,9 +16,12 @@ export const useOutputView = (
   sourceRevision: SourceRevision,
   agentSession: AgentSession | null,
 ) => {
-  const [outputView, setOutputView] = useState<OutputView>("json");
+  const [selectedOutputView, setSelectedOutputView] = useState<OutputView>("json");
   const outputViewContextRef = useRef<OutputViewContext | null>(null);
   const hasAgentSession = agentSession !== null;
+  const setOutputView = useCallback((view: OutputView) => {
+    setSelectedOutputView(view);
+  }, []);
 
   useEffect(() => {
     let outputViewContext = outputViewContextRef.current;
@@ -25,7 +31,6 @@ export const useOutputView = (
     }
 
     if (!hasAgentSession) {
-      setOutputView("json");
       return;
     }
 
@@ -34,8 +39,8 @@ export const useOutputView = (
     }
 
     outputViewContext.hasDefaultedAgent = true;
-    setOutputView("agent");
+    setSelectedOutputView("agent");
   }, [hasAgentSession, sourceRevision]);
 
-  return { outputView, setOutputView };
+  return { outputView: hasAgentSession ? selectedOutputView : "json", setOutputView };
 };

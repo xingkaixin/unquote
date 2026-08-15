@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionView } from "../src/components/agent-session-view";
 import { I18nProvider } from "../src/i18n/context";
-import type { AgentSession } from "../src/lib/agent-session";
+import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 
 const trajectoryMeasureName = "unquote:agentTrajectory:build";
 
@@ -67,8 +67,10 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> 
     onDetailSelectionChange: vi.fn(),
     onOpenRecord: vi.fn(),
   };
+  const sourceSession = overrides.session ?? session;
   const props: ComponentProps<typeof AgentSessionView> = {
-    session,
+    session: sourceSession,
+    model: overrides.model ?? createAgentSessionModel(sourceSession),
     isDesktop: true,
     detailSelection: null,
     onDetailSelectionChange: callbacks.onDetailSelectionChange,
@@ -89,14 +91,16 @@ afterEach(() => {
 });
 
 describe("AgentSessionView", () => {
-  it("does not rebuild the trajectory for a rerender with the same session", () => {
+  it("does not build the model while rendering or rerendering", () => {
+    const model = createAgentSessionModel(session);
     performance.clearMeasures(trajectoryMeasureName);
-    const { callbacks, rerender } = renderView();
+    const { callbacks, rerender } = renderView({ model });
 
     rerender(
       <I18nProvider>
         <AgentSessionView
           session={session}
+          model={model}
           isDesktop
           detailSelection={{ kind: "event", id: "event-2", recordId: "record-2" }}
           onDetailSelectionChange={callbacks.onDetailSelectionChange}
@@ -105,7 +109,7 @@ describe("AgentSessionView", () => {
       </I18nProvider>,
     );
 
-    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(1);
+    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(0);
   });
 
   it("renders the three columns and links every navigation source", () => {

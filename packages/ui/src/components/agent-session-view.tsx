@@ -1,9 +1,8 @@
-import { useMemo } from "react";
 import { useTranslation } from "../i18n/context";
 import {
-  createAgentSessionModel,
   type AgentDetailSelection,
   type AgentSession,
+  type AgentSessionModel,
 } from "../lib/agent-session";
 import { AgentConversationPane } from "./agent-conversation-pane";
 import { AgentFactsPane } from "./agent-facts-pane";
@@ -12,6 +11,7 @@ import { WorkspaceColumns } from "./workspace-columns";
 
 interface AgentSessionViewProps {
   session: AgentSession;
+  model: AgentSessionModel;
   isDesktop: boolean;
   detailSelection: AgentDetailSelection | null;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
@@ -20,13 +20,13 @@ interface AgentSessionViewProps {
 
 export const AgentSessionView = ({
   session,
+  model,
   isDesktop,
   detailSelection,
   onDetailSelectionChange,
   onOpenRecord,
 }: AgentSessionViewProps) => {
   const { t } = useTranslation();
-  const model = useMemo(() => createAgentSessionModel(session), [session]);
   const detail = model.resolveDetail(detailSelection);
 
   const selectDetail = (selection: AgentDetailSelection | null) => {

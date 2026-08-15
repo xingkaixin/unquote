@@ -1,0 +1,340 @@
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import type { MessageKey } from "../i18n/i18n";
+import { useTranslation } from "../i18n/context";
+import type {
+  AgentCanonicalSelection,
+  AgentDetailSelection,
+  AgentSessionModel,
+} from "../lib/agent-session/types";
+import {
+  agentTrajectoryFilterKinds,
+  createAgentTrajectoryPresentation,
+  filterAgentTrajectoryPresentation,
+  type AgentTrajectoryFilterKind,
+  type AgentTrajectoryPresentationSummary,
+  type AgentTrajectoryTimeRange,
+} from "../lib/agent-session/trajectory-presentation";
+import { AgentTrajectoryDetail } from "./agent-trajectory-detail";
+import { formatTrajectoryDuration } from "./agent-trajectory-format";
+import { AgentTrajectoryLedger } from "./agent-trajectory-ledger";
+import { AgentTrajectoryOverview } from "./agent-trajectory-overview";
+import { Button } from "./button";
+import { WorkspaceColumns } from "./workspace-columns";
+
+const MISSING_METRIC_VALUE = "—";
+
+const filterKindMessageKey: Record<AgentTrajectoryFilterKind, MessageKey> = {
+  all: "trajectory.kind.all",
+  user: "trajectory.kind.user",
+  system: "trajectory.kind.system",
+  assistant: "trajectory.kind.assistant",
+  reasoning: "trajectory.kind.reasoning",
+  tool: "trajectory.kind.tool",
+  subagent: "trajectory.kind.subagent",
+  compaction: "trajectory.kind.compaction",
+};
+
+const isAgentTrajectoryFilterKind = (value: string): value is AgentTrajectoryFilterKind =>
+  agentTrajectoryFilterKinds.some((kind) => kind === value);
+
+const formatMetricNumber = (value: number | undefined, locale: string) => {
+  if (value === undefined || !Number.isFinite(value)) {
+    return MISSING_METRIC_VALUE;
+  }
+  return new Intl.NumberFormat(locale).format(value);
+};
+
+const MetricCard = ({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) => (
+  <div
+    data-trajectory-metric={id}
+    className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5"
+  >
+    <span className="uq-label">{label}</span>
+    <span className="font-mono text-[14px] text-text-primary">{children}</span>
+  </div>
+);
+
+const TrajectorySummary = ({
+  summary,
+  isDesktop,
+}: {
+  summary: AgentTrajectoryPresentationSummary;
+  isDesktop: boolean;
+}) => {
+  const { locale, t } = useTranslation();
+  const duration = formatTrajectoryDuration(summary.durationMs, locale) || MISSING_METRIC_VALUE;
+
+  return (
+    <section
+      aria-label={t("trajectory.summary")}
+      data-trajectory-summary
+      className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-100${
+        isDesktop ? "" : " shrink-0"
+      }`}
+    >
+      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
+        <MetricCard id="turns" label={t("trajectory.metric.turns")}>
+          {formatMetricNumber(summary.turns, locale)}
+        </MetricCard>
+        <MetricCard id="events" label={t("trajectory.metric.events")}>
+          {formatMetricNumber(summary.events, locale)}
+        </MetricCard>
+        <MetricCard id="tools" label={t("trajectory.metric.tools")}>
+          {formatMetricNumber(summary.tools, locale)}
+        </MetricCard>
+        <MetricCard id="failures" label={t("trajectory.metric.failures")}>
+          {formatMetricNumber(summary.failures, locale)}
+        </MetricCard>
+        <MetricCard id="duration" label={t("trajectory.metric.duration")}>
+          {duration}
+        </MetricCard>
+        <MetricCard id="tokens" label={t("trajectory.metric.tokens")}>
+          <span className="flex flex-wrap gap-x-2 gap-y-1">
+            <span>
+              {t("trajectory.token.input")} {formatMetricNumber(summary.tokens.inputTokens, locale)}
+            </span>
+            <span>
+              {t("trajectory.token.output")}{" "}
+              {formatMetricNumber(summary.tokens.outputTokens, locale)}
+            </span>
+          </span>
+        </MetricCard>
+      </div>
+      <p
+        data-trajectory-warning-count
+        className="m-0 border-t border-border px-3 py-1.5 font-mono text-[10.5px] text-text-secondary"
+      >
+        {t("trajectory.warnings")} {formatMetricNumber(summary.warningCount, locale)}
+      </p>
+    </section>
+  );
+};
+
+interface TrajectoryFilterControlsProps {
+  query: string;
+  kind: AgentTrajectoryFilterKind;
+  hasTimeRange: boolean;
+  visibleCount: number;
+  totalCount: number;
+  onQueryChange: (query: string) => void;
+  onKindChange: (kind: AgentTrajectoryFilterKind) => void;
+  onClear: () => void;
+}
+
+const TrajectoryFilterControls = ({
+  query,
+  kind,
+  hasTimeRange,
+  visibleCount,
+  totalCount,
+  onQueryChange,
+  onKindChange,
+  onClear,
+}: TrajectoryFilterControlsProps) => {
+  const { t } = useTranslation();
+  const hasFilters = query.length > 0 || kind !== "all" || hasTimeRange;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+      <h1 className="uq-label m-0">{t("trajectory.title")}</h1>
+      <label className="flex flex-col gap-1.5">
+        <span className="uq-label">{t("trajectory.search")}</span>
+        <input
+          type="search"
+          value={query}
+          placeholder={t("trajectory.searchPlaceholder")}
+          onChange={(event) => onQueryChange(event.currentTarget.value)}
+          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent focus:ring-1 focus:ring-accent"
+        />
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="uq-label">{t("trajectory.kind")}</span>
+        <select
+          value={kind}
+          onChange={(event) => {
+            const nextKind = event.currentTarget.value;
+            if (isAgentTrajectoryFilterKind(nextKind)) {
+              onKindChange(nextKind);
+            }
+          }}
+          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+        >
+          {agentTrajectoryFilterKinds.map((candidate) => (
+            <option key={candidate} value={candidate}>
+              {t(filterKindMessageKey[candidate])}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!hasFilters}
+        onClick={onClear}
+        className="w-full"
+      >
+        {t("trajectory.clearFilters")}
+      </Button>
+      <p aria-live="polite" className="m-0 font-mono text-[10.5px] text-text-tertiary">
+        {t("trajectory.visibleCount", { visible: visibleCount, total: totalCount })}
+      </p>
+    </div>
+  );
+};
+
+export interface AgentTrajectoryViewProps {
+  model: AgentSessionModel;
+  isDesktop: boolean;
+  detailSelection: AgentDetailSelection | null;
+  onDetailSelectionChange: (selection: AgentDetailSelection) => void;
+  onOpenRecord: (selection: AgentDetailSelection, endpointRecordId: string) => void;
+}
+
+export const AgentTrajectoryView = ({
+  model,
+  isDesktop,
+  detailSelection,
+  onDetailSelectionChange,
+  onOpenRecord,
+}: AgentTrajectoryViewProps) => {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<AgentTrajectoryFilterKind>("all");
+  const [timeRange, setTimeRange] = useState<AgentTrajectoryTimeRange | null>(null);
+  const deferredQuery = useDeferredValue(query);
+  const presentation = useMemo(() => createAgentTrajectoryPresentation(model), [model]);
+  const itemsById = useMemo(
+    () => new Map(presentation.items.map((item) => [item.item.id, item])),
+    [presentation],
+  );
+  const filteredPresentation = useMemo(
+    () =>
+      filterAgentTrajectoryPresentation(presentation, { query: deferredQuery, kind, timeRange }),
+    [deferredQuery, kind, presentation, timeRange],
+  );
+  const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
+  const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
+  const domainStart = presentation.timeDomain?.start;
+  const domainEnd = presentation.timeDomain?.end;
+
+  useEffect(() => {
+    setQuery("");
+    setKind("all");
+    setTimeRange(null);
+  }, [model]);
+
+  useEffect(() => {
+    setTimeRange(null);
+  }, [domainEnd, domainStart]);
+
+  const clearFilters = () => {
+    setQuery("");
+    setKind("all");
+    setTimeRange(null);
+  };
+
+  const selectItem = (itemId: string) => {
+    const selection = model.selectTrajectory(itemId);
+    if (!selection || selection.kind !== "trajectory") {
+      return;
+    }
+    onDetailSelectionChange(selection);
+  };
+
+  const selectedTrajectorySelection = () => {
+    if (!selectedItem) {
+      return null;
+    }
+
+    const selection = model.selectTrajectory(selectedItem.item.id);
+    return selection?.kind === "trajectory" ? selection : null;
+  };
+
+  const openSelection = (selection: AgentDetailSelection, endpoint: AgentCanonicalSelection) => {
+    onOpenRecord(selection, endpoint.recordId);
+  };
+
+  const openSelectedItemSelection = (endpoint: AgentCanonicalSelection) => {
+    const selection = selectedTrajectorySelection();
+    if (!selection) {
+      return;
+    }
+
+    openSelection(selection, endpoint);
+  };
+
+  const openUnattachedWarning = (warning: AgentCanonicalSelection) => {
+    openSelection(selectedTrajectorySelection() ?? warning, warning);
+  };
+
+  return (
+    <div data-trajectory-ready className="uq-agent-shell flex min-h-0 flex-1 flex-col">
+      <WorkspaceColumns
+        isDesktop={isDesktop}
+        leftWidth={260}
+        rightWidth={310}
+        leftMobileHeight="30vh"
+        rightLabel={t("trajectory.detail")}
+        left={
+          <TrajectoryFilterControls
+            query={query}
+            kind={kind}
+            hasTimeRange={timeRange !== null}
+            visibleCount={filteredPresentation.visibleItems.length}
+            totalCount={presentation.items.length}
+            onQueryChange={setQuery}
+            onKindChange={setKind}
+            onClear={clearFilters}
+          />
+        }
+        center={
+          <div
+            className={`flex min-h-0 min-w-0 flex-1 flex-col gap-3 px-3 py-3 ${
+              isDesktop ? "overflow-hidden" : "overflow-x-hidden overflow-y-auto"
+            }`}
+          >
+            <TrajectorySummary summary={presentation.summary} isDesktop={isDesktop} />
+            <AgentTrajectoryOverview
+              presentation={presentation}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              className={isDesktop ? "" : "shrink-0"}
+            />
+            <section
+              className={`flex flex-col overflow-hidden rounded-lg border border-border bg-surface-100 ${
+                isDesktop ? "min-h-0 flex-1" : "h-72 shrink-0"
+              }`}
+            >
+              <h2 className="uq-label m-0 shrink-0 border-b border-border px-3 py-2">
+                {t("trajectory.ledger")}
+              </h2>
+              <AgentTrajectoryLedger
+                rows={filteredPresentation.ledgerRows}
+                selectedItemId={selectedItemId}
+                onSelectItem={selectItem}
+              />
+            </section>
+          </div>
+        }
+        right={
+          <AgentTrajectoryDetail
+            item={selectedItem}
+            unattachedWarningGroups={presentation.unattachedWarningGroups}
+            onOpenSelection={openSelectedItemSelection}
+            onOpenUnattachedWarning={openUnattachedWarning}
+          />
+        }
+      />
+    </div>
+  );
+};
