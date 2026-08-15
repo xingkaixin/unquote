@@ -25,7 +25,10 @@ and Linux locations. Runner-specific budgets can be supplied with
 `UNQUOTE_BENCH_DOM_NODES_BUDGET`, `UNQUOTE_BENCH_HEAP_BUDGET_MB`,
 `UNQUOTE_BENCH_AGENT_READY_BUDGET_MS`, and
 `UNQUOTE_BENCH_AGENT_TOOL_BUDGET_MS`, and
-`UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS`.
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS`,
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_READY_BUDGET_MS`,
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_ITEM_SELECTION_BUDGET_MS`, and
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_DOM_NODES_BUDGET`.
 
 ## CI Gate
 
@@ -68,30 +71,46 @@ rollout data.
 | Agent session ready p50 | 600 ms |
 | Agent tool expand ready p50 | 150 ms |
 | Agent trajectory build p50 | 50 ms |
+| Agent trajectory ready p50 | 100 ms |
+| Agent trajectory item selection ready p50 | 60 ms |
+| Agent trajectory DOM nodes max | 450 |
 | DOM nodes max | 3000 |
 | JS heap used max | 256 MB |
 
 ## Baseline
 
-Captured at `2026-08-15T17:58:22.012Z` with Node v24.19.0, macOS arm64, 10 CPU
+Captured at `2026-08-15T22:26:15.670Z` with Node v24.19.0, macOS arm64, 10 CPU
 cores, 32 GB memory, 3 samples, and 1 warmup per fixture.
 
-| Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | agentTrajectoryBuildMs p50 | DOM max | Heap max |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `benchmark/case1-agent-session.jsonl` | 433 | 117.74 ms | 190.4 ms | 214.9 ms | 341.6 ms | 1.3 ms | 678 | 5.7 MB |
-| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 227.9 ms | 160 ms | 245.7 ms | 351.8 ms | 8.8 ms | 678 | 11.38 MB |
-| `benchmark/case2-1MB.jsonl` | 1610 | 211.88 ms | 171.4 ms | 177.8 ms | 393.7 ms | — | 829 | 5.79 MB |
-| `benchmark/case2-5MB.jsonl` | 7956 | 1033.93 ms | 172.1 ms | 218.4 ms | 816.8 ms | — | 829 | 10.74 MB |
-| `benchmark/case2-10MB.jsonl` | 15765 | 2078.1 ms | 162.6 ms | 273.4 ms | 1308.7 ms | — | 829 | 16.87 MB |
-| `benchmark/case4-5K-rows.jsonl` | 5000 | 649.03 ms | 177.4 ms | 212.1 ms | 608.6 ms | — | 763 | 8.68 MB |
+| Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | Build p50 | Trajectory ready p50 | Item selection p50 | Trajectory DOM max | DOM max | Heap max |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `benchmark/case1-agent-session.jsonl` | 433 | 116.4 ms | 187.5 ms | 213.1 ms | 349.8 ms | 1.3 ms | 25.5 ms | 24.9 ms | 198 | 679 | 6.24 MB |
+| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 230.87 ms | 166.8 ms | 252 ms | 350 ms | 7.5 ms | 33.4 ms | 23.5 ms | 190 | 679 | 12.13 MB |
+| `benchmark/case2-1MB.jsonl` | 1610 | 212.95 ms | 161.2 ms | 176.4 ms | 399.2 ms | — | — | — | — | 829 | 5.87 MB |
+| `benchmark/case2-5MB.jsonl` | 7956 | 1014.07 ms | 168.6 ms | 221.9 ms | 809.5 ms | — | — | — | — | 829 | 10.87 MB |
+| `benchmark/case2-10MB.jsonl` | 15765 | 2036.06 ms | 163.8 ms | 265 ms | 1301.6 ms | — | — | — | — | 829 | 15.62 MB |
+| `benchmark/case4-5K-rows.jsonl` | 5000 | 672.14 ms | 172.2 ms | 203 ms | 609 ms | — | — | — | — | 763 | 8.5 MB |
 
 Both `pnpm benchmark` and `pnpm benchmark:agent` require the two synthetic
 Agent fixtures. The first contains 48 turns and 433 records in 1.13 MB; the
 second contains 556 turns and 5,005 records in 1.12 MB. Together they exercise
 streamed parsing and both virtualized Agent panes at ordinary and high session
-volume. This capture measured Agent session readiness at 181.8 ms and 228.9 ms
-p50, tool expansion at 19.5 ms and 24.1 ms p50, and trajectory projection at
-1.3 ms and 8.8 ms p50, respectively.
+volume. This capture measured Agent session readiness at 184.6 ms and 228.7 ms
+p50, tool expansion at 18 ms and 24.1 ms p50, and trajectory projection at
+1.3 ms and 7.5 ms p50, respectively.
+
+The three Agent-only trajectory metrics have the following sorted samples
+`[min, p50, max]`; with three samples, p50 is the middle sample and p95 is the
+same as max. Times are milliseconds.
+
+| Fixture | Metric | Sorted samples | Average | p50 | Max |
+|---|---|---:|---:|---:|---:|
+| `case1-agent-session` | Trajectory ready | [25, 25.5, 34.3] | 28.27 | 25.5 | 34.3 |
+| `case1-agent-session` | Item selection ready | [24.9, 24.9, 25] | 24.93 | 24.9 | 25 |
+| `case1-agent-session` | Trajectory DOM nodes | [198, 198, 198] | 198 | 198 | 198 |
+| `case1-agent-session-5K` | Trajectory ready | [33.2, 33.4, 33.4] | 33.33 | 33.4 | 33.4 |
+| `case1-agent-session-5K` | Item selection ready | [23.3, 23.5, 24.9] | 23.9 | 23.5 | 24.9 |
+| `case1-agent-session-5K` | Trajectory DOM nodes | [190, 190, 190] | 190 | 190 | 190 |
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
@@ -107,6 +126,37 @@ metrics to become usable. `agentToolReadyMs` expands a tool card and waits for
 its details. The benchmark requires both metrics for fixtures declared as
 `agent-session`; a schema drift that falls back to the JSON view fails the run
 instead of recording a misleading fast sample.
+
+`agentTrajectoryReadyMs` starts immediately before clicking the Trajectory tab,
+after the tool measurement. It waits for the shell's `trajectory` output view,
+`data-trajectory-ready`, an overview bucket count above zero, and an item whose
+rectangle has positive size and intersects its ledger list rectangle, then waits
+two animation frames. It reads the overview's aggregate bucket-count attribute;
+it does not inspect individual chart buckets. `agentTrajectoryItemSelectionReadyMs`
+starts immediately before clicking that mounted item. It completes only when the
+same button has `aria-current="true"` and the detail root's
+`data-trajectory-detail-item-token` equals that button's
+`data-trajectory-item-token`, followed by two animation frames. Both attributes
+carry the presentation item's safe ordinal token, not an original item id.
+
+At Trajectory mount, `agentTrajectoryDomNodes` is exactly
+`1 + trajectoryRoot.querySelectorAll('*').length`. The runner samples the full
+page DOM at the same point and includes that sample in the existing global
+`domNodes` maximum. A missing visible item, timeout, or identity mismatch fails
+the measurement path rather than producing zero or silently skipping it. These
+three values are required and budgeted only for `agent-session` fixtures; plain
+JSON and JSONL fixtures neither require nor report them.
+
+The defaults preserve the existing approximately 2.18× regression headroom,
+rounding milliseconds up to the next 10 and nodes up to the next 50. The
+slowest values in this full report yield `ceil10(34.3 × 2.18) = 80 ms` for
+Trajectory ready, `ceil10(25 × 2.18) = 60 ms` for item selection, and
+`ceil50(198 × 2.18) = 450` nodes. The ready budget remains at its established
+100 ms rather than tightening after one successful capture; the defaults are
+therefore 100 ms, 60 ms, and 450 nodes. The corresponding environment overrides are
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_READY_BUDGET_MS`,
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_ITEM_SELECTION_BUDGET_MS`, and
+`UNQUOTE_BENCH_AGENT_TRAJECTORY_DOM_NODES_BUDGET`.
 
 Agent fixtures also report `agentTrajectoryBuildMs` from exactly one
 `unquote:agentTrajectory:build` PerformanceMeasure. The entry covers only the
@@ -147,6 +197,7 @@ release budgets as the smaller fixtures: first record p50 under 1500 ms,
 complete and search p50 under 3000 ms, Expand Path p50 under 400 ms, Expand All
 p50 under 800 ms, DOM nodes under 3000, and JS heap under 256 MB. Agent fixtures
 add session-ready p50 under 600 ms, tool-expand p50 under 150 ms, and trajectory
-projection p50 under 50 ms. Use
+projection p50 under 50 ms, Trajectory ready p50 under 100 ms, item selection
+ready p50 under 60 ms, and Trajectory DOM nodes under 450. Use
 `benchmark:case4-fixture -- --rows=100000` for local 100k-row stress runs; the
 100k fixture is intentionally generated locally instead of committed.

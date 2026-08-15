@@ -57,30 +57,55 @@ export const summarize = (values) => {
  * Diagnostics outside this list stay optional and are reported only.
  */
 export const budgetedRenderMetrics = [
-  { metric: "firstRecordReadyMs", statistic: "p50", budget: "firstRecordReadyMsP50" },
-  { metric: "completeReadyMs", statistic: "p50", budget: "completeReadyMsP50" },
-  { metric: "searchReadyMs", statistic: "p50", budget: "searchReadyMsP50" },
-  { metric: "expandPathReadyMs", statistic: "p50", budget: "expandPathReadyMsP50" },
-  { metric: "expandAllReadyMs", statistic: "p50", budget: "expandAllReadyMsP50" },
-  { metric: "domNodes", statistic: "max", budget: "domNodesMax" },
-  { metric: "jsHeapUsedSizeMB", statistic: "max", budget: "jsHeapUsedSizeMBMax" },
+  { metric: "firstRecordReadyMs", statistic: "p50", budgetKey: "firstRecordReadyMsP50" },
+  { metric: "completeReadyMs", statistic: "p50", budgetKey: "completeReadyMsP50" },
+  { metric: "searchReadyMs", statistic: "p50", budgetKey: "searchReadyMsP50" },
+  { metric: "expandPathReadyMs", statistic: "p50", budgetKey: "expandPathReadyMsP50" },
+  { metric: "expandAllReadyMs", statistic: "p50", budgetKey: "expandAllReadyMsP50" },
+  { metric: "domNodes", statistic: "max", budgetKey: "domNodesMax" },
+  { metric: "jsHeapUsedSizeMB", statistic: "max", budgetKey: "jsHeapUsedSizeMBMax" },
 ];
 
 export const agentSessionBudgetedRenderMetrics = [
-  { metric: "agentSessionReadyMs", statistic: "p50", budget: "agentSessionReadyMsP50" },
-  { metric: "agentToolReadyMs", statistic: "p50", budget: "agentToolReadyMsP50" },
+  { metric: "agentSessionReadyMs", statistic: "p50", budgetKey: "agentSessionReadyMsP50" },
+  { metric: "agentToolReadyMs", statistic: "p50", budgetKey: "agentToolReadyMsP50" },
 ];
 
 export const agentTrajectoryBuildMetric = {
   metric: "agentTrajectoryBuildMs",
   entryName: "unquote:agentTrajectory:build",
   statistic: "p50",
-  budget: "agentTrajectoryBuildMsP50",
+  budgetKey: "agentTrajectoryBuildMsP50",
 };
+
+export const agentTrajectoryRenderBudgetContract = Object.freeze([
+  Object.freeze({
+    metric: "agentTrajectoryReadyMs",
+    statistic: "p50",
+    budgetKey: "agentTrajectoryReadyMsP50",
+    envKey: "UNQUOTE_BENCH_AGENT_TRAJECTORY_READY_BUDGET_MS",
+    defaultBudget: 100,
+  }),
+  Object.freeze({
+    metric: "agentTrajectoryItemSelectionReadyMs",
+    statistic: "p50",
+    budgetKey: "agentTrajectoryItemSelectionReadyMsP50",
+    envKey: "UNQUOTE_BENCH_AGENT_TRAJECTORY_ITEM_SELECTION_BUDGET_MS",
+    defaultBudget: 60,
+  }),
+  Object.freeze({
+    metric: "agentTrajectoryDomNodes",
+    statistic: "max",
+    budgetKey: "agentTrajectoryDomNodesMax",
+    envKey: "UNQUOTE_BENCH_AGENT_TRAJECTORY_DOM_NODES_BUDGET",
+    defaultBudget: 450,
+  }),
+]);
 
 export const agentSessionRequiredRenderMetrics = [
   ...agentSessionBudgetedRenderMetrics,
   agentTrajectoryBuildMetric,
+  ...agentTrajectoryRenderBudgetContract,
 ];
 
 export const agentTrajectoryMetricForScenario = (scenario) =>
@@ -130,7 +155,15 @@ export const collectBudgetFailures = (
       ...budgetedRenderMetrics,
       ...(additionalMetricsByFixture[fixture] ?? []),
     ];
-    for (const { metric, statistic, budget } of requiredMetrics) {
+    for (const { metric, statistic, budgetKey } of requiredMetrics) {
+      const budget = budgets?.[budgetKey];
+      if (!Number.isFinite(budget) || budget < 0) {
+        failures.push(
+          `${fixture} ${metric}.${statistic} requires a finite non-negative budget ${budgetKey}, received ${String(budget)}`,
+        );
+        continue;
+      }
+
       const summary = metrics[metric];
       const samples = summary?.samples ?? 0;
       if (samples < expectedSamples) {
@@ -151,8 +184,8 @@ export const collectBudgetFailures = (
         continue;
       }
 
-      if (budget !== undefined && value > budgets[budget]) {
-        failures.push(`${fixture} ${metric}.${statistic} ${value} > ${budgets[budget]}`);
+      if (value > budget) {
+        failures.push(`${fixture} ${metric}.${statistic} ${value} > ${budget}`);
       }
     }
   }
