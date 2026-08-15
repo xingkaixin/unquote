@@ -1,16 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
+import {
+  createAgentSessionModel,
+  createAgentTrajectoryModel,
+  type AgentSession,
+} from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const conversationItems = (session: AgentSession) =>
   createAgentSessionModel(session).conversation.map(({ item }) => item);
 
+const trajectoryTurnId = (source: "evidence" | "fallback-index", value: string | number) =>
+  JSON.stringify([source, value]);
+
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
   recordId: `record-${lineNumber}`,
 });
+
+const expectTrajectorySelectionsToResolve = (session: AgentSession) => {
+  const trajectory = createAgentTrajectoryModel(session);
+  const model = createAgentSessionModel(session);
+
+  for (const item of trajectory.items) {
+    expect(model.resolveDetail(item.selection)?.recordId).toBe(item.recordId);
+    if (item.kind === "tool") {
+      if (item.callSelection) {
+        expect(model.resolveDetail(item.callSelection)?.recordId).toBe(item.callSelection.recordId);
+      }
+      if (item.resultSelection) {
+        expect(model.resolveDetail(item.resultSelection)?.recordId).toBe(
+          item.resultSelection.recordId,
+        );
+      }
+    }
+  }
+
+  return trajectory;
+};
 
 const transcriptLine = (lineNumber: number): ParsedAgentLine =>
   parsedLine(
@@ -370,5 +398,610 @@ describe("claudeTranscriptAdapter", () => {
 
     expect(session.events[0]).toMatchObject({ label: "text", preview: "Plain reply" });
     expect(conversationItems(session)[0]?.block).toEqual({ type: "text", text: "Plain reply" });
+  });
+
+  it("emits ordered, turn-scoped evidence from attached Claude blocks", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-1",
+          timestamp: 100,
+          message: { content: "Inspect the repository" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          timestamp: 200,
+          message: {
+            content: [
+              { type: "thinking", thinking: "Find the relevant files" },
+              { type: "text", text: "I will inspect them." },
+              { type: "tool_use", id: "tool-1", name: "Bash", input: { command: "pwd" } },
+            ],
+            usage: {
+              input_tokens: 11,
+              cache_creation_input_tokens: 12,
+              cache_read_input_tokens: 13,
+              output_tokens: 14,
+            },
+          },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "must-not-replace-prompt-1",
+          timestamp: 850,
+          message: {
+            content: [
+              { type: "text", text: "Tool output follows" },
+              { type: "tool_result", tool_use_id: "tool-1", content: { cwd: "/repo" } },
+            ],
+          },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.meta.turnCount).toBe(1);
+    expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
+    expect(session.events[0]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "user",
+        conversationItemId: "conv-1-block-0",
+        turnId: "prompt-1",
+      },
+    ]);
+    expect(session.events[1]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "reasoning",
+        conversationItemId: "conv-2-block-0",
+        turnId: "prompt-1",
+      },
+      {
+        kind: "model-output",
+        role: "assistant",
+        conversationItemId: "conv-2-block-1",
+        turnId: "prompt-1",
+      },
+      {
+        kind: "tool-lifecycle",
+        phase: "call",
+        toolName: "Bash",
+        callId: "tool-1",
+        conversationItemId: "conv-2-block-2",
+        turnId: "prompt-1",
+      },
+      {
+        kind: "token-usage",
+        usage: {
+          inputTokens: 11,
+          cacheCreationInputTokens: 12,
+          cacheReadInputTokens: 13,
+          outputTokens: 14,
+        },
+        turnId: "prompt-1",
+      },
+    ]);
+    expect(session.events[2]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "user",
+        conversationItemId: "conv-3-block-0",
+        turnId: "prompt-1",
+      },
+      {
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "completed",
+        callId: "tool-1",
+        conversationItemId: "conv-3-block-1",
+        turnId: "prompt-1",
+      },
+    ]);
+    const trajectory = expectTrajectorySelectionsToResolve(session);
+    expect(trajectory.turns).toMatchObject([
+      {
+        id: trajectoryTurnId("evidence", "prompt-1"),
+        status: "running",
+        turnIndex: 1,
+        startedAt: 100,
+      },
+    ]);
+    expect(trajectory.items.map((item) => [item.id, item.kind])).toEqual([
+      ["line-1:evidence-0", "user"],
+      ["line-2:evidence-0", "reasoning"],
+      ["line-2:evidence-1", "assistant"],
+      ["line-2:evidence-2", "tool"],
+      ["line-3:evidence-0", "user"],
+    ]);
+    expect(trajectory.items[2]).toMatchObject({
+      tokenUsage: {
+        inputTokens: 11,
+        cacheCreationInputTokens: 12,
+        cacheReadInputTokens: 13,
+        outputTokens: 14,
+      },
+    });
+    expect(trajectory.items[3]).toMatchObject({
+      toolName: "Bash",
+      callId: "tool-1",
+      status: "completed",
+      startedAt: 200,
+      endedAt: 850,
+      durationMs: 650,
+      callSelection: { kind: "conversation", id: "conv-2-block-2", recordId: "record-2" },
+      resultSelection: { kind: "conversation", id: "conv-3-block-1", recordId: "record-3" },
+    });
+  });
+
+  it("keeps repeated Claude blocks and parallel results as separate evidence", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-blocks",
+          message: { content: "Read both files" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          timestamp: 100,
+          message: {
+            content: [
+              { type: "thinking", thinking: "First thought" },
+              { type: "text", text: "First response" },
+              { type: "thinking", thinking: "Second thought" },
+              { type: "text", text: "Second response" },
+              { type: "tool_use", id: "tool-alpha", name: "Read", input: { path: "a.ts" } },
+              { type: "tool_use", id: "tool-beta", name: "Read", input: { path: "b.ts" } },
+            ],
+          },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          timestamp: 140,
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "tool-alpha", content: "alpha" },
+              { type: "tool_result", tool_use_id: "tool-beta", content: "beta", is_error: true },
+            ],
+          },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const assistantEvidence = session.events[1]?.trajectoryEvidence ?? [];
+    const resultEvidence = session.events[2]?.trajectoryEvidence ?? [];
+
+    expect(assistantEvidence).toHaveLength(6);
+    expect(
+      assistantEvidence.map((evidence) =>
+        "conversationItemId" in evidence ? evidence.conversationItemId : undefined,
+      ),
+    ).toEqual([
+      "conv-2-block-0",
+      "conv-2-block-1",
+      "conv-2-block-2",
+      "conv-2-block-3",
+      "conv-2-block-4",
+      "conv-2-block-5",
+    ]);
+    expect(assistantEvidence.map((evidence) => evidence.kind)).toEqual([
+      "model-output",
+      "model-output",
+      "model-output",
+      "model-output",
+      "tool-lifecycle",
+      "tool-lifecycle",
+    ]);
+    expect(assistantEvidence.slice(0, 4)).toMatchObject([
+      { role: "reasoning", turnId: "prompt-blocks" },
+      { role: "assistant", turnId: "prompt-blocks" },
+      { role: "reasoning", turnId: "prompt-blocks" },
+      { role: "assistant", turnId: "prompt-blocks" },
+    ]);
+    expect(assistantEvidence.slice(4)).toMatchObject([
+      { phase: "call", toolName: "Read", callId: "tool-alpha", turnId: "prompt-blocks" },
+      { phase: "call", toolName: "Read", callId: "tool-beta", turnId: "prompt-blocks" },
+    ]);
+    expect(resultEvidence).toEqual([
+      {
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "completed",
+        callId: "tool-alpha",
+        conversationItemId: "conv-3-block-0",
+        turnId: "prompt-blocks",
+      },
+      {
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "failed",
+        callId: "tool-beta",
+        conversationItemId: "conv-3-block-1",
+        turnId: "prompt-blocks",
+      },
+    ]);
+
+    const trajectory = expectTrajectorySelectionsToResolve(session);
+    expect(
+      trajectory.items
+        .filter((item) => item.kind === "tool")
+        .map((item) => ({
+          callId: item.callId,
+          status: item.status,
+          callSelection: item.callSelection,
+          resultSelection: item.resultSelection,
+        })),
+    ).toEqual([
+      {
+        callId: "tool-alpha",
+        status: "completed",
+        callSelection: { kind: "conversation", id: "conv-2-block-4", recordId: "record-2" },
+        resultSelection: { kind: "conversation", id: "conv-3-block-0", recordId: "record-3" },
+      },
+      {
+        callId: "tool-beta",
+        status: "failed",
+        callSelection: { kind: "conversation", id: "conv-2-block-5", recordId: "record-2" },
+        resultSelection: { kind: "conversation", id: "conv-3-block-1", recordId: "record-3" },
+      },
+    ]);
+  });
+
+  it("does not let a promptless tool result replace the active Claude prompt", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-stable",
+          message: { content: "Run it" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: [{ type: "tool_result", content: "output" }] },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Done" }] },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.meta.turnCount).toBe(1);
+    expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
+    expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+      { turnId: "prompt-stable" },
+      { turnId: "prompt-stable" },
+      { turnId: "prompt-stable" },
+    ]);
+    expect(expectTrajectorySelectionsToResolve(session).turns).toMatchObject([
+      { id: trajectoryTurnId("evidence", "prompt-stable"), status: "running" },
+    ]);
+  });
+
+  it("uses the display-index fallback for ordinary prompts without prompt ids", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: "P" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: "A" },
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.meta.turnCount).toBe(1);
+    expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1]);
+    expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toEqual([
+      {
+        kind: "model-output",
+        role: "user",
+        conversationItemId: "conv-1-block-0",
+      },
+      {
+        kind: "model-output",
+        role: "assistant",
+        conversationItemId: "conv-2-block-0",
+      },
+    ]);
+    expect(expectTrajectorySelectionsToResolve(session).turns).toMatchObject([
+      {
+        id: trajectoryTurnId("fallback-index", 1),
+        status: "running",
+        turnIndex: 1,
+        items: [
+          { kind: "user", recordId: "record-1" },
+          { kind: "assistant", recordId: "record-2" },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps empty ordinary messages and their token usage in the fallback trajectory", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: "" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            content: "",
+            usage: { input_tokens: 7, output_tokens: 3 },
+          },
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const trajectory = expectTrajectorySelectionsToResolve(session);
+
+    expect(session.meta.turnCount).toBe(1);
+    expect(session.events[0]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "user",
+        conversationItemId: "conv-1-user",
+      },
+    ]);
+    expect(session.events[1]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "assistant",
+        conversationItemId: "conv-2-assistant",
+      },
+      {
+        kind: "token-usage",
+        usage: { inputTokens: 7, outputTokens: 3 },
+      },
+    ]);
+    expect(trajectory.turns).toMatchObject([
+      {
+        id: trajectoryTurnId("fallback-index", 1),
+        items: [
+          { kind: "user", recordId: "record-1" },
+          {
+            kind: "assistant",
+            recordId: "record-2",
+            tokenUsage: { inputTokens: 7, outputTokens: 3 },
+          },
+        ],
+      },
+    ]);
+    expect(trajectory.warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "unattached-token-usage" })]),
+    );
+  });
+
+  it("does not create a fallback turn from promptless tool results", () => {
+    const activeBuilder = claudeTranscriptAdapter.createBuilder();
+    activeBuilder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-existing",
+          message: { content: "P" },
+        },
+        1,
+      ),
+    );
+    activeBuilder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: [{ type: "tool_result", content: "result" }] },
+        },
+        2,
+      ),
+    );
+    const activeSession = activeBuilder.finish([]);
+
+    expect(activeSession.meta.turnCount).toBe(1);
+    expect(activeSession.events.map((event) => event.turnIndex)).toEqual([1, 1]);
+    expect(activeSession.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+      { turnId: "prompt-existing" },
+      { turnId: "prompt-existing" },
+    ]);
+
+    const unscopedBuilder = claudeTranscriptAdapter.createBuilder();
+    unscopedBuilder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: [{ type: "tool_result", content: "result" }] },
+        },
+        1,
+      ),
+    );
+    unscopedBuilder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: "A" },
+        },
+        2,
+      ),
+    );
+    const unscopedSession = unscopedBuilder.finish([]);
+
+    expect(unscopedSession.meta.turnCount).toBe(0);
+    expect(unscopedSession.events.map((event) => event.turnIndex)).toEqual([undefined, undefined]);
+    expect(unscopedSession.events.flatMap((event) => event.trajectoryEvidence ?? [])).toEqual([
+      {
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "completed",
+        conversationItemId: "conv-1-block-0",
+      },
+      {
+        kind: "model-output",
+        role: "assistant",
+        conversationItemId: "conv-2-block-0",
+      },
+    ]);
+    expect(expectTrajectorySelectionsToResolve(unscopedSession).turns).toEqual([]);
+  });
+
+  it("keeps sparse usage, idless results, and open Claude turns truthful", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-open",
+          timestamp: 50,
+          message: { stop_reason: "end_turn", content: "Continue" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Working" }],
+            usage: { input_tokens: 0, cache_read_input_tokens: 7 },
+          },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          message: { content: [{ type: "tool_result", content: "unattributed" }] },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const evidence = session.events.flatMap((event) => event.trajectoryEvidence ?? []);
+
+    expect(session.events[1]?.usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 7,
+    });
+    expect(session.events[1]?.stopReason).toBe("end_turn");
+    expect(session.events[1]?.trajectoryEvidence).toEqual([
+      {
+        kind: "model-output",
+        role: "assistant",
+        conversationItemId: "conv-2-block-0",
+        turnId: "prompt-open",
+      },
+      {
+        kind: "token-usage",
+        usage: { inputTokens: 0, cacheReadInputTokens: 7 },
+        turnId: "prompt-open",
+      },
+    ]);
+    expect(
+      session.events[1]?.trajectoryEvidence?.some((entry) => entry.kind === "turn-lifecycle"),
+    ).toBe(false);
+    expect(session.events[2]?.trajectoryEvidence).toEqual([
+      {
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "completed",
+        conversationItemId: "conv-3-block-0",
+        turnId: "prompt-open",
+      },
+    ]);
+    expect(evidence.map((entry) => entry.kind)).not.toContain("turn-lifecycle");
+    expect(evidence.map((entry) => entry.kind)).not.toContain("subagent-activity");
+    expect(evidence.map((entry) => entry.kind)).not.toContain("compaction");
+
+    const trajectory = expectTrajectorySelectionsToResolve(session);
+    expect(trajectory.turns).toMatchObject([
+      { id: trajectoryTurnId("evidence", "prompt-open"), status: "running", startedAt: 50 },
+    ]);
+    expect(trajectory.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "open-turn", turnId: "prompt-open" }),
+      ]),
+    );
+    expect(trajectory.items[1]).toMatchObject({
+      kind: "assistant",
+      tokenUsage: { inputTokens: 0, cacheReadInputTokens: 7 },
+    });
+    expect(trajectory.items[2]).toMatchObject({
+      kind: "tool",
+      status: "completed",
+      recordId: "record-3",
+      selection: { kind: "conversation", id: "conv-3-block-0", recordId: "record-3" },
+    });
+    expect(trajectory.items[2]).not.toHaveProperty("callId");
+    expect(trajectory.items[2]).not.toHaveProperty("callSelection");
+    expect(trajectory.items[2]).not.toHaveProperty("endedAt");
+    expect(trajectory.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "unpaired-tool-result" })]),
+    );
   });
 });

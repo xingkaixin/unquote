@@ -5,6 +5,8 @@ import { AgentSessionView } from "../src/components/agent-session-view";
 import { I18nProvider } from "../src/i18n/context";
 import type { AgentSession } from "../src/lib/agent-session";
 
+const trajectoryMeasureName = "unquote:agentTrajectory:build";
+
 const session: AgentSession = {
   fileType: "Codex",
   fileName: "rollout.jsonl",
@@ -81,9 +83,31 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> 
   return { callbacks, ...view };
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  performance.clearMeasures(trajectoryMeasureName);
+});
 
 describe("AgentSessionView", () => {
+  it("does not rebuild the trajectory for a rerender with the same session", () => {
+    performance.clearMeasures(trajectoryMeasureName);
+    const { callbacks, rerender } = renderView();
+
+    rerender(
+      <I18nProvider>
+        <AgentSessionView
+          session={session}
+          isDesktop
+          detailSelection={{ kind: "event", id: "event-2", recordId: "record-2" }}
+          onDetailSelectionChange={callbacks.onDetailSelectionChange}
+          onOpenRecord={callbacks.onOpenRecord}
+        />
+      </I18nProvider>,
+    );
+
+    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(1);
+  });
+
   it("renders the three columns and links every navigation source", () => {
     const { callbacks } = renderView();
 

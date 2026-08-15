@@ -36,6 +36,100 @@ export interface AgentTokenUsage {
   outputTokens: number;
 }
 
+export interface AgentTrajectoryTokenUsage {
+  inputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  outputTokens?: number;
+  reasoningOutputTokens?: number;
+}
+
+export interface AgentTrajectoryTokenUsageSnapshot {
+  readonly inputTokens?: number;
+  readonly cacheCreationInputTokens?: number;
+  readonly cacheReadInputTokens?: number;
+  readonly outputTokens?: number;
+  readonly reasoningOutputTokens?: number;
+}
+
+export type AgentTrajectoryStatus = "running" | "completed" | "failed" | "aborted";
+
+interface AgentTrajectoryEvidenceBase {
+  turnId?: string;
+}
+
+export interface AgentTurnLifecycleEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "turn-lifecycle";
+  phase: "start" | "complete" | "failed" | "aborted";
+}
+
+export interface AgentModelOutputEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "model-output";
+  role: "user" | "assistant" | "reasoning";
+  conversationItemId?: string;
+}
+
+export interface AgentToolCallEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "tool-lifecycle";
+  phase: "call";
+  toolName: string;
+  callId?: string;
+  conversationItemId?: string;
+}
+
+export interface AgentToolResultEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "tool-lifecycle";
+  phase: "result";
+  status?: "completed" | "failed";
+  callId?: string;
+  durationMs?: number;
+  conversationItemId?: string;
+}
+
+export interface AgentToolCompletionEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "tool-lifecycle";
+  phase: "completion";
+  status?: "completed" | "failed";
+  callId?: string;
+  durationMs?: number;
+}
+
+export type AgentToolLifecycleEvidence =
+  | AgentToolCallEvidence
+  | AgentToolResultEvidence
+  | AgentToolCompletionEvidence;
+
+interface AgentTokenUsageEvidenceBase extends AgentTrajectoryEvidenceBase {
+  kind: "token-usage";
+}
+
+export type AgentTokenUsageEvidence =
+  | (AgentTokenUsageEvidenceBase & {
+      usage: AgentTrajectoryTokenUsage;
+      cumulativeUsage?: AgentTrajectoryTokenUsage;
+    })
+  | (AgentTokenUsageEvidenceBase & {
+      usage?: never;
+      cumulativeUsage: AgentTrajectoryTokenUsage;
+    });
+
+export interface AgentSubagentActivityEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "subagent-activity";
+  status: AgentTrajectoryStatus;
+}
+
+export interface AgentCompactionEvidence extends AgentTrajectoryEvidenceBase {
+  kind: "compaction";
+}
+
+export type AgentTrajectoryEvidence =
+  | AgentTurnLifecycleEvidence
+  | AgentModelOutputEvidence
+  | AgentToolLifecycleEvidence
+  | AgentTokenUsageEvidence
+  | AgentSubagentActivityEvidence
+  | AgentCompactionEvidence;
+
 export type AgentContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
@@ -72,6 +166,7 @@ export interface AgentTimelineEvent {
   timestampLabel?: string;
   role?: string;
   stopReason?: string;
+  trajectoryEvidence?: readonly AgentTrajectoryEvidence[];
 }
 
 export interface AgentConversationItem {
@@ -90,9 +185,168 @@ export interface AgentSession {
 }
 
 export type AgentDetailSelection =
-  | { kind: "record"; recordId: string }
-  | { kind: "event"; id: string; recordId: string }
-  | { kind: "conversation"; id: string; recordId: string };
+  | { readonly kind: "record"; readonly recordId: string }
+  | { readonly kind: "event"; readonly id: string; readonly recordId: string }
+  | { readonly kind: "conversation"; readonly id: string; readonly recordId: string };
+
+export type AgentTrajectoryItemKind =
+  | "user"
+  | "assistant"
+  | "reasoning"
+  | "tool"
+  | "subagent"
+  | "compaction";
+
+export interface AgentTrajectoryStep {
+  readonly index: number;
+  readonly source: "derived";
+}
+
+export interface AgentTrajectoryItemBase<
+  TKind extends AgentTrajectoryItemKind = AgentTrajectoryItemKind,
+  TStatus extends AgentTrajectoryStatus = AgentTrajectoryStatus,
+> {
+  readonly id: string;
+  readonly kind: TKind;
+  readonly status: TStatus;
+  readonly recordId: string;
+  readonly lineNumber: number;
+  readonly selection: AgentDetailSelection;
+  readonly timestamp?: number;
+  readonly turnIndex?: number;
+}
+
+export interface AgentTrajectoryToolItem extends AgentTrajectoryItemBase<
+  "tool",
+  "running" | "completed" | "failed"
+> {
+  readonly toolName?: string;
+  readonly callId?: string;
+  readonly callSelection?: AgentDetailSelection;
+  readonly resultSelection?: AgentDetailSelection;
+  readonly completionSelection?: AgentDetailSelection;
+  readonly startedAt?: number;
+  readonly endedAt?: number;
+  readonly durationMs?: number;
+}
+
+export type AgentTrajectoryUserItem = AgentTrajectoryItemBase<"user", "completed">;
+
+export type AgentTrajectoryAssistantReasoningItem = AgentTrajectoryItemBase<
+  "assistant" | "reasoning",
+  "completed"
+> & {
+  readonly step?: AgentTrajectoryStep;
+  readonly tokenUsage?: AgentTrajectoryTokenUsageSnapshot;
+};
+
+export type AgentTrajectoryModelOutputItem =
+  | AgentTrajectoryUserItem
+  | AgentTrajectoryAssistantReasoningItem;
+
+export type AgentTrajectorySubagentItem = AgentTrajectoryItemBase<
+  "subagent",
+  AgentTrajectoryStatus
+>;
+
+export type AgentTrajectoryCompactionItem = AgentTrajectoryItemBase<"compaction", "completed">;
+
+export type AgentTrajectoryItem =
+  | AgentTrajectoryToolItem
+  | AgentTrajectoryModelOutputItem
+  | AgentTrajectorySubagentItem
+  | AgentTrajectoryCompactionItem;
+
+export interface AgentTrajectoryTurn {
+  readonly id: string;
+  readonly status: AgentTrajectoryStatus;
+  readonly items: readonly AgentTrajectoryItem[];
+  readonly turnIndex?: number;
+  readonly startedAt?: number;
+  readonly endedAt?: number;
+  readonly durationMs?: number;
+}
+
+interface AgentTrajectoryWarningBase {
+  readonly recordId: string;
+  readonly lineNumber: number;
+  readonly selection: AgentDetailSelection;
+  readonly turnIndex?: number;
+}
+
+export type AgentTrajectoryWarning =
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "missing-timestamp";
+      readonly subject: "tool";
+      readonly endpoint: "call" | "result" | "completion";
+      readonly callId?: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "missing-timestamp";
+      readonly subject: "turn";
+      readonly endpoint: "start" | "terminal";
+      readonly turnId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "missing-turn-start";
+      readonly turnId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "reversed-timestamp";
+      readonly subject: "tool";
+      readonly callId?: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "reversed-timestamp";
+      readonly subject: "turn";
+      readonly turnId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "unpaired-tool-call";
+      readonly callId?: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "unpaired-tool-result";
+      readonly callId?: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "unpaired-tool-completion";
+      readonly callId?: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "duplicate-tool-call-id";
+      readonly callId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "duplicate-tool-result-id";
+      readonly callId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "duplicate-tool-completion-id";
+      readonly callId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "open-turn";
+      readonly turnId: string;
+    })
+  | (AgentTrajectoryWarningBase & {
+      readonly kind: "unattached-token-usage";
+    });
+
+export interface AgentTrajectoryStats {
+  readonly turnCount: number;
+  readonly itemCount: number;
+  readonly toolCount: number;
+  readonly failedToolCount: number;
+  readonly tokenUsage: AgentTrajectoryTokenUsageSnapshot;
+}
+
+export interface AgentTrajectoryModel {
+  readonly turns: readonly AgentTrajectoryTurn[];
+  readonly items: readonly AgentTrajectoryItem[];
+  readonly warnings: readonly AgentTrajectoryWarning[];
+  readonly stats: AgentTrajectoryStats;
+}
 
 export interface AgentConversationEntry {
   item: AgentConversationItem;
@@ -116,6 +370,7 @@ export interface AgentSessionModel {
   events: readonly AgentTimelineEvent[];
   conversation: readonly AgentConversationEntry[];
   integrityIssues: readonly AgentSessionIntegrityIssue[];
+  readonly trajectory: AgentTrajectoryModel;
   resolveDetail(selection: AgentDetailSelection | null): AgentSessionDetail | null;
   selectEvent(eventId: string): AgentDetailSelection | null;
   selectConversation(itemId: string): AgentDetailSelection | null;

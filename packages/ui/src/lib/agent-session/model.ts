@@ -7,8 +7,19 @@ import type {
   AgentSessionIntegrityIssue,
   AgentSessionModel,
   AgentTimelineEvent,
+  AgentTrajectoryModel,
+  AgentTrajectoryToolItem,
   AgentToolStatus,
 } from "./types";
+import { measurePerfFn } from "../perf";
+import {
+  createToolCorrelationGroups,
+  toolCorrelationGroupFor,
+  toolCorrelationScope,
+  uniqueToolPair,
+  type ToolCorrelationGroup,
+} from "./tool-correlation";
+import { createAgentTrajectoryModel } from "./trajectory-model";
 
 const detailForEvent = (
   event: AgentTimelineEvent,
@@ -25,6 +36,27 @@ const toolUseBlock = (item: AgentConversationItem | undefined) =>
 const toolResultBlock = (item: AgentConversationItem | undefined) =>
   item?.block?.type === "tool_result" ? item.block : undefined;
 
+type ToolGroup = ToolCorrelationGroup<AgentConversationItem, AgentConversationItem>;
+
+const finiteTurnIndex = (value: number | undefined) =>
+  typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
+
+const explicitTurnIdsByConversationItem = (event: AgentTimelineEvent) => {
+  const turnIds = new Map<string, string>();
+  for (const evidence of event.trajectoryEvidence ?? []) {
+    if (
+      evidence.kind !== "model-output" &&
+      (evidence.kind !== "tool-lifecycle" || evidence.phase === "completion")
+    ) {
+      continue;
+    }
+    if (evidence.conversationItemId && evidence.turnId) {
+      turnIds.set(evidence.conversationItemId, evidence.turnId);
+    }
+  }
+  return turnIds;
+};
+
 export const createAgentSessionModel = (session: AgentSession): AgentSessionModel => {
   const events: AgentTimelineEvent[] = [];
   const conversation: AgentConversationEntry[] = [];
@@ -33,8 +65,8 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const eventByRecordId = new Map<string, AgentTimelineEvent>();
   const conversationById = new Map<string, AgentConversationEntry>();
   const firstConversationByEventId = new Map<string, AgentConversationEntry>();
-  const toolUseByCallId = new Map<string, AgentConversationItem>();
-  const toolResultByCallId = new Map<string, AgentConversationItem>();
+  const toolGroups = createToolCorrelationGroups<AgentConversationItem, AgentConversationItem>();
+  const toolGroupByItem = new Map<AgentConversationItem, ToolGroup>();
 
   for (const event of session.events) {
     if (eventById.has(event.id)) {
@@ -49,6 +81,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     events.push(event);
     eventById.set(event.id, event);
     eventByRecordId.set(event.recordId, event);
+    const evidenceTurnIds = explicitTurnIdsByConversationItem(event);
 
     for (const item of event.conversationItems) {
       if (conversationById.has(item.id)) {
@@ -61,13 +94,47 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
       if (!firstConversationByEventId.has(event.id)) {
         firstConversationByEventId.set(event.id, entry);
       }
-      const callId = toolUseBlock(item)?.toolCallId;
-      if (callId) {
-        toolUseByCallId.set(callId, item);
+
+      const call = toolUseBlock(item);
+      const result = toolResultBlock(item);
+      const callId = call?.toolCallId ?? result?.toolCallId;
+      if (!callId) {
+        continue;
       }
-      const resultId = toolResultBlock(item)?.toolCallId;
-      if (resultId) {
-        toolResultByCallId.set(resultId, item);
+
+      const scope = toolCorrelationScope(
+        evidenceTurnIds.get(item.id),
+        finiteTurnIndex(item.turnIndex) ?? finiteTurnIndex(event.turnIndex),
+      );
+      const group = toolCorrelationGroupFor(toolGroups, scope, callId);
+      if (call) {
+        group.calls.push(item);
+      } else if (result) {
+        group.results.push(item);
+      }
+      toolGroupByItem.set(item, group);
+    }
+  }
+
+  const trajectory: AgentTrajectoryModel = measurePerfFn("agentTrajectory:build", () =>
+    createAgentTrajectoryModel(session),
+  );
+  const trajectoryToolByConversationItem = new Map<
+    AgentConversationItem,
+    AgentTrajectoryToolItem
+  >();
+
+  for (const item of trajectory.items) {
+    if (item.kind !== "tool") {
+      continue;
+    }
+    for (const selection of [item.callSelection, item.resultSelection]) {
+      if (!selection || selection.kind !== "conversation") {
+        continue;
+      }
+      const entry = conversationById.get(selection.id);
+      if (entry && entry.event.recordId === selection.recordId) {
+        trajectoryToolByConversationItem.set(entry.item, item);
       }
     }
   }
@@ -111,33 +178,46 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
       : null;
   };
 
-  // A tool call never carries its own outcome; only the paired result does.
+  const uniqueToolPairFor = (item: AgentConversationItem) => {
+    const group = toolGroupByItem.get(item);
+    return group ? uniqueToolPair(group) : null;
+  };
+
   const resolveToolStatus = (item: AgentConversationItem): AgentToolStatus => {
+    const trajectoryTool = trajectoryToolByConversationItem.get(item);
+    if (trajectoryTool) {
+      return trajectoryTool.status === "running" ? "pending" : trajectoryTool.status;
+    }
+
     const result = toolResultBlock(item);
     if (result) {
       return result.status;
     }
 
-    const callId = toolUseBlock(item)?.toolCallId;
-    return (
-      (callId ? toolResultBlock(toolResultByCallId.get(callId))?.status : undefined) ?? "pending"
-    );
+    const pair = uniqueToolPairFor(item);
+    return pair ? (toolResultBlock(pair[1])?.status ?? "pending") : "pending";
   };
 
   const resolveToolName = (item: AgentConversationItem): string | undefined => {
+    const trajectoryTool = trajectoryToolByConversationItem.get(item);
+    if (trajectoryTool) {
+      return trajectoryTool.toolName;
+    }
+
     const call = toolUseBlock(item);
     if (call) {
       return call.toolName;
     }
 
-    const callId = toolResultBlock(item)?.toolCallId;
-    return callId ? toolUseBlock(toolUseByCallId.get(callId))?.toolName : undefined;
+    const pair = uniqueToolPairFor(item);
+    return pair ? toolUseBlock(pair[0])?.toolName : undefined;
   };
 
   return {
     events,
     conversation,
     integrityIssues,
+    trajectory,
     resolveDetail,
     selectEvent,
     selectConversation,

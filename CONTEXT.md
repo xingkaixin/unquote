@@ -55,6 +55,11 @@ Conversation Item 归属于产生它的 Agent Event，会话负责解析 Event�
 Record 选择之间的关联。
 _Avoid_: Agent log
 
+**Agent Trajectory**:
+同一 Agent Session 的时序工作投影，按回合与明确标注的派生步骤组织 Agent Event，并表达
+工具执行、子 Agent 活动、上下文压缩、时长、状态与资源用量；它不创建新的会话身份。
+_Avoid_: Agent Session version, second session, trace log
+
 **Agent Event**:
 Agent Session 时间线中的一次可定位事件，并关联回产生它的 Record。
 _Avoid_: Timeline row
