@@ -17,6 +17,7 @@ import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
 import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
+import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { createAgentSessionModel, type AgentDetailSelection } from "./lib/agent-session";
 import { formatFileSize } from "./lib/format";
@@ -100,6 +101,7 @@ export const UnquoteApp = ({
     () => (agentSession ? createAgentSessionModel(agentSession) : null),
     [agentSession],
   );
+  const trajectoryFilters = useTrajectoryFilters(agentSessionModel);
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
@@ -282,7 +284,11 @@ export const UnquoteApp = ({
     ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
       <AgentTrajectoryView
         model={agentSessionModel}
+        records={result.records}
+        resolveRecord={recordWorkspace.resolveRecord}
+        requestFullRecord={recordWorkspace.requestFullRecord}
         isDesktop={isDesktop}
+        filters={trajectoryFilters}
         detailSelection={recordWorkspace.detailSelection}
         onDetailSelectionChange={recordWorkspace.selectAgentDetail}
         onOpenRecord={handleOpenTrajectoryRecord}

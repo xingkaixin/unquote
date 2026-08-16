@@ -301,5 +301,7 @@ export const useRecordWorkspace = ({
     openAgentRecord,
     selectRecordById,
     setSampleExpansions: workspace.setSampleExpansions,
+    resolveRecord: localFileSource.resolveRecord,
+    requestFullRecord: localFileSource.requestFullRecord,
   };
 };

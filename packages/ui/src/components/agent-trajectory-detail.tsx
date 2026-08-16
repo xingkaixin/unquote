@@ -214,9 +214,39 @@ const UnattachedWarningGroups = ({
   );
 };
 
+export type TrajectoryRawJson =
+  | { readonly kind: "full"; readonly text: string; readonly truncated: boolean }
+  | { readonly kind: "preview" };
+
+const RawJsonBlock = ({ title, raw }: { title: string; raw: TrajectoryRawJson | null }) => {
+  const { t } = useTranslation();
+  if (!raw) {
+    return null;
+  }
+
+  return (
+    <section className="flex min-w-0 flex-col gap-1.5" data-trajectory-raw>
+      <h3 className="uq-label m-0">{title}</h3>
+      {raw.kind === "preview" ? (
+        <p className="m-0 text-[11px] text-text-tertiary">{t("trajectory.rawUnavailable")}</p>
+      ) : (
+        <>
+          <pre className="m-0 max-h-72 overflow-auto rounded-md border border-border bg-surface-50 p-2 font-mono text-[10.5px] leading-[1.6] break-words whitespace-pre-wrap text-text-secondary">
+            {raw.text}
+          </pre>
+          {raw.truncated ? (
+            <p className="m-0 text-[10.5px] text-text-tertiary">{t("trajectory.rawTruncated")}</p>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+};
+
 export interface AgentTrajectoryDetailProps {
   item: AgentTrajectoryPresentationItem | null;
   unattachedWarningGroups: readonly AgentTrajectoryWarningGroup[];
+  resolveRawJson: (recordId: string) => TrajectoryRawJson | null;
   onOpenSelection: (selection: AgentCanonicalSelection) => void;
   onOpenUnattachedWarning: (selection: AgentCanonicalSelection) => void;
 }
@@ -224,6 +254,7 @@ export interface AgentTrajectoryDetailProps {
 export const AgentTrajectoryDetail = ({
   item,
   unattachedWarningGroups,
+  resolveRawJson,
   onOpenSelection,
   onOpenUnattachedWarning,
 }: AgentTrajectoryDetailProps) => {
@@ -270,15 +301,39 @@ export const AgentTrajectoryDetail = ({
     trajectoryItem.kind === "tool"
       ? formatTrajectoryDuration(trajectoryItem.durationMs, locale)
       : "";
+  const startedAt =
+    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.startedAt) !== undefined
+      ? formatClockTime(trajectoryItem.startedAt, locale)
+      : "";
+  const endedAt =
+    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.endedAt) !== undefined
+      ? formatClockTime(trajectoryItem.endedAt, locale)
+      : "";
   const derivedStep =
     trajectoryItem.kind === "assistant" || trajectoryItem.kind === "reasoning"
       ? trajectoryItem.step
       : undefined;
   const tokenUsageFacts = tokenUsageFactsFor(trajectoryItem);
+  const rawBlocks: { title: string; recordId: string }[] = [];
+  if (trajectoryItem.kind === "tool") {
+    const callRecordId = trajectoryItem.callSelection?.recordId;
+    const resultRecordId = trajectoryItem.resultSelection?.recordId;
+    if (callRecordId !== undefined) {
+      rawBlocks.push({ title: t("trajectory.rawCall"), recordId: callRecordId });
+    }
+    if (resultRecordId !== undefined && resultRecordId !== callRecordId) {
+      rawBlocks.push({ title: t("trajectory.rawResult"), recordId: resultRecordId });
+    }
+  }
+  if (rawBlocks.length === 0) {
+    rawBlocks.push({ title: t("trajectory.raw"), recordId: trajectoryItem.recordId });
+  }
   const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
   const summary = truncateTrajectoryDisplayText(item.summary) || kind;
   const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
-  const hasDetailFacts = Boolean(time || duration || toolName || callId || derivedStep);
+  const hasDetailFacts = Boolean(
+    time || duration || startedAt || endedAt || toolName || callId || derivedStep,
+  );
 
   return (
     <div
@@ -316,6 +371,8 @@ export const AgentTrajectoryDetail = ({
         <dl className="grid grid-cols-2 gap-x-3 gap-y-3">
           {time ? <DetailFact label={t("trajectory.time")} value={time} /> : null}
           {duration ? <DetailFact label={t("trajectory.duration")} value={duration} /> : null}
+          {startedAt ? <DetailFact label={t("trajectory.startedAt")} value={startedAt} /> : null}
+          {endedAt ? <DetailFact label={t("trajectory.endedAt")} value={endedAt} /> : null}
           {toolName ? <DetailFact label={t("trajectory.kind.tool")} value={toolName} /> : null}
           {callId ? (
             <DetailFact label={t("trajectory.callId")} value={callId} preserveWhitespace />
@@ -336,6 +393,14 @@ export const AgentTrajectoryDetail = ({
           ))}
         </dl>
       ) : null}
+
+      {rawBlocks.map((block) => (
+        <RawJsonBlock
+          key={`${block.title}:${block.recordId}`}
+          title={block.title}
+          raw={resolveRawJson(block.recordId)}
+        />
+      ))}
 
       <div className="flex flex-wrap gap-2">
         {actions.map((action) => (

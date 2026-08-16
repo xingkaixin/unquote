@@ -17,8 +17,10 @@ import {
   agentTrajectoryWarningKinds,
   createAgentTrajectoryOverview,
   createAgentTrajectoryPresentation,
+  createTrajectoryTimeScale,
   filterAgentTrajectoryPresentation,
   trajectoryOverviewBucketCount,
+  trajectoryOverviewSpans,
   zoomTrajectoryViewport,
 } from "../src/lib/agent-session/trajectory-presentation";
 
@@ -520,7 +522,12 @@ describe("createAgentTrajectoryPresentation", () => {
       tools: 1,
       failures: 1,
       durationMs: 20,
-      tokens: { inputTokens: 21, outputTokens: 34 },
+      tokens: {
+        inputTokens: 21,
+        outputTokens: 34,
+        cacheReadInputTokens: 55,
+        reasoningOutputTokens: 89,
+      },
       warningCount: 1,
     });
   });
@@ -1123,6 +1130,25 @@ describe("filterAgentTrajectoryPresentation", () => {
     expect(untimed.visibleItems.map((item) => item.item.id)).toEqual(["item-event-22"]);
   });
 
+  it("filters by item status and composes it with the other filters", () => {
+    const presentation = presentationForFiltering();
+
+    const failedOnly = filterAgentTrajectoryPresentation(presentation, { status: "failed" });
+    expect(failedOnly.visibleItems.map((item) => item.item.id)).toEqual(["item-event-21"]);
+
+    const completedOnly = filterAgentTrajectoryPresentation(presentation, { status: "completed" });
+    expect(completedOnly.visibleItems.map((item) => item.item.id)).toEqual([
+      "item-event-20",
+      "item-event-22",
+    ]);
+
+    const failedCompaction = filterAgentTrajectoryPresentation(presentation, {
+      status: "failed",
+      kind: "compaction",
+    });
+    expect(failedCompaction.visibleItems).toEqual([]);
+  });
+
   it("reports positions within each filtered ledger group", () => {
     const presentation = presentationForFiltering();
     const filtered = filterAgentTrajectoryPresentation(presentation, { kind: "tool" });
@@ -1270,18 +1296,23 @@ describe("trajectory overview", () => {
 
     expect(overview.viewport).toEqual({ start: 0, end: 20 });
     expect(overview.lanes.activity).toEqual([
-      { count: 1, interval: { start: 5, end: 5 }, status: "completed" },
+      { count: 1, interval: { start: 5, end: 5 }, status: "completed", kind: "user" },
     ]);
     expect(overview.lanes.model).toEqual([
-      { count: 1, interval: { start: 15, end: 15 }, status: "completed" },
+      { count: 1, interval: { start: 15, end: 15 }, status: "completed", kind: "assistant" },
     ]);
     expect(overview.lanes.tool).toEqual([
-      { count: 3, interval: { start: 10, end: 12 }, status: "failed" },
+      { count: 3, interval: { start: 10, end: 12 }, status: "failed", kind: "tool" },
     ]);
     expect(overview.turnBoundaries).toEqual([
-      { count: 2, interval: { start: 0, end: 20 }, status: "failed" },
+      { count: 2, interval: { start: 0, end: 20 }, status: "failed", kind: null },
     ]);
-    expect(Object.keys(overview.lanes.tool[0]!).sort()).toEqual(["count", "interval", "status"]);
+    expect(Object.keys(overview.lanes.tool[0]!).sort()).toEqual([
+      "count",
+      "interval",
+      "kind",
+      "status",
+    ]);
   });
 
   it("ranks aborted status above running and completed status", () => {
@@ -1335,8 +1366,61 @@ describe("trajectory overview", () => {
     expect(Object.keys(overview.turnBoundaries[0]!).sort()).toEqual([
       "count",
       "interval",
+      "kind",
       "status",
     ]);
+  });
+
+  it("compresses long idle stretches on the time scale and keeps active time linear", () => {
+    // Two clusters at [0, 100s] and [10_000s, 10_100s] with a 2.75-hour idle stretch.
+    const first = modelOutputItemFor("event-60", "assistant", 0);
+    const second = modelOutputItemFor("event-61", "assistant", 100_000);
+    const third = modelOutputItemFor("event-62", "assistant", 10_000_000);
+    const fourth = modelOutputItemFor("event-63", "assistant", 10_100_000);
+    const presentation = createAgentTrajectoryPresentation(
+      modelFor(
+        [
+          eventFor("event-60", "A", ""),
+          eventFor("event-61", "B", ""),
+          eventFor("event-62", "C", ""),
+          eventFor("event-63", "D", ""),
+        ],
+        [first, second, third, fourth],
+      ),
+    );
+    const scale = createTrajectoryTimeScale(presentation, presentation.timeDomain)!;
+
+    expect(scale.gaps).toEqual([{ start: 100_000, end: 10_000_000 }]);
+    // The gap collapses to 3% of the compressed width, so the two equal active
+    // clusters each take (1 − 0.03) / 2 = 48.5% instead of ~1%.
+    expect(scale.toRatio(0)).toBe(0);
+    expect(scale.toRatio(100_000)).toBeCloseTo(0.485, 6);
+    expect(scale.toRatio(10_000_000)).toBeCloseTo(0.515, 6);
+    expect(scale.toRatio(10_100_000)).toBe(1);
+    // The inverse restores the original moments.
+    expect(scale.fromRatio(scale.toRatio(50_000))).toBeCloseTo(50_000, 3);
+    expect(scale.fromRatio(scale.toRatio(10_050_000))).toBeCloseTo(10_050_000, 3);
+
+    const spans = trajectoryOverviewSpans(presentation, presentation.timeDomain, 100)!;
+    expect(spans[1]!.startRatio).toBeCloseTo(0.485, 6);
+    expect(spans[2]!.startRatio).toBeCloseTo(0.515, 6);
+  });
+
+  it("keeps ordinary pauses between sparse events on a linear time scale", () => {
+    const timestamps = [0, 20, 40, 60, 80, 100];
+    const presentation = createAgentTrajectoryPresentation(
+      modelFor(
+        timestamps.map((_, index) => eventFor(`event-6${index + 4}`, "Sparse", "")),
+        timestamps.map((timestamp, index) =>
+          modelOutputItemFor(`event-6${index + 4}`, "assistant", timestamp),
+        ),
+      ),
+    );
+    const scale = createTrajectoryTimeScale(presentation, { start: 0, end: 100 })!;
+
+    expect(scale.gaps).toEqual([]);
+    expect(scale.toRatio(25)).toBeCloseTo(0.25, 9);
+    expect(scale.fromRatio(0.25)).toBeCloseTo(25, 9);
   });
 
   it("zooms around the viewport center and clamps safely to the full domain", () => {

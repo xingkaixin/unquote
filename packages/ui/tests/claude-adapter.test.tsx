@@ -458,6 +458,11 @@ describe("claudeTranscriptAdapter", () => {
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
     expect(session.events[0]?.trajectoryEvidence).toEqual([
       {
+        kind: "turn-lifecycle",
+        phase: "start",
+        turnId: "prompt-1",
+      },
+      {
         kind: "model-output",
         role: "user",
         conversationItemId: "conv-1-block-0",
@@ -522,7 +527,7 @@ describe("claudeTranscriptAdapter", () => {
       },
     ]);
     expect(trajectory.items.map((item) => [item.id, item.kind])).toEqual([
-      ["line-1:evidence-0", "user"],
+      ["line-1:evidence-1", "user"],
       ["line-2:evidence-0", "reasoning"],
       ["line-2:evidence-1", "assistant"],
       ["line-2:evidence-2", "tool"],
@@ -546,6 +551,100 @@ describe("claudeTranscriptAdapter", () => {
       callSelection: { kind: "conversation", id: "conv-2-block-2", recordId: "record-2" },
       resultSelection: { kind: "conversation", id: "conv-3-block-1", recordId: "record-3" },
     });
+  });
+
+  it("counts usage once per request across the records of one response", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    const usage = {
+      input_tokens: 2,
+      cache_read_input_tokens: 40,
+      cache_creation_input_tokens: 5,
+      output_tokens: 90,
+    };
+    builder.push(
+      parsedLine({ type: "user", promptId: "prompt-usage", message: { content: "Prompt" } }, 1),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-1",
+          message: { content: [{ type: "text", text: "First block" }], usage },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-1",
+          message: {
+            content: [{ type: "tool_use", id: "tool-1", name: "Bash", input: {} }],
+            usage,
+          },
+        },
+        3,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-2",
+          message: { content: [{ type: "text", text: "Next response" }], usage },
+        },
+        4,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    // Every record keeps its display usage; only the first record per request
+    // carries token-usage evidence.
+    expect(session.events.slice(1).every((event) => event.usage !== undefined)).toBe(true);
+    expect(
+      session.events.map(
+        (event) =>
+          event.trajectoryEvidence?.filter((evidence) => evidence.kind === "token-usage").length ??
+          0,
+      ),
+    ).toEqual([0, 1, 0, 1]);
+
+    const trajectory = createAgentTrajectoryModel(session);
+    expect(trajectory.stats.tokenUsage).toEqual({
+      inputTokens: 4,
+      cacheReadInputTokens: 80,
+      cacheCreationInputTokens: 10,
+      outputTokens: 180,
+    });
+  });
+
+  it("still sums usage for records without a request id", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "One" }], usage: { output_tokens: 3 } },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Two" }], usage: { output_tokens: 4 } },
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const trajectory = createAgentTrajectoryModel(session);
+
+    expect(trajectory.stats.tokenUsage).toEqual({ outputTokens: 7 });
   });
 
   it("keeps repeated Claude blocks and parallel results as separate evidence", () => {
@@ -711,6 +810,7 @@ describe("claudeTranscriptAdapter", () => {
     expect(session.meta.turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
     expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+      { kind: "turn-lifecycle", phase: "start", turnId: "prompt-stable" },
       { turnId: "prompt-stable" },
       { turnId: "prompt-stable" },
       { turnId: "prompt-stable" },
@@ -746,6 +846,10 @@ describe("claudeTranscriptAdapter", () => {
     expect(session.meta.turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1]);
     expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toEqual([
+      {
+        kind: "turn-lifecycle",
+        phase: "start",
+      },
       {
         kind: "model-output",
         role: "user",
@@ -799,6 +903,10 @@ describe("claudeTranscriptAdapter", () => {
 
     expect(session.meta.turnCount).toBe(1);
     expect(session.events[0]?.trajectoryEvidence).toEqual([
+      {
+        kind: "turn-lifecycle",
+        phase: "start",
+      },
       {
         kind: "model-output",
         role: "user",
@@ -860,6 +968,7 @@ describe("claudeTranscriptAdapter", () => {
     expect(activeSession.meta.turnCount).toBe(1);
     expect(activeSession.events.map((event) => event.turnIndex)).toEqual([1, 1]);
     expect(activeSession.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+      { kind: "turn-lifecycle", phase: "start", turnId: "prompt-existing" },
       { turnId: "prompt-existing" },
       { turnId: "prompt-existing" },
     ]);
@@ -903,7 +1012,7 @@ describe("claudeTranscriptAdapter", () => {
     expect(expectTrajectorySelectionsToResolve(unscopedSession).turns).toEqual([]);
   });
 
-  it("keeps sparse usage, idless results, and open Claude turns truthful", () => {
+  it("keeps sparse usage and idless results truthful across an end_turn close", () => {
     const builder = claudeTranscriptAdapter.createBuilder();
     builder.push(
       parsedLine(
@@ -961,10 +1070,12 @@ describe("claudeTranscriptAdapter", () => {
         usage: { inputTokens: 0, cacheReadInputTokens: 7 },
         turnId: "prompt-open",
       },
+      {
+        kind: "turn-lifecycle",
+        phase: "complete",
+        turnId: "prompt-open",
+      },
     ]);
-    expect(
-      session.events[1]?.trajectoryEvidence?.some((entry) => entry.kind === "turn-lifecycle"),
-    ).toBe(false);
     expect(session.events[2]?.trajectoryEvidence).toEqual([
       {
         kind: "tool-lifecycle",
@@ -974,18 +1085,27 @@ describe("claudeTranscriptAdapter", () => {
         turnId: "prompt-open",
       },
     ]);
-    expect(evidence.map((entry) => entry.kind)).not.toContain("turn-lifecycle");
     expect(evidence.map((entry) => entry.kind)).not.toContain("subagent-activity");
     expect(evidence.map((entry) => entry.kind)).not.toContain("compaction");
 
     const trajectory = expectTrajectorySelectionsToResolve(session);
     expect(trajectory.turns).toMatchObject([
-      { id: trajectoryTurnId("evidence", "prompt-open"), status: "running", startedAt: 50 },
+      { id: trajectoryTurnId("evidence", "prompt-open"), status: "completed", startedAt: 50 },
     ]);
+    // The end_turn record has no timestamp, so the close is honest about the
+    // missing terminal moment instead of leaving the turn open.
     expect(trajectory.warnings).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: "open-turn", turnId: "prompt-open" }),
+        expect.objectContaining({
+          kind: "missing-timestamp",
+          subject: "turn",
+          endpoint: "terminal",
+          turnId: "prompt-open",
+        }),
       ]),
+    );
+    expect(trajectory.warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "open-turn" })]),
     );
     expect(trajectory.items[1]).toMatchObject({
       kind: "assistant",
@@ -1002,6 +1122,187 @@ describe("claudeTranscriptAdapter", () => {
     expect(trajectory.items[2]).not.toHaveProperty("endedAt");
     expect(trajectory.warnings).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "unpaired-tool-result" })]),
+    );
+  });
+
+  it("closes a turn with the authoritative turn_duration record", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-timed",
+          timestamp: 1_000,
+          message: { content: "Do the work" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          timestamp: 40_000,
+          message: { content: [{ type: "text", text: "Done" }] },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "system",
+          subtype: "turn_duration",
+          durationMs: 54_840,
+          timestamp: 60_000,
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[2]?.trajectoryEvidence).toEqual([
+      {
+        kind: "turn-lifecycle",
+        phase: "complete",
+        turnId: "prompt-timed",
+        durationMs: 54_840,
+      },
+    ]);
+
+    const trajectory = createAgentTrajectoryModel(session);
+    expect(trajectory.turns).toMatchObject([
+      {
+        id: trajectoryTurnId("evidence", "prompt-timed"),
+        status: "completed",
+        startedAt: 1_000,
+        endedAt: 60_000,
+        durationMs: 54_840,
+      },
+    ]);
+    expect(trajectory.warnings).toEqual([]);
+  });
+
+  it("projects a compact_boundary system record as compaction", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-compact",
+          message: { content: "Long conversation" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "system",
+          subtype: "compact_boundary",
+          content: "Conversation compacted",
+          timestamp: 5_000,
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[1]?.trajectoryEvidence).toEqual([
+      { kind: "compaction", turnId: "prompt-compact" },
+    ]);
+    const trajectory = createAgentTrajectoryModel(session);
+    expect(trajectory.items).toMatchObject([
+      { kind: "user" },
+      { kind: "compaction", status: "completed", timestamp: 5_000, turnIndex: 1 },
+    ]);
+  });
+
+  it("closes the previous turn at its own last moment when a new prompt arrives", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-first",
+          timestamp: 1_000,
+          message: { content: "First" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          timestamp: 3_000,
+          message: { content: [{ type: "text", text: "Reply" }] },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-second",
+          timestamp: 60_000,
+          message: { content: "Second" },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[2]?.trajectoryEvidence).toEqual([
+      {
+        kind: "turn-lifecycle",
+        phase: "complete",
+        turnId: "prompt-first",
+        timestamp: 3_000,
+      },
+      {
+        kind: "turn-lifecycle",
+        phase: "start",
+        turnId: "prompt-second",
+      },
+      {
+        kind: "model-output",
+        role: "user",
+        conversationItemId: "conv-3-block-0",
+        turnId: "prompt-second",
+      },
+    ]);
+
+    const trajectory = createAgentTrajectoryModel(session);
+    // The first turn ends at its last own record, not at the idle gap
+    // before the second prompt.
+    expect(trajectory.turns).toMatchObject([
+      {
+        id: trajectoryTurnId("evidence", "prompt-first"),
+        status: "completed",
+        startedAt: 1_000,
+        endedAt: 3_000,
+        durationMs: 2_000,
+      },
+      {
+        id: trajectoryTurnId("evidence", "prompt-second"),
+        status: "running",
+        startedAt: 60_000,
+      },
+    ]);
+    expect(trajectory.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "open-turn", turnId: "prompt-second" }),
+      ]),
+    );
+    expect(trajectory.warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "open-turn", turnId: "prompt-first" }),
+      ]),
     );
   });
 });

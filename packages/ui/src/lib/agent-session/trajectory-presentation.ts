@@ -47,6 +47,16 @@ export const agentTrajectoryFilterKinds = [
 
 export type AgentTrajectoryFilterKind = (typeof agentTrajectoryFilterKinds)[number];
 
+export const agentTrajectoryFilterStatuses = [
+  "all",
+  "completed",
+  "running",
+  "failed",
+  "aborted",
+] as const;
+
+export type AgentTrajectoryFilterStatus = (typeof agentTrajectoryFilterStatuses)[number];
+
 export type AgentTrajectoryLane = "activity" | "model" | "tool";
 
 export interface AgentTrajectoryTimeRange {
@@ -63,6 +73,9 @@ export interface AgentTrajectoryPresentationSummary {
   readonly tokens: {
     readonly inputTokens?: number;
     readonly outputTokens?: number;
+    readonly cacheCreationInputTokens?: number;
+    readonly cacheReadInputTokens?: number;
+    readonly reasoningOutputTokens?: number;
   };
   readonly warningCount: number;
 }
@@ -104,6 +117,7 @@ export interface AgentTrajectoryPresentation {
 export interface AgentTrajectoryPresentationFilter {
   readonly query?: string;
   readonly kind?: AgentTrajectoryFilterKind;
+  readonly status?: AgentTrajectoryFilterStatus;
   readonly timeRange?: AgentTrajectoryTimeRange | null;
 }
 
@@ -133,6 +147,8 @@ export interface AgentTrajectoryOverviewBucket {
   readonly count: number;
   readonly interval: AgentTrajectoryTimeRange | null;
   readonly status: AgentTrajectoryStatus | null;
+  // Dominant item kind by count; ties keep the first observed kind.
+  readonly kind: AgentTrajectoryItemKind | null;
 }
 
 export interface AgentTrajectoryOverview {
@@ -183,6 +199,9 @@ interface MutableOverviewBucket {
   count: number;
   interval: AgentTrajectoryTimeRange | null;
   status: AgentTrajectoryStatus | null;
+  kind: AgentTrajectoryItemKind | null;
+  kindCount: number;
+  kindCounts: Map<AgentTrajectoryItemKind, number> | null;
 }
 
 const finiteNumber = (value: number | undefined) =>
@@ -393,10 +412,23 @@ const sumKnownTurnDurations = (turns: readonly AgentTrajectoryTurn[]) => {
   return hasDuration ? total : undefined;
 };
 
+const summaryTokenKeys = [
+  "inputTokens",
+  "outputTokens",
+  "cacheCreationInputTokens",
+  "cacheReadInputTokens",
+  "reasoningOutputTokens",
+] as const;
+
 const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresentationSummary => {
   const tokenUsage = model.trajectory.stats.tokenUsage;
-  const inputTokens = finiteNonNegativeNumber(tokenUsage.inputTokens);
-  const outputTokens = finiteNonNegativeNumber(tokenUsage.outputTokens);
+  const tokens: Partial<Record<(typeof summaryTokenKeys)[number], number>> = {};
+  for (const key of summaryTokenKeys) {
+    const value = finiteNonNegativeNumber(tokenUsage[key]);
+    if (value !== undefined) {
+      tokens[key] = value;
+    }
+  }
   const durationMs = sumKnownTurnDurations(model.trajectory.turns);
   return {
     turns: model.trajectory.stats.turnCount,
@@ -404,10 +436,7 @@ const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresen
     tools: model.trajectory.stats.toolCount,
     failures: model.trajectory.stats.failedToolCount,
     ...(durationMs === undefined ? {} : { durationMs }),
-    tokens: {
-      ...(inputTokens === undefined ? {} : { inputTokens }),
-      ...(outputTokens === undefined ? {} : { outputTokens }),
-    },
+    tokens,
     warningCount: model.trajectory.warnings.length,
   };
 };
@@ -591,9 +620,13 @@ const matchesFilter = (
   item: AgentTrajectoryPresentationItem,
   query: string,
   kind: AgentTrajectoryFilterKind,
+  status: AgentTrajectoryFilterStatus,
   timeRange: AgentTrajectoryTimeRange | null,
 ) => {
   if (kind !== "all" && item.item.kind !== kind) {
+    return false;
+  }
+  if (status !== "all" && item.item.status !== status) {
     return false;
   }
   if (query && !item.searchText.includes(query)) {
@@ -608,11 +641,12 @@ export const filterAgentTrajectoryPresentation = (
 ): FilteredAgentTrajectoryPresentation => {
   const query = filter.query?.trim().toLowerCase() ?? "";
   const kind = filter.kind ?? "all";
+  const status = filter.status ?? "all";
   const timeRange = validRange(filter.timeRange);
   const visibleItems: AgentTrajectoryPresentationItem[] = [];
   const visibleItemSet = new Set<AgentTrajectoryPresentationItem>();
   for (const item of presentation.items) {
-    if (!matchesFilter(item, query, kind, timeRange)) {
+    if (!matchesFilter(item, query, kind, status, timeRange)) {
       continue;
     }
     visibleItems.push(item);
@@ -661,7 +695,14 @@ export const trajectoryOverviewBucketCount = (widthPx: number, timedItemCount: n
 const emptyBuckets = (bucketCount: number) => {
   const buckets: MutableOverviewBucket[] = [];
   for (let index = 0; index < bucketCount; index += 1) {
-    buckets.push({ count: 0, interval: null, status: null });
+    buckets.push({
+      count: 0,
+      interval: null,
+      status: null,
+      kind: null,
+      kindCount: 0,
+      kindCounts: null,
+    });
   }
   return buckets;
 };
@@ -677,6 +718,7 @@ const includeBucketFact = (
   bucket: MutableOverviewBucket,
   interval: AgentTrajectoryTimeRange,
   status: AgentTrajectoryStatus,
+  kind?: AgentTrajectoryItemKind,
 ) => {
   bucket.count += 1;
   bucket.interval = bucket.interval
@@ -687,6 +729,16 @@ const includeBucketFact = (
     : interval;
   if (!bucket.status || statusPriority(status) > statusPriority(bucket.status)) {
     bucket.status = status;
+  }
+  if (kind === undefined) {
+    return;
+  }
+  bucket.kindCounts ??= new Map();
+  const kindCount = (bucket.kindCounts.get(kind) ?? 0) + 1;
+  bucket.kindCounts.set(kind, kindCount);
+  if (kindCount > bucket.kindCount) {
+    bucket.kindCount = kindCount;
+    bucket.kind = kind;
   }
 };
 
@@ -737,19 +789,24 @@ export const createAgentTrajectoryOverview = (
   }
 
   const activeViewport = clampRangeToDomain(domain, viewport);
+  const scale = createTrajectoryTimeScale(presentation, activeViewport);
   const lanes: Record<AgentTrajectoryLane, MutableOverviewBucket[]> = {
     activity: emptyBuckets(count),
     model: emptyBuckets(count),
     tool: emptyBuckets(count),
   };
   const turnBoundaries = emptyBuckets(count);
+  const bucketIndex = (time: number) =>
+    scale
+      ? Math.min(count - 1, Math.max(0, Math.floor(scale.toRatio(time) * count)))
+      : bucketIndexFor(time, activeViewport, count);
 
   for (const item of presentation.items) {
     if (!item.interval || !overlaps(item.interval, activeViewport)) {
       continue;
     }
-    const index = bucketIndexFor(midpoint(item.interval), activeViewport, count);
-    includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status);
+    const index = bucketIndex(midpoint(item.interval));
+    includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status, item.item.kind);
   }
 
   for (const turn of presentation.groups) {
@@ -762,7 +819,7 @@ export const createAgentTrajectoryOverview = (
       if (point === undefined || point < activeViewport.start || point > activeViewport.end) {
         continue;
       }
-      const index = bucketIndexFor(point, activeViewport, count);
+      const index = bucketIndex(point);
       includeBucketFact(turnBoundaries[index]!, { start: point, end: point }, status);
     }
   }
@@ -770,9 +827,200 @@ export const createAgentTrajectoryOverview = (
   return {
     viewport: activeViewport,
     bucketCount: count,
-    lanes,
-    turnBoundaries,
+    lanes: {
+      activity: finalizeBuckets(lanes.activity),
+      model: finalizeBuckets(lanes.model),
+      tool: finalizeBuckets(lanes.tool),
+    },
+    turnBoundaries: finalizeBuckets(turnBoundaries),
   };
+};
+
+const finalizeBuckets = (
+  buckets: readonly MutableOverviewBucket[],
+): AgentTrajectoryOverviewBucket[] =>
+  buckets.map(({ count, interval, status, kind }) => ({ count, interval, status, kind }));
+
+// An idle stretch must span at least this fraction of the viewport before the
+// axis compresses it — high enough that ordinary pauses between sparse events
+// never fold — and it then occupies this much of the compressed width.
+const TIME_SCALE_GAP_MIN_FRACTION = 0.25;
+const TIME_SCALE_GAP_MIN_MS = 60_000;
+const TIME_SCALE_GAP_COMPRESSED_FRACTION = 0.03;
+
+export interface TrajectoryTimeScale {
+  readonly viewport: AgentTrajectoryTimeRange;
+  // Idle stretches (in real time) that the axis compresses.
+  readonly gaps: readonly AgentTrajectoryTimeRange[];
+  readonly toRatio: (time: number) => number;
+  readonly fromRatio: (ratio: number) => number;
+}
+
+interface TimeScaleSegment {
+  readonly start: number;
+  readonly end: number;
+  readonly weight: number;
+  readonly cumulativeBefore: number;
+}
+
+const linearTimeScale = (
+  viewport: AgentTrajectoryTimeRange,
+  span: number,
+): TrajectoryTimeScale => ({
+  viewport,
+  gaps: [],
+  toRatio: (time) => Math.min(1, Math.max(0, (time - viewport.start) / span)),
+  fromRatio: (ratio) => viewport.start + Math.min(1, Math.max(0, ratio)) * span,
+});
+
+/**
+ * A piecewise-linear axis over the viewport: stretches with no observed
+ * activity longer than a tenth of the viewport collapse to a sliver so the
+ * active clusters get the horizontal space instead of real idle time.
+ */
+export const createTrajectoryTimeScale = (
+  presentation: AgentTrajectoryPresentation,
+  viewport: AgentTrajectoryTimeRange | null,
+): TrajectoryTimeScale | null => {
+  const active = validRange(viewport);
+  if (!active) {
+    return null;
+  }
+  const span = active.end - active.start;
+  if (!Number.isFinite(span) || span <= 0) {
+    return null;
+  }
+
+  const covered: { start: number; end: number }[] = [];
+  for (const item of presentation.items) {
+    if (!item.interval || !overlaps(item.interval, active)) {
+      continue;
+    }
+    covered.push({
+      start: Math.max(active.start, item.interval.start),
+      end: Math.min(active.end, item.interval.end),
+    });
+  }
+  for (const group of presentation.groups) {
+    for (const time of [group.turn?.startedAt, group.turn?.endedAt]) {
+      const point = finiteNumber(time);
+      if (point !== undefined && point >= active.start && point <= active.end) {
+        covered.push({ start: point, end: point });
+      }
+    }
+  }
+  if (covered.length === 0) {
+    return linearTimeScale(active, span);
+  }
+
+  covered.sort((left, right) => left.start - right.start);
+  const minGap = Math.max(span * TIME_SCALE_GAP_MIN_FRACTION, TIME_SCALE_GAP_MIN_MS);
+  const gaps: AgentTrajectoryTimeRange[] = [];
+  let coveredUntil = active.start;
+  for (const range of covered) {
+    if (range.start - coveredUntil > minGap) {
+      gaps.push({ start: coveredUntil, end: range.start });
+    }
+    coveredUntil = Math.max(coveredUntil, range.end);
+  }
+  if (active.end - coveredUntil > minGap) {
+    gaps.push({ start: coveredUntil, end: active.end });
+  }
+  if (gaps.length === 0) {
+    return linearTimeScale(active, span);
+  }
+
+  // Each gap should occupy a fixed share of the *compressed* width, so solve
+  // w / (activeWeight + gapCount * w) = share for the gap weight w.
+  const gapShare = TIME_SCALE_GAP_COMPRESSED_FRACTION;
+  const activeWeight = span - gaps.reduce((total, gap) => total + (gap.end - gap.start), 0);
+  const compressedWeight =
+    activeWeight > 0 && gaps.length * gapShare < 1
+      ? (gapShare * activeWeight) / (1 - gaps.length * gapShare)
+      : span * gapShare;
+  const segments: TimeScaleSegment[] = [];
+  let cursor = active.start;
+  let cumulative = 0;
+  const pushSegment = (start: number, end: number, weight: number) => {
+    if (end <= start) {
+      return;
+    }
+    segments.push({ start, end, weight, cumulativeBefore: cumulative });
+    cumulative += weight;
+  };
+  for (const gap of gaps) {
+    pushSegment(cursor, gap.start, gap.start - cursor);
+    pushSegment(gap.start, gap.end, compressedWeight);
+    cursor = gap.end;
+  }
+  pushSegment(cursor, active.end, active.end - cursor);
+  const totalWeight = cumulative;
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return linearTimeScale(active, span);
+  }
+
+  const toRatio = (time: number) => {
+    const clamped = Math.min(active.end, Math.max(active.start, time));
+    for (const segment of segments) {
+      if (clamped <= segment.end) {
+        const within = (clamped - segment.start) / (segment.end - segment.start);
+        return (segment.cumulativeBefore + within * segment.weight) / totalWeight;
+      }
+    }
+    return 1;
+  };
+  const fromRatio = (ratio: number) => {
+    const target = Math.min(1, Math.max(0, ratio)) * totalWeight;
+    for (const segment of segments) {
+      if (target <= segment.cumulativeBefore + segment.weight) {
+        const within =
+          segment.weight > 0 ? (target - segment.cumulativeBefore) / segment.weight : 0;
+        return segment.start + within * (segment.end - segment.start);
+      }
+    }
+    return active.end;
+  };
+
+  return { viewport: active, gaps, toRatio, fromRatio };
+};
+
+export interface AgentTrajectoryOverviewSpan {
+  readonly item: AgentTrajectoryPresentationItem;
+  // Position within the viewport, both clamped to [0, 1].
+  readonly startRatio: number;
+  readonly endRatio: number;
+}
+
+/**
+ * Projects each timed item inside the viewport onto viewport-relative ratios,
+ * or returns null when more than `limit` items intersect it — the signal to
+ * fall back to bucket aggregation.
+ */
+export const trajectoryOverviewSpans = (
+  presentation: AgentTrajectoryPresentation,
+  viewport: AgentTrajectoryTimeRange | null,
+  limit: number,
+): AgentTrajectoryOverviewSpan[] | null => {
+  const scale = createTrajectoryTimeScale(presentation, viewport);
+  if (!scale || !Number.isFinite(limit) || limit <= 0) {
+    return null;
+  }
+
+  const spans: AgentTrajectoryOverviewSpan[] = [];
+  for (const item of presentation.items) {
+    if (!item.interval || !overlaps(item.interval, scale.viewport)) {
+      continue;
+    }
+    if (spans.length >= limit) {
+      return null;
+    }
+    spans.push({
+      item,
+      startRatio: scale.toRatio(item.interval.start),
+      endRatio: scale.toRatio(item.interval.end),
+    });
+  }
+  return spans;
 };
 
 const expandedDomain = (domain: AgentTrajectoryTimeRange | null) => {

@@ -1,29 +1,36 @@
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
-import type { AgentTrajectoryStatus } from "../lib/agent-session";
+import type { AgentTrajectoryItemKind } from "../lib/agent-session";
 import {
   createAgentTrajectoryOverview,
+  createTrajectoryTimeScale,
   trajectoryOverviewBucketCount,
+  trajectoryOverviewSpans,
   zoomTrajectoryViewport,
   type AgentTrajectoryLane,
   type AgentTrajectoryOverviewBucket,
   type AgentTrajectoryPresentation,
   type AgentTrajectoryTimeRange,
 } from "../lib/agent-session/trajectory-presentation";
+import { formatClockTime } from "../lib/format";
 import { formatTimestamp } from "./agent-session-format";
+import { formatTrajectoryDuration, trajectoryKindMessageKey } from "./agent-trajectory-format";
 import { Button } from "./button";
+import { RangeSlider } from "./range-slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const ZOOM_FACTOR = 2;
 const SVG_HEIGHT = 3;
 const BUCKET_SEGMENT_INSET = 0.15;
 const RANGE_KEYBOARD_INCREMENT_COUNT = 100;
+// Above this many visible items the chart falls back to aggregated buckets so
+// the DOM stays bounded for large sessions. Typical sessions run a few hundred
+// items, so they get per-event spans; the trajectory DOM budget in
+// docs/performance.md derives from this cap.
+export const trajectoryOverviewSpanLimit = 1000;
 
 const lanes: readonly AgentTrajectoryLane[] = ["activity", "model", "tool"];
-const tones = ["completed", "running", "critical"] as const;
-
-type TrajectoryTone = (typeof tones)[number];
 
 const laneLabelKey: Record<
   AgentTrajectoryLane,
@@ -40,10 +47,55 @@ const lanePosition: Record<AgentTrajectoryLane, number> = {
   tool: 2.5,
 };
 
-const toneStrokeClass: Record<TrajectoryTone, string> = {
-  completed: "stroke-success",
-  running: "stroke-warning",
-  critical: "stroke-error",
+const kindsByLane: Record<AgentTrajectoryLane, readonly AgentTrajectoryItemKind[]> = {
+  activity: ["user", "system", "compaction"],
+  model: ["assistant", "reasoning"],
+  tool: ["tool", "subagent"],
+};
+
+type ChartColorKey = AgentTrajectoryItemKind | "error";
+
+const chartColorKeys: readonly ChartColorKey[] = [
+  "user",
+  "system",
+  "assistant",
+  "reasoning",
+  "tool",
+  "subagent",
+  "compaction",
+  "error",
+];
+
+const kindStrokeClass: Record<ChartColorKey, string> = {
+  user: "stroke-code-boolean",
+  system: "stroke-text-tertiary",
+  assistant: "stroke-code-string",
+  reasoning: "stroke-code-number",
+  tool: "stroke-accent",
+  subagent: "stroke-code-key",
+  compaction: "stroke-code-null",
+  error: "stroke-error",
+};
+
+const kindFillClass: Record<ChartColorKey, string> = {
+  user: "bg-code-boolean",
+  system: "bg-text-tertiary",
+  assistant: "bg-code-string",
+  reasoning: "bg-code-number",
+  tool: "bg-accent",
+  subagent: "bg-code-key",
+  compaction: "bg-code-null",
+  error: "bg-error",
+};
+
+const isFailureStatus = (status: AgentTrajectoryOverviewBucket["status"]) =>
+  status === "failed" || status === "aborted";
+
+const bucketColorKey = (bucket: AgentTrajectoryOverviewBucket): ChartColorKey | null => {
+  if (isFailureStatus(bucket.status)) {
+    return "error";
+  }
+  return bucket.kind;
 };
 
 const finiteRange = (range: AgentTrajectoryTimeRange | null) => {
@@ -241,6 +293,33 @@ const formatRangeValue = (
     : readable;
 };
 
+// Beyond this offset a duration in minutes prints hundreds of digits, so
+// switch to scientific milliseconds. Also past the valid Date range.
+const HUGE_TICK_OFFSET_MS = 1e15;
+
+const tickTimeLabel = (value: number, locale: "en" | "zh-CN") => {
+  if (Number.isNaN(new Date(value).getTime())) {
+    return new Intl.NumberFormat(locale, {
+      notation: "scientific",
+      maximumSignificantDigits: 6,
+    }).format(value);
+  }
+  return formatClockTime(value, locale);
+};
+
+const tickOffsetLabel = (offsetMs: number, locale: "en" | "zh-CN") => {
+  if (!Number.isFinite(offsetMs) || offsetMs > HUGE_TICK_OFFSET_MS) {
+    return `+${new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: "millisecond",
+      unitDisplay: "short",
+      notation: "scientific",
+      maximumSignificantDigits: 4,
+    }).format(offsetMs)}`;
+  }
+  return `+${formatTrajectoryDuration(offsetMs, locale)}`;
+};
+
 const clampToRange = (range: AgentTrajectoryTimeRange | null, bounds: AgentTrajectoryTimeRange) => {
   const candidate = finiteRange(range);
   if (!candidate) {
@@ -251,26 +330,36 @@ const clampToRange = (range: AgentTrajectoryTimeRange | null, bounds: AgentTraje
   return start <= end ? { start, end } : { start: end, end: start };
 };
 
-const toneForStatus = (status: AgentTrajectoryStatus | null): TrajectoryTone | null => {
-  if (status === "failed" || status === "aborted") {
-    return "critical";
+// Ascending stroke widths so denser buckets read as heavier marks.
+const DENSITY_STROKE_WIDTHS = [0.08, 0.14, 0.22] as const;
+
+const densityTier = (count: number, maxCount: number) => {
+  const ratio = maxCount > 0 ? count / maxCount : 0;
+  return ratio > 2 / 3 ? 2 : ratio > 1 / 3 ? 1 : 0;
+};
+
+const laneMaxCount = (buckets: readonly AgentTrajectoryOverviewBucket[]) => {
+  let max = 0;
+  for (const bucket of buckets) {
+    if (bucket.count > max) {
+      max = bucket.count;
+    }
   }
-  if (status === "running") {
-    return "running";
-  }
-  return status === "completed" ? "completed" : null;
+  return max;
 };
 
 const lanePath = (
   buckets: readonly AgentTrajectoryOverviewBucket[],
   lane: AgentTrajectoryLane,
-  tone: TrajectoryTone,
+  colorKey: ChartColorKey,
+  tier: number,
+  maxCount: number,
 ) => {
   const y = lanePosition[lane];
   let d = "";
   for (let index = 0; index < buckets.length; index += 1) {
     const bucket = buckets[index]!;
-    if (toneForStatus(bucket.status) !== tone) {
+    if (bucketColorKey(bucket) !== colorKey || densityTier(bucket.count, maxCount) !== tier) {
       continue;
     }
     d += `M${index + BUCKET_SEGMENT_INSET} ${y}H${index + 1 - BUCKET_SEGMENT_INSET}`;
@@ -292,6 +381,8 @@ export interface AgentTrajectoryOverviewProps {
   presentation: AgentTrajectoryPresentation;
   timeRange: AgentTrajectoryTimeRange | null;
   onTimeRangeChange: (range: AgentTrajectoryTimeRange | null) => void;
+  selectedItemId?: string | undefined;
+  onSelectItem?: (itemId: string) => void;
   className?: string;
 }
 
@@ -299,17 +390,20 @@ export const AgentTrajectoryOverview = ({
   presentation,
   timeRange,
   onTimeRangeChange,
+  selectedItemId,
+  onSelectItem,
   className,
 }: AgentTrajectoryOverviewProps) => {
   const { locale, t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-  const [zoomViewport, setZoomViewport] = useState<AgentTrajectoryTimeRange | null>(null);
   const domain = finiteRange(presentation.timeDomain);
   const timeFactCount = domain ? Math.max(1, presentation.timedItemCount) : 0;
+  // The selected time range IS the viewport: narrowing the range zooms the
+  // chart into it while the same range filters the ledger below.
   const activeViewport = useMemo(
-    () => zoomTrajectoryViewport(domain, zoomViewport, 1),
-    [domain?.end, domain?.start, zoomViewport?.end, zoomViewport?.start],
+    () => zoomTrajectoryViewport(domain, timeRange ?? domain, 1),
+    [domain?.end, domain?.start, timeRange?.end, timeRange?.start],
   );
   const bucketCount = useMemo(
     () =>
@@ -320,10 +414,6 @@ export const AgentTrajectoryOverview = ({
     () => createAgentTrajectoryOverview(presentation, activeViewport, bucketCount),
     [activeViewport, bucketCount, presentation],
   );
-
-  useEffect(() => {
-    setZoomViewport(finiteRange(presentation.timeDomain));
-  }, [presentation]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -345,6 +435,29 @@ export const AgentTrajectoryOverview = ({
   }, [domain?.end, domain?.start]);
 
   const selectedRange = domain ? clampToRange(timeRange, domain) : null;
+  const timeScale = useMemo(
+    () => createTrajectoryTimeScale(presentation, activeViewport),
+    [activeViewport?.end, activeViewport?.start, presentation],
+  );
+  const spans = useMemo(
+    () => trajectoryOverviewSpans(presentation, activeViewport, trajectoryOverviewSpanLimit),
+    [activeViewport?.end, activeViewport?.start, presentation],
+  );
+  // Left tick anchors the viewport in absolute time; the middle and right
+  // ticks read as offsets so zooming stays legible without repeating dates.
+  // The middle tick follows the compressed axis so it lands mid-chart.
+  const tickLabels = activeViewport
+    ? [
+        tickTimeLabel(Math.trunc(activeViewport.start), locale),
+        tickOffsetLabel(
+          timeScale
+            ? timeScale.fromRatio(0.5) - activeViewport.start
+            : (activeViewport.end - activeViewport.start) / 2,
+          locale,
+        ),
+        tickOffsetLabel(activeViewport.end - activeViewport.start, locale),
+      ]
+    : [];
   const controlsDisabled = !domain;
   const inputMin = 0;
   const inputMax = domain ? rangeCoordinateMax(domain) : 0;
@@ -357,42 +470,51 @@ export const AgentTrajectoryOverview = ({
   const rangeEndText =
     domain && selectedRange ? formatRangeValue(selectedRange.end, domain, locale) : "";
 
-  const changeStart = (value: string) => {
-    if (!domain || !selectedRange) {
+  const changeRange = (next: readonly number[]) => {
+    if (!domain || !selectedRange || next.length !== 2) {
       return;
     }
-    const next = rangeValueFromInput(value, selectedRange.start, domain);
-    if (next === null) {
+    // Only convert the thumb that moved: coordinate round-trips can drift on
+    // extreme domains and would shift the untouched end of the range.
+    const nextStart =
+      next[0] === inputStart
+        ? selectedRange.start
+        : rangeValueFromInput(String(next[0]), selectedRange.start, domain);
+    const nextEnd =
+      next[1] === inputEnd
+        ? selectedRange.end
+        : rangeValueFromInput(String(next[1]), selectedRange.end, domain);
+    if (nextStart === null || nextEnd === null) {
       return;
     }
-    const start = Math.min(selectedRange.end, Math.max(domain.start, next));
-    onTimeRangeChange({ start, end: selectedRange.end });
-  };
-
-  const changeEnd = (value: string) => {
-    if (!domain || !selectedRange) {
-      return;
-    }
-    const next = rangeValueFromInput(value, selectedRange.end, domain);
-    if (next === null) {
-      return;
-    }
-    const end = Math.max(selectedRange.start, Math.min(domain.end, next));
-    onTimeRangeChange({ start: selectedRange.start, end });
+    // Whole milliseconds read naturally on ordinary domains; sub-millisecond
+    // domains keep the fractional precision they need.
+    const quantize = (value: number) =>
+      domain.end - domain.start >= 1_000 ? Math.round(value) : value;
+    const boundedStart = Math.min(domain.end, Math.max(domain.start, quantize(nextStart)));
+    const boundedEnd = Math.min(domain.end, Math.max(domain.start, quantize(nextEnd)));
+    onTimeRangeChange({
+      start: Math.min(boundedStart, boundedEnd),
+      end: Math.max(boundedStart, boundedEnd),
+    });
   };
 
   const zoom = (factor: number) => {
     if (!domain) {
       return;
     }
-    setZoomViewport((current) => zoomTrajectoryViewport(domain, current, factor));
+    const next = zoomTrajectoryViewport(domain, timeRange ?? domain, factor);
+    if (!next || (next.start === domain.start && next.end === domain.end)) {
+      onTimeRangeChange(null);
+      return;
+    }
+    onTimeRangeChange(next);
   };
 
   const reset = () => {
     if (!domain) {
       return;
     }
-    setZoomViewport(domain);
     onTimeRangeChange(null);
   };
 
@@ -465,68 +587,57 @@ export const AgentTrajectoryOverview = ({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-          <span className="shrink-0">{t("trajectory.rangeStart")}</span>
-          <output
-            aria-hidden="true"
-            className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
-            title={rangeStartText}
-          >
-            {rangeStartText}
-          </output>
-          <input
-            type="range"
-            min={inputMin}
-            max={inputMax}
-            step={inputStep}
-            value={inputStart}
-            disabled={controlsDisabled}
-            aria-label={t("trajectory.rangeStart")}
-            aria-valuetext={rangeStartText || undefined}
-            onChange={(event) => changeStart(event.currentTarget.value)}
-            className="col-span-2 min-w-0 accent-accent disabled:opacity-40"
-          />
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-baseline justify-between gap-3 text-[11px] text-text-secondary">
+          <span className="inline-flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0">{t("trajectory.rangeStart")}</span>
+            <output
+              aria-hidden="true"
+              className="min-w-0 truncate font-mono text-[10px] text-text-tertiary"
+              title={rangeStartText}
+            >
+              {rangeStartText}
+            </output>
+          </span>
+          <span className="inline-flex min-w-0 items-baseline gap-2">
+            <output
+              aria-hidden="true"
+              className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
+              title={rangeEndText}
+            >
+              {rangeEndText}
+            </output>
+            <span className="shrink-0">{t("trajectory.rangeEnd")}</span>
+          </span>
         </div>
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-          <span className="shrink-0">{t("trajectory.rangeEnd")}</span>
-          <output
-            aria-hidden="true"
-            className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
-            title={rangeEndText}
-          >
-            {rangeEndText}
-          </output>
-          <input
-            type="range"
-            min={inputMin}
-            max={inputMax}
-            step={inputStep}
-            value={inputEnd}
-            disabled={controlsDisabled}
-            aria-label={t("trajectory.rangeEnd")}
-            aria-valuetext={rangeEndText || undefined}
-            onChange={(event) => changeEnd(event.currentTarget.value)}
-            className="col-span-2 min-w-0 accent-accent disabled:opacity-40"
-          />
-        </div>
+        <RangeSlider
+          value={[inputStart, inputEnd]}
+          min={inputMin}
+          max={inputMax > inputMin ? inputMax : inputMin + 1}
+          step={inputStep}
+          disabled={controlsDisabled}
+          onValueChange={changeRange}
+          getAriaLabel={(index) =>
+            index === 0 ? t("trajectory.rangeStart") : t("trajectory.rangeEnd")
+          }
+          getAriaValueText={(index) => (index === 0 ? rangeStartText : rangeEndText)}
+        />
       </div>
 
       {activeViewport ? (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-secondary">
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
-              {t("trajectory.status.completed")}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-              {t("trajectory.status.running")}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-error" aria-hidden="true" />
-              {t("trajectory.status.failed")} / {t("trajectory.status.aborted")}
-            </span>
+            {chartColorKeys.map((key) => (
+              <span key={key} className="inline-flex items-center gap-1">
+                <span
+                  className={`size-1.5 rounded-full ${kindFillClass[key]}`}
+                  aria-hidden="true"
+                />
+                {key === "error"
+                  ? `${t("trajectory.status.failed")} / ${t("trajectory.status.aborted")}`
+                  : t(trajectoryKindMessageKey[key])}
+              </span>
+            ))}
           </div>
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
             <div className="grid grid-rows-3 gap-1 py-0.5 text-right font-mono text-[10px] text-text-tertiary">
@@ -535,47 +646,131 @@ export const AgentTrajectoryOverview = ({
               ))}
             </div>
             <div ref={containerRef} className="min-w-0">
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                data-trajectory-chart
-                viewBox={`0 0 ${Math.max(overview.bucketCount, 1)} ${SVG_HEIGHT}`}
-                preserveAspectRatio="none"
-                className="block h-16 w-full overflow-visible"
-              >
-                <path
-                  data-trajectory-turn-boundary
-                  d={turnBoundaryPath(overview.turnBoundaries)}
-                  fill="none"
-                  strokeWidth="0.04"
-                  className="stroke-border-medium"
-                />
-                {lanes.map((lane) => (
-                  <line
-                    key={lane}
-                    x1="0"
-                    x2={Math.max(overview.bucketCount, 1)}
-                    y1={lanePosition[lane]}
-                    y2={lanePosition[lane]}
+              <div className="relative">
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  data-trajectory-chart
+                  viewBox={`0 0 ${Math.max(overview.bucketCount, 1)} ${SVG_HEIGHT}`}
+                  preserveAspectRatio="none"
+                  className="block h-16 w-full overflow-visible"
+                >
+                  <path
+                    data-trajectory-turn-boundary
+                    d={turnBoundaryPath(overview.turnBoundaries)}
+                    fill="none"
                     strokeWidth="0.04"
-                    className="stroke-border"
+                    className="stroke-border-medium"
                   />
-                ))}
-                {lanes.flatMap((lane) =>
-                  tones.map((tone) => (
-                    <path
-                      key={`${lane}-${tone}`}
-                      data-trajectory-tone={`${lane}-${tone}`}
-                      d={lanePath(overview.lanes[lane], lane, tone)}
-                      fill="none"
-                      strokeWidth="0.12"
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      className={toneStrokeClass[tone]}
+                  {lanes.map((lane) => (
+                    <line
+                      key={lane}
+                      x1="0"
+                      x2={Math.max(overview.bucketCount, 1)}
+                      y1={lanePosition[lane]}
+                      y2={lanePosition[lane]}
+                      strokeWidth="0.04"
+                      className="stroke-border"
                     />
-                  )),
-                )}
-              </svg>
+                  ))}
+                  {spans === null
+                    ? lanes.flatMap((lane) => {
+                        const maxCount = laneMaxCount(overview.lanes[lane]);
+                        return [...kindsByLane[lane], "error" as const].flatMap((colorKey) =>
+                          DENSITY_STROKE_WIDTHS.map((strokeWidth, tier) => (
+                            <path
+                              key={`${lane}-${colorKey}-${tier}`}
+                              data-trajectory-kind={`${lane}-${colorKey}`}
+                              data-trajectory-density={tier}
+                              d={lanePath(overview.lanes[lane], lane, colorKey, tier, maxCount)}
+                              fill="none"
+                              strokeWidth={strokeWidth}
+                              strokeLinecap="round"
+                              vectorEffect="non-scaling-stroke"
+                              className={kindStrokeClass[colorKey]}
+                            />
+                          )),
+                        );
+                      })
+                    : null}
+                </svg>
+                {timeScale && timeScale.gaps.length > 0 ? (
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+                    {timeScale.gaps.map((gap, index) => {
+                      const left = timeScale.toRatio(gap.start) * 100;
+                      const width = timeScale.toRatio(gap.end) * 100 - left;
+                      return (
+                        <div
+                          key={index}
+                          data-trajectory-gap={index}
+                          title={t("trajectory.idleGap", {
+                            duration: formatTrajectoryDuration(gap.end - gap.start, locale),
+                          })}
+                          className="pointer-events-auto absolute inset-y-0 flex items-center justify-center border-x border-dashed border-border-medium bg-surface-50"
+                          style={{ left: `${left}%`, width: `${width}%` }}
+                        >
+                          <span
+                            className="font-mono text-[9px] whitespace-nowrap text-text-tertiary"
+                            style={{ writingMode: "vertical-rl" }}
+                          >
+                            {t("trajectory.idleGap", {
+                              duration: formatTrajectoryDuration(gap.end - gap.start, locale),
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {spans !== null && spans.length > 0 ? (
+                  <div data-trajectory-spans className="absolute inset-0">
+                    {spans.map((span) => {
+                      const item = span.item;
+                      const failed = isFailureStatus(item.item.status);
+                      const colorKey: ChartColorKey = failed ? "error" : item.item.kind;
+                      const selected = item.item.id === selectedItemId;
+                      const label = `#${item.ordinal + 1} ${t(trajectoryKindMessageKey[item.item.kind])}: ${
+                        item.summary || t(trajectoryKindMessageKey[item.item.kind])
+                      }`;
+                      return (
+                        <button
+                          key={item.ordinal}
+                          type="button"
+                          data-trajectory-span={item.ordinal}
+                          aria-label={label}
+                          aria-current={selected ? "true" : undefined}
+                          title={label}
+                          onClick={onSelectItem ? () => onSelectItem(item.item.id) : undefined}
+                          className={`absolute h-2 -translate-y-1/2 rounded-[2px] ${kindFillClass[colorKey]} ${
+                            selected
+                              ? "outline outline-2 outline-offset-1 outline-accent"
+                              : "hover:outline hover:outline-1 hover:outline-border-medium"
+                          }`}
+                          style={{
+                            left: `${span.startRatio * 100}%`,
+                            width: `max(3px, ${(span.endRatio - span.startRatio) * 100}%)`,
+                            top: `${(lanePosition[item.lane] / SVG_HEIGHT) * 100}%`,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+              <div
+                data-trajectory-ticks
+                aria-hidden="true"
+                className="flex justify-between pt-1 font-mono text-[9px] text-text-tertiary"
+              >
+                {tickLabels.map((label, index) => (
+                  <span
+                    key={index}
+                    className={index === 1 ? "text-center" : index === 2 ? "text-right" : ""}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </>

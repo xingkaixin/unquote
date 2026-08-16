@@ -72,10 +72,19 @@ export const formatTrajectoryDuration = (durationMs: number | undefined, locale:
     }).format(durationMs / 1_000);
   }
 
+  if (durationMs < 3_600_000) {
+    return new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: "minute",
+      unitDisplay: "narrow",
+      maximumFractionDigits: 1,
+    }).format(durationMs / 60_000);
+  }
+
   return new Intl.NumberFormat(locale, {
     style: "unit",
-    unit: "minute",
+    unit: "hour",
     unitDisplay: "narrow",
     maximumFractionDigits: 1,
-  }).format(durationMs / 60_000);
+  }).format(durationMs / 3_600_000);
 };

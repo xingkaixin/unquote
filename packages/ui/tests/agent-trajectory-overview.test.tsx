@@ -7,6 +7,8 @@ import { TooltipProvider } from "../src/components/tooltip";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
 import { createTranslator } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
+import { formatClockTime } from "../src/lib/format";
+import { formatTrajectoryDuration } from "../src/components/agent-trajectory-format";
 import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
 import type {
   AgentSessionModel,
@@ -300,42 +302,161 @@ describe("AgentTrajectoryOverview", () => {
     const root = overviewRoot();
     const svg = root.querySelector("[data-trajectory-chart]");
     expect(svg).not.toBeNull();
-    expect(svg?.querySelectorAll("path")).toHaveLength(10);
-    expect(svg?.querySelectorAll("[data-trajectory-tone]")).toHaveLength(9);
+    // Aggregated mode: 30 kind paths (per lane, kind + error, tier) + boundary.
+    expect(svg?.querySelectorAll("path")).toHaveLength(31);
+    expect(svg?.querySelectorAll("[data-trajectory-kind]")).toHaveLength(30);
     expect(svg?.querySelectorAll("[data-trajectory-turn-boundary]")).toHaveLength(1);
-    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(56);
+    expect(root.querySelector("[data-trajectory-spans]")).toBeNull();
+    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(110);
   });
 
-  it("maps four statuses into completed, running, and critical tone paths", async () => {
+  it("zooms the viewport to the selected time range", async () => {
+    const { unmount } = renderOverview(presentationForDomain(0, 100), { start: 25, end: 50 });
+    await resizeTo(60);
+
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "50");
+    // Only the two selected-range events remain as spans in the viewport.
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(0);
+
+    unmount();
+    renderOverview(presentationForDomain(0, 100), null);
+    await resizeTo(60);
+
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(2);
+  });
+
+  it("labels the viewport with an absolute start tick and relative offsets", async () => {
+    const start = Date.UTC(2026, 5, 6, 10, 0, 0);
+    renderOverview(presentationForDomain(start, start + 60_000));
+    await resizeTo(60);
+
+    const ticks = overviewRoot().querySelector("[data-trajectory-ticks]")!;
+    expect(ticks.textContent).toContain(formatClockTime(start, "en"));
+    expect(ticks.textContent).toContain(`+${formatTrajectoryDuration(30_000, "en")}`);
+    expect(ticks.textContent).toContain(`+${formatTrajectoryDuration(60_000, "en")}`);
+  });
+
+  it("splits a kind into density tiers by bucket count", async () => {
+    // Timestamps stay gap-free so the compressed axis leaves bucketing linear.
+    const items: ReturnType<typeof itemFor>[] = [];
+    for (let index = 0; index < 800; index += 1) {
+      items.push(itemFor(`dense-${index}`, "assistant", "completed", index % 30));
+    }
+    for (let index = 0; index < 260; index += 1) {
+      items.push(itemFor(`sparse-${index}`, "assistant", "completed", 30 + (index % 30)));
+    }
+    renderOverview(presentationFor(items));
+    await resizeTo(12);
+
+    const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
+    const segmentsAt = (tier: number) =>
+      svg
+        .querySelector(
+          `[data-trajectory-kind="model-assistant"][data-trajectory-density="${tier}"]`,
+        )
+        ?.getAttribute("d") ?? "";
+    expect(segmentsAt(2)).toContain("M");
+    expect(segmentsAt(0)).toContain("M");
+    expect(segmentsAt(1)).toBe("");
+  });
+
+  it("colors event spans by kind and flags failures in red", async () => {
     const presentation = presentationFor([
-      itemFor("completed", "assistant", "completed", 0),
-      itemFor("running", "tool", "running", 10),
-      itemFor("failed", "tool", "failed", 20),
-      itemFor("aborted", "subagent", "aborted", 30),
+      itemFor("prompt", "user", "completed", 0),
+      itemFor("reply", "assistant", "completed", 10),
+      itemFor("shell", "tool", "running", 20),
+      itemFor("broken", "tool", "failed", 30),
+      itemFor("aborted", "subagent", "aborted", 40),
     ]);
     renderOverview(presentation);
     await resizeTo(60);
 
-    const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
-    expect(svg.querySelector('[data-trajectory-tone="model-completed"]')).toHaveAttribute(
-      "d",
-      expect.stringContaining("M"),
-    );
-    expect(svg.querySelector('[data-trajectory-tone="tool-running"]')).toHaveAttribute(
-      "d",
-      expect.stringContaining("M"),
-    );
-    expect(svg.querySelector('[data-trajectory-tone="tool-critical"]')).toHaveAttribute(
-      "d",
-      expect.stringMatching(/M.*M/),
-    );
-    expect(screen.getByText(translate("trajectory.status.completed"))).toBeInTheDocument();
-    expect(screen.getByText(translate("trajectory.status.running"))).toBeInTheDocument();
+    const spanFor = (ordinal: number) =>
+      overviewRoot().querySelector(`[data-trajectory-span="${ordinal}"]`)!;
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(5);
+    expect(spanFor(0).className).toContain("bg-code-boolean");
+    expect(spanFor(1).className).toContain("bg-code-string");
+    expect(spanFor(2).className).toContain("bg-accent");
+    expect(spanFor(3).className).toContain("bg-error");
+    expect(spanFor(4).className).toContain("bg-error");
+    expect(screen.getByText(translate("trajectory.kind.user"))).toBeInTheDocument();
+    expect(screen.getByText(translate("trajectory.kind.assistant"))).toBeInTheDocument();
     expect(
       screen.getByText(
         `${translate("trajectory.status.failed")} / ${translate("trajectory.status.aborted")}`,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("selects an event span on click and marks the current one", async () => {
+    const user = userEvent.setup();
+    const onSelectItem = vi.fn();
+    const presentation = presentationFor([
+      itemFor("prompt", "user", "completed", 0),
+      itemFor("reply", "assistant", "completed", 10),
+    ]);
+    render(
+      <I18nProvider>
+        <TooltipProvider>
+          <AgentTrajectoryOverview
+            presentation={presentation}
+            timeRange={null}
+            onTimeRangeChange={vi.fn()}
+            selectedItemId="item-reply"
+            onSelectItem={onSelectItem}
+          />
+        </TooltipProvider>
+      </I18nProvider>,
+    );
+    await resizeTo(60);
+
+    const spans = overviewRoot().querySelectorAll("[data-trajectory-span]");
+    expect(spans[1]).toHaveAttribute("aria-current", "true");
+    expect(spans[0]).not.toHaveAttribute("aria-current");
+
+    await user.click(spans[0] as HTMLElement);
+    expect(onSelectItem).toHaveBeenCalledWith("item-prompt");
+  });
+
+  it("collapses a long idle stretch into a labeled gap marker", async () => {
+    const presentation = presentationFor([
+      itemFor("burst-start", "assistant", "completed", 0),
+      itemFor("burst-end", "assistant", "completed", 60_000),
+      itemFor("late", "assistant", "completed", 36_060_000),
+    ]);
+    renderOverview(presentation);
+    await resizeTo(360);
+
+    const gap = overviewRoot().querySelector('[data-trajectory-gap="0"]') as HTMLElement;
+    expect(gap).not.toBeNull();
+    expect(gap.title).toBe(`Idle ${formatTrajectoryDuration(36_000_000, "en")}`);
+    // Active clusters keep most of the width: the last span sits at ~97%.
+    const late = overviewRoot().querySelector('[data-trajectory-span="2"]') as HTMLElement;
+    expect(Number.parseFloat(late.style.left)).toBeGreaterThan(90);
+  });
+
+  it("keeps a gap-free session without gap markers", async () => {
+    renderOverview(presentationForDomain(0, 100));
+    await resizeTo(360);
+
+    expect(overviewRoot().querySelector("[data-trajectory-gap]")).toBeNull();
+  });
+
+  it("falls back to aggregated buckets above the span limit", async () => {
+    const items: ReturnType<typeof itemFor>[] = [];
+    for (let index = 0; index < 1001; index += 1) {
+      items.push(itemFor(`bulk-${index}`, "assistant", "completed", index));
+    }
+    renderOverview(presentationFor(items));
+    await resizeTo(360);
+
+    expect(overviewRoot().querySelector("[data-trajectory-spans]")).toBeNull();
+    expect(
+      overviewRoot().querySelectorAll('[data-trajectory-kind="model-assistant"]').length,
+    ).toBeGreaterThan(0);
   });
 
   it("combines controlled range inputs and clamps their boundaries", async () => {
@@ -426,11 +547,9 @@ describe("AgentTrajectoryOverview", () => {
     const input = rangeStart();
     const before = Number(input.value);
     input.focus();
+    // Base UI handles Arrow keys itself, so one press moves exactly one step.
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(input);
-    // jsdom delegates native range Arrow key behavior to the host browser; stepUp applies its step.
-    input.stepUp();
-    fireEvent.change(input, { target: { value: input.value } });
 
     expect(onTimeRangeChange).toHaveBeenLastCalledWith({
       start: domainStart + before + Number(input.step),
@@ -622,8 +741,9 @@ describe("AgentTrajectoryOverview", () => {
       expect(startText).toContain("E");
       expect(endText).toContain("E");
       expect(Math.max(startText.length, endText.length)).toBeLessThanOrEqual(80);
-      expect(screen.getByText(startText)).toBeInTheDocument();
-      expect(screen.getByText(endText)).toBeInTheDocument();
+      // The viewport tick may legitimately repeat the same fallback text.
+      expect(screen.getAllByText(startText).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(endText).length).toBeGreaterThan(0);
     },
   );
 
@@ -655,40 +775,36 @@ describe("AgentTrajectoryOverview", () => {
     expect(screen.getByText(chineseTimestamp)).toBeInTheDocument();
   });
 
-  it("keeps controlled range inputs independent from keyboard zoom and clears them on reset", async () => {
+  it("zooms by narrowing the selected range and clears it on reset", async () => {
     const onTimeRangeChange = vi.fn();
     const user = userEvent.setup();
     renderControlledOverview(presentationForDomain(), { start: 20, end: 80 }, onTimeRangeChange);
     await resizeTo(360);
 
-    control("trajectory.zoomIn").focus();
-    await user.keyboard("{Enter}");
-    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25"));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
-    expect(rangeStart()).toHaveAttribute("min", "0");
-    expect(rangeStart()).toHaveAttribute("max", "100");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
     expect(rangeStart()).toHaveValue("20");
-    expect(rangeEnd()).toHaveAttribute("min", "0");
-    expect(rangeEnd()).toHaveAttribute("max", "100");
     expect(rangeEnd()).toHaveValue("80");
-    expect(onTimeRangeChange).not.toHaveBeenCalled();
+
+    await user.click(control("trajectory.zoomIn"));
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 35, end: 65 });
+    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "35"));
+    expect(rangeStart()).toHaveValue("35");
+    expect(rangeEnd()).toHaveValue("65");
 
     fireEvent.change(rangeStart(), { target: { value: "10" } });
-    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 80 });
-    expect(rangeStart()).toHaveValue("10");
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 65 });
+    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "10"));
 
-    fireEvent.change(rangeEnd(), { target: { value: "90" } });
-    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 90 });
-    expect(rangeEnd()).toHaveValue("90");
-
-    control("trajectory.zoomOut").focus();
-    await user.keyboard("{Enter}");
+    // Zooming out past the domain clears the range entirely.
+    await user.click(control("trajectory.zoomOut"));
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith(null);
     await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0"));
     expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
 
-    control("trajectory.reset").focus();
-    await user.keyboard("{Enter}");
+    fireEvent.change(rangeEnd(), { target: { value: "40" } });
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 0, end: 40 });
+    await user.click(control("trajectory.reset"));
     expect(onTimeRangeChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -704,24 +820,25 @@ describe("AgentTrajectoryOverview", () => {
     expect(rangeEnd()).toHaveAttribute("max", "100");
   });
 
-  it("resets zoom for a new presentation identity but preserves it for the same presentation", async () => {
-    const user = userEvent.setup();
+  it("derives the viewport purely from the selected range across presentations", async () => {
     const first = presentationForDomain(0, 100);
     const second = presentationForDomain(0, 100);
     const onTimeRangeChange = vi.fn();
-    const { rerender } = render(renderWithProviders(first, null, onTimeRangeChange));
+    const { rerender } = render(
+      renderWithProviders(first, { start: 20, end: 80 }, onTimeRangeChange),
+    );
     await resizeTo(360);
 
-    await user.click(control("trajectory.zoomIn"));
-    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25"));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
 
-    rerender(renderWithProviders(first, { start: 20, end: 80 }, onTimeRangeChange));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
-
+    // No component-local zoom state: a new presentation identity with the
+    // same selected range keeps the same viewport.
     rerender(renderWithProviders(second, { start: 20, end: 80 }, onTimeRangeChange));
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
 
+    rerender(renderWithProviders(second, null, onTimeRangeChange));
     await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0"));
     expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
   });
@@ -759,7 +876,8 @@ describe("AgentTrajectoryOverview", () => {
     expect(rangeEnd()).toBeInTheDocument();
     expect(screen.getByText(translate("trajectory.lane.activity"))).toBeInTheDocument();
     expect(screen.getByText(translate("trajectory.lane.model"))).toBeInTheDocument();
-    expect(screen.getByText(translate("trajectory.lane.tool"))).toBeInTheDocument();
+    // The kind legend can repeat the "Tool" lane label.
+    expect(screen.getAllByText(translate("trajectory.lane.tool")).length).toBeGreaterThan(0);
   });
 
   it("does not modify a readonly presentation", async () => {

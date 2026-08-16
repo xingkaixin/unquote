@@ -73,7 +73,7 @@ rollout data.
 | Agent trajectory build p50 | 50 ms |
 | Agent trajectory ready p50 | 100 ms |
 | Agent trajectory item selection ready p50 | 60 ms |
-| Agent trajectory DOM nodes max | 450 |
+| Agent trajectory DOM nodes max | 1400 |
 | DOM nodes max | 3000 |
 | JS heap used max | 256 MB |
 
@@ -147,13 +147,16 @@ the measurement path rather than producing zero or silently skipping it. These
 three values are required and budgeted only for `agent-session` fixtures; plain
 JSON and JSONL fixtures neither require nor report them.
 
-The defaults preserve the existing approximately 2.18× regression headroom,
-rounding milliseconds up to the next 10 and nodes up to the next 50. The
-slowest values in this full report yield `ceil10(34.3 × 2.18) = 80 ms` for
-Trajectory ready, `ceil10(25 × 2.18) = 60 ms` for item selection, and
-`ceil50(198 × 2.18) = 450` nodes. The ready budget remains at its established
-100 ms rather than tightening after one successful capture; the defaults are
-therefore 100 ms, 60 ms, and 450 nodes. The corresponding environment overrides are
+The millisecond defaults preserve the existing approximately 2.18× regression
+headroom, rounding up to the next 10: the slowest values in this full report
+yield `ceil10(34.3 × 2.18) = 80 ms` for Trajectory ready and
+`ceil10(25 × 2.18) = 60 ms` for item selection. The ready budget remains at its
+established 100 ms rather than tightening after one successful capture. The DOM
+node budget is structural rather than statistical: the overview renders at most
+`trajectoryOverviewSpanLimit` (1,000) per-event spans before falling back to
+aggregated buckets, and the non-chart shell measures about 250 nodes, so the
+budget is `ceil50((1000 + 250) × 1.1) = 1400` nodes. The defaults are therefore
+100 ms, 60 ms, and 1400 nodes. The corresponding environment overrides are
 `UNQUOTE_BENCH_AGENT_TRAJECTORY_READY_BUDGET_MS`,
 `UNQUOTE_BENCH_AGENT_TRAJECTORY_ITEM_SELECTION_BUDGET_MS`, and
 `UNQUOTE_BENCH_AGENT_TRAJECTORY_DOM_NODES_BUDGET`.
@@ -198,6 +201,6 @@ complete and search p50 under 3000 ms, Expand Path p50 under 400 ms, Expand All
 p50 under 800 ms, DOM nodes under 3000, and JS heap under 256 MB. Agent fixtures
 add session-ready p50 under 600 ms, tool-expand p50 under 150 ms, and trajectory
 projection p50 under 50 ms, Trajectory ready p50 under 100 ms, item selection
-ready p50 under 60 ms, and Trajectory DOM nodes under 450. Use
+ready p50 under 60 ms, and Trajectory DOM nodes under 1400. Use
 `benchmark:case4-fixture -- --rows=100000` for local 100k-row stress runs; the
 100k fixture is intentionally generated locally instead of committed.

@@ -1,7 +1,10 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentTrajectoryDetail } from "../src/components/agent-trajectory-detail";
+import {
+  AgentTrajectoryDetail,
+  type AgentTrajectoryDetailProps,
+} from "../src/components/agent-trajectory-detail";
 import { I18nProvider } from "../src/i18n/context";
 import { formatClockTime } from "../src/lib/format";
 import type {
@@ -62,6 +65,7 @@ const presentationItem = (
 const renderDetail = (
   item: AgentTrajectoryPresentationItem | null,
   unattachedWarningGroups: readonly AgentTrajectoryWarningGroup[] = [],
+  resolveRawJson: AgentTrajectoryDetailProps["resolveRawJson"] = () => null,
 ) => {
   const onOpenSelection = vi.fn();
   const onOpenUnattachedWarning = vi.fn();
@@ -70,6 +74,7 @@ const renderDetail = (
       <AgentTrajectoryDetail
         item={item}
         unattachedWarningGroups={unattachedWarningGroups}
+        resolveRawJson={resolveRawJson}
         onOpenSelection={onOpenSelection}
         onOpenUnattachedWarning={onOpenUnattachedWarning}
       />
@@ -99,6 +104,65 @@ const isWellFormed = (value: string) =>
   );
 
 describe("AgentTrajectoryDetail", () => {
+  it("shows the raw Record JSON inline for a non-tool item", () => {
+    const item: AgentTrajectoryItem = {
+      id: "assistant-raw",
+      kind: "assistant",
+      status: "completed",
+      recordId: "record-raw",
+      lineNumber: 5,
+      selection: recordSelection("record-raw"),
+    };
+    renderDetail(presentationItem(item), [], (recordId) =>
+      recordId === "record-raw"
+        ? { kind: "full", text: '{\n  "type": "assistant"\n}', truncated: false }
+        : null,
+    );
+
+    expect(screen.getByRole("heading", { name: "Raw JSON" })).toBeInTheDocument();
+    expect(screen.getByText(/"type": "assistant"/)).toBeInTheDocument();
+    expect(screen.queryByText(/Truncated preview/)).not.toBeInTheDocument();
+  });
+
+  it("shows call and result JSON blocks for a tool item and flags truncation", () => {
+    const item: AgentTrajectoryItem = {
+      id: "tool-raw",
+      kind: "tool",
+      status: "completed",
+      recordId: "record-call",
+      lineNumber: 6,
+      selection: recordSelection("record-call"),
+      toolName: "shell",
+      callSelection: recordSelection("record-call"),
+      resultSelection: recordSelection("record-result"),
+    };
+    renderDetail(presentationItem(item), [], (recordId) =>
+      recordId === "record-call"
+        ? { kind: "full", text: '{"cmd":"ls"}', truncated: false }
+        : { kind: "full", text: '{"output":"…"}', truncated: true },
+    );
+
+    expect(screen.getByRole("heading", { name: "Call input" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Result output" })).toBeInTheDocument();
+    expect(screen.getByText('{"cmd":"ls"}')).toBeInTheDocument();
+    expect(screen.getByText('{"output":"…"}')).toBeInTheDocument();
+    expect(screen.getByText(/Truncated preview/)).toBeInTheDocument();
+  });
+
+  it("explains a not-yet-loaded preview Record instead of showing JSON", () => {
+    const item: AgentTrajectoryItem = {
+      id: "assistant-preview",
+      kind: "assistant",
+      status: "completed",
+      recordId: "record-preview",
+      lineNumber: 7,
+      selection: recordSelection("record-preview"),
+    };
+    renderDetail(presentationItem(item), [], () => ({ kind: "preview" }));
+
+    expect(screen.getByText(/Content not fully loaded/)).toBeInTheDocument();
+  });
+
   it("shows an empty detail state without an item", () => {
     renderDetail(null);
 
@@ -131,6 +195,7 @@ describe("AgentTrajectoryDetail", () => {
               key={kind}
               item={presentationItem(item, { summary: "" })}
               unattachedWarningGroups={[]}
+              resolveRawJson={() => null}
               onOpenSelection={vi.fn()}
               onOpenUnattachedWarning={vi.fn()}
             />
@@ -260,6 +325,7 @@ describe("AgentTrajectoryDetail", () => {
         <AgentTrajectoryDetail
           item={item}
           unattachedWarningGroups={[]}
+          resolveRawJson={() => null}
           onOpenSelection={onOpenSelection}
           onOpenUnattachedWarning={vi.fn()}
         />
@@ -401,6 +467,45 @@ describe("AgentTrajectoryDetail", () => {
     expect(screen.queryByText("Cache read")).not.toBeInTheDocument();
     expect(screen.queryByText("Reasoning", { selector: "dt" })).not.toBeInTheDocument();
     expect(screen.queryByText("undefined")).not.toBeInTheDocument();
+  });
+
+  it("shows the tool's start and end moments when they are known", () => {
+    const startedAt = 1_704_067_200_000;
+    const endedAt = startedAt + 90_000;
+    const item: AgentTrajectoryItem = {
+      id: "tool-timed",
+      kind: "tool",
+      status: "completed",
+      recordId: "record-primary",
+      lineNumber: 20,
+      selection: recordSelection("record-primary"),
+      timestamp: startedAt,
+      toolName: "shell",
+      startedAt,
+      endedAt,
+      durationMs: 90_000,
+    };
+    renderDetail(presentationItem(item));
+
+    expect(screen.getByText("Started")).toBeInTheDocument();
+    expect(screen.getByText("Ended")).toBeInTheDocument();
+    expect(screen.getByText(formatClockTime(endedAt, "en"))).toBeInTheDocument();
+  });
+
+  it("omits start and end facts for a tool without endpoint timestamps", () => {
+    const item: AgentTrajectoryItem = {
+      id: "tool-untimed",
+      kind: "tool",
+      status: "running",
+      recordId: "record-primary",
+      lineNumber: 21,
+      selection: recordSelection("record-primary"),
+      toolName: "shell",
+    };
+    renderDetail(presentationItem(item));
+
+    expect(screen.queryByText("Started")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ended")).not.toBeInTheDocument();
   });
 
   it("opens every tool endpoint with its exact canonical selection", async () => {

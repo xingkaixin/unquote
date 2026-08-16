@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentTrajectoryView } from "../src/components/agent-trajectory-view";
 import { trajectoryLedgerVirtualizationThreshold } from "../src/components/agent-trajectory-ledger";
+import { useTrajectoryFilters } from "../src/hooks/use-trajectory-filters";
 import { I18nProvider } from "../src/i18n/context";
 import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
 import type {
@@ -183,22 +184,32 @@ const itemButton = (token: number) => {
   return button;
 };
 
-const renderView = (overrides: Partial<ComponentProps<typeof AgentTrajectoryView>> = {}) => {
+type HarnessProps = Omit<ComponentProps<typeof AgentTrajectoryView>, "filters">;
+
+const TrajectoryViewHarness = (props: HarnessProps) => {
+  const filters = useTrajectoryFilters(props.model);
+  return <AgentTrajectoryView {...props} filters={filters} />;
+};
+
+const renderView = (overrides: Partial<HarnessProps> = {}) => {
   const callbacks = {
     onDetailSelectionChange: vi.fn(),
     onOpenRecord: vi.fn(),
   };
-  const props: ComponentProps<typeof AgentTrajectoryView> = {
+  const props: HarnessProps = {
     model: modelFor([itemFor("default", { timestamp: 10 })]),
+    records: [],
+    resolveRecord: (record) => record,
+    requestFullRecord: vi.fn(),
     isDesktop: true,
     detailSelection: null,
     onDetailSelectionChange: callbacks.onDetailSelectionChange,
     onOpenRecord: callbacks.onOpenRecord,
     ...overrides,
   };
-  const renderTree = (nextProps: ComponentProps<typeof AgentTrajectoryView>) => (
+  const renderTree = (nextProps: HarnessProps) => (
     <I18nProvider>
-      <AgentTrajectoryView {...nextProps} />
+      <TrajectoryViewHarness {...nextProps} />
     </I18nProvider>
   );
   const view = render(renderTree(props));
@@ -207,7 +218,7 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentTrajectoryView
     ...view,
     callbacks,
     props,
-    rerenderView: (nextProps: Partial<ComponentProps<typeof AgentTrajectoryView>>) => {
+    rerenderView: (nextProps: Partial<HarnessProps>) => {
       const mergedProps = { ...props, ...nextProps };
       view.rerender(renderTree(mergedProps));
       return mergedProps;
@@ -259,6 +270,29 @@ describe("AgentTrajectoryView", () => {
     expect(summary).toHaveTextContent("Input");
     expect(summary).toHaveTextContent("Output");
     expect(summary).toHaveTextContent("—");
+    expect(summary).not.toHaveTextContent("Cache read");
+    expect(summary).not.toHaveTextContent("Cache write");
+  });
+
+  it("shows cache and reasoning token components when the session reports them", () => {
+    const items = [itemFor("assistant", { timestamp: 10 })];
+    const model = modelFor(items, {
+      turns: [turnFor("turn-1", items, { turnIndex: 1 })],
+      tokenUsage: {
+        inputTokens: 13,
+        outputTokens: 8,
+        cacheReadInputTokens: 400,
+        cacheCreationInputTokens: 50,
+        reasoningOutputTokens: 6,
+      },
+    });
+
+    renderView({ model });
+
+    const summary = document.querySelector("[data-trajectory-summary]");
+    expect(summary).toHaveTextContent("Cache read 400");
+    expect(summary).toHaveTextContent("Cache write 50");
+    expect(summary).toHaveTextContent("Reasoning 6");
   });
 
   it("shows the total warning count and opens an unattached warning Record without an item", async () => {
@@ -416,6 +450,57 @@ describe("AgentTrajectoryView", () => {
     });
     expect(itemButton(1)).toBeInTheDocument();
     expect(itemButton(3)).toBeInTheDocument();
+  });
+
+  it("filters by status and clears it with the other filters", async () => {
+    const user = userEvent.setup();
+    const items = [
+      itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 }),
+      itemFor("tool-broken", { kind: "tool", status: "failed", timestamp: 20 }),
+      itemFor("assistant-note", { timestamp: 30 }),
+    ];
+    renderView({ model: modelFor(items) });
+
+    await user.selectOptions(screen.getByLabelText("Status"), "failed");
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 3 visible")).toBeInTheDocument();
+    });
+    expect(itemButton(1)).toBeInTheDocument();
+    expect(document.querySelector('[data-trajectory-item-token="0"]')).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("3 of 3 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Status")).toHaveValue("all");
+  });
+
+  it("drills into failed items from the failures metric card", async () => {
+    const user = userEvent.setup();
+    const items = [
+      itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 }),
+      itemFor("tool-broken", { kind: "tool", status: "failed", timestamp: 20 }),
+    ];
+    renderView({ model: modelFor(items) });
+
+    await user.click(screen.getByRole("button", { name: "Show only failed items" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 2 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Status")).toHaveValue("failed");
+  });
+
+  it("keeps the failures card inert when nothing failed", () => {
+    renderView({
+      model: modelFor([itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 })]),
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Show only failed items" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lists, filters, and selects system activity", async () => {
@@ -634,7 +719,7 @@ describe("AgentTrajectoryView", () => {
     renderView({ isDesktop: false });
 
     expect(document.querySelector("details")).toHaveTextContent("Detail");
-    expect(screen.getByText("Search trajectory")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search trajectory")).toBeInTheDocument();
   });
 
   it("keeps mobile summary, overview, and ledger independently reachable", () => {
@@ -660,7 +745,8 @@ describe("AgentTrajectoryView", () => {
     const ledger = screen.getByRole("list", { name: "Event ledger" }).parentElement;
 
     expect(center).toHaveClass("overflow-hidden");
-    expect(summary).not.toHaveClass("shrink-0");
+    // The compact header bar never flexes; only the ledger takes spare height.
+    expect(summary).toHaveClass("shrink-0");
     expect(overview).not.toHaveClass("shrink-0");
     expect(ledger).toHaveClass("min-h-0", "flex-1");
   });

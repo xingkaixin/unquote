@@ -35,6 +35,7 @@ const trajectoryMessageKeys = [
   "trajectory.rangeStart",
   "trajectory.rangeEnd",
   "trajectory.noTimeline",
+  "trajectory.idleGap",
   "trajectory.search",
   "trajectory.searchPlaceholder",
   "trajectory.kind",
@@ -52,14 +53,25 @@ const trajectoryMessageKeys = [
   "trajectory.status.running",
   "trajectory.status.failed",
   "trajectory.status.aborted",
+  "trajectory.statusFilter",
+  "trajectory.filterFailures",
   "trajectory.derivedStep",
   "trajectory.derivedStepHint",
   "trajectory.line",
   "trajectory.turn",
+  "trajectory.turnUnindexed",
+  "trajectory.itemCount",
   "trajectory.time",
   "trajectory.duration",
+  "trajectory.startedAt",
+  "trajectory.endedAt",
   "trajectory.callId",
   "trajectory.warnings",
+  "trajectory.raw",
+  "trajectory.rawCall",
+  "trajectory.rawResult",
+  "trajectory.rawUnavailable",
+  "trajectory.rawTruncated",
   "trajectory.openRecord",
   "trajectory.openCall",
   "trajectory.openResult",
@@ -126,7 +138,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in both locale catalogs", () => {
-    expect(trajectoryMessageKeys).toHaveLength(69);
+    expect(trajectoryMessageKeys).toHaveLength(81);
 
     for (const key of trajectoryMessageKeys) {
       expect(en).toHaveProperty(key);

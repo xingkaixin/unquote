@@ -42,7 +42,7 @@ const expectedAgentTrajectoryRenderBudgetContract = [
     statistic: "max",
     budgetKey: "agentTrajectoryDomNodesMax",
     envKey: "UNQUOTE_BENCH_AGENT_TRAJECTORY_DOM_NODES_BUDGET",
-    defaultBudget: 450,
+    defaultBudget: 1400,
   },
 ] as const;
 

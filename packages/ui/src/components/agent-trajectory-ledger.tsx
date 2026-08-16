@@ -10,7 +10,6 @@ import {
   type AgentTrajectoryLedgerTurnHeader,
 } from "../lib/agent-session/trajectory-presentation";
 import { formatClockTime } from "../lib/format";
-import { preferredScrollBehavior } from "../lib/motion-preference";
 import {
   formatTrajectoryDuration,
   trajectoryKindMessageKey,
@@ -27,6 +26,13 @@ const statusTone: Record<AgentTrajectoryStatus, string> = {
   running: "border-warning text-warning",
   failed: "border-error text-error",
   aborted: "border-error text-error",
+};
+
+const statusTextTone: Record<AgentTrajectoryStatus, string> = {
+  completed: "text-success",
+  running: "text-warning",
+  failed: "text-error",
+  aborted: "text-error",
 };
 
 interface LedgerRowLayout {
@@ -48,14 +54,19 @@ const LedgerTurnHeader = ({
   style,
   onMeasure,
 }: LedgerRowLayout & { row: AgentTrajectoryLedgerTurnHeader }) => {
-  const { t } = useTranslation();
-  const turnIndex = row.group.turn?.turnIndex;
+  const { locale, t } = useTranslation();
+  const turn = row.group.turn;
+  const turnIndex = turn?.turnIndex;
   const label =
-    row.group.turn === null
+    turn === null
       ? t("trajectory.unassigned")
       : turnIndex === undefined
-        ? t("trajectory.metric.turns")
+        ? t("trajectory.turnUnindexed")
         : t("trajectory.turn", { turn: turnIndex });
+  const duration = turn ? formatTrajectoryDuration(turn.durationMs, locale) : "";
+  const facts = turn
+    ? [duration, t("trajectory.itemCount", { count: turn.items.length })].filter(Boolean)
+    : [];
 
   return (
     <div
@@ -67,7 +78,18 @@ const LedgerTurnHeader = ({
       }
       style={style}
     >
-      <h3 className="uq-label m-0 border-b border-border pb-1.5">{label}</h3>
+      <div className="flex items-baseline gap-2 border-b border-border pb-1.5">
+        <h3 className="uq-label m-0">{label}</h3>
+        {turn ? (
+          <span className={`font-mono text-[10px] ${statusTextTone[turn.status]}`}>
+            {t(trajectoryStatusMessageKey[turn.status])}
+          </span>
+        ) : null}
+        <span className="flex-1" />
+        {facts.length > 0 ? (
+          <span className="font-mono text-[10px] text-text-tertiary">{facts.join(" · ")}</span>
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -219,9 +241,16 @@ export const AgentTrajectoryLedger = ({
       return;
     }
 
-    itemRefs.current
-      .get(selectedItemId)
-      ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
+    // Scroll only the ledger container: scrollIntoView would also scroll the
+    // page, and its smooth animation is cancelled by the follow-up re-render.
+    const container = scrollRef.current;
+    const node = itemRefs.current.get(selectedItemId);
+    if (container && node) {
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTop +=
+        nodeRect.top - containerRect.top - (container.clientHeight - nodeRect.height) / 2;
+    }
   }, [itemIndexById, rowVirtualizer, selectedItemId, shouldVirtualize]);
 
   const renderRow = (row: AgentTrajectoryLedgerRow, index: number, layout: LedgerRowLayout = {}) =>
