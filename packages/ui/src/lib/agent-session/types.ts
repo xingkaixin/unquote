@@ -61,6 +61,11 @@ interface AgentTrajectoryEvidenceBase {
 export interface AgentTurnLifecycleEvidence extends AgentTrajectoryEvidenceBase {
   kind: "turn-lifecycle";
   phase: "start" | "complete" | "failed" | "aborted";
+  // Boundary moment stated by the adapter when it differs from the carrying
+  // event's own timestamp, e.g. a turn closed retroactively by a later record.
+  timestamp?: number;
+  // Authoritative turn duration reported by the log itself.
+  durationMs?: number;
 }
 
 export interface AgentModelOutputEvidence extends AgentTrajectoryEvidenceBase {

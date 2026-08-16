@@ -272,12 +272,11 @@ const parseClaudeUsage = (record: Record<string, unknown>): ClaudeUsage | undefi
   };
 };
 
-const appendClaudeTrajectoryEvidence = (
-  event: AgentTimelineEvent,
+const claudeBlockEvidence = (
   items: AgentConversationItem[],
   turnId: string | undefined,
   usage: AgentTrajectoryTokenUsage | undefined,
-) => {
+): AgentTrajectoryEvidence[] => {
   const evidence: AgentTrajectoryEvidence[] = [];
   const turn = turnId ? { turnId } : {};
 
@@ -332,9 +331,12 @@ const appendClaudeTrajectoryEvidence = (
   if (usage) {
     evidence.push({ kind: "token-usage", usage, ...turn });
   }
-  if (evidence.length > 0) {
-    event.trajectoryEvidence = evidence;
-  }
+  return evidence;
+};
+
+const claudeTurnDurationMs = (record: Record<string, unknown>) => {
+  const value = record.durationMs;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 };
 
 const parseClaudeModel = (raw: unknown) => {
@@ -344,10 +346,17 @@ const parseClaudeModel = (raw: unknown) => {
   return getString(raw.message, "model");
 };
 
+interface ClaudeTurnState {
+  index: number;
+  turnId?: string;
+  closed: boolean;
+  lastTimestamp?: number;
+}
+
 const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
   const seenUsageRequestIds = new Set<string>();
-  let currentTurn: { index: number; turnId?: string } | undefined;
+  let currentTurn: ClaudeTurnState | undefined;
   let turnCount = 0;
   let sessionId: string | undefined;
   let model: string | undefined;
@@ -361,8 +370,55 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
     turnCount += 1;
     currentTurn = {
       index: turnCount,
+      closed: false,
       ...(turnId === undefined ? {} : { turnId }),
     };
+  };
+
+  // A new prompt proves the previous turn ended; close it at its own last
+  // known moment rather than the idle gap before this prompt.
+  const promptTurnLifecycle = (promptId: string | undefined): AgentTrajectoryEvidence[] => {
+    const previous = currentTurn;
+    startPromptTurn(promptId);
+    if (currentTurn === previous) {
+      return [];
+    }
+
+    const lifecycle: AgentTrajectoryEvidence[] = [];
+    if (
+      previous &&
+      !previous.closed &&
+      previous.turnId !== undefined &&
+      previous.lastTimestamp !== undefined
+    ) {
+      lifecycle.push({
+        kind: "turn-lifecycle",
+        phase: "complete",
+        turnId: previous.turnId,
+        timestamp: previous.lastTimestamp,
+      });
+    }
+    lifecycle.push({
+      kind: "turn-lifecycle",
+      phase: "start",
+      ...(currentTurn?.turnId === undefined ? {} : { turnId: currentTurn.turnId }),
+    });
+    return lifecycle;
+  };
+
+  const closeCurrentTurn = (durationMs?: number): AgentTrajectoryEvidence[] => {
+    if (!currentTurn) {
+      return [];
+    }
+    currentTurn.closed = true;
+    return [
+      {
+        kind: "turn-lifecycle",
+        phase: "complete",
+        ...(currentTurn.turnId === undefined ? {} : { turnId: currentTurn.turnId }),
+        ...(durationMs === undefined ? {} : { durationMs }),
+      },
+    ];
   };
 
   return {
@@ -380,9 +436,16 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       const blocks = extractClaudeContentBlocks(record);
       const isToolResultTurn =
         type === "user" && blocks.some((block) => block.type === "tool_result");
+      const timestamp = parseTimestamp(record.timestamp);
 
+      let leadingLifecycle: AgentTrajectoryEvidence[] = [];
       if (type === "user" && !isToolResultTurn) {
-        startPromptTurn(getString(record, "promptId"));
+        leadingLifecycle = promptTurnLifecycle(getString(record, "promptId"));
+      }
+      if (currentTurn && timestamp !== undefined) {
+        if (currentTurn.lastTimestamp === undefined || timestamp > currentTurn.lastTimestamp) {
+          currentTurn.lastTimestamp = timestamp;
+        }
       }
       // Records before the first user prompt belong to no turn, so they carry
       // no number rather than a fabricated turn 0.
@@ -396,7 +459,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         claudeLabel(type, blocks, isToolResultTurn),
         claudePreview(type, record, blocks),
       );
-      addOptionalNumber(event, "timestamp", parseTimestamp(record.timestamp));
+      addOptionalNumber(event, "timestamp", timestamp);
       addOptionalNumber(event, "turnIndex", turnIndex);
       addOptionalString(event, "requestId", getString(record, "requestId"));
       addOptionalString(event, "model", parseClaudeModel(record));
@@ -438,7 +501,25 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       }
 
       if (type === "user" || type === "assistant") {
-        appendClaudeTrajectoryEvidence(event, items, turnId, trajectoryUsage);
+        const trailingLifecycle =
+          type === "assistant" && event.stopReason === "end_turn" ? closeCurrentTurn() : [];
+        const evidence = [
+          ...leadingLifecycle,
+          ...claudeBlockEvidence(items, turnId, trajectoryUsage),
+          ...trailingLifecycle,
+        ];
+        if (evidence.length > 0) {
+          event.trajectoryEvidence = evidence;
+        }
+      } else if (type === "system") {
+        const subtype = getString(record, "subtype");
+        if (subtype === "turn_duration" && currentTurn) {
+          event.trajectoryEvidence = closeCurrentTurn(claudeTurnDurationMs(record));
+        } else if (subtype === "compact_boundary") {
+          event.trajectoryEvidence = [
+            { kind: "compaction", ...(turnId === undefined ? {} : { turnId }) },
+          ];
+        }
       }
 
       events.push(event);

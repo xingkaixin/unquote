@@ -69,6 +69,7 @@ interface TurnDraft {
   lifecycleStartTimestamp?: number;
   terminalLifecycleSource?: WarningSource;
   terminalLifecycleTimestamp?: number;
+  explicitDurationMs?: number;
   earliestNonTerminalTimestamp?: number;
 }
 
@@ -603,7 +604,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
 
       if (evidence.kind === "turn-lifecycle") {
         if (turn) {
-          const timestamp = finiteNumber(event.timestamp);
+          const timestamp = finiteNumber(evidence.timestamp) ?? finiteNumber(event.timestamp);
           if (evidence.phase === "start") {
             turn.lifecycleStartSource = source;
             if (timestamp !== undefined) {
@@ -615,6 +616,10 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
             turn.status = evidence.phase === "complete" ? "completed" : evidence.phase;
             if (timestamp !== undefined) {
               turn.terminalLifecycleTimestamp = timestamp;
+            }
+            const explicitDuration = nonNegativeDuration(evidence.durationMs);
+            if (explicitDuration !== undefined) {
+              turn.explicitDurationMs = explicitDuration;
             }
           }
         }
@@ -800,6 +805,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
           durationMs = nonNegativeDuration(endedAt - startedAt);
         }
       }
+      durationMs = turn.explicitDurationMs ?? durationMs;
     } else {
       warnings.push({ ...turn.firstSource, kind: "open-turn", turnId: turn.warningTurnId });
     }
