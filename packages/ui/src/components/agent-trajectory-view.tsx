@@ -1,7 +1,8 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
+import type { TrajectoryFilters } from "../hooks/use-trajectory-filters";
 import type {
   AgentCanonicalSelection,
   AgentDetailSelection,
@@ -13,7 +14,6 @@ import {
   filterAgentTrajectoryPresentation,
   type AgentTrajectoryFilterKind,
   type AgentTrajectoryPresentationSummary,
-  type AgentTrajectoryTimeRange,
 } from "../lib/agent-session/trajectory-presentation";
 import { AgentTrajectoryDetail } from "./agent-trajectory-detail";
 import { formatTrajectoryDuration } from "./agent-trajectory-format";
@@ -213,6 +213,7 @@ const TrajectoryFilterControls = ({
 export interface AgentTrajectoryViewProps {
   model: AgentSessionModel;
   isDesktop: boolean;
+  filters: TrajectoryFilters;
   detailSelection: AgentDetailSelection | null;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
   onOpenRecord: (selection: AgentDetailSelection, endpointRecordId: string) => void;
@@ -221,14 +222,13 @@ export interface AgentTrajectoryViewProps {
 export const AgentTrajectoryView = ({
   model,
   isDesktop,
+  filters,
   detailSelection,
   onDetailSelectionChange,
   onOpenRecord,
 }: AgentTrajectoryViewProps) => {
   const { t } = useTranslation();
-  const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<AgentTrajectoryFilterKind>("all");
-  const [timeRange, setTimeRange] = useState<AgentTrajectoryTimeRange | null>(null);
+  const { query, kind, timeRange } = filters;
   const deferredQuery = useDeferredValue(query);
   const presentation = useMemo(() => createAgentTrajectoryPresentation(model), [model]);
   const itemsById = useMemo(
@@ -242,24 +242,6 @@ export const AgentTrajectoryView = ({
   );
   const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
   const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
-  const domainStart = presentation.timeDomain?.start;
-  const domainEnd = presentation.timeDomain?.end;
-
-  useEffect(() => {
-    setQuery("");
-    setKind("all");
-    setTimeRange(null);
-  }, [model]);
-
-  useEffect(() => {
-    setTimeRange(null);
-  }, [domainEnd, domainStart]);
-
-  const clearFilters = () => {
-    setQuery("");
-    setKind("all");
-    setTimeRange(null);
-  };
 
   const selectItem = (itemId: string) => {
     const selection = model.selectTrajectory(itemId);
@@ -310,9 +292,9 @@ export const AgentTrajectoryView = ({
             hasTimeRange={timeRange !== null}
             visibleCount={filteredPresentation.visibleItems.length}
             totalCount={presentation.items.length}
-            onQueryChange={setQuery}
-            onKindChange={setKind}
-            onClear={clearFilters}
+            onQueryChange={filters.setQuery}
+            onKindChange={filters.setKind}
+            onClear={filters.clear}
           />
         }
         center={
@@ -325,7 +307,7 @@ export const AgentTrajectoryView = ({
             <AgentTrajectoryOverview
               presentation={presentation}
               timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
+              onTimeRangeChange={filters.setTimeRange}
               className={isDesktop ? "" : "shrink-0"}
             />
             <section

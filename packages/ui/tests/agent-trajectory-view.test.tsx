@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentTrajectoryView } from "../src/components/agent-trajectory-view";
 import { trajectoryLedgerVirtualizationThreshold } from "../src/components/agent-trajectory-ledger";
+import { useTrajectoryFilters } from "../src/hooks/use-trajectory-filters";
 import { I18nProvider } from "../src/i18n/context";
 import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
 import type {
@@ -183,12 +184,19 @@ const itemButton = (token: number) => {
   return button;
 };
 
-const renderView = (overrides: Partial<ComponentProps<typeof AgentTrajectoryView>> = {}) => {
+type HarnessProps = Omit<ComponentProps<typeof AgentTrajectoryView>, "filters">;
+
+const TrajectoryViewHarness = (props: HarnessProps) => {
+  const filters = useTrajectoryFilters(props.model);
+  return <AgentTrajectoryView {...props} filters={filters} />;
+};
+
+const renderView = (overrides: Partial<HarnessProps> = {}) => {
   const callbacks = {
     onDetailSelectionChange: vi.fn(),
     onOpenRecord: vi.fn(),
   };
-  const props: ComponentProps<typeof AgentTrajectoryView> = {
+  const props: HarnessProps = {
     model: modelFor([itemFor("default", { timestamp: 10 })]),
     isDesktop: true,
     detailSelection: null,
@@ -196,9 +204,9 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentTrajectoryView
     onOpenRecord: callbacks.onOpenRecord,
     ...overrides,
   };
-  const renderTree = (nextProps: ComponentProps<typeof AgentTrajectoryView>) => (
+  const renderTree = (nextProps: HarnessProps) => (
     <I18nProvider>
-      <AgentTrajectoryView {...nextProps} />
+      <TrajectoryViewHarness {...nextProps} />
     </I18nProvider>
   );
   const view = render(renderTree(props));
@@ -207,7 +215,7 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentTrajectoryView
     ...view,
     callbacks,
     props,
-    rerenderView: (nextProps: Partial<ComponentProps<typeof AgentTrajectoryView>>) => {
+    rerenderView: (nextProps: Partial<HarnessProps>) => {
       const mergedProps = { ...props, ...nextProps };
       view.rerender(renderTree(mergedProps));
       return mergedProps;

@@ -170,6 +170,7 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-record-workspace.ts` | Deep Record workspace module that combines query interaction, revision-scoped selection, local-file hydration, export actions, and selected-node projection behind one model. |
 | `hooks/use-workspace-session.ts` | Owns revision-scoped Record/node/Agent-detail selection, scroll intent, query navigation, and Stringified JSON expansion state. |
 | `hooks/use-theme-preference.ts` | Owns theme preference persistence and `<html>` dark-mode class synchronization. |
+| `hooks/use-trajectory-filters.ts` | Owns Agent trajectory filter state above the view so output-tab switches keep it; resets when the session model changes. |
 
 ### Tree Utilities (`lib/tree.ts`)
 
