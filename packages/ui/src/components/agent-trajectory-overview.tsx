@@ -11,7 +11,9 @@ import {
   type AgentTrajectoryPresentation,
   type AgentTrajectoryTimeRange,
 } from "../lib/agent-session/trajectory-presentation";
+import { formatClockTime } from "../lib/format";
 import { formatTimestamp } from "./agent-session-format";
+import { formatTrajectoryDuration } from "./agent-trajectory-format";
 import { Button } from "./button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
@@ -241,6 +243,33 @@ const formatRangeValue = (
     : readable;
 };
 
+// Beyond this offset a duration in minutes prints hundreds of digits, so
+// switch to scientific milliseconds. Also past the valid Date range.
+const HUGE_TICK_OFFSET_MS = 1e15;
+
+const tickTimeLabel = (value: number, locale: "en" | "zh-CN") => {
+  if (Number.isNaN(new Date(value).getTime())) {
+    return new Intl.NumberFormat(locale, {
+      notation: "scientific",
+      maximumSignificantDigits: 6,
+    }).format(value);
+  }
+  return formatClockTime(value, locale);
+};
+
+const tickOffsetLabel = (offsetMs: number, locale: "en" | "zh-CN") => {
+  if (!Number.isFinite(offsetMs) || offsetMs > HUGE_TICK_OFFSET_MS) {
+    return `+${new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: "millisecond",
+      unitDisplay: "short",
+      notation: "scientific",
+      maximumSignificantDigits: 4,
+    }).format(offsetMs)}`;
+  }
+  return `+${formatTrajectoryDuration(offsetMs, locale)}`;
+};
+
 const clampToRange = (range: AgentTrajectoryTimeRange | null, bounds: AgentTrajectoryTimeRange) => {
   const candidate = finiteRange(range);
   if (!candidate) {
@@ -261,16 +290,36 @@ const toneForStatus = (status: AgentTrajectoryStatus | null): TrajectoryTone | n
   return status === "completed" ? "completed" : null;
 };
 
+// Ascending stroke widths so denser buckets read as heavier marks.
+const DENSITY_STROKE_WIDTHS = [0.08, 0.14, 0.22] as const;
+
+const densityTier = (count: number, maxCount: number) => {
+  const ratio = maxCount > 0 ? count / maxCount : 0;
+  return ratio > 2 / 3 ? 2 : ratio > 1 / 3 ? 1 : 0;
+};
+
+const laneMaxCount = (buckets: readonly AgentTrajectoryOverviewBucket[]) => {
+  let max = 0;
+  for (const bucket of buckets) {
+    if (bucket.count > max) {
+      max = bucket.count;
+    }
+  }
+  return max;
+};
+
 const lanePath = (
   buckets: readonly AgentTrajectoryOverviewBucket[],
   lane: AgentTrajectoryLane,
   tone: TrajectoryTone,
+  tier: number,
+  maxCount: number,
 ) => {
   const y = lanePosition[lane];
   let d = "";
   for (let index = 0; index < buckets.length; index += 1) {
     const bucket = buckets[index]!;
-    if (toneForStatus(bucket.status) !== tone) {
+    if (toneForStatus(bucket.status) !== tone || densityTier(bucket.count, maxCount) !== tier) {
       continue;
     }
     d += `M${index + BUCKET_SEGMENT_INSET} ${y}H${index + 1 - BUCKET_SEGMENT_INSET}`;
@@ -345,6 +394,31 @@ export const AgentTrajectoryOverview = ({
   }, [domain?.end, domain?.start]);
 
   const selectedRange = domain ? clampToRange(timeRange, domain) : null;
+  const selectionRect = (() => {
+    if (!activeViewport || !timeRange || overview.bucketCount === 0) {
+      return null;
+    }
+    const span = activeViewport.end - activeViewport.start;
+    if (!Number.isFinite(span) || span <= 0) {
+      return null;
+    }
+    if (timeRange.end < activeViewport.start || timeRange.start > activeViewport.end) {
+      return null;
+    }
+    const clamped = clampToRange(timeRange, activeViewport);
+    const x = ((clamped.start - activeViewport.start) / span) * overview.bucketCount;
+    const width = Math.max(0.05, ((clamped.end - clamped.start) / span) * overview.bucketCount);
+    return { x, width };
+  })();
+  // Left tick anchors the viewport in absolute time; the middle and right
+  // ticks read as offsets so zooming stays legible without repeating dates.
+  const tickLabels = activeViewport
+    ? [
+        tickTimeLabel(Math.trunc(activeViewport.start), locale),
+        tickOffsetLabel((activeViewport.end - activeViewport.start) / 2, locale),
+        tickOffsetLabel(activeViewport.end - activeViewport.start, locale),
+      ]
+    : [];
   const controlsDisabled = !domain;
   const inputMin = 0;
   const inputMax = domain ? rangeCoordinateMax(domain) : 0;
@@ -561,21 +635,49 @@ export const AgentTrajectoryOverview = ({
                     className="stroke-border"
                   />
                 ))}
-                {lanes.flatMap((lane) =>
-                  tones.map((tone) => (
-                    <path
-                      key={`${lane}-${tone}`}
-                      data-trajectory-tone={`${lane}-${tone}`}
-                      d={lanePath(overview.lanes[lane], lane, tone)}
-                      fill="none"
-                      strokeWidth="0.12"
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      className={toneStrokeClass[tone]}
-                    />
-                  )),
-                )}
+                {lanes.flatMap((lane) => {
+                  const maxCount = laneMaxCount(overview.lanes[lane]);
+                  return tones.flatMap((tone) =>
+                    DENSITY_STROKE_WIDTHS.map((strokeWidth, tier) => (
+                      <path
+                        key={`${lane}-${tone}-${tier}`}
+                        data-trajectory-tone={`${lane}-${tone}`}
+                        data-trajectory-density={tier}
+                        d={lanePath(overview.lanes[lane], lane, tone, tier, maxCount)}
+                        fill="none"
+                        strokeWidth={strokeWidth}
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                        className={toneStrokeClass[tone]}
+                      />
+                    )),
+                  );
+                })}
+                {selectionRect ? (
+                  <rect
+                    data-trajectory-selection
+                    x={selectionRect.x}
+                    y="0"
+                    width={selectionRect.width}
+                    height={SVG_HEIGHT}
+                    className="fill-accent opacity-20"
+                  />
+                ) : null}
               </svg>
+              <div
+                data-trajectory-ticks
+                aria-hidden="true"
+                className="flex justify-between pt-1 font-mono text-[9px] text-text-tertiary"
+              >
+                {tickLabels.map((label, index) => (
+                  <span
+                    key={index}
+                    className={index === 1 ? "text-center" : index === 2 ? "text-right" : ""}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </>

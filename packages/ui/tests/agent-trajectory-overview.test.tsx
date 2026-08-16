@@ -7,6 +7,8 @@ import { TooltipProvider } from "../src/components/tooltip";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
 import { createTranslator } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
+import { formatClockTime } from "../src/lib/format";
+import { formatTrajectoryDuration } from "../src/components/agent-trajectory-format";
 import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
 import type {
   AgentSessionModel,
@@ -300,10 +302,60 @@ describe("AgentTrajectoryOverview", () => {
     const root = overviewRoot();
     const svg = root.querySelector("[data-trajectory-chart]");
     expect(svg).not.toBeNull();
-    expect(svg?.querySelectorAll("path")).toHaveLength(10);
-    expect(svg?.querySelectorAll("[data-trajectory-tone]")).toHaveLength(9);
+    expect(svg?.querySelectorAll("path")).toHaveLength(28);
+    expect(svg?.querySelectorAll("[data-trajectory-tone]")).toHaveLength(27);
     expect(svg?.querySelectorAll("[data-trajectory-turn-boundary]")).toHaveLength(1);
-    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(56);
+    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(80);
+  });
+
+  it("shades the selected time range on the chart and hides it without a selection", async () => {
+    const { unmount } = renderOverview(presentationForDomain(0, 100), { start: 25, end: 50 });
+    await resizeTo(60);
+
+    const rect = overviewRoot().querySelector("[data-trajectory-selection]")!;
+    expect(rect).not.toBeNull();
+    const bucketCount = Number(overviewRoot().getAttribute("data-bucket-count"));
+    expect(Number(rect.getAttribute("x"))).toBeCloseTo(bucketCount * 0.25, 6);
+    expect(Number(rect.getAttribute("width"))).toBeCloseTo(bucketCount * 0.25, 6);
+
+    unmount();
+    renderOverview(presentationForDomain(0, 100), null);
+    await resizeTo(60);
+
+    expect(overviewRoot().querySelector("[data-trajectory-selection]")).toBeNull();
+  });
+
+  it("labels the viewport with an absolute start tick and relative offsets", async () => {
+    const start = Date.UTC(2026, 5, 6, 10, 0, 0);
+    renderOverview(presentationForDomain(start, start + 60_000));
+    await resizeTo(60);
+
+    const ticks = overviewRoot().querySelector("[data-trajectory-ticks]")!;
+    expect(ticks.textContent).toContain(formatClockTime(start, "en"));
+    expect(ticks.textContent).toContain(`+${formatTrajectoryDuration(30_000, "en")}`);
+    expect(ticks.textContent).toContain(`+${formatTrajectoryDuration(60_000, "en")}`);
+  });
+
+  it("splits a tone into density tiers by bucket count", async () => {
+    const presentation = presentationFor([
+      itemFor("dense-1", "assistant", "completed", 0),
+      itemFor("dense-2", "assistant", "completed", 1),
+      itemFor("dense-3", "assistant", "completed", 2),
+      itemFor("sparse", "assistant", "completed", 60),
+    ]);
+    renderOverview(presentation);
+    await resizeTo(12);
+
+    const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
+    const segmentsAt = (tier: number) =>
+      svg
+        .querySelector(
+          `[data-trajectory-tone="model-completed"][data-trajectory-density="${tier}"]`,
+        )
+        ?.getAttribute("d") ?? "";
+    expect(segmentsAt(2)).toContain("M");
+    expect(segmentsAt(0)).toContain("M");
+    expect(segmentsAt(1)).toBe("");
   });
 
   it("maps four statuses into completed, running, and critical tone paths", async () => {
@@ -317,18 +369,13 @@ describe("AgentTrajectoryOverview", () => {
     await resizeTo(60);
 
     const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
-    expect(svg.querySelector('[data-trajectory-tone="model-completed"]')).toHaveAttribute(
-      "d",
-      expect.stringContaining("M"),
-    );
-    expect(svg.querySelector('[data-trajectory-tone="tool-running"]')).toHaveAttribute(
-      "d",
-      expect.stringContaining("M"),
-    );
-    expect(svg.querySelector('[data-trajectory-tone="tool-critical"]')).toHaveAttribute(
-      "d",
-      expect.stringMatching(/M.*M/),
-    );
+    const toneSegments = (tone: string) =>
+      Array.from(svg.querySelectorAll(`[data-trajectory-tone="${tone}"]`))
+        .map((path) => path.getAttribute("d") ?? "")
+        .join("");
+    expect(toneSegments("model-completed")).toContain("M");
+    expect(toneSegments("tool-running")).toContain("M");
+    expect(toneSegments("tool-critical")).toMatch(/M.*M/);
     expect(screen.getByText(translate("trajectory.status.completed"))).toBeInTheDocument();
     expect(screen.getByText(translate("trajectory.status.running"))).toBeInTheDocument();
     expect(
@@ -622,8 +669,9 @@ describe("AgentTrajectoryOverview", () => {
       expect(startText).toContain("E");
       expect(endText).toContain("E");
       expect(Math.max(startText.length, endText.length)).toBeLessThanOrEqual(80);
-      expect(screen.getByText(startText)).toBeInTheDocument();
-      expect(screen.getByText(endText)).toBeInTheDocument();
+      // The viewport tick may legitimately repeat the same fallback text.
+      expect(screen.getAllByText(startText).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(endText).length).toBeGreaterThan(0);
     },
   );
 
