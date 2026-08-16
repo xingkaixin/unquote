@@ -548,6 +548,100 @@ describe("claudeTranscriptAdapter", () => {
     });
   });
 
+  it("counts usage once per request across the records of one response", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    const usage = {
+      input_tokens: 2,
+      cache_read_input_tokens: 40,
+      cache_creation_input_tokens: 5,
+      output_tokens: 90,
+    };
+    builder.push(
+      parsedLine({ type: "user", promptId: "prompt-usage", message: { content: "Prompt" } }, 1),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-1",
+          message: { content: [{ type: "text", text: "First block" }], usage },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-1",
+          message: {
+            content: [{ type: "tool_use", id: "tool-1", name: "Bash", input: {} }],
+            usage,
+          },
+        },
+        3,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          requestId: "req-2",
+          message: { content: [{ type: "text", text: "Next response" }], usage },
+        },
+        4,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    // Every record keeps its display usage; only the first record per request
+    // carries token-usage evidence.
+    expect(session.events.slice(1).every((event) => event.usage !== undefined)).toBe(true);
+    expect(
+      session.events.map(
+        (event) =>
+          event.trajectoryEvidence?.filter((evidence) => evidence.kind === "token-usage").length ??
+          0,
+      ),
+    ).toEqual([0, 1, 0, 1]);
+
+    const trajectory = createAgentTrajectoryModel(session);
+    expect(trajectory.stats.tokenUsage).toEqual({
+      inputTokens: 4,
+      cacheReadInputTokens: 80,
+      cacheCreationInputTokens: 10,
+      outputTokens: 180,
+    });
+  });
+
+  it("still sums usage for records without a request id", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "One" }], usage: { output_tokens: 3 } },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "Two" }], usage: { output_tokens: 4 } },
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+    const trajectory = createAgentTrajectoryModel(session);
+
+    expect(trajectory.stats.tokenUsage).toEqual({ outputTokens: 7 });
+  });
+
   it("keeps repeated Claude blocks and parallel results as separate evidence", () => {
     const builder = claudeTranscriptAdapter.createBuilder();
     builder.push(

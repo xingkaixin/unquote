@@ -346,6 +346,7 @@ const parseClaudeModel = (raw: unknown) => {
 
 const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
+  const seenUsageRequestIds = new Set<string>();
   let currentTurn: { index: number; turnId?: string } | undefined;
   let turnCount = 0;
   let sessionId: string | undefined;
@@ -414,6 +415,18 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         event.usage = usage.display;
       }
 
+      // One API response spans several records that repeat the same usage
+      // object, so only the request's first record contributes to totals.
+      let trajectoryUsage = usage?.trajectory;
+      const requestId = getString(record, "requestId");
+      if (trajectoryUsage && requestId) {
+        if (seenUsageRequestIds.has(requestId)) {
+          trajectoryUsage = undefined;
+        } else {
+          seenUsageRequestIds.add(requestId);
+        }
+      }
+
       let items: AgentConversationItem[] = [];
       if (type === "user") {
         if (isToolResultTurn || !getBoolean(record, "isMeta")) {
@@ -425,7 +438,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       }
 
       if (type === "user" || type === "assistant") {
-        appendClaudeTrajectoryEvidence(event, items, turnId, usage?.trajectory);
+        appendClaudeTrajectoryEvidence(event, items, turnId, trajectoryUsage);
       }
 
       events.push(event);
