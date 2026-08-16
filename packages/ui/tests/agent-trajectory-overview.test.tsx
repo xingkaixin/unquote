@@ -349,10 +349,10 @@ describe("AgentTrajectoryOverview", () => {
 
   it("splits a kind into density tiers by bucket count", async () => {
     const items: ReturnType<typeof itemFor>[] = [];
-    for (let index = 0; index < 130; index += 1) {
+    for (let index = 0; index < 800; index += 1) {
       items.push(itemFor(`dense-${index}`, "assistant", "completed", index % 3));
     }
-    for (let index = 0; index < 31; index += 1) {
+    for (let index = 0; index < 260; index += 1) {
       items.push(itemFor(`sparse-${index}`, "assistant", "completed", 60));
     }
     renderOverview(presentationFor(items));
@@ -430,7 +430,7 @@ describe("AgentTrajectoryOverview", () => {
 
   it("falls back to aggregated buckets above the span limit", async () => {
     const items: ReturnType<typeof itemFor>[] = [];
-    for (let index = 0; index < 161; index += 1) {
+    for (let index = 0; index < 1001; index += 1) {
       items.push(itemFor(`bulk-${index}`, "assistant", "completed", index));
     }
     renderOverview(presentationFor(items));
@@ -530,11 +530,9 @@ describe("AgentTrajectoryOverview", () => {
     const input = rangeStart();
     const before = Number(input.value);
     input.focus();
+    // Base UI handles Arrow keys itself, so one press moves exactly one step.
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(input);
-    // jsdom delegates native range Arrow key behavior to the host browser; stepUp applies its step.
-    input.stepUp();
-    fireEvent.change(input, { target: { value: input.value } });
 
     expect(onTimeRangeChange).toHaveBeenLastCalledWith({
       start: domainStart + before + Number(input.step),

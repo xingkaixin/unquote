@@ -16,6 +16,7 @@ import { formatClockTime } from "../lib/format";
 import { formatTimestamp } from "./agent-session-format";
 import { formatTrajectoryDuration, trajectoryKindMessageKey } from "./agent-trajectory-format";
 import { Button } from "./button";
+import { RangeSlider } from "./range-slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const ZOOM_FACTOR = 2;
@@ -23,8 +24,10 @@ const SVG_HEIGHT = 3;
 const BUCKET_SEGMENT_INSET = 0.15;
 const RANGE_KEYBOARD_INCREMENT_COUNT = 100;
 // Above this many visible items the chart falls back to aggregated buckets so
-// the DOM stays bounded for large sessions.
-export const trajectoryOverviewSpanLimit = 160;
+// the DOM stays bounded for large sessions. Typical sessions run a few hundred
+// items, so they get per-event spans; the trajectory DOM budget in
+// docs/performance.md derives from this cap.
+export const trajectoryOverviewSpanLimit = 1000;
 
 const lanes: readonly AgentTrajectoryLane[] = ["activity", "model", "tool"];
 
@@ -481,28 +484,33 @@ export const AgentTrajectoryOverview = ({
   const rangeEndText =
     domain && selectedRange ? formatRangeValue(selectedRange.end, domain, locale) : "";
 
-  const changeStart = (value: string) => {
-    if (!domain || !selectedRange) {
+  const changeRange = (next: readonly number[]) => {
+    if (!domain || !selectedRange || next.length !== 2) {
       return;
     }
-    const next = rangeValueFromInput(value, selectedRange.start, domain);
-    if (next === null) {
+    // Only convert the thumb that moved: coordinate round-trips can drift on
+    // extreme domains and would shift the untouched end of the range.
+    const nextStart =
+      next[0] === inputStart
+        ? selectedRange.start
+        : rangeValueFromInput(String(next[0]), selectedRange.start, domain);
+    const nextEnd =
+      next[1] === inputEnd
+        ? selectedRange.end
+        : rangeValueFromInput(String(next[1]), selectedRange.end, domain);
+    if (nextStart === null || nextEnd === null) {
       return;
     }
-    const start = Math.min(selectedRange.end, Math.max(domain.start, next));
-    onTimeRangeChange({ start, end: selectedRange.end });
-  };
-
-  const changeEnd = (value: string) => {
-    if (!domain || !selectedRange) {
-      return;
-    }
-    const next = rangeValueFromInput(value, selectedRange.end, domain);
-    if (next === null) {
-      return;
-    }
-    const end = Math.max(selectedRange.start, Math.min(domain.end, next));
-    onTimeRangeChange({ start: selectedRange.start, end });
+    // Whole milliseconds read naturally on ordinary domains; sub-millisecond
+    // domains keep the fractional precision they need.
+    const quantize = (value: number) =>
+      domain.end - domain.start >= 1_000 ? Math.round(value) : value;
+    const boundedStart = Math.min(domain.end, Math.max(domain.start, quantize(nextStart)));
+    const boundedEnd = Math.min(domain.end, Math.max(domain.start, quantize(nextEnd)));
+    onTimeRangeChange({
+      start: Math.min(boundedStart, boundedEnd),
+      end: Math.max(boundedStart, boundedEnd),
+    });
   };
 
   const zoom = (factor: number) => {
@@ -589,51 +597,41 @@ export const AgentTrajectoryOverview = ({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-          <span className="shrink-0">{t("trajectory.rangeStart")}</span>
-          <output
-            aria-hidden="true"
-            className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
-            title={rangeStartText}
-          >
-            {rangeStartText}
-          </output>
-          <input
-            type="range"
-            min={inputMin}
-            max={inputMax}
-            step={inputStep}
-            value={inputStart}
-            disabled={controlsDisabled}
-            aria-label={t("trajectory.rangeStart")}
-            aria-valuetext={rangeStartText || undefined}
-            onChange={(event) => changeStart(event.currentTarget.value)}
-            className="col-span-2 min-w-0 accent-accent disabled:opacity-40"
-          />
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-baseline justify-between gap-3 text-[11px] text-text-secondary">
+          <span className="inline-flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0">{t("trajectory.rangeStart")}</span>
+            <output
+              aria-hidden="true"
+              className="min-w-0 truncate font-mono text-[10px] text-text-tertiary"
+              title={rangeStartText}
+            >
+              {rangeStartText}
+            </output>
+          </span>
+          <span className="inline-flex min-w-0 items-baseline gap-2">
+            <output
+              aria-hidden="true"
+              className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
+              title={rangeEndText}
+            >
+              {rangeEndText}
+            </output>
+            <span className="shrink-0">{t("trajectory.rangeEnd")}</span>
+          </span>
         </div>
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-          <span className="shrink-0">{t("trajectory.rangeEnd")}</span>
-          <output
-            aria-hidden="true"
-            className="min-w-0 truncate text-right font-mono text-[10px] text-text-tertiary"
-            title={rangeEndText}
-          >
-            {rangeEndText}
-          </output>
-          <input
-            type="range"
-            min={inputMin}
-            max={inputMax}
-            step={inputStep}
-            value={inputEnd}
-            disabled={controlsDisabled}
-            aria-label={t("trajectory.rangeEnd")}
-            aria-valuetext={rangeEndText || undefined}
-            onChange={(event) => changeEnd(event.currentTarget.value)}
-            className="col-span-2 min-w-0 accent-accent disabled:opacity-40"
-          />
-        </div>
+        <RangeSlider
+          value={[inputStart, inputEnd]}
+          min={inputMin}
+          max={inputMax > inputMin ? inputMax : inputMin + 1}
+          step={inputStep}
+          disabled={controlsDisabled}
+          onValueChange={changeRange}
+          getAriaLabel={(index) =>
+            index === 0 ? t("trajectory.rangeStart") : t("trajectory.rangeEnd")
+          }
+          getAriaValueText={(index) => (index === 0 ? rangeStartText : rangeEndText)}
+        />
       </div>
 
       {activeViewport ? (

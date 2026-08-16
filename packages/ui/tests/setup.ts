@@ -53,6 +53,18 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   value: vi.fn(),
 });
 
+// jsdom has no pointer capture; Base UI's slider calls it on pointerdown.
+for (const method of ["setPointerCapture", "releasePointerCapture"] as const) {
+  Object.defineProperty(Element.prototype, method, {
+    configurable: true,
+    value: vi.fn(),
+  });
+}
+Object.defineProperty(Element.prototype, "hasPointerCapture", {
+  configurable: true,
+  value: vi.fn(() => false),
+});
+
 Object.defineProperty(window, "scrollTo", {
   configurable: true,
   value: vi.fn(),
