@@ -284,6 +284,9 @@ export const UnquoteApp = ({
     ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
       <AgentTrajectoryView
         model={agentSessionModel}
+        records={result.records}
+        resolveRecord={recordWorkspace.resolveRecord}
+        requestFullRecord={recordWorkspace.requestFullRecord}
         isDesktop={isDesktop}
         filters={trajectoryFilters}
         detailSelection={recordWorkspace.detailSelection}

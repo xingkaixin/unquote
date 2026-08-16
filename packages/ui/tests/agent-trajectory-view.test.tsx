@@ -198,6 +198,9 @@ const renderView = (overrides: Partial<HarnessProps> = {}) => {
   };
   const props: HarnessProps = {
     model: modelFor([itemFor("default", { timestamp: 10 })]),
+    records: [],
+    resolveRecord: (record) => record,
+    requestFullRecord: vi.fn(),
     isDesktop: true,
     detailSelection: null,
     onDetailSelectionChange: callbacks.onDetailSelectionChange,

@@ -1,5 +1,12 @@
-import { useDeferredValue, useMemo } from "react";
+import { useDeferredValue, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
+import {
+  isFullRecord,
+  isParsed,
+  stringifyJsonNode,
+  truncateAtCodePointBoundary,
+} from "@unquote/core";
+import type { JsonlRecord } from "@unquote/core";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import type { TrajectoryFilters } from "../hooks/use-trajectory-filters";
@@ -15,9 +22,10 @@ import {
   filterAgentTrajectoryPresentation,
   type AgentTrajectoryFilterKind,
   type AgentTrajectoryFilterStatus,
+  type AgentTrajectoryPresentationItem,
   type AgentTrajectoryPresentationSummary,
 } from "../lib/agent-session/trajectory-presentation";
-import { AgentTrajectoryDetail } from "./agent-trajectory-detail";
+import { AgentTrajectoryDetail, type TrajectoryRawJson } from "./agent-trajectory-detail";
 import { formatTrajectoryDuration } from "./agent-trajectory-format";
 import { AgentTrajectoryLedger } from "./agent-trajectory-ledger";
 import { AgentTrajectoryOverview } from "./agent-trajectory-overview";
@@ -253,8 +261,17 @@ const TrajectoryHeaderBar = ({
   );
 };
 
+// Raw JSON shown inline in the detail pane stays bounded; the full Record is
+// one click away.
+const RAW_JSON_CHARACTER_LIMIT = 20_000;
+
 export interface AgentTrajectoryViewProps {
   model: AgentSessionModel;
+  records: readonly JsonlRecord[];
+  // Streamed sources hold Preview Records; these swap in and request the
+  // cached Full Record so the detail pane can show real JSON.
+  resolveRecord: (record: JsonlRecord) => JsonlRecord;
+  requestFullRecord: (record: JsonlRecord) => void;
   isDesktop: boolean;
   filters: TrajectoryFilters;
   detailSelection: AgentDetailSelection | null;
@@ -262,8 +279,33 @@ export interface AgentTrajectoryViewProps {
   onOpenRecord: (selection: AgentDetailSelection, endpointRecordId: string) => void;
 }
 
+const rawRecordIdsFor = (item: AgentTrajectoryPresentationItem | null): string[] => {
+  if (!item) {
+    return [];
+  }
+  const trajectoryItem = item.item;
+  const ids: string[] = [];
+  if (trajectoryItem.kind === "tool") {
+    const callRecordId = trajectoryItem.callSelection?.recordId;
+    const resultRecordId = trajectoryItem.resultSelection?.recordId;
+    if (callRecordId !== undefined) {
+      ids.push(callRecordId);
+    }
+    if (resultRecordId !== undefined && resultRecordId !== callRecordId) {
+      ids.push(resultRecordId);
+    }
+  }
+  if (ids.length === 0) {
+    ids.push(trajectoryItem.recordId);
+  }
+  return ids;
+};
+
 export const AgentTrajectoryView = ({
   model,
+  records,
+  resolveRecord,
+  requestFullRecord,
   isDesktop,
   filters,
   detailSelection,
@@ -278,6 +320,32 @@ export const AgentTrajectoryView = ({
     () => new Map(presentation.items.map((item) => [item.item.id, item])),
     [presentation],
   );
+  const recordById = useMemo(
+    () => new Map(records.map((record) => [record.id, record])),
+    [records],
+  );
+  const resolveRawJson = (recordId: string): TrajectoryRawJson | null => {
+    const record = recordById.get(recordId);
+    if (!record || !isParsed(record)) {
+      return null;
+    }
+    const resolved = resolveRecord(record);
+    if (!isParsed(resolved)) {
+      return null;
+    }
+    if (!isFullRecord(resolved)) {
+      return { kind: "preview" };
+    }
+    const text = stringifyJsonNode(resolved.node, { indent: 2 });
+    if (text.length <= RAW_JSON_CHARACTER_LIMIT) {
+      return { kind: "full", text, truncated: false };
+    }
+    return {
+      kind: "full",
+      text: truncateAtCodePointBoundary(text, RAW_JSON_CHARACTER_LIMIT),
+      truncated: true,
+    };
+  };
   const filteredPresentation = useMemo(
     () =>
       filterAgentTrajectoryPresentation(presentation, {
@@ -290,6 +358,17 @@ export const AgentTrajectoryView = ({
   );
   const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
   const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
+
+  // Ask a streamed source for the Full Records of the selected item's raw
+  // blocks; the cache update re-renders the detail pane with the JSON.
+  useEffect(() => {
+    for (const recordId of rawRecordIdsFor(selectedItem)) {
+      const record = recordById.get(recordId);
+      if (record && isParsed(record) && !isFullRecord(resolveRecord(record))) {
+        requestFullRecord(record);
+      }
+    }
+  }, [recordById, requestFullRecord, resolveRecord, selectedItem]);
 
   const selectItem = (itemId: string) => {
     const selection = model.selectTrajectory(itemId);
@@ -379,6 +458,7 @@ export const AgentTrajectoryView = ({
           <AgentTrajectoryDetail
             item={selectedItem}
             unattachedWarningGroups={presentation.unattachedWarningGroups}
+            resolveRawJson={resolveRawJson}
             onOpenSelection={openSelectedItemSelection}
             onOpenUnattachedWarning={openUnattachedWarning}
           />
