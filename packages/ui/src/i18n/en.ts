@@ -96,6 +96,7 @@ export const en = {
   "trajectory.rangeStart": "Range start",
   "trajectory.rangeEnd": "Range end",
   "trajectory.noTimeline": "No timeline data",
+  "trajectory.idleGap": "Idle {duration}",
   "trajectory.search": "Search trajectory",
   "trajectory.searchPlaceholder": "Search events…",
   "trajectory.kind": "Kind",

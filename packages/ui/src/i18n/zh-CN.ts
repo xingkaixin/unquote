@@ -98,6 +98,7 @@ export const zhCN: Messages = {
   "trajectory.rangeStart": "范围起点",
   "trajectory.rangeEnd": "范围终点",
   "trajectory.noTimeline": "没有时间线数据",
+  "trajectory.idleGap": "空闲 {duration}",
   "trajectory.search": "搜索轨迹",
   "trajectory.searchPlaceholder": "搜索事件…",
   "trajectory.kind": "类型",

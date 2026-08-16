@@ -789,18 +789,23 @@ export const createAgentTrajectoryOverview = (
   }
 
   const activeViewport = clampRangeToDomain(domain, viewport);
+  const scale = createTrajectoryTimeScale(presentation, activeViewport);
   const lanes: Record<AgentTrajectoryLane, MutableOverviewBucket[]> = {
     activity: emptyBuckets(count),
     model: emptyBuckets(count),
     tool: emptyBuckets(count),
   };
   const turnBoundaries = emptyBuckets(count);
+  const bucketIndex = (time: number) =>
+    scale
+      ? Math.min(count - 1, Math.max(0, Math.floor(scale.toRatio(time) * count)))
+      : bucketIndexFor(time, activeViewport, count);
 
   for (const item of presentation.items) {
     if (!item.interval || !overlaps(item.interval, activeViewport)) {
       continue;
     }
-    const index = bucketIndexFor(midpoint(item.interval), activeViewport, count);
+    const index = bucketIndex(midpoint(item.interval));
     includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status, item.item.kind);
   }
 
@@ -814,7 +819,7 @@ export const createAgentTrajectoryOverview = (
       if (point === undefined || point < activeViewport.start || point > activeViewport.end) {
         continue;
       }
-      const index = bucketIndexFor(point, activeViewport, count);
+      const index = bucketIndex(point);
       includeBucketFact(turnBoundaries[index]!, { start: point, end: point }, status);
     }
   }
@@ -836,6 +841,149 @@ const finalizeBuckets = (
 ): AgentTrajectoryOverviewBucket[] =>
   buckets.map(({ count, interval, status, kind }) => ({ count, interval, status, kind }));
 
+// An idle stretch must span at least this fraction of the viewport before the
+// axis compresses it — high enough that ordinary pauses between sparse events
+// never fold — and it then occupies this much of the compressed width.
+const TIME_SCALE_GAP_MIN_FRACTION = 0.25;
+const TIME_SCALE_GAP_MIN_MS = 60_000;
+const TIME_SCALE_GAP_COMPRESSED_FRACTION = 0.03;
+
+export interface TrajectoryTimeScale {
+  readonly viewport: AgentTrajectoryTimeRange;
+  // Idle stretches (in real time) that the axis compresses.
+  readonly gaps: readonly AgentTrajectoryTimeRange[];
+  readonly toRatio: (time: number) => number;
+  readonly fromRatio: (ratio: number) => number;
+}
+
+interface TimeScaleSegment {
+  readonly start: number;
+  readonly end: number;
+  readonly weight: number;
+  readonly cumulativeBefore: number;
+}
+
+const linearTimeScale = (
+  viewport: AgentTrajectoryTimeRange,
+  span: number,
+): TrajectoryTimeScale => ({
+  viewport,
+  gaps: [],
+  toRatio: (time) => Math.min(1, Math.max(0, (time - viewport.start) / span)),
+  fromRatio: (ratio) => viewport.start + Math.min(1, Math.max(0, ratio)) * span,
+});
+
+/**
+ * A piecewise-linear axis over the viewport: stretches with no observed
+ * activity longer than a tenth of the viewport collapse to a sliver so the
+ * active clusters get the horizontal space instead of real idle time.
+ */
+export const createTrajectoryTimeScale = (
+  presentation: AgentTrajectoryPresentation,
+  viewport: AgentTrajectoryTimeRange | null,
+): TrajectoryTimeScale | null => {
+  const active = validRange(viewport);
+  if (!active) {
+    return null;
+  }
+  const span = active.end - active.start;
+  if (!Number.isFinite(span) || span <= 0) {
+    return null;
+  }
+
+  const covered: { start: number; end: number }[] = [];
+  for (const item of presentation.items) {
+    if (!item.interval || !overlaps(item.interval, active)) {
+      continue;
+    }
+    covered.push({
+      start: Math.max(active.start, item.interval.start),
+      end: Math.min(active.end, item.interval.end),
+    });
+  }
+  for (const group of presentation.groups) {
+    for (const time of [group.turn?.startedAt, group.turn?.endedAt]) {
+      const point = finiteNumber(time);
+      if (point !== undefined && point >= active.start && point <= active.end) {
+        covered.push({ start: point, end: point });
+      }
+    }
+  }
+  if (covered.length === 0) {
+    return linearTimeScale(active, span);
+  }
+
+  covered.sort((left, right) => left.start - right.start);
+  const minGap = Math.max(span * TIME_SCALE_GAP_MIN_FRACTION, TIME_SCALE_GAP_MIN_MS);
+  const gaps: AgentTrajectoryTimeRange[] = [];
+  let coveredUntil = active.start;
+  for (const range of covered) {
+    if (range.start - coveredUntil > minGap) {
+      gaps.push({ start: coveredUntil, end: range.start });
+    }
+    coveredUntil = Math.max(coveredUntil, range.end);
+  }
+  if (active.end - coveredUntil > minGap) {
+    gaps.push({ start: coveredUntil, end: active.end });
+  }
+  if (gaps.length === 0) {
+    return linearTimeScale(active, span);
+  }
+
+  // Each gap should occupy a fixed share of the *compressed* width, so solve
+  // w / (activeWeight + gapCount * w) = share for the gap weight w.
+  const gapShare = TIME_SCALE_GAP_COMPRESSED_FRACTION;
+  const activeWeight = span - gaps.reduce((total, gap) => total + (gap.end - gap.start), 0);
+  const compressedWeight =
+    activeWeight > 0 && gaps.length * gapShare < 1
+      ? (gapShare * activeWeight) / (1 - gaps.length * gapShare)
+      : span * gapShare;
+  const segments: TimeScaleSegment[] = [];
+  let cursor = active.start;
+  let cumulative = 0;
+  const pushSegment = (start: number, end: number, weight: number) => {
+    if (end <= start) {
+      return;
+    }
+    segments.push({ start, end, weight, cumulativeBefore: cumulative });
+    cumulative += weight;
+  };
+  for (const gap of gaps) {
+    pushSegment(cursor, gap.start, gap.start - cursor);
+    pushSegment(gap.start, gap.end, compressedWeight);
+    cursor = gap.end;
+  }
+  pushSegment(cursor, active.end, active.end - cursor);
+  const totalWeight = cumulative;
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return linearTimeScale(active, span);
+  }
+
+  const toRatio = (time: number) => {
+    const clamped = Math.min(active.end, Math.max(active.start, time));
+    for (const segment of segments) {
+      if (clamped <= segment.end) {
+        const within = (clamped - segment.start) / (segment.end - segment.start);
+        return (segment.cumulativeBefore + within * segment.weight) / totalWeight;
+      }
+    }
+    return 1;
+  };
+  const fromRatio = (ratio: number) => {
+    const target = Math.min(1, Math.max(0, ratio)) * totalWeight;
+    for (const segment of segments) {
+      if (target <= segment.cumulativeBefore + segment.weight) {
+        const within =
+          segment.weight > 0 ? (target - segment.cumulativeBefore) / segment.weight : 0;
+        return segment.start + within * (segment.end - segment.start);
+      }
+    }
+    return active.end;
+  };
+
+  return { viewport: active, gaps, toRatio, fromRatio };
+};
+
 export interface AgentTrajectoryOverviewSpan {
   readonly item: AgentTrajectoryPresentationItem;
   // Position within the viewport, both clamped to [0, 1].
@@ -853,29 +1001,24 @@ export const trajectoryOverviewSpans = (
   viewport: AgentTrajectoryTimeRange | null,
   limit: number,
 ): AgentTrajectoryOverviewSpan[] | null => {
-  const activeViewport = validRange(viewport);
-  if (!activeViewport || !Number.isFinite(limit) || limit <= 0) {
-    return null;
-  }
-  const span = activeViewport.end - activeViewport.start;
-  if (!Number.isFinite(span) || span <= 0) {
+  const scale = createTrajectoryTimeScale(presentation, viewport);
+  if (!scale || !Number.isFinite(limit) || limit <= 0) {
     return null;
   }
 
   const spans: AgentTrajectoryOverviewSpan[] = [];
   for (const item of presentation.items) {
-    if (!item.interval || !overlaps(item.interval, activeViewport)) {
+    if (!item.interval || !overlaps(item.interval, scale.viewport)) {
       continue;
     }
     if (spans.length >= limit) {
       return null;
     }
-    const startRatio = Math.min(
-      1,
-      Math.max(0, (item.interval.start - activeViewport.start) / span),
-    );
-    const endRatio = Math.min(1, Math.max(0, (item.interval.end - activeViewport.start) / span));
-    spans.push({ item, startRatio, endRatio });
+    spans.push({
+      item,
+      startRatio: scale.toRatio(item.interval.start),
+      endRatio: scale.toRatio(item.interval.end),
+    });
   }
   return spans;
 };

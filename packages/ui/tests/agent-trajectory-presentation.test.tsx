@@ -17,8 +17,10 @@ import {
   agentTrajectoryWarningKinds,
   createAgentTrajectoryOverview,
   createAgentTrajectoryPresentation,
+  createTrajectoryTimeScale,
   filterAgentTrajectoryPresentation,
   trajectoryOverviewBucketCount,
+  trajectoryOverviewSpans,
   zoomTrajectoryViewport,
 } from "../src/lib/agent-session/trajectory-presentation";
 
@@ -1367,6 +1369,58 @@ describe("trajectory overview", () => {
       "kind",
       "status",
     ]);
+  });
+
+  it("compresses long idle stretches on the time scale and keeps active time linear", () => {
+    // Two clusters at [0, 100s] and [10_000s, 10_100s] with a 2.75-hour idle stretch.
+    const first = modelOutputItemFor("event-60", "assistant", 0);
+    const second = modelOutputItemFor("event-61", "assistant", 100_000);
+    const third = modelOutputItemFor("event-62", "assistant", 10_000_000);
+    const fourth = modelOutputItemFor("event-63", "assistant", 10_100_000);
+    const presentation = createAgentTrajectoryPresentation(
+      modelFor(
+        [
+          eventFor("event-60", "A", ""),
+          eventFor("event-61", "B", ""),
+          eventFor("event-62", "C", ""),
+          eventFor("event-63", "D", ""),
+        ],
+        [first, second, third, fourth],
+      ),
+    );
+    const scale = createTrajectoryTimeScale(presentation, presentation.timeDomain)!;
+
+    expect(scale.gaps).toEqual([{ start: 100_000, end: 10_000_000 }]);
+    // The gap collapses to 3% of the compressed width, so the two equal active
+    // clusters each take (1 − 0.03) / 2 = 48.5% instead of ~1%.
+    expect(scale.toRatio(0)).toBe(0);
+    expect(scale.toRatio(100_000)).toBeCloseTo(0.485, 6);
+    expect(scale.toRatio(10_000_000)).toBeCloseTo(0.515, 6);
+    expect(scale.toRatio(10_100_000)).toBe(1);
+    // The inverse restores the original moments.
+    expect(scale.fromRatio(scale.toRatio(50_000))).toBeCloseTo(50_000, 3);
+    expect(scale.fromRatio(scale.toRatio(10_050_000))).toBeCloseTo(10_050_000, 3);
+
+    const spans = trajectoryOverviewSpans(presentation, presentation.timeDomain, 100)!;
+    expect(spans[1]!.startRatio).toBeCloseTo(0.485, 6);
+    expect(spans[2]!.startRatio).toBeCloseTo(0.515, 6);
+  });
+
+  it("keeps ordinary pauses between sparse events on a linear time scale", () => {
+    const timestamps = [0, 20, 40, 60, 80, 100];
+    const presentation = createAgentTrajectoryPresentation(
+      modelFor(
+        timestamps.map((_, index) => eventFor(`event-6${index + 4}`, "Sparse", "")),
+        timestamps.map((timestamp, index) =>
+          modelOutputItemFor(`event-6${index + 4}`, "assistant", timestamp),
+        ),
+      ),
+    );
+    const scale = createTrajectoryTimeScale(presentation, { start: 0, end: 100 })!;
+
+    expect(scale.gaps).toEqual([]);
+    expect(scale.toRatio(25)).toBeCloseTo(0.25, 9);
+    expect(scale.fromRatio(0.25)).toBeCloseTo(25, 9);
   });
 
   it("zooms around the viewport center and clamps safely to the full domain", () => {

@@ -348,12 +348,13 @@ describe("AgentTrajectoryOverview", () => {
   });
 
   it("splits a kind into density tiers by bucket count", async () => {
+    // Timestamps stay gap-free so the compressed axis leaves bucketing linear.
     const items: ReturnType<typeof itemFor>[] = [];
     for (let index = 0; index < 800; index += 1) {
-      items.push(itemFor(`dense-${index}`, "assistant", "completed", index % 3));
+      items.push(itemFor(`dense-${index}`, "assistant", "completed", index % 30));
     }
     for (let index = 0; index < 260; index += 1) {
-      items.push(itemFor(`sparse-${index}`, "assistant", "completed", 60));
+      items.push(itemFor(`sparse-${index}`, "assistant", "completed", 30 + (index % 30)));
     }
     renderOverview(presentationFor(items));
     await resizeTo(12);
@@ -426,6 +427,30 @@ describe("AgentTrajectoryOverview", () => {
 
     await user.click(spans[0] as HTMLElement);
     expect(onSelectItem).toHaveBeenCalledWith("item-prompt");
+  });
+
+  it("collapses a long idle stretch into a labeled gap marker", async () => {
+    const presentation = presentationFor([
+      itemFor("burst-start", "assistant", "completed", 0),
+      itemFor("burst-end", "assistant", "completed", 60_000),
+      itemFor("late", "assistant", "completed", 36_060_000),
+    ]);
+    renderOverview(presentation);
+    await resizeTo(360);
+
+    const gap = overviewRoot().querySelector('[data-trajectory-gap="0"]') as HTMLElement;
+    expect(gap).not.toBeNull();
+    expect(gap.title).toBe(`Idle ${formatTrajectoryDuration(36_000_000, "en")}`);
+    // Active clusters keep most of the width: the last span sits at ~97%.
+    const late = overviewRoot().querySelector('[data-trajectory-span="2"]') as HTMLElement;
+    expect(Number.parseFloat(late.style.left)).toBeGreaterThan(90);
+  });
+
+  it("keeps a gap-free session without gap markers", async () => {
+    renderOverview(presentationForDomain(0, 100));
+    await resizeTo(360);
+
+    expect(overviewRoot().querySelector("[data-trajectory-gap]")).toBeNull();
   });
 
   it("falls back to aggregated buckets above the span limit", async () => {

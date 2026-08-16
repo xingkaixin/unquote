@@ -35,6 +35,7 @@ const trajectoryMessageKeys = [
   "trajectory.rangeStart",
   "trajectory.rangeEnd",
   "trajectory.noTimeline",
+  "trajectory.idleGap",
   "trajectory.search",
   "trajectory.searchPlaceholder",
   "trajectory.kind",
@@ -132,7 +133,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in both locale catalogs", () => {
-    expect(trajectoryMessageKeys).toHaveLength(75);
+    expect(trajectoryMessageKeys).toHaveLength(76);
 
     for (const key of trajectoryMessageKeys) {
       expect(en).toHaveProperty(key);

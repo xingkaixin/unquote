@@ -4,6 +4,7 @@ import { useTranslation } from "../i18n/context";
 import type { AgentTrajectoryItemKind } from "../lib/agent-session";
 import {
   createAgentTrajectoryOverview,
+  createTrajectoryTimeScale,
   trajectoryOverviewBucketCount,
   trajectoryOverviewSpans,
   zoomTrajectoryViewport,
@@ -437,19 +438,19 @@ export const AgentTrajectoryOverview = ({
   }, [domain?.end, domain?.start]);
 
   const selectedRange = domain ? clampToRange(timeRange, domain) : null;
+  const timeScale = useMemo(
+    () => createTrajectoryTimeScale(presentation, activeViewport),
+    [activeViewport?.end, activeViewport?.start, presentation],
+  );
   // Dim the regions outside the selected time range instead of tinting the
   // selection: the bars stay readable and a full-domain selection dims nothing.
   const dimRects = (() => {
-    if (!activeViewport || !timeRange || overview.bucketCount === 0) {
-      return [];
-    }
-    const span = activeViewport.end - activeViewport.start;
-    if (!Number.isFinite(span) || span <= 0) {
+    if (!activeViewport || !timeRange || !timeScale || overview.bucketCount === 0) {
       return [];
     }
     const clamped = clampToRange(timeRange, activeViewport);
-    const startX = ((clamped.start - activeViewport.start) / span) * overview.bucketCount;
-    const endX = ((clamped.end - activeViewport.start) / span) * overview.bucketCount;
+    const startX = timeScale.toRatio(clamped.start) * overview.bucketCount;
+    const endX = timeScale.toRatio(clamped.end) * overview.bucketCount;
     const rects: { x: number; width: number }[] = [];
     if (startX > 0) {
       rects.push({ x: 0, width: startX });
@@ -465,10 +466,16 @@ export const AgentTrajectoryOverview = ({
   );
   // Left tick anchors the viewport in absolute time; the middle and right
   // ticks read as offsets so zooming stays legible without repeating dates.
+  // The middle tick follows the compressed axis so it lands mid-chart.
   const tickLabels = activeViewport
     ? [
         tickTimeLabel(Math.trunc(activeViewport.start), locale),
-        tickOffsetLabel((activeViewport.end - activeViewport.start) / 2, locale),
+        tickOffsetLabel(
+          timeScale
+            ? timeScale.fromRatio(0.5) - activeViewport.start
+            : (activeViewport.end - activeViewport.start) / 2,
+          locale,
+        ),
         tickOffsetLabel(activeViewport.end - activeViewport.start, locale),
       ]
     : [];
@@ -715,6 +722,34 @@ export const AgentTrajectoryOverview = ({
                     />
                   ))}
                 </svg>
+                {timeScale && timeScale.gaps.length > 0 ? (
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+                    {timeScale.gaps.map((gap, index) => {
+                      const left = timeScale.toRatio(gap.start) * 100;
+                      const width = timeScale.toRatio(gap.end) * 100 - left;
+                      return (
+                        <div
+                          key={index}
+                          data-trajectory-gap={index}
+                          title={t("trajectory.idleGap", {
+                            duration: formatTrajectoryDuration(gap.end - gap.start, locale),
+                          })}
+                          className="pointer-events-auto absolute inset-y-0 flex items-center justify-center border-x border-dashed border-border-medium bg-surface-50"
+                          style={{ left: `${left}%`, width: `${width}%` }}
+                        >
+                          <span
+                            className="font-mono text-[9px] whitespace-nowrap text-text-tertiary"
+                            style={{ writingMode: "vertical-rl" }}
+                          >
+                            {t("trajectory.idleGap", {
+                              duration: formatTrajectoryDuration(gap.end - gap.start, locale),
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {spans !== null && spans.length > 0 ? (
                   <div data-trajectory-spans className="absolute inset-0">
                     {spans.map((span) => {
