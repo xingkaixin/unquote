@@ -140,15 +140,21 @@ CSS variables defined in `src/styles.css`:
 
 | File | Purpose |
 |---|---|
-| `app.tsx` | Root `UnquoteApp` composition root. Connects source loading, parsing, query interaction, local-file access, workspace selection, export actions, theme, and Agent/JSON output switching. |
-| `components/app-header.tsx` | Loaded-workspace header with Agent/JSON tabs, search and match navigation, source switching, locale/theme controls, and copy/export actions. |
+| `app.tsx` | Root `UnquoteApp` composition root. Connects source loading, parsing, query interaction, local-file access, workspace selection, export actions, theme, and Agent/Trajectory/JSON output switching. |
+| `components/app-header.tsx` | Loaded-workspace header with Agent/Trajectory/JSON tabs, search and match navigation, source switching, locale/theme controls, and copy/export actions; collapses the wordmark and spacer and scrolls horizontally on narrow widths. |
 | `components/import-dialog.tsx` / `source-import-panel.tsx` | Empty-state and source-replacement import flow: paste/drop/file input, bounded live format detection, samples, and explicit auto/json/jsonl mode selection. |
-| `components/record-workspace.tsx` / `workspace-columns.tsx` | Responsive three-column JSON composition: record rail, selected Record tree, and node inspector; desktop uses fixed side columns and mobile stacks the side panes. |
+| `components/record-workspace.tsx` / `workspace-columns.tsx` | Responsive three-column JSON composition: record rail, selected Record tree, and node inspector; desktop uses fixed side columns and mobile stacks the side panes. `workspace-columns.tsx` is the shared layout primitive — the left pane is optional, so the Trajectory view reuses it with two columns. |
 | `components/record-rail.tsx` | Virtualized Record navigation with insight classification, summaries, timestamps, turn indices, active selection, and query-driven scroll targets. |
 | `components/record-tree-pane.tsx` / `json-tree.tsx` | Hydrates and renders the selected Record, exposes breadcrumb/copy/Expand All/Collapse All actions, and virtualizes trees above 180 display rows, including dynamic-height values. |
 | `components/node-inspector.tsx` | Resolves the selected tree path within preview limits and exposes value/path copy plus nested-JSON expansion. |
 | `components/record-filter-bar.tsx` | Direct all/tool/message/event/nested filters; match and error filters remain reachable through search, the command palette, and status bar. |
 | `components/agent-session-view.tsx` | Three-column Agent lens composed from a virtualized timeline, virtualized conversation with expandable tool details, and session facts/metrics. |
+| `components/agent-trajectory-view.tsx` | Agent Trajectory lens: metric chip row, compact search/kind/status control row, and the overview / ledger / detail composition. |
+| `components/agent-trajectory-overview.tsx` | Time-axis chart with kind-colored per-event spans below `trajectoryOverviewSpanLimit` (1,000) and density-tiered buckets above it; the axis is piecewise linear so long idle stretches collapse to a labeled sliver, and the selected range is the viewport. |
+| `components/agent-trajectory-ledger.tsx` | Virtualized turn-grouped item list with turn status, duration, and event counts; scrolls the selected row to center within its own container. |
+| `components/agent-trajectory-detail.tsx` | Selected item facts, tool start/end moments, warnings, and the bounded inline Record JSON (call input and result output as separate blocks) plus jump-to-Record buttons. |
+| `components/agent-trajectory-format.ts` | Shared trajectory duration, time, and token formatting. |
+| `components/range-slider.tsx` | Base UI dual-thumb slider used for the trajectory time range. |
 | `components/command-palette.tsx` | `Cmd/Ctrl+K` command panel for search, path jump, search options, and record filters. |
 | `components/status-bar.tsx` | Parse/search progress, file metrics, error navigation, workspace shortcut hints, clear action, and extension-store links. |
 | `components/theme-toggle.tsx` / `locale-toggle.tsx` | User preference controls. |
@@ -162,7 +168,7 @@ CSS variables defined in `src/styles.css`:
 | `hooks/use-local-file-source.ts` | Browse-time state for local JSONL files: batched Preview-to-Full Record requests, Full Record cache eviction, copy/export resolution, and abort handling. |
 | `hooks/use-global-shortcuts.ts` | Owns document-level command-palette opening, escape dismissal, and selected-node copy shortcuts. |
 | `hooks/use-query-interaction.ts` | Stateful wrapper around command/search/path/filter reducer state and navigation targets. |
-| `hooks/use-output-view.ts` | Owns Agent/JSON output selection and resets it when the detected Agent session identity changes. |
+| `hooks/use-output-view.ts` | Owns Agent/Trajectory/JSON output selection; defaults to Agent once per Source Revision rather than on every session-shape change, so streaming records cannot override a chosen tab. |
 | `hooks/use-search-worker.ts` | Runs search off the main thread with cancellation and a time budget for superseded queries, with an in-process fallback when workers are unavailable. |
 | `hooks/use-source-loader.ts` | Owns source text / file import state, large JSONL streaming decisions, file read progress, and file read error callbacks. |
 | `hooks/use-export-actions.ts` | Owns copy/export actions, full-record resolution, blocked-copy feedback, clipboard failures, and long-running export toasts. |
@@ -185,7 +191,7 @@ CSS variables defined in `src/styles.css`:
 - `lib/search-result.ts` — bounded materialization of search matches for the visible window instead of the whole result set.
 - `lib/selected-node.ts` — resolves the selected tree path and bounds its preview and copy payload.
 - `lib/local-file-source.ts` — local-file capability for line scanning, Preview and Full Record parsing, whole-file search, and record resolution for copy/export.
-- `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts; adapters build sessions and the domain model resolves timeline/conversation selection back to canonical events and Records.
+- `lib/agent-session/` — detects Codex rollout and Claude Code JSONL transcripts; adapters build sessions and the domain model resolves timeline/conversation selection back to canonical events and Records. `trajectory-model.ts` projects the session into turns, items, stats, and warnings from adapter-supplied evidence; `trajectory-presentation.ts` derives the filtered, laid-out view state; `tool-correlation.ts` is the shared call/result/completion pairing used by both adapters and the trajectory.
 - `lib/json-walk.ts` — shared `JsonNode` tree traversal used by tree rendering, search, overview, and record insight code.
 - `lib/jsonl-lines.ts` — shared incremental JSONL line scanner with CRLF handling and early-stop support.
 - `lib/field-extraction.ts` — shared Full Record and Preview Record traversal for file overview and record-insight field candidates and nested metrics.
@@ -209,10 +215,18 @@ CSS variables defined in `src/styles.css`:
 ### Agent Session Feature
 
 - Detection runs only for JSONL input and currently recognizes Codex envelopes (`session_meta`, `event_msg`, `response_item`, `turn_context`) and Claude Code transcript / meta lines.
-- When a session is detected, the output area defaults to the Agent tab while keeping the normal expanded JSON tree available in the JSON tab.
+- When a session is detected, the output area defaults to the Agent tab once per Source Revision, while keeping the normal expanded JSON tree available in the JSON tab.
 - The Agent tab uses a responsive timeline / conversation / session-overview layout; tool calls and results expand inline, and conversation items can open their canonical JSONL Record.
 - Agent sessions preserve raw line linkage so conversation and timeline selections can show the underlying parsed record.
 - Invalid JSONL lines collected during agent-session parsing become parse warnings instead of disabling the detected session.
+
+### Agent Trajectory Feature
+
+- The Trajectory tab projects the same detected session as timed work: turns own status, duration, and item counts; items are classified as user, system, assistant, reasoning, tool, subagent, or compaction.
+- Adapters emit evidence rather than presentation: tool call / result / completion, turn lifecycle, token usage, model output, subagent activity, and compaction. The trajectory model derives everything else, and steps the log does not number itself are marked as derived.
+- Integrity problems (unpaired or duplicate tool events, out-of-order or missing timestamps, still-open turns, unattached token usage) attach as warnings to the affected item instead of failing the projection.
+- The selected time range is the overview viewport and the ledger filter at the same time; search, kind, and status filters live in `use-trajectory-filters.ts` so output-tab switches keep them.
+- Release budgets cover trajectory projection build time, view readiness, item-selection readiness, and trajectory DOM nodes; see `docs/performance.md`.
 
 ### Search Feature
 
@@ -299,8 +313,9 @@ Safari extensions ship inside a native macOS app, so `apps/safari` holds an Xcod
 | `pnpm format:check` | oxfmt check across all packages |
 | `pnpm test` | Run all Vitest suites |
 | `pnpm check` | format check + typecheck + lint + test + production build |
+| `pnpm audit:high` | Fail on high-severity dependency advisories (also a CI gate) |
 | `pnpm benchmark` | Regenerate default fixtures, then build and run the release performance gate |
-| `pnpm benchmark:agent` | Run the performance gate against the synthetic Agent session fixture |
+| `pnpm benchmark:agent` | Run the performance gate against the two synthetic Agent session fixtures; writes a partial report instead of the tracked baseline |
 | `pnpm benchmark:fixtures` | Deterministically regenerate the ignored Agent, case 2, and case 4 fixtures |
 | `pnpm benchmark:case4-fixture` | Generate high-record-count JSONL release/stress fixtures |
 | `pnpm deploy:cf` | Build web + deploy to Cloudflare Pages |
