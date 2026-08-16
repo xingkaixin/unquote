@@ -5,6 +5,32 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.1.0] - 2026-08-16
+
+### Added
+
+- Added a Trajectory tab beside Agent and JSON that projects a detected Agent session as timed work: turns carry status, duration, and event count, and each item is classified as user, system, assistant, reasoning, tool, subagent, or compaction. Steps that the log does not number itself are labeled as derived rather than presented as source data.
+- The trajectory overview draws the session on a time axis: events are colored by kind with failures in red, sparse viewports render each event as a clickable span while dense ones fall back to density-tiered buckets, and idle stretches longer than a quarter of the viewport collapse to a labeled sliver so active clusters get the width.
+- A dual-thumb range slider selects a time window that both zooms the overview and filters the ledger, with zoom in / out / reset controls; search, kind, and status filters narrow the ledger further, and the failures metric drills straight into failed items.
+- The trajectory detail pane shows the selected item's raw Record JSON inline — call input and result output as separate blocks for tools — bounded at 20k characters, with buttons to open the full Record in the JSON tab. Preview Records state that content is not loaded yet instead of showing an empty block.
+- Session metrics report turns, events, tools, failures, duration, and token usage broken down into input, output, cache read, cache write, and reasoning; integrity problems such as unpaired tool calls, duplicate results, out-of-order timestamps, or still-open turns are surfaced as warnings on the affected items.
+
+### Changed
+
+- Trajectory filters now live above the view, so switching to the JSON tab and back keeps the query, kind, status, and time range; they reset when the session itself changes.
+- The app header adapts to narrow widths: the wordmark and spacer collapse, tab and source-button padding shrink, and the bar scrolls horizontally instead of crowding the search field.
+- Release gates cover the trajectory: projection build time, view readiness, item-selection readiness, and a structural trajectory DOM budget are measured per Agent fixture, and a second 5,005-record synthetic Agent fixture exercises high session volume. Partial benchmark runs now write to an ignored report path instead of overwriting the tracked baseline.
+- CI fails on high-severity dependency advisories through a dedicated `pnpm audit:high` gate.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.1.0`.
+
+### Fixed
+
+- Codex shell commands ending in `exec_command_end` now carry their exit status and duration, so the most common tool no longer appears as an untimed, statusless completion. Tool failures are also detected from `isError`, `success: false`, and top-level exit codes, not only from nested metadata, and a failed result with no output text is still reported instead of dropped.
+- Claude Code token totals are no longer inflated: usage is counted once per request rather than once per content block, which previously more than doubled session token counts.
+- Claude Code turns now close through the transcript's own evidence — the `turn_duration` record, an `end_turn` stop reason, or the turn's last timestamp when the next prompt arrives — so turns no longer stay open forever without a duration, and `compact_boundary` records project as compaction.
+- Replacing the source now supersedes in-flight parser work: the previous worker is terminated instead of running to completion in the background.
+- The Agent tab is selected once per source rather than every time the detected session's shape changes, so a chosen tab is no longer overridden while records are still streaming in.
+
 ## [1.0.1] - 2026-08-13
 
 ### Changed
