@@ -1,10 +1,11 @@
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
-import type { AgentTrajectoryStatus } from "../lib/agent-session";
+import type { AgentTrajectoryItemKind } from "../lib/agent-session";
 import {
   createAgentTrajectoryOverview,
   trajectoryOverviewBucketCount,
+  trajectoryOverviewSpans,
   zoomTrajectoryViewport,
   type AgentTrajectoryLane,
   type AgentTrajectoryOverviewBucket,
@@ -13,7 +14,7 @@ import {
 } from "../lib/agent-session/trajectory-presentation";
 import { formatClockTime } from "../lib/format";
 import { formatTimestamp } from "./agent-session-format";
-import { formatTrajectoryDuration } from "./agent-trajectory-format";
+import { formatTrajectoryDuration, trajectoryKindMessageKey } from "./agent-trajectory-format";
 import { Button } from "./button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
@@ -21,11 +22,11 @@ const ZOOM_FACTOR = 2;
 const SVG_HEIGHT = 3;
 const BUCKET_SEGMENT_INSET = 0.15;
 const RANGE_KEYBOARD_INCREMENT_COUNT = 100;
+// Above this many visible items the chart falls back to aggregated buckets so
+// the DOM stays bounded for large sessions.
+export const trajectoryOverviewSpanLimit = 160;
 
 const lanes: readonly AgentTrajectoryLane[] = ["activity", "model", "tool"];
-const tones = ["completed", "running", "critical"] as const;
-
-type TrajectoryTone = (typeof tones)[number];
 
 const laneLabelKey: Record<
   AgentTrajectoryLane,
@@ -42,10 +43,55 @@ const lanePosition: Record<AgentTrajectoryLane, number> = {
   tool: 2.5,
 };
 
-const toneStrokeClass: Record<TrajectoryTone, string> = {
-  completed: "stroke-success",
-  running: "stroke-warning",
-  critical: "stroke-error",
+const kindsByLane: Record<AgentTrajectoryLane, readonly AgentTrajectoryItemKind[]> = {
+  activity: ["user", "system", "compaction"],
+  model: ["assistant", "reasoning"],
+  tool: ["tool", "subagent"],
+};
+
+type ChartColorKey = AgentTrajectoryItemKind | "error";
+
+const chartColorKeys: readonly ChartColorKey[] = [
+  "user",
+  "system",
+  "assistant",
+  "reasoning",
+  "tool",
+  "subagent",
+  "compaction",
+  "error",
+];
+
+const kindStrokeClass: Record<ChartColorKey, string> = {
+  user: "stroke-code-boolean",
+  system: "stroke-text-tertiary",
+  assistant: "stroke-code-string",
+  reasoning: "stroke-code-number",
+  tool: "stroke-accent",
+  subagent: "stroke-code-key",
+  compaction: "stroke-code-null",
+  error: "stroke-error",
+};
+
+const kindFillClass: Record<ChartColorKey, string> = {
+  user: "bg-code-boolean",
+  system: "bg-text-tertiary",
+  assistant: "bg-code-string",
+  reasoning: "bg-code-number",
+  tool: "bg-accent",
+  subagent: "bg-code-key",
+  compaction: "bg-code-null",
+  error: "bg-error",
+};
+
+const isFailureStatus = (status: AgentTrajectoryOverviewBucket["status"]) =>
+  status === "failed" || status === "aborted";
+
+const bucketColorKey = (bucket: AgentTrajectoryOverviewBucket): ChartColorKey | null => {
+  if (isFailureStatus(bucket.status)) {
+    return "error";
+  }
+  return bucket.kind;
 };
 
 const finiteRange = (range: AgentTrajectoryTimeRange | null) => {
@@ -280,16 +326,6 @@ const clampToRange = (range: AgentTrajectoryTimeRange | null, bounds: AgentTraje
   return start <= end ? { start, end } : { start: end, end: start };
 };
 
-const toneForStatus = (status: AgentTrajectoryStatus | null): TrajectoryTone | null => {
-  if (status === "failed" || status === "aborted") {
-    return "critical";
-  }
-  if (status === "running") {
-    return "running";
-  }
-  return status === "completed" ? "completed" : null;
-};
-
 // Ascending stroke widths so denser buckets read as heavier marks.
 const DENSITY_STROKE_WIDTHS = [0.08, 0.14, 0.22] as const;
 
@@ -311,7 +347,7 @@ const laneMaxCount = (buckets: readonly AgentTrajectoryOverviewBucket[]) => {
 const lanePath = (
   buckets: readonly AgentTrajectoryOverviewBucket[],
   lane: AgentTrajectoryLane,
-  tone: TrajectoryTone,
+  colorKey: ChartColorKey,
   tier: number,
   maxCount: number,
 ) => {
@@ -319,7 +355,7 @@ const lanePath = (
   let d = "";
   for (let index = 0; index < buckets.length; index += 1) {
     const bucket = buckets[index]!;
-    if (toneForStatus(bucket.status) !== tone || densityTier(bucket.count, maxCount) !== tier) {
+    if (bucketColorKey(bucket) !== colorKey || densityTier(bucket.count, maxCount) !== tier) {
       continue;
     }
     d += `M${index + BUCKET_SEGMENT_INSET} ${y}H${index + 1 - BUCKET_SEGMENT_INSET}`;
@@ -341,6 +377,8 @@ export interface AgentTrajectoryOverviewProps {
   presentation: AgentTrajectoryPresentation;
   timeRange: AgentTrajectoryTimeRange | null;
   onTimeRangeChange: (range: AgentTrajectoryTimeRange | null) => void;
+  selectedItemId?: string | undefined;
+  onSelectItem?: (itemId: string) => void;
   className?: string;
 }
 
@@ -348,6 +386,8 @@ export const AgentTrajectoryOverview = ({
   presentation,
   timeRange,
   onTimeRangeChange,
+  selectedItemId,
+  onSelectItem,
   className,
 }: AgentTrajectoryOverviewProps) => {
   const { locale, t } = useTranslation();
@@ -394,22 +434,32 @@ export const AgentTrajectoryOverview = ({
   }, [domain?.end, domain?.start]);
 
   const selectedRange = domain ? clampToRange(timeRange, domain) : null;
-  const selectionRect = (() => {
+  // Dim the regions outside the selected time range instead of tinting the
+  // selection: the bars stay readable and a full-domain selection dims nothing.
+  const dimRects = (() => {
     if (!activeViewport || !timeRange || overview.bucketCount === 0) {
-      return null;
+      return [];
     }
     const span = activeViewport.end - activeViewport.start;
     if (!Number.isFinite(span) || span <= 0) {
-      return null;
-    }
-    if (timeRange.end < activeViewport.start || timeRange.start > activeViewport.end) {
-      return null;
+      return [];
     }
     const clamped = clampToRange(timeRange, activeViewport);
-    const x = ((clamped.start - activeViewport.start) / span) * overview.bucketCount;
-    const width = Math.max(0.05, ((clamped.end - clamped.start) / span) * overview.bucketCount);
-    return { x, width };
+    const startX = ((clamped.start - activeViewport.start) / span) * overview.bucketCount;
+    const endX = ((clamped.end - activeViewport.start) / span) * overview.bucketCount;
+    const rects: { x: number; width: number }[] = [];
+    if (startX > 0) {
+      rects.push({ x: 0, width: startX });
+    }
+    if (endX < overview.bucketCount) {
+      rects.push({ x: endX, width: overview.bucketCount - endX });
+    }
+    return rects;
   })();
+  const spans = useMemo(
+    () => trajectoryOverviewSpans(presentation, activeViewport, trajectoryOverviewSpanLimit),
+    [activeViewport?.end, activeViewport?.start, presentation],
+  );
   // Left tick anchors the viewport in absolute time; the middle and right
   // ticks read as offsets so zooming stays legible without repeating dates.
   const tickLabels = activeViewport
@@ -589,18 +639,17 @@ export const AgentTrajectoryOverview = ({
       {activeViewport ? (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-secondary">
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
-              {t("trajectory.status.completed")}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-              {t("trajectory.status.running")}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-error" aria-hidden="true" />
-              {t("trajectory.status.failed")} / {t("trajectory.status.aborted")}
-            </span>
+            {chartColorKeys.map((key) => (
+              <span key={key} className="inline-flex items-center gap-1">
+                <span
+                  className={`size-1.5 rounded-full ${kindFillClass[key]}`}
+                  aria-hidden="true"
+                />
+                {key === "error"
+                  ? `${t("trajectory.status.failed")} / ${t("trajectory.status.aborted")}`
+                  : t(trajectoryKindMessageKey[key])}
+              </span>
+            ))}
           </div>
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
             <div className="grid grid-rows-3 gap-1 py-0.5 text-right font-mono text-[10px] text-text-tertiary">
@@ -609,61 +658,107 @@ export const AgentTrajectoryOverview = ({
               ))}
             </div>
             <div ref={containerRef} className="min-w-0">
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                data-trajectory-chart
-                viewBox={`0 0 ${Math.max(overview.bucketCount, 1)} ${SVG_HEIGHT}`}
-                preserveAspectRatio="none"
-                className="block h-16 w-full overflow-visible"
-              >
-                <path
-                  data-trajectory-turn-boundary
-                  d={turnBoundaryPath(overview.turnBoundaries)}
-                  fill="none"
-                  strokeWidth="0.04"
-                  className="stroke-border-medium"
-                />
-                {lanes.map((lane) => (
-                  <line
-                    key={lane}
-                    x1="0"
-                    x2={Math.max(overview.bucketCount, 1)}
-                    y1={lanePosition[lane]}
-                    y2={lanePosition[lane]}
+              <div className="relative">
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  data-trajectory-chart
+                  viewBox={`0 0 ${Math.max(overview.bucketCount, 1)} ${SVG_HEIGHT}`}
+                  preserveAspectRatio="none"
+                  className="block h-16 w-full overflow-visible"
+                >
+                  <path
+                    data-trajectory-turn-boundary
+                    d={turnBoundaryPath(overview.turnBoundaries)}
+                    fill="none"
                     strokeWidth="0.04"
-                    className="stroke-border"
+                    className="stroke-border-medium"
                   />
-                ))}
-                {lanes.flatMap((lane) => {
-                  const maxCount = laneMaxCount(overview.lanes[lane]);
-                  return tones.flatMap((tone) =>
-                    DENSITY_STROKE_WIDTHS.map((strokeWidth, tier) => (
-                      <path
-                        key={`${lane}-${tone}-${tier}`}
-                        data-trajectory-tone={`${lane}-${tone}`}
-                        data-trajectory-density={tier}
-                        d={lanePath(overview.lanes[lane], lane, tone, tier, maxCount)}
-                        fill="none"
-                        strokeWidth={strokeWidth}
-                        strokeLinecap="round"
-                        vectorEffect="non-scaling-stroke"
-                        className={toneStrokeClass[tone]}
-                      />
-                    )),
-                  );
-                })}
-                {selectionRect ? (
-                  <rect
-                    data-trajectory-selection
-                    x={selectionRect.x}
-                    y="0"
-                    width={selectionRect.width}
-                    height={SVG_HEIGHT}
-                    className="fill-accent opacity-20"
-                  />
+                  {lanes.map((lane) => (
+                    <line
+                      key={lane}
+                      x1="0"
+                      x2={Math.max(overview.bucketCount, 1)}
+                      y1={lanePosition[lane]}
+                      y2={lanePosition[lane]}
+                      strokeWidth="0.04"
+                      className="stroke-border"
+                    />
+                  ))}
+                  {spans === null
+                    ? lanes.flatMap((lane) => {
+                        const maxCount = laneMaxCount(overview.lanes[lane]);
+                        return [...kindsByLane[lane], "error" as const].flatMap((colorKey) =>
+                          DENSITY_STROKE_WIDTHS.map((strokeWidth, tier) => (
+                            <path
+                              key={`${lane}-${colorKey}-${tier}`}
+                              data-trajectory-kind={`${lane}-${colorKey}`}
+                              data-trajectory-density={tier}
+                              d={lanePath(overview.lanes[lane], lane, colorKey, tier, maxCount)}
+                              fill="none"
+                              strokeWidth={strokeWidth}
+                              strokeLinecap="round"
+                              vectorEffect="non-scaling-stroke"
+                              className={kindStrokeClass[colorKey]}
+                            />
+                          )),
+                        );
+                      })
+                    : null}
+                  {dimRects.map((rect, index) => (
+                    <rect
+                      key={index}
+                      data-trajectory-dim
+                      x={rect.x}
+                      y="0"
+                      width={rect.width}
+                      height={SVG_HEIGHT}
+                      className="fill-surface-100 opacity-60"
+                    />
+                  ))}
+                </svg>
+                {spans !== null && spans.length > 0 ? (
+                  <div data-trajectory-spans className="absolute inset-0">
+                    {spans.map((span) => {
+                      const item = span.item;
+                      const failed = isFailureStatus(item.item.status);
+                      const colorKey: ChartColorKey = failed ? "error" : item.item.kind;
+                      const selected = item.item.id === selectedItemId;
+                      const dimmed =
+                        timeRange !== null &&
+                        item.interval !== null &&
+                        (item.interval.end < timeRange.start ||
+                          item.interval.start > timeRange.end);
+                      const label = `#${item.ordinal + 1} ${t(trajectoryKindMessageKey[item.item.kind])}: ${
+                        item.summary || t(trajectoryKindMessageKey[item.item.kind])
+                      }`;
+                      return (
+                        <button
+                          key={item.ordinal}
+                          type="button"
+                          data-trajectory-span={item.ordinal}
+                          aria-label={label}
+                          aria-current={selected ? "true" : undefined}
+                          title={label}
+                          onClick={onSelectItem ? () => onSelectItem(item.item.id) : undefined}
+                          className={`absolute h-2 -translate-y-1/2 rounded-[2px] ${kindFillClass[colorKey]} ${
+                            dimmed ? "opacity-30" : ""
+                          } ${
+                            selected
+                              ? "outline outline-2 outline-offset-1 outline-accent"
+                              : "hover:outline hover:outline-1 hover:outline-border-medium"
+                          }`}
+                          style={{
+                            left: `${span.startRatio * 100}%`,
+                            width: `max(3px, ${(span.endRatio - span.startRatio) * 100}%)`,
+                            top: `${(lanePosition[item.lane] / SVG_HEIGHT) * 100}%`,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
                 ) : null}
-              </svg>
+              </div>
               <div
                 data-trajectory-ticks
                 aria-hidden="true"

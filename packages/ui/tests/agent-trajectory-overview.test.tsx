@@ -302,27 +302,38 @@ describe("AgentTrajectoryOverview", () => {
     const root = overviewRoot();
     const svg = root.querySelector("[data-trajectory-chart]");
     expect(svg).not.toBeNull();
-    expect(svg?.querySelectorAll("path")).toHaveLength(28);
-    expect(svg?.querySelectorAll("[data-trajectory-tone]")).toHaveLength(27);
+    // Aggregated mode: 30 kind paths (per lane, kind + error, tier) + boundary.
+    expect(svg?.querySelectorAll("path")).toHaveLength(31);
+    expect(svg?.querySelectorAll("[data-trajectory-kind]")).toHaveLength(30);
     expect(svg?.querySelectorAll("[data-trajectory-turn-boundary]")).toHaveLength(1);
-    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(80);
+    expect(root.querySelector("[data-trajectory-spans]")).toBeNull();
+    expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(110);
   });
 
-  it("shades the selected time range on the chart and hides it without a selection", async () => {
+  it("dims the chart outside the selected time range and nothing without a selection", async () => {
     const { unmount } = renderOverview(presentationForDomain(0, 100), { start: 25, end: 50 });
     await resizeTo(60);
 
-    const rect = overviewRoot().querySelector("[data-trajectory-selection]")!;
-    expect(rect).not.toBeNull();
+    const rects = overviewRoot().querySelectorAll("[data-trajectory-dim]");
+    expect(rects).toHaveLength(2);
     const bucketCount = Number(overviewRoot().getAttribute("data-bucket-count"));
-    expect(Number(rect.getAttribute("x"))).toBeCloseTo(bucketCount * 0.25, 6);
-    expect(Number(rect.getAttribute("width"))).toBeCloseTo(bucketCount * 0.25, 6);
+    expect(Number(rects[0]!.getAttribute("x"))).toBe(0);
+    expect(Number(rects[0]!.getAttribute("width"))).toBeCloseTo(bucketCount * 0.25, 6);
+    expect(Number(rects[1]!.getAttribute("x"))).toBeCloseTo(bucketCount * 0.5, 6);
+    expect(Number(rects[1]!.getAttribute("width"))).toBeCloseTo(bucketCount * 0.5, 6);
 
     unmount();
     renderOverview(presentationForDomain(0, 100), null);
     await resizeTo(60);
 
-    expect(overviewRoot().querySelector("[data-trajectory-selection]")).toBeNull();
+    expect(overviewRoot().querySelector("[data-trajectory-dim]")).toBeNull();
+  });
+
+  it("dims nothing when the selection spans the whole viewport", async () => {
+    renderOverview(presentationForDomain(0, 100), { start: 0, end: 100 });
+    await resizeTo(60);
+
+    expect(overviewRoot().querySelector("[data-trajectory-dim]")).toBeNull();
   });
 
   it("labels the viewport with an absolute start tick and relative offsets", async () => {
@@ -336,21 +347,22 @@ describe("AgentTrajectoryOverview", () => {
     expect(ticks.textContent).toContain(`+${formatTrajectoryDuration(60_000, "en")}`);
   });
 
-  it("splits a tone into density tiers by bucket count", async () => {
-    const presentation = presentationFor([
-      itemFor("dense-1", "assistant", "completed", 0),
-      itemFor("dense-2", "assistant", "completed", 1),
-      itemFor("dense-3", "assistant", "completed", 2),
-      itemFor("sparse", "assistant", "completed", 60),
-    ]);
-    renderOverview(presentation);
+  it("splits a kind into density tiers by bucket count", async () => {
+    const items: ReturnType<typeof itemFor>[] = [];
+    for (let index = 0; index < 130; index += 1) {
+      items.push(itemFor(`dense-${index}`, "assistant", "completed", index % 3));
+    }
+    for (let index = 0; index < 31; index += 1) {
+      items.push(itemFor(`sparse-${index}`, "assistant", "completed", 60));
+    }
+    renderOverview(presentationFor(items));
     await resizeTo(12);
 
     const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
     const segmentsAt = (tier: number) =>
       svg
         .querySelector(
-          `[data-trajectory-tone="model-completed"][data-trajectory-density="${tier}"]`,
+          `[data-trajectory-kind="model-assistant"][data-trajectory-density="${tier}"]`,
         )
         ?.getAttribute("d") ?? "";
     expect(segmentsAt(2)).toContain("M");
@@ -358,31 +370,76 @@ describe("AgentTrajectoryOverview", () => {
     expect(segmentsAt(1)).toBe("");
   });
 
-  it("maps four statuses into completed, running, and critical tone paths", async () => {
+  it("colors event spans by kind and flags failures in red", async () => {
     const presentation = presentationFor([
-      itemFor("completed", "assistant", "completed", 0),
-      itemFor("running", "tool", "running", 10),
-      itemFor("failed", "tool", "failed", 20),
-      itemFor("aborted", "subagent", "aborted", 30),
+      itemFor("prompt", "user", "completed", 0),
+      itemFor("reply", "assistant", "completed", 10),
+      itemFor("shell", "tool", "running", 20),
+      itemFor("broken", "tool", "failed", 30),
+      itemFor("aborted", "subagent", "aborted", 40),
     ]);
     renderOverview(presentation);
     await resizeTo(60);
 
-    const svg = overviewRoot().querySelector("[data-trajectory-chart]")!;
-    const toneSegments = (tone: string) =>
-      Array.from(svg.querySelectorAll(`[data-trajectory-tone="${tone}"]`))
-        .map((path) => path.getAttribute("d") ?? "")
-        .join("");
-    expect(toneSegments("model-completed")).toContain("M");
-    expect(toneSegments("tool-running")).toContain("M");
-    expect(toneSegments("tool-critical")).toMatch(/M.*M/);
-    expect(screen.getByText(translate("trajectory.status.completed"))).toBeInTheDocument();
-    expect(screen.getByText(translate("trajectory.status.running"))).toBeInTheDocument();
+    const spanFor = (ordinal: number) =>
+      overviewRoot().querySelector(`[data-trajectory-span="${ordinal}"]`)!;
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(5);
+    expect(spanFor(0).className).toContain("bg-code-boolean");
+    expect(spanFor(1).className).toContain("bg-code-string");
+    expect(spanFor(2).className).toContain("bg-accent");
+    expect(spanFor(3).className).toContain("bg-error");
+    expect(spanFor(4).className).toContain("bg-error");
+    expect(screen.getByText(translate("trajectory.kind.user"))).toBeInTheDocument();
+    expect(screen.getByText(translate("trajectory.kind.assistant"))).toBeInTheDocument();
     expect(
       screen.getByText(
         `${translate("trajectory.status.failed")} / ${translate("trajectory.status.aborted")}`,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("selects an event span on click and marks the current one", async () => {
+    const user = userEvent.setup();
+    const onSelectItem = vi.fn();
+    const presentation = presentationFor([
+      itemFor("prompt", "user", "completed", 0),
+      itemFor("reply", "assistant", "completed", 10),
+    ]);
+    render(
+      <I18nProvider>
+        <TooltipProvider>
+          <AgentTrajectoryOverview
+            presentation={presentation}
+            timeRange={null}
+            onTimeRangeChange={vi.fn()}
+            selectedItemId="item-reply"
+            onSelectItem={onSelectItem}
+          />
+        </TooltipProvider>
+      </I18nProvider>,
+    );
+    await resizeTo(60);
+
+    const spans = overviewRoot().querySelectorAll("[data-trajectory-span]");
+    expect(spans[1]).toHaveAttribute("aria-current", "true");
+    expect(spans[0]).not.toHaveAttribute("aria-current");
+
+    await user.click(spans[0] as HTMLElement);
+    expect(onSelectItem).toHaveBeenCalledWith("item-prompt");
+  });
+
+  it("falls back to aggregated buckets above the span limit", async () => {
+    const items: ReturnType<typeof itemFor>[] = [];
+    for (let index = 0; index < 161; index += 1) {
+      items.push(itemFor(`bulk-${index}`, "assistant", "completed", index));
+    }
+    renderOverview(presentationFor(items));
+    await resizeTo(360);
+
+    expect(overviewRoot().querySelector("[data-trajectory-spans]")).toBeNull();
+    expect(
+      overviewRoot().querySelectorAll('[data-trajectory-kind="model-assistant"]').length,
+    ).toBeGreaterThan(0);
   });
 
   it("combines controlled range inputs and clamps their boundaries", async () => {
@@ -807,7 +864,8 @@ describe("AgentTrajectoryOverview", () => {
     expect(rangeEnd()).toBeInTheDocument();
     expect(screen.getByText(translate("trajectory.lane.activity"))).toBeInTheDocument();
     expect(screen.getByText(translate("trajectory.lane.model"))).toBeInTheDocument();
-    expect(screen.getByText(translate("trajectory.lane.tool"))).toBeInTheDocument();
+    // The kind legend can repeat the "Tool" lane label.
+    expect(screen.getAllByText(translate("trajectory.lane.tool")).length).toBeGreaterThan(0);
   });
 
   it("does not modify a readonly presentation", async () => {

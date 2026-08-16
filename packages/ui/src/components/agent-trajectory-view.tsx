@@ -390,6 +390,8 @@ export const AgentTrajectoryView = ({
               presentation={presentation}
               timeRange={timeRange}
               onTimeRangeChange={filters.setTimeRange}
+              selectedItemId={selectedItemId}
+              onSelectItem={selectItem}
               className={isDesktop ? "" : "shrink-0"}
             />
             <section

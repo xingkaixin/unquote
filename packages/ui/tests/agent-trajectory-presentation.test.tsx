@@ -1294,18 +1294,23 @@ describe("trajectory overview", () => {
 
     expect(overview.viewport).toEqual({ start: 0, end: 20 });
     expect(overview.lanes.activity).toEqual([
-      { count: 1, interval: { start: 5, end: 5 }, status: "completed" },
+      { count: 1, interval: { start: 5, end: 5 }, status: "completed", kind: "user" },
     ]);
     expect(overview.lanes.model).toEqual([
-      { count: 1, interval: { start: 15, end: 15 }, status: "completed" },
+      { count: 1, interval: { start: 15, end: 15 }, status: "completed", kind: "assistant" },
     ]);
     expect(overview.lanes.tool).toEqual([
-      { count: 3, interval: { start: 10, end: 12 }, status: "failed" },
+      { count: 3, interval: { start: 10, end: 12 }, status: "failed", kind: "tool" },
     ]);
     expect(overview.turnBoundaries).toEqual([
-      { count: 2, interval: { start: 0, end: 20 }, status: "failed" },
+      { count: 2, interval: { start: 0, end: 20 }, status: "failed", kind: null },
     ]);
-    expect(Object.keys(overview.lanes.tool[0]!).sort()).toEqual(["count", "interval", "status"]);
+    expect(Object.keys(overview.lanes.tool[0]!).sort()).toEqual([
+      "count",
+      "interval",
+      "kind",
+      "status",
+    ]);
   });
 
   it("ranks aborted status above running and completed status", () => {
@@ -1359,6 +1364,7 @@ describe("trajectory overview", () => {
     expect(Object.keys(overview.turnBoundaries[0]!).sort()).toEqual([
       "count",
       "interval",
+      "kind",
       "status",
     ]);
   });

@@ -20,6 +20,7 @@ import {
 } from "../src/components/agent-trajectory-format";
 
 const scrollToIndex = vi.fn();
+let containerScrolls: number[] = [];
 let latestGetItemKey: ((index: number) => unknown) | undefined;
 let latestEstimateSize: ((index: number) => number) | undefined;
 
@@ -212,7 +213,13 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("unquote-locale", "en");
   scrollToIndex.mockClear();
-  vi.mocked(HTMLElement.prototype.scrollIntoView).mockClear();
+  containerScrolls = [];
+  vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation(function (
+    this: Element,
+    value: number,
+  ) {
+    containerScrolls.push(value);
+  });
   vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
     function (this: HTMLElement) {
       return this.hasAttribute("data-index") ? trajectoryLedgerRowEstimateSize : 600;
@@ -287,10 +294,7 @@ describe("AgentTrajectoryLedger", () => {
     expect(
       screen.getByText((_, element) => element?.textContent === expectedMetadata),
     ).toBeInTheDocument();
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenLastCalledWith({
-      block: "center",
-      behavior: "smooth",
-    });
+    expect(containerScrolls.length).toBeGreaterThan(0);
 
     await user.click(toolButton);
     toolButton.focus();
@@ -662,17 +666,13 @@ describe("AgentTrajectoryLedger", () => {
     );
     const { rerenderLedger } = renderLedger(rows, "item-second");
 
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
-    vi.mocked(HTMLElement.prototype.scrollIntoView).mockClear();
+    expect(containerScrolls).toHaveLength(1);
     const rebuiltRows = rows.map((row) => ({ ...row }));
     rerenderLedger(rebuiltRows, "item-second");
 
-    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+    expect(containerScrolls).toHaveLength(1);
     rerenderLedger(rebuiltRows, "item-first");
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenLastCalledWith({
-      block: "center",
-      behavior: "smooth",
-    });
+    expect(containerScrolls).toHaveLength(2);
   });
 
   it("recenters a selected item after filtering hides and restores it", () => {
@@ -684,17 +684,14 @@ describe("AgentTrajectoryLedger", () => {
       (row) => row.type === "turn-header" || row.item.item.id !== "item-hidden",
     );
 
-    vi.mocked(HTMLElement.prototype.scrollIntoView).mockClear();
+    const scrollsBefore = containerScrolls.length;
     rerenderLedger(filteredRows, "item-hidden");
-    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+    expect(containerScrolls.length).toBe(scrollsBefore);
 
     rerenderLedger(
       rows.map((row) => ({ ...row })),
       "item-hidden",
     );
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenLastCalledWith({
-      block: "center",
-      behavior: "smooth",
-    });
+    expect(containerScrolls.length).toBe(scrollsBefore + 1);
   });
 });

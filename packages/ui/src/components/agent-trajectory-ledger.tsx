@@ -10,7 +10,6 @@ import {
   type AgentTrajectoryLedgerTurnHeader,
 } from "../lib/agent-session/trajectory-presentation";
 import { formatClockTime } from "../lib/format";
-import { preferredScrollBehavior } from "../lib/motion-preference";
 import {
   formatTrajectoryDuration,
   trajectoryKindMessageKey,
@@ -242,9 +241,16 @@ export const AgentTrajectoryLedger = ({
       return;
     }
 
-    itemRefs.current
-      .get(selectedItemId)
-      ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
+    // Scroll only the ledger container: scrollIntoView would also scroll the
+    // page, and its smooth animation is cancelled by the follow-up re-render.
+    const container = scrollRef.current;
+    const node = itemRefs.current.get(selectedItemId);
+    if (container && node) {
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTop +=
+        nodeRect.top - containerRect.top - (container.clientHeight - nodeRect.height) / 2;
+    }
   }, [itemIndexById, rowVirtualizer, selectedItemId, shouldVirtualize]);
 
   const renderRow = (row: AgentTrajectoryLedgerRow, index: number, layout: LedgerRowLayout = {}) =>

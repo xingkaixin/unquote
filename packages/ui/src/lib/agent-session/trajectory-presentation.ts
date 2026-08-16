@@ -147,6 +147,8 @@ export interface AgentTrajectoryOverviewBucket {
   readonly count: number;
   readonly interval: AgentTrajectoryTimeRange | null;
   readonly status: AgentTrajectoryStatus | null;
+  // Dominant item kind by count; ties keep the first observed kind.
+  readonly kind: AgentTrajectoryItemKind | null;
 }
 
 export interface AgentTrajectoryOverview {
@@ -197,6 +199,9 @@ interface MutableOverviewBucket {
   count: number;
   interval: AgentTrajectoryTimeRange | null;
   status: AgentTrajectoryStatus | null;
+  kind: AgentTrajectoryItemKind | null;
+  kindCount: number;
+  kindCounts: Map<AgentTrajectoryItemKind, number> | null;
 }
 
 const finiteNumber = (value: number | undefined) =>
@@ -690,7 +695,14 @@ export const trajectoryOverviewBucketCount = (widthPx: number, timedItemCount: n
 const emptyBuckets = (bucketCount: number) => {
   const buckets: MutableOverviewBucket[] = [];
   for (let index = 0; index < bucketCount; index += 1) {
-    buckets.push({ count: 0, interval: null, status: null });
+    buckets.push({
+      count: 0,
+      interval: null,
+      status: null,
+      kind: null,
+      kindCount: 0,
+      kindCounts: null,
+    });
   }
   return buckets;
 };
@@ -706,6 +718,7 @@ const includeBucketFact = (
   bucket: MutableOverviewBucket,
   interval: AgentTrajectoryTimeRange,
   status: AgentTrajectoryStatus,
+  kind?: AgentTrajectoryItemKind,
 ) => {
   bucket.count += 1;
   bucket.interval = bucket.interval
@@ -716,6 +729,16 @@ const includeBucketFact = (
     : interval;
   if (!bucket.status || statusPriority(status) > statusPriority(bucket.status)) {
     bucket.status = status;
+  }
+  if (kind === undefined) {
+    return;
+  }
+  bucket.kindCounts ??= new Map();
+  const kindCount = (bucket.kindCounts.get(kind) ?? 0) + 1;
+  bucket.kindCounts.set(kind, kindCount);
+  if (kindCount > bucket.kindCount) {
+    bucket.kindCount = kindCount;
+    bucket.kind = kind;
   }
 };
 
@@ -778,7 +801,7 @@ export const createAgentTrajectoryOverview = (
       continue;
     }
     const index = bucketIndexFor(midpoint(item.interval), activeViewport, count);
-    includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status);
+    includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status, item.item.kind);
   }
 
   for (const turn of presentation.groups) {
@@ -799,9 +822,62 @@ export const createAgentTrajectoryOverview = (
   return {
     viewport: activeViewport,
     bucketCount: count,
-    lanes,
-    turnBoundaries,
+    lanes: {
+      activity: finalizeBuckets(lanes.activity),
+      model: finalizeBuckets(lanes.model),
+      tool: finalizeBuckets(lanes.tool),
+    },
+    turnBoundaries: finalizeBuckets(turnBoundaries),
   };
+};
+
+const finalizeBuckets = (
+  buckets: readonly MutableOverviewBucket[],
+): AgentTrajectoryOverviewBucket[] =>
+  buckets.map(({ count, interval, status, kind }) => ({ count, interval, status, kind }));
+
+export interface AgentTrajectoryOverviewSpan {
+  readonly item: AgentTrajectoryPresentationItem;
+  // Position within the viewport, both clamped to [0, 1].
+  readonly startRatio: number;
+  readonly endRatio: number;
+}
+
+/**
+ * Projects each timed item inside the viewport onto viewport-relative ratios,
+ * or returns null when more than `limit` items intersect it — the signal to
+ * fall back to bucket aggregation.
+ */
+export const trajectoryOverviewSpans = (
+  presentation: AgentTrajectoryPresentation,
+  viewport: AgentTrajectoryTimeRange | null,
+  limit: number,
+): AgentTrajectoryOverviewSpan[] | null => {
+  const activeViewport = validRange(viewport);
+  if (!activeViewport || !Number.isFinite(limit) || limit <= 0) {
+    return null;
+  }
+  const span = activeViewport.end - activeViewport.start;
+  if (!Number.isFinite(span) || span <= 0) {
+    return null;
+  }
+
+  const spans: AgentTrajectoryOverviewSpan[] = [];
+  for (const item of presentation.items) {
+    if (!item.interval || !overlaps(item.interval, activeViewport)) {
+      continue;
+    }
+    if (spans.length >= limit) {
+      return null;
+    }
+    const startRatio = Math.min(
+      1,
+      Math.max(0, (item.interval.start - activeViewport.start) / span),
+    );
+    const endRatio = Math.min(1, Math.max(0, (item.interval.end - activeViewport.start) / span));
+    spans.push({ item, startRatio, endRatio });
+  }
+  return spans;
 };
 
 const expandedDomain = (domain: AgentTrajectoryTimeRange | null) => {
