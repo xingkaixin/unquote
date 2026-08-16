@@ -52,6 +52,8 @@ const trajectoryMessageKeys = [
   "trajectory.status.running",
   "trajectory.status.failed",
   "trajectory.status.aborted",
+  "trajectory.statusFilter",
+  "trajectory.filterFailures",
   "trajectory.derivedStep",
   "trajectory.derivedStepHint",
   "trajectory.line",
@@ -130,7 +132,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in both locale catalogs", () => {
-    expect(trajectoryMessageKeys).toHaveLength(73);
+    expect(trajectoryMessageKeys).toHaveLength(75);
 
     for (const key of trajectoryMessageKeys) {
       expect(en).toHaveProperty(key);

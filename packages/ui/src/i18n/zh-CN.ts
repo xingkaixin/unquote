@@ -101,6 +101,8 @@ export const zhCN: Messages = {
   "trajectory.search": "搜索轨迹",
   "trajectory.searchPlaceholder": "搜索事件…",
   "trajectory.kind": "类型",
+  "trajectory.statusFilter": "状态",
+  "trajectory.filterFailures": "仅显示失败项",
   "trajectory.clearFilters": "清除筛选",
   "trajectory.visibleCount": "显示 {visible}/{total} 项",
   "trajectory.kind.all": "全部",

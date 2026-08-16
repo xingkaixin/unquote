@@ -24,12 +24,14 @@ describe("useTrajectoryFilters", () => {
     act(() => {
       result.current.setQuery("shell");
       result.current.setKind("tool");
+      result.current.setStatus("failed");
       result.current.setTimeRange({ start: 10, end: 20 });
     });
     rerender({ current: model });
 
     expect(result.current.query).toBe("shell");
     expect(result.current.kind).toBe("tool");
+    expect(result.current.status).toBe("failed");
     expect(result.current.timeRange).toEqual({ start: 10, end: 20 });
   });
 
@@ -56,6 +58,7 @@ describe("useTrajectoryFilters", () => {
     act(() => {
       result.current.setQuery("shell");
       result.current.setKind("user");
+      result.current.setStatus("running");
       result.current.setTimeRange({ start: 1, end: 2 });
     });
     act(() => {
@@ -64,6 +67,7 @@ describe("useTrajectoryFilters", () => {
 
     expect(result.current.query).toBe("");
     expect(result.current.kind).toBe("all");
+    expect(result.current.status).toBe("all");
     expect(result.current.timeRange).toBeNull();
   });
 });

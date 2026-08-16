@@ -10,9 +10,11 @@ import type {
 } from "../lib/agent-session/types";
 import {
   agentTrajectoryFilterKinds,
+  agentTrajectoryFilterStatuses,
   createAgentTrajectoryPresentation,
   filterAgentTrajectoryPresentation,
   type AgentTrajectoryFilterKind,
+  type AgentTrajectoryFilterStatus,
   type AgentTrajectoryPresentationSummary,
 } from "../lib/agent-session/trajectory-presentation";
 import { AgentTrajectoryDetail } from "./agent-trajectory-detail";
@@ -35,8 +37,19 @@ const filterKindMessageKey: Record<AgentTrajectoryFilterKind, MessageKey> = {
   compaction: "trajectory.kind.compaction",
 };
 
+const filterStatusMessageKey: Record<AgentTrajectoryFilterStatus, MessageKey> = {
+  all: "trajectory.kind.all",
+  completed: "trajectory.status.completed",
+  running: "trajectory.status.running",
+  failed: "trajectory.status.failed",
+  aborted: "trajectory.status.aborted",
+};
+
 const isAgentTrajectoryFilterKind = (value: string): value is AgentTrajectoryFilterKind =>
   agentTrajectoryFilterKinds.some((kind) => kind === value);
+
+const isAgentTrajectoryFilterStatus = (value: string): value is AgentTrajectoryFilterStatus =>
+  agentTrajectoryFilterStatuses.some((status) => status === value);
 
 const formatMetricNumber = (value: number | undefined, locale: string) => {
   if (value === undefined || !Number.isFinite(value)) {
@@ -48,27 +61,56 @@ const formatMetricNumber = (value: number | undefined, locale: string) => {
 const MetricCard = ({
   id,
   label,
+  actionLabel,
+  onAction,
   children,
 }: {
   id: string;
   label: string;
+  actionLabel?: string;
+  onAction?: () => void;
   children: ReactNode;
-}) => (
-  <div
-    data-trajectory-metric={id}
-    className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5"
-  >
-    <span className="uq-label">{label}</span>
-    <span className="font-mono text-[14px] text-text-primary">{children}</span>
-  </div>
-);
+}) => {
+  const content = (
+    <>
+      <span className="uq-label">{label}</span>
+      <span className="font-mono text-[14px] text-text-primary">{children}</span>
+    </>
+  );
+
+  if (onAction) {
+    return (
+      <button
+        type="button"
+        data-trajectory-metric={id}
+        aria-label={actionLabel}
+        title={actionLabel}
+        onClick={onAction}
+        className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5 text-left hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-trajectory-metric={id}
+      className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5"
+    >
+      {content}
+    </div>
+  );
+};
 
 const TrajectorySummary = ({
   summary,
   isDesktop,
+  onFilterFailures,
 }: {
   summary: AgentTrajectoryPresentationSummary;
   isDesktop: boolean;
+  onFilterFailures?: () => void;
 }) => {
   const { locale, t } = useTranslation();
   const duration = formatTrajectoryDuration(summary.durationMs, locale) || MISSING_METRIC_VALUE;
@@ -91,7 +133,13 @@ const TrajectorySummary = ({
         <MetricCard id="tools" label={t("trajectory.metric.tools")}>
           {formatMetricNumber(summary.tools, locale)}
         </MetricCard>
-        <MetricCard id="failures" label={t("trajectory.metric.failures")}>
+        <MetricCard
+          id="failures"
+          label={t("trajectory.metric.failures")}
+          {...(summary.failures > 0 && onFilterFailures
+            ? { onAction: onFilterFailures, actionLabel: t("trajectory.filterFailures") }
+            : {})}
+        >
           {formatMetricNumber(summary.failures, locale)}
         </MetricCard>
         <MetricCard id="duration" label={t("trajectory.metric.duration")}>
@@ -140,26 +188,30 @@ const TrajectorySummary = ({
 interface TrajectoryFilterControlsProps {
   query: string;
   kind: AgentTrajectoryFilterKind;
+  status: AgentTrajectoryFilterStatus;
   hasTimeRange: boolean;
   visibleCount: number;
   totalCount: number;
   onQueryChange: (query: string) => void;
   onKindChange: (kind: AgentTrajectoryFilterKind) => void;
+  onStatusChange: (status: AgentTrajectoryFilterStatus) => void;
   onClear: () => void;
 }
 
 const TrajectoryFilterControls = ({
   query,
   kind,
+  status,
   hasTimeRange,
   visibleCount,
   totalCount,
   onQueryChange,
   onKindChange,
+  onStatusChange,
   onClear,
 }: TrajectoryFilterControlsProps) => {
   const { t } = useTranslation();
-  const hasFilters = query.length > 0 || kind !== "all" || hasTimeRange;
+  const hasFilters = query.length > 0 || kind !== "all" || status !== "all" || hasTimeRange;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
@@ -189,6 +241,25 @@ const TrajectoryFilterControls = ({
           {agentTrajectoryFilterKinds.map((candidate) => (
             <option key={candidate} value={candidate}>
               {t(filterKindMessageKey[candidate])}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="uq-label">{t("trajectory.statusFilter")}</span>
+        <select
+          value={status}
+          onChange={(event) => {
+            const nextStatus = event.currentTarget.value;
+            if (isAgentTrajectoryFilterStatus(nextStatus)) {
+              onStatusChange(nextStatus);
+            }
+          }}
+          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+        >
+          {agentTrajectoryFilterStatuses.map((candidate) => (
+            <option key={candidate} value={candidate}>
+              {t(filterStatusMessageKey[candidate])}
             </option>
           ))}
         </select>
@@ -228,7 +299,7 @@ export const AgentTrajectoryView = ({
   onOpenRecord,
 }: AgentTrajectoryViewProps) => {
   const { t } = useTranslation();
-  const { query, kind, timeRange } = filters;
+  const { query, kind, status, timeRange } = filters;
   const deferredQuery = useDeferredValue(query);
   const presentation = useMemo(() => createAgentTrajectoryPresentation(model), [model]);
   const itemsById = useMemo(
@@ -237,8 +308,13 @@ export const AgentTrajectoryView = ({
   );
   const filteredPresentation = useMemo(
     () =>
-      filterAgentTrajectoryPresentation(presentation, { query: deferredQuery, kind, timeRange }),
-    [deferredQuery, kind, presentation, timeRange],
+      filterAgentTrajectoryPresentation(presentation, {
+        query: deferredQuery,
+        kind,
+        status,
+        timeRange,
+      }),
+    [deferredQuery, kind, presentation, status, timeRange],
   );
   const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
   const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
@@ -289,11 +365,13 @@ export const AgentTrajectoryView = ({
           <TrajectoryFilterControls
             query={query}
             kind={kind}
+            status={status}
             hasTimeRange={timeRange !== null}
             visibleCount={filteredPresentation.visibleItems.length}
             totalCount={presentation.items.length}
             onQueryChange={filters.setQuery}
             onKindChange={filters.setKind}
+            onStatusChange={filters.setStatus}
             onClear={filters.clear}
           />
         }
@@ -303,7 +381,11 @@ export const AgentTrajectoryView = ({
               isDesktop ? "overflow-hidden" : "overflow-x-hidden overflow-y-auto"
             }`}
           >
-            <TrajectorySummary summary={presentation.summary} isDesktop={isDesktop} />
+            <TrajectorySummary
+              summary={presentation.summary}
+              isDesktop={isDesktop}
+              onFilterFailures={() => filters.setStatus("failed")}
+            />
             <AgentTrajectoryOverview
               presentation={presentation}
               timeRange={timeRange}

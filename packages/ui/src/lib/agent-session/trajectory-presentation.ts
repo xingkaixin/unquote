@@ -47,6 +47,16 @@ export const agentTrajectoryFilterKinds = [
 
 export type AgentTrajectoryFilterKind = (typeof agentTrajectoryFilterKinds)[number];
 
+export const agentTrajectoryFilterStatuses = [
+  "all",
+  "completed",
+  "running",
+  "failed",
+  "aborted",
+] as const;
+
+export type AgentTrajectoryFilterStatus = (typeof agentTrajectoryFilterStatuses)[number];
+
 export type AgentTrajectoryLane = "activity" | "model" | "tool";
 
 export interface AgentTrajectoryTimeRange {
@@ -107,6 +117,7 @@ export interface AgentTrajectoryPresentation {
 export interface AgentTrajectoryPresentationFilter {
   readonly query?: string;
   readonly kind?: AgentTrajectoryFilterKind;
+  readonly status?: AgentTrajectoryFilterStatus;
   readonly timeRange?: AgentTrajectoryTimeRange | null;
 }
 
@@ -604,9 +615,13 @@ const matchesFilter = (
   item: AgentTrajectoryPresentationItem,
   query: string,
   kind: AgentTrajectoryFilterKind,
+  status: AgentTrajectoryFilterStatus,
   timeRange: AgentTrajectoryTimeRange | null,
 ) => {
   if (kind !== "all" && item.item.kind !== kind) {
+    return false;
+  }
+  if (status !== "all" && item.item.status !== status) {
     return false;
   }
   if (query && !item.searchText.includes(query)) {
@@ -621,11 +636,12 @@ export const filterAgentTrajectoryPresentation = (
 ): FilteredAgentTrajectoryPresentation => {
   const query = filter.query?.trim().toLowerCase() ?? "";
   const kind = filter.kind ?? "all";
+  const status = filter.status ?? "all";
   const timeRange = validRange(filter.timeRange);
   const visibleItems: AgentTrajectoryPresentationItem[] = [];
   const visibleItemSet = new Set<AgentTrajectoryPresentationItem>();
   for (const item of presentation.items) {
-    if (!matchesFilter(item, query, kind, timeRange)) {
+    if (!matchesFilter(item, query, kind, status, timeRange)) {
       continue;
     }
     visibleItems.push(item);

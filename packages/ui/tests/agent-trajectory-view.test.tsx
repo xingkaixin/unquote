@@ -449,6 +449,57 @@ describe("AgentTrajectoryView", () => {
     expect(itemButton(3)).toBeInTheDocument();
   });
 
+  it("filters by status and clears it with the other filters", async () => {
+    const user = userEvent.setup();
+    const items = [
+      itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 }),
+      itemFor("tool-broken", { kind: "tool", status: "failed", timestamp: 20 }),
+      itemFor("assistant-note", { timestamp: 30 }),
+    ];
+    renderView({ model: modelFor(items) });
+
+    await user.selectOptions(screen.getByLabelText("Status"), "failed");
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 3 visible")).toBeInTheDocument();
+    });
+    expect(itemButton(1)).toBeInTheDocument();
+    expect(document.querySelector('[data-trajectory-item-token="0"]')).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("3 of 3 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Status")).toHaveValue("all");
+  });
+
+  it("drills into failed items from the failures metric card", async () => {
+    const user = userEvent.setup();
+    const items = [
+      itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 }),
+      itemFor("tool-broken", { kind: "tool", status: "failed", timestamp: 20 }),
+    ];
+    renderView({ model: modelFor(items) });
+
+    await user.click(screen.getByRole("button", { name: "Show only failed items" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("1 of 2 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Status")).toHaveValue("failed");
+  });
+
+  it("keeps the failures card inert when nothing failed", () => {
+    renderView({
+      model: modelFor([itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 })]),
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Show only failed items" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lists, filters, and selects system activity", async () => {
     const user = userEvent.setup();
     const system = itemFor("system-activity", { kind: "system", timestamp: 10 });

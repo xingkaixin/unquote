@@ -99,6 +99,8 @@ export const en = {
   "trajectory.search": "Search trajectory",
   "trajectory.searchPlaceholder": "Search events…",
   "trajectory.kind": "Kind",
+  "trajectory.statusFilter": "Status",
+  "trajectory.filterFailures": "Show only failed items",
   "trajectory.clearFilters": "Clear filters",
   "trajectory.visibleCount": "{visible} of {total} visible",
   "trajectory.kind.all": "All",

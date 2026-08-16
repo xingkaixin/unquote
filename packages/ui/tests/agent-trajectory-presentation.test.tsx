@@ -1128,6 +1128,25 @@ describe("filterAgentTrajectoryPresentation", () => {
     expect(untimed.visibleItems.map((item) => item.item.id)).toEqual(["item-event-22"]);
   });
 
+  it("filters by item status and composes it with the other filters", () => {
+    const presentation = presentationForFiltering();
+
+    const failedOnly = filterAgentTrajectoryPresentation(presentation, { status: "failed" });
+    expect(failedOnly.visibleItems.map((item) => item.item.id)).toEqual(["item-event-21"]);
+
+    const completedOnly = filterAgentTrajectoryPresentation(presentation, { status: "completed" });
+    expect(completedOnly.visibleItems.map((item) => item.item.id)).toEqual([
+      "item-event-20",
+      "item-event-22",
+    ]);
+
+    const failedCompaction = filterAgentTrajectoryPresentation(presentation, {
+      status: "failed",
+      kind: "compaction",
+    });
+    expect(failedCompaction.visibleItems).toEqual([]);
+  });
+
   it("reports positions within each filtered ledger group", () => {
     const presentation = presentationForFiltering();
     const filtered = filterAgentTrajectoryPresentation(presentation, { kind: "tool" });
