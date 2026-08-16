@@ -403,6 +403,45 @@ describe("AgentTrajectoryDetail", () => {
     expect(screen.queryByText("undefined")).not.toBeInTheDocument();
   });
 
+  it("shows the tool's start and end moments when they are known", () => {
+    const startedAt = 1_704_067_200_000;
+    const endedAt = startedAt + 90_000;
+    const item: AgentTrajectoryItem = {
+      id: "tool-timed",
+      kind: "tool",
+      status: "completed",
+      recordId: "record-primary",
+      lineNumber: 20,
+      selection: recordSelection("record-primary"),
+      timestamp: startedAt,
+      toolName: "shell",
+      startedAt,
+      endedAt,
+      durationMs: 90_000,
+    };
+    renderDetail(presentationItem(item));
+
+    expect(screen.getByText("Started")).toBeInTheDocument();
+    expect(screen.getByText("Ended")).toBeInTheDocument();
+    expect(screen.getByText(formatClockTime(endedAt, "en"))).toBeInTheDocument();
+  });
+
+  it("omits start and end facts for a tool without endpoint timestamps", () => {
+    const item: AgentTrajectoryItem = {
+      id: "tool-untimed",
+      kind: "tool",
+      status: "running",
+      recordId: "record-primary",
+      lineNumber: 21,
+      selection: recordSelection("record-primary"),
+      toolName: "shell",
+    };
+    renderDetail(presentationItem(item));
+
+    expect(screen.queryByText("Started")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ended")).not.toBeInTheDocument();
+  });
+
   it("opens every tool endpoint with its exact canonical selection", async () => {
     const user = userEvent.setup();
     const callSelection: AgentCanonicalSelection = {

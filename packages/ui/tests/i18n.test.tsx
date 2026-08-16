@@ -56,8 +56,12 @@ const trajectoryMessageKeys = [
   "trajectory.derivedStepHint",
   "trajectory.line",
   "trajectory.turn",
+  "trajectory.turnUnindexed",
+  "trajectory.itemCount",
   "trajectory.time",
   "trajectory.duration",
+  "trajectory.startedAt",
+  "trajectory.endedAt",
   "trajectory.callId",
   "trajectory.warnings",
   "trajectory.openRecord",
@@ -126,7 +130,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in both locale catalogs", () => {
-    expect(trajectoryMessageKeys).toHaveLength(69);
+    expect(trajectoryMessageKeys).toHaveLength(73);
 
     for (const key of trajectoryMessageKeys) {
       expect(en).toHaveProperty(key);

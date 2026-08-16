@@ -270,6 +270,14 @@ export const AgentTrajectoryDetail = ({
     trajectoryItem.kind === "tool"
       ? formatTrajectoryDuration(trajectoryItem.durationMs, locale)
       : "";
+  const startedAt =
+    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.startedAt) !== undefined
+      ? formatClockTime(trajectoryItem.startedAt, locale)
+      : "";
+  const endedAt =
+    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.endedAt) !== undefined
+      ? formatClockTime(trajectoryItem.endedAt, locale)
+      : "";
   const derivedStep =
     trajectoryItem.kind === "assistant" || trajectoryItem.kind === "reasoning"
       ? trajectoryItem.step
@@ -278,7 +286,9 @@ export const AgentTrajectoryDetail = ({
   const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
   const summary = truncateTrajectoryDisplayText(item.summary) || kind;
   const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
-  const hasDetailFacts = Boolean(time || duration || toolName || callId || derivedStep);
+  const hasDetailFacts = Boolean(
+    time || duration || startedAt || endedAt || toolName || callId || derivedStep,
+  );
 
   return (
     <div
@@ -316,6 +326,8 @@ export const AgentTrajectoryDetail = ({
         <dl className="grid grid-cols-2 gap-x-3 gap-y-3">
           {time ? <DetailFact label={t("trajectory.time")} value={time} /> : null}
           {duration ? <DetailFact label={t("trajectory.duration")} value={duration} /> : null}
+          {startedAt ? <DetailFact label={t("trajectory.startedAt")} value={startedAt} /> : null}
+          {endedAt ? <DetailFact label={t("trajectory.endedAt")} value={endedAt} /> : null}
           {toolName ? <DetailFact label={t("trajectory.kind.tool")} value={toolName} /> : null}
           {callId ? (
             <DetailFact label={t("trajectory.callId")} value={callId} preserveWhitespace />

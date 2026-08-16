@@ -106,6 +106,24 @@ const TrajectorySummary = ({
               {t("trajectory.token.output")}{" "}
               {formatMetricNumber(summary.tokens.outputTokens, locale)}
             </span>
+            {summary.tokens.cacheReadInputTokens === undefined ? null : (
+              <span className="text-text-secondary">
+                {t("trajectory.token.cacheRead")}{" "}
+                {formatMetricNumber(summary.tokens.cacheReadInputTokens, locale)}
+              </span>
+            )}
+            {summary.tokens.cacheCreationInputTokens === undefined ? null : (
+              <span className="text-text-secondary">
+                {t("trajectory.token.cacheWrite")}{" "}
+                {formatMetricNumber(summary.tokens.cacheCreationInputTokens, locale)}
+              </span>
+            )}
+            {summary.tokens.reasoningOutputTokens === undefined ? null : (
+              <span className="text-text-secondary">
+                {t("trajectory.token.reasoning")}{" "}
+                {formatMetricNumber(summary.tokens.reasoningOutputTokens, locale)}
+              </span>
+            )}
           </span>
         </MetricCard>
       </div>

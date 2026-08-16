@@ -259,6 +259,29 @@ describe("AgentTrajectoryView", () => {
     expect(summary).toHaveTextContent("Input");
     expect(summary).toHaveTextContent("Output");
     expect(summary).toHaveTextContent("—");
+    expect(summary).not.toHaveTextContent("Cache read");
+    expect(summary).not.toHaveTextContent("Cache write");
+  });
+
+  it("shows cache and reasoning token components when the session reports them", () => {
+    const items = [itemFor("assistant", { timestamp: 10 })];
+    const model = modelFor(items, {
+      turns: [turnFor("turn-1", items, { turnIndex: 1 })],
+      tokenUsage: {
+        inputTokens: 13,
+        outputTokens: 8,
+        cacheReadInputTokens: 400,
+        cacheCreationInputTokens: 50,
+        reasoningOutputTokens: 6,
+      },
+    });
+
+    renderView({ model });
+
+    const summary = document.querySelector("[data-trajectory-summary]");
+    expect(summary).toHaveTextContent("Cache read 400");
+    expect(summary).toHaveTextContent("Cache write 50");
+    expect(summary).toHaveTextContent("Reasoning 6");
   });
 
   it("shows the total warning count and opens an unattached warning Record without an item", async () => {

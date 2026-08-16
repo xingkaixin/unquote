@@ -106,6 +106,8 @@ const groupFor = (
     readonly hasTurn?: boolean;
     readonly turnIndex?: number;
     readonly summary?: (item: AgentTrajectoryItem) => string;
+    readonly turnStatus?: AgentTrajectoryStatus;
+    readonly turnDurationMs?: number;
   } = {},
 ): AgentTrajectoryPresentationGroup => {
   const hasTurn = options.hasTurn ?? options.turnIndex !== undefined;
@@ -113,9 +115,10 @@ const groupFor = (
     ? null
     : {
         id: `turn-${id}`,
-        status: "completed",
+        status: options.turnStatus ?? "completed",
         items: sourceItems,
         ...(options.turnIndex === undefined ? {} : { turnIndex: options.turnIndex }),
+        ...(options.turnDurationMs === undefined ? {} : { durationMs: options.turnDurationMs }),
       };
 
   return {
@@ -443,8 +446,33 @@ describe("AgentTrajectoryLedger", () => {
     const rows = rowsFor(groupFor("without-index", [itemFor("item-no-index")], { hasTurn: true }));
     renderLedger(rows);
 
-    expect(screen.getByRole("heading", { name: "Turns" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Turn" })).toBeInTheDocument();
     expect(screen.queryByText("Turn ?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Turns")).not.toBeInTheDocument();
+  });
+
+  it("shows turn status, duration, and event count in the header", () => {
+    const rows = rowsFor(
+      groupFor("facts", [itemFor("first"), itemFor("second")], {
+        turnIndex: 3,
+        turnStatus: "failed",
+        turnDurationMs: 65_000,
+      }),
+    );
+    renderLedger(rows);
+
+    expect(screen.getByRole("heading", { name: "Turn 3" })).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(
+      screen.getByText(`${formatTrajectoryDuration(65_000, "en")} · 2 events`),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the turn duration fact when it is unknown", () => {
+    const rows = rowsFor(groupFor("no-duration", [itemFor("only")], { turnIndex: 1 }));
+    renderLedger(rows);
+
+    expect(screen.getByText("1 events")).toBeInTheDocument();
   });
 
   it("renders assigned and unassigned groups plus textual states", () => {

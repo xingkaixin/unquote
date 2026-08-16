@@ -63,6 +63,9 @@ export interface AgentTrajectoryPresentationSummary {
   readonly tokens: {
     readonly inputTokens?: number;
     readonly outputTokens?: number;
+    readonly cacheCreationInputTokens?: number;
+    readonly cacheReadInputTokens?: number;
+    readonly reasoningOutputTokens?: number;
   };
   readonly warningCount: number;
 }
@@ -393,10 +396,23 @@ const sumKnownTurnDurations = (turns: readonly AgentTrajectoryTurn[]) => {
   return hasDuration ? total : undefined;
 };
 
+const summaryTokenKeys = [
+  "inputTokens",
+  "outputTokens",
+  "cacheCreationInputTokens",
+  "cacheReadInputTokens",
+  "reasoningOutputTokens",
+] as const;
+
 const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresentationSummary => {
   const tokenUsage = model.trajectory.stats.tokenUsage;
-  const inputTokens = finiteNonNegativeNumber(tokenUsage.inputTokens);
-  const outputTokens = finiteNonNegativeNumber(tokenUsage.outputTokens);
+  const tokens: Partial<Record<(typeof summaryTokenKeys)[number], number>> = {};
+  for (const key of summaryTokenKeys) {
+    const value = finiteNonNegativeNumber(tokenUsage[key]);
+    if (value !== undefined) {
+      tokens[key] = value;
+    }
+  }
   const durationMs = sumKnownTurnDurations(model.trajectory.turns);
   return {
     turns: model.trajectory.stats.turnCount,
@@ -404,10 +420,7 @@ const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresen
     tools: model.trajectory.stats.toolCount,
     failures: model.trajectory.stats.failedToolCount,
     ...(durationMs === undefined ? {} : { durationMs }),
-    tokens: {
-      ...(inputTokens === undefined ? {} : { inputTokens }),
-      ...(outputTokens === undefined ? {} : { outputTokens }),
-    },
+    tokens,
     warningCount: model.trajectory.warnings.length,
   };
 };

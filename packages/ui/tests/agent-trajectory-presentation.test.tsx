@@ -520,7 +520,12 @@ describe("createAgentTrajectoryPresentation", () => {
       tools: 1,
       failures: 1,
       durationMs: 20,
-      tokens: { inputTokens: 21, outputTokens: 34 },
+      tokens: {
+        inputTokens: 21,
+        outputTokens: 34,
+        cacheReadInputTokens: 55,
+        reasoningOutputTokens: 89,
+      },
       warningCount: 1,
     });
   });
