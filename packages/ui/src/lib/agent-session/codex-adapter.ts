@@ -36,6 +36,7 @@ const codexEnvelopeTypes = new Set([
 ]);
 
 const codexToolCompletionEventTypes = new Set([
+  "exec_command_end",
   "mcp_tool_call_end",
   "patch_apply_end",
   "web_search_end",
@@ -301,9 +302,27 @@ const ownString = (record: Record<string, unknown>, key: string) => {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
+const codexDurationSeconds = (duration: unknown) => {
+  if (typeof duration === "number") {
+    return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+  }
+  if (!isObjectOutput(duration)) {
+    return undefined;
+  }
+
+  const secs = ownValue(duration, "secs");
+  if (typeof secs !== "number" || !Number.isFinite(secs) || secs < 0) {
+    return undefined;
+  }
+  const nanos = ownValue(duration, "nanos");
+  const nanoSeconds =
+    typeof nanos === "number" && Number.isFinite(nanos) && nanos >= 0 ? nanos / 1e9 : 0;
+  return secs + nanoSeconds;
+};
+
 const codexCompletionDurationMs = (payload: Record<string, unknown>) => {
-  const duration = ownValue(payload, "duration");
-  if (typeof duration !== "number" || !Number.isFinite(duration) || duration < 0) {
+  const duration = codexDurationSeconds(ownValue(payload, "duration"));
+  if (duration === undefined) {
     return undefined;
   }
 
@@ -321,8 +340,12 @@ const codexToolCompletionStatus = (eventType: string, payload: Record<string, un
   const okResult = resultRecord ? ownValue(resultRecord, "Ok") : undefined;
   const failedOkResult = isObjectOutput(okResult) && ownValue(okResult, "isError") === true;
   const failedStatus = status === "failed" || status === "error" || status === "declined";
+  const exitCode = ownValue(payload, "exit_code");
 
   if (success === false || failedStatus || hasResultError || failedOkResult) {
+    return "failed" as const;
+  }
+  if (isNonZeroExitCode(exitCode)) {
     return "failed" as const;
   }
   if (
@@ -330,6 +353,7 @@ const codexToolCompletionStatus = (eventType: string, payload: Record<string, un
     status === "completed" ||
     status === "success" ||
     hasResultOk ||
+    exitCode === 0 ||
     eventType === "web_search_end"
   ) {
     return "completed" as const;

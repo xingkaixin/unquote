@@ -1216,6 +1216,128 @@ describe("codexRolloutAdapter", () => {
     },
   );
 
+  it("projects exec_command_end with a structured duration as a timed completion", () => {
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "event_msg",
+          timestamp: 10,
+          payload: { type: "task_started", turn_id: "turn-exec" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "response_item",
+          timestamp: 20,
+          payload: { type: "function_call", name: "shell", call_id: "call-exec" },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "event_msg",
+          timestamp: 30,
+          payload: {
+            type: "exec_command_end",
+            call_id: "call-exec",
+            status: "completed",
+            exit_code: 0,
+            duration: { secs: 1, nanos: 250_000_000 },
+          },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[2]?.category).toBe("tool");
+    expect(session.events[2]?.trajectoryEvidence).toEqual([
+      {
+        kind: "tool-lifecycle",
+        phase: "completion",
+        turnId: "turn-exec",
+        callId: "call-exec",
+        status: "completed",
+        durationMs: 1250,
+      },
+    ]);
+
+    const trajectory = createAgentTrajectoryModel(session);
+    expect(trajectory.items).toMatchObject([
+      { kind: "tool", status: "completed", callId: "call-exec", durationMs: 1250 },
+    ]);
+  });
+
+  it("marks exec_command_end with a non-zero exit code as failed", () => {
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "event_msg",
+          payload: { type: "task_started", turn_id: "turn-exec-failed" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "event_msg",
+          payload: {
+            type: "exec_command_end",
+            call_id: "call-exec-failed",
+            status: "failed",
+            exit_code: 1,
+            duration: { secs: 0, nanos: 13_208 },
+          },
+        },
+        2,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[1]?.trajectoryEvidence).toEqual([
+      {
+        kind: "tool-lifecycle",
+        phase: "completion",
+        turnId: "turn-exec-failed",
+        callId: "call-exec-failed",
+        status: "failed",
+        durationMs: 0,
+      },
+    ]);
+  });
+
+  it("treats a bare zero exit code as a completed exec completion", () => {
+    const builder = codexRolloutAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "event_msg",
+          payload: { type: "exec_command_end", call_id: "call-exec-exit", exit_code: 0 },
+        },
+        1,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[0]?.trajectoryEvidence?.[0]).toMatchObject({
+      kind: "tool-lifecycle",
+      phase: "completion",
+      callId: "call-exec-exit",
+      status: "completed",
+    });
+  });
+
   it.each([
     { name: "negative duration", duration: -0.1, success: true, status: "completed" as const },
     {
