@@ -58,7 +58,7 @@ const formatMetricNumber = (value: number | undefined, locale: string) => {
   return new Intl.NumberFormat(locale).format(value);
 };
 
-const MetricCard = ({
+const MetricChip = ({
   id,
   label,
   actionLabel,
@@ -74,7 +74,7 @@ const MetricCard = ({
   const content = (
     <>
       <span className="uq-label">{label}</span>
-      <span className="font-mono text-[14px] text-text-primary">{children}</span>
+      <span className="font-mono text-[12px] text-text-primary">{children}</span>
     </>
   );
 
@@ -86,7 +86,7 @@ const MetricCard = ({
         aria-label={actionLabel}
         title={actionLabel}
         onClick={onAction}
-        className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5 text-left hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        className="inline-flex items-baseline gap-1.5 rounded-sm px-1 -mx-1 text-left hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
       >
         {content}
       </button>
@@ -94,59 +94,77 @@ const MetricCard = ({
   }
 
   return (
-    <div
-      data-trajectory-metric={id}
-      className="flex min-w-0 flex-col gap-1.5 bg-surface-100 px-3 py-2.5"
-    >
+    <span data-trajectory-metric={id} className="inline-flex items-baseline gap-1.5">
       {content}
-    </div>
+    </span>
   );
 };
 
-const TrajectorySummary = ({
-  summary,
-  isDesktop,
-  onFilterFailures,
-}: {
+interface TrajectoryHeaderBarProps {
   summary: AgentTrajectoryPresentationSummary;
-  isDesktop: boolean;
-  onFilterFailures?: () => void;
-}) => {
+  query: string;
+  kind: AgentTrajectoryFilterKind;
+  status: AgentTrajectoryFilterStatus;
+  hasTimeRange: boolean;
+  visibleCount: number;
+  totalCount: number;
+  onQueryChange: (query: string) => void;
+  onKindChange: (kind: AgentTrajectoryFilterKind) => void;
+  onStatusChange: (status: AgentTrajectoryFilterStatus) => void;
+  onFilterFailures: () => void;
+  onClear: () => void;
+}
+
+const TrajectoryHeaderBar = ({
+  summary,
+  query,
+  kind,
+  status,
+  hasTimeRange,
+  visibleCount,
+  totalCount,
+  onQueryChange,
+  onKindChange,
+  onStatusChange,
+  onFilterFailures,
+  onClear,
+}: TrajectoryHeaderBarProps) => {
   const { locale, t } = useTranslation();
   const duration = formatTrajectoryDuration(summary.durationMs, locale) || MISSING_METRIC_VALUE;
+  const hasFilters = query.length > 0 || kind !== "all" || status !== "all" || hasTimeRange;
+  const selectClass =
+    "h-7 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent";
 
   return (
     <section
       aria-label={t("trajectory.summary")}
       data-trajectory-summary
-      className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-100${
-        isDesktop ? "" : " shrink-0"
-      }`}
+      className="flex min-w-0 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-100"
     >
-      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
-        <MetricCard id="turns" label={t("trajectory.metric.turns")}>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2">
+        <MetricChip id="turns" label={t("trajectory.metric.turns")}>
           {formatMetricNumber(summary.turns, locale)}
-        </MetricCard>
-        <MetricCard id="events" label={t("trajectory.metric.events")}>
+        </MetricChip>
+        <MetricChip id="events" label={t("trajectory.metric.events")}>
           {formatMetricNumber(summary.events, locale)}
-        </MetricCard>
-        <MetricCard id="tools" label={t("trajectory.metric.tools")}>
+        </MetricChip>
+        <MetricChip id="tools" label={t("trajectory.metric.tools")}>
           {formatMetricNumber(summary.tools, locale)}
-        </MetricCard>
-        <MetricCard
+        </MetricChip>
+        <MetricChip
           id="failures"
           label={t("trajectory.metric.failures")}
-          {...(summary.failures > 0 && onFilterFailures
+          {...(summary.failures > 0
             ? { onAction: onFilterFailures, actionLabel: t("trajectory.filterFailures") }
             : {})}
         >
           {formatMetricNumber(summary.failures, locale)}
-        </MetricCard>
-        <MetricCard id="duration" label={t("trajectory.metric.duration")}>
+        </MetricChip>
+        <MetricChip id="duration" label={t("trajectory.metric.duration")}>
           {duration}
-        </MetricCard>
-        <MetricCard id="tokens" label={t("trajectory.metric.tokens")}>
-          <span className="flex flex-wrap gap-x-2 gap-y-1">
+        </MetricChip>
+        <MetricChip id="tokens" label={t("trajectory.metric.tokens")}>
+          <span className="inline-flex flex-wrap gap-x-2">
             <span>
               {t("trajectory.token.input")} {formatMetricNumber(summary.tokens.inputTokens, locale)}
             </span>
@@ -173,70 +191,33 @@ const TrajectorySummary = ({
               </span>
             )}
           </span>
-        </MetricCard>
+        </MetricChip>
+        <span
+          data-trajectory-warning-count
+          className="inline-flex items-baseline gap-1.5 font-mono text-[10.5px] text-text-secondary"
+        >
+          {t("trajectory.warnings")} {formatMetricNumber(summary.warningCount, locale)}
+        </span>
       </div>
-      <p
-        data-trajectory-warning-count
-        className="m-0 border-t border-border px-3 py-1.5 font-mono text-[10.5px] text-text-secondary"
-      >
-        {t("trajectory.warnings")} {formatMetricNumber(summary.warningCount, locale)}
-      </p>
-    </section>
-  );
-};
-
-interface TrajectoryFilterControlsProps {
-  query: string;
-  kind: AgentTrajectoryFilterKind;
-  status: AgentTrajectoryFilterStatus;
-  hasTimeRange: boolean;
-  visibleCount: number;
-  totalCount: number;
-  onQueryChange: (query: string) => void;
-  onKindChange: (kind: AgentTrajectoryFilterKind) => void;
-  onStatusChange: (status: AgentTrajectoryFilterStatus) => void;
-  onClear: () => void;
-}
-
-const TrajectoryFilterControls = ({
-  query,
-  kind,
-  status,
-  hasTimeRange,
-  visibleCount,
-  totalCount,
-  onQueryChange,
-  onKindChange,
-  onStatusChange,
-  onClear,
-}: TrajectoryFilterControlsProps) => {
-  const { t } = useTranslation();
-  const hasFilters = query.length > 0 || kind !== "all" || status !== "all" || hasTimeRange;
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-      <h1 className="uq-label m-0">{t("trajectory.title")}</h1>
-      <label className="flex flex-col gap-1.5">
-        <span className="uq-label">{t("trajectory.search")}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-border px-3 py-1.5">
         <input
           type="search"
           value={query}
+          aria-label={t("trajectory.search")}
           placeholder={t("trajectory.searchPlaceholder")}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
-          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent focus:ring-1 focus:ring-accent"
+          className="h-7 min-w-[160px] flex-1 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent focus:ring-1 focus:ring-accent"
         />
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="uq-label">{t("trajectory.kind")}</span>
         <select
           value={kind}
+          aria-label={t("trajectory.kind")}
           onChange={(event) => {
             const nextKind = event.currentTarget.value;
             if (isAgentTrajectoryFilterKind(nextKind)) {
               onKindChange(nextKind);
             }
           }}
-          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+          className={selectClass}
         >
           {agentTrajectoryFilterKinds.map((candidate) => (
             <option key={candidate} value={candidate}>
@@ -244,18 +225,16 @@ const TrajectoryFilterControls = ({
             </option>
           ))}
         </select>
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="uq-label">{t("trajectory.statusFilter")}</span>
         <select
           value={status}
+          aria-label={t("trajectory.statusFilter")}
           onChange={(event) => {
             const nextStatus = event.currentTarget.value;
             if (isAgentTrajectoryFilterStatus(nextStatus)) {
               onStatusChange(nextStatus);
             }
           }}
-          className="h-8 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+          className={selectClass}
         >
           {agentTrajectoryFilterStatuses.map((candidate) => (
             <option key={candidate} value={candidate}>
@@ -263,21 +242,14 @@ const TrajectoryFilterControls = ({
             </option>
           ))}
         </select>
-      </label>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={!hasFilters}
-        onClick={onClear}
-        className="w-full"
-      >
-        {t("trajectory.clearFilters")}
-      </Button>
-      <p aria-live="polite" className="m-0 font-mono text-[10.5px] text-text-tertiary">
-        {t("trajectory.visibleCount", { visible: visibleCount, total: totalCount })}
-      </p>
-    </div>
+        <Button type="button" variant="outline" size="sm" disabled={!hasFilters} onClick={onClear}>
+          {t("trajectory.clearFilters")}
+        </Button>
+        <p aria-live="polite" className="m-0 font-mono text-[10.5px] text-text-tertiary">
+          {t("trajectory.visibleCount", { visible: visibleCount, total: totalCount })}
+        </p>
+      </div>
+    </section>
   );
 };
 
@@ -357,34 +329,27 @@ export const AgentTrajectoryView = ({
     <div data-trajectory-ready className="uq-agent-shell flex min-h-0 flex-1 flex-col">
       <WorkspaceColumns
         isDesktop={isDesktop}
-        leftWidth={260}
-        rightWidth={310}
-        leftMobileHeight="30vh"
+        rightWidth={380}
         rightLabel={t("trajectory.detail")}
-        left={
-          <TrajectoryFilterControls
-            query={query}
-            kind={kind}
-            status={status}
-            hasTimeRange={timeRange !== null}
-            visibleCount={filteredPresentation.visibleItems.length}
-            totalCount={presentation.items.length}
-            onQueryChange={filters.setQuery}
-            onKindChange={filters.setKind}
-            onStatusChange={filters.setStatus}
-            onClear={filters.clear}
-          />
-        }
         center={
           <div
             className={`flex min-h-0 min-w-0 flex-1 flex-col gap-3 px-3 py-3 ${
               isDesktop ? "overflow-hidden" : "overflow-x-hidden overflow-y-auto"
             }`}
           >
-            <TrajectorySummary
+            <TrajectoryHeaderBar
               summary={presentation.summary}
-              isDesktop={isDesktop}
+              query={query}
+              kind={kind}
+              status={status}
+              hasTimeRange={timeRange !== null}
+              visibleCount={filteredPresentation.visibleItems.length}
+              totalCount={presentation.items.length}
+              onQueryChange={filters.setQuery}
+              onKindChange={filters.setKind}
+              onStatusChange={filters.setStatus}
               onFilterFailures={() => filters.setStatus("failed")}
+              onClear={filters.clear}
             />
             <AgentTrajectoryOverview
               presentation={presentation}

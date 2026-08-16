@@ -716,7 +716,7 @@ describe("AgentTrajectoryView", () => {
     renderView({ isDesktop: false });
 
     expect(document.querySelector("details")).toHaveTextContent("Detail");
-    expect(screen.getByText("Search trajectory")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search trajectory")).toBeInTheDocument();
   });
 
   it("keeps mobile summary, overview, and ledger independently reachable", () => {
@@ -742,7 +742,8 @@ describe("AgentTrajectoryView", () => {
     const ledger = screen.getByRole("list", { name: "Event ledger" }).parentElement;
 
     expect(center).toHaveClass("overflow-hidden");
-    expect(summary).not.toHaveClass("shrink-0");
+    // The compact header bar never flexes; only the ledger takes spare height.
+    expect(summary).toHaveClass("shrink-0");
     expect(overview).not.toHaveClass("shrink-0");
     expect(ledger).toHaveClass("min-h-0", "flex-1");
   });
