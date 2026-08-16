@@ -310,30 +310,22 @@ describe("AgentTrajectoryOverview", () => {
     expect(root.querySelectorAll("*").length).toBeLessThanOrEqual(110);
   });
 
-  it("dims the chart outside the selected time range and nothing without a selection", async () => {
+  it("zooms the viewport to the selected time range", async () => {
     const { unmount } = renderOverview(presentationForDomain(0, 100), { start: 25, end: 50 });
     await resizeTo(60);
 
-    const rects = overviewRoot().querySelectorAll("[data-trajectory-dim]");
-    expect(rects).toHaveLength(2);
-    const bucketCount = Number(overviewRoot().getAttribute("data-bucket-count"));
-    expect(Number(rects[0]!.getAttribute("x"))).toBe(0);
-    expect(Number(rects[0]!.getAttribute("width"))).toBeCloseTo(bucketCount * 0.25, 6);
-    expect(Number(rects[1]!.getAttribute("x"))).toBeCloseTo(bucketCount * 0.5, 6);
-    expect(Number(rects[1]!.getAttribute("width"))).toBeCloseTo(bucketCount * 0.5, 6);
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "50");
+    // Only the two selected-range events remain as spans in the viewport.
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(0);
 
     unmount();
     renderOverview(presentationForDomain(0, 100), null);
     await resizeTo(60);
 
-    expect(overviewRoot().querySelector("[data-trajectory-dim]")).toBeNull();
-  });
-
-  it("dims nothing when the selection spans the whole viewport", async () => {
-    renderOverview(presentationForDomain(0, 100), { start: 0, end: 100 });
-    await resizeTo(60);
-
-    expect(overviewRoot().querySelector("[data-trajectory-dim]")).toBeNull();
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
+    expect(overviewRoot().querySelectorAll("[data-trajectory-span]")).toHaveLength(2);
   });
 
   it("labels the viewport with an absolute start tick and relative offsets", async () => {
@@ -783,40 +775,36 @@ describe("AgentTrajectoryOverview", () => {
     expect(screen.getByText(chineseTimestamp)).toBeInTheDocument();
   });
 
-  it("keeps controlled range inputs independent from keyboard zoom and clears them on reset", async () => {
+  it("zooms by narrowing the selected range and clears it on reset", async () => {
     const onTimeRangeChange = vi.fn();
     const user = userEvent.setup();
     renderControlledOverview(presentationForDomain(), { start: 20, end: 80 }, onTimeRangeChange);
     await resizeTo(360);
 
-    control("trajectory.zoomIn").focus();
-    await user.keyboard("{Enter}");
-    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25"));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
-    expect(rangeStart()).toHaveAttribute("min", "0");
-    expect(rangeStart()).toHaveAttribute("max", "100");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
     expect(rangeStart()).toHaveValue("20");
-    expect(rangeEnd()).toHaveAttribute("min", "0");
-    expect(rangeEnd()).toHaveAttribute("max", "100");
     expect(rangeEnd()).toHaveValue("80");
-    expect(onTimeRangeChange).not.toHaveBeenCalled();
+
+    await user.click(control("trajectory.zoomIn"));
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 35, end: 65 });
+    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "35"));
+    expect(rangeStart()).toHaveValue("35");
+    expect(rangeEnd()).toHaveValue("65");
 
     fireEvent.change(rangeStart(), { target: { value: "10" } });
-    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 80 });
-    expect(rangeStart()).toHaveValue("10");
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 65 });
+    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "10"));
 
-    fireEvent.change(rangeEnd(), { target: { value: "90" } });
-    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 10, end: 90 });
-    expect(rangeEnd()).toHaveValue("90");
-
-    control("trajectory.zoomOut").focus();
-    await user.keyboard("{Enter}");
+    // Zooming out past the domain clears the range entirely.
+    await user.click(control("trajectory.zoomOut"));
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith(null);
     await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0"));
     expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
 
-    control("trajectory.reset").focus();
-    await user.keyboard("{Enter}");
+    fireEvent.change(rangeEnd(), { target: { value: "40" } });
+    expect(onTimeRangeChange).toHaveBeenLastCalledWith({ start: 0, end: 40 });
+    await user.click(control("trajectory.reset"));
     expect(onTimeRangeChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -832,24 +820,25 @@ describe("AgentTrajectoryOverview", () => {
     expect(rangeEnd()).toHaveAttribute("max", "100");
   });
 
-  it("resets zoom for a new presentation identity but preserves it for the same presentation", async () => {
-    const user = userEvent.setup();
+  it("derives the viewport purely from the selected range across presentations", async () => {
     const first = presentationForDomain(0, 100);
     const second = presentationForDomain(0, 100);
     const onTimeRangeChange = vi.fn();
-    const { rerender } = render(renderWithProviders(first, null, onTimeRangeChange));
+    const { rerender } = render(
+      renderWithProviders(first, { start: 20, end: 80 }, onTimeRangeChange),
+    );
     await resizeTo(360);
 
-    await user.click(control("trajectory.zoomIn"));
-    await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25"));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
 
-    rerender(renderWithProviders(first, { start: 20, end: 80 }, onTimeRangeChange));
-    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "25");
-    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "75");
-
+    // No component-local zoom state: a new presentation identity with the
+    // same selected range keeps the same viewport.
     rerender(renderWithProviders(second, { start: 20, end: 80 }, onTimeRangeChange));
+    expect(overviewRoot()).toHaveAttribute("data-viewport-start", "20");
+    expect(overviewRoot()).toHaveAttribute("data-viewport-end", "80");
 
+    rerender(renderWithProviders(second, null, onTimeRangeChange));
     await waitFor(() => expect(overviewRoot()).toHaveAttribute("data-viewport-start", "0"));
     expect(overviewRoot()).toHaveAttribute("data-viewport-end", "100");
   });

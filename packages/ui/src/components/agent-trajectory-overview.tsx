@@ -397,12 +397,13 @@ export const AgentTrajectoryOverview = ({
   const { locale, t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-  const [zoomViewport, setZoomViewport] = useState<AgentTrajectoryTimeRange | null>(null);
   const domain = finiteRange(presentation.timeDomain);
   const timeFactCount = domain ? Math.max(1, presentation.timedItemCount) : 0;
+  // The selected time range IS the viewport: narrowing the range zooms the
+  // chart into it while the same range filters the ledger below.
   const activeViewport = useMemo(
-    () => zoomTrajectoryViewport(domain, zoomViewport, 1),
-    [domain?.end, domain?.start, zoomViewport?.end, zoomViewport?.start],
+    () => zoomTrajectoryViewport(domain, timeRange ?? domain, 1),
+    [domain?.end, domain?.start, timeRange?.end, timeRange?.start],
   );
   const bucketCount = useMemo(
     () =>
@@ -413,10 +414,6 @@ export const AgentTrajectoryOverview = ({
     () => createAgentTrajectoryOverview(presentation, activeViewport, bucketCount),
     [activeViewport, bucketCount, presentation],
   );
-
-  useEffect(() => {
-    setZoomViewport(finiteRange(presentation.timeDomain));
-  }, [presentation]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -442,24 +439,6 @@ export const AgentTrajectoryOverview = ({
     () => createTrajectoryTimeScale(presentation, activeViewport),
     [activeViewport?.end, activeViewport?.start, presentation],
   );
-  // Dim the regions outside the selected time range instead of tinting the
-  // selection: the bars stay readable and a full-domain selection dims nothing.
-  const dimRects = (() => {
-    if (!activeViewport || !timeRange || !timeScale || overview.bucketCount === 0) {
-      return [];
-    }
-    const clamped = clampToRange(timeRange, activeViewport);
-    const startX = timeScale.toRatio(clamped.start) * overview.bucketCount;
-    const endX = timeScale.toRatio(clamped.end) * overview.bucketCount;
-    const rects: { x: number; width: number }[] = [];
-    if (startX > 0) {
-      rects.push({ x: 0, width: startX });
-    }
-    if (endX < overview.bucketCount) {
-      rects.push({ x: endX, width: overview.bucketCount - endX });
-    }
-    return rects;
-  })();
   const spans = useMemo(
     () => trajectoryOverviewSpans(presentation, activeViewport, trajectoryOverviewSpanLimit),
     [activeViewport?.end, activeViewport?.start, presentation],
@@ -524,14 +503,18 @@ export const AgentTrajectoryOverview = ({
     if (!domain) {
       return;
     }
-    setZoomViewport((current) => zoomTrajectoryViewport(domain, current, factor));
+    const next = zoomTrajectoryViewport(domain, timeRange ?? domain, factor);
+    if (!next || (next.start === domain.start && next.end === domain.end)) {
+      onTimeRangeChange(null);
+      return;
+    }
+    onTimeRangeChange(next);
   };
 
   const reset = () => {
     if (!domain) {
       return;
     }
-    setZoomViewport(domain);
     onTimeRangeChange(null);
   };
 
@@ -710,17 +693,6 @@ export const AgentTrajectoryOverview = ({
                         );
                       })
                     : null}
-                  {dimRects.map((rect, index) => (
-                    <rect
-                      key={index}
-                      data-trajectory-dim
-                      x={rect.x}
-                      y="0"
-                      width={rect.width}
-                      height={SVG_HEIGHT}
-                      className="fill-surface-100 opacity-60"
-                    />
-                  ))}
                 </svg>
                 {timeScale && timeScale.gaps.length > 0 ? (
                   <div aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -757,11 +729,6 @@ export const AgentTrajectoryOverview = ({
                       const failed = isFailureStatus(item.item.status);
                       const colorKey: ChartColorKey = failed ? "error" : item.item.kind;
                       const selected = item.item.id === selectedItemId;
-                      const dimmed =
-                        timeRange !== null &&
-                        item.interval !== null &&
-                        (item.interval.end < timeRange.start ||
-                          item.interval.start > timeRange.end);
                       const label = `#${item.ordinal + 1} ${t(trajectoryKindMessageKey[item.item.kind])}: ${
                         item.summary || t(trajectoryKindMessageKey[item.item.kind])
                       }`;
@@ -775,8 +742,6 @@ export const AgentTrajectoryOverview = ({
                           title={label}
                           onClick={onSelectItem ? () => onSelectItem(item.item.id) : undefined}
                           className={`absolute h-2 -translate-y-1/2 rounded-[2px] ${kindFillClass[colorKey]} ${
-                            dimmed ? "opacity-30" : ""
-                          } ${
                             selected
                               ? "outline outline-2 outline-offset-1 outline-accent"
                               : "hover:outline hover:outline-1 hover:outline-border-medium"
