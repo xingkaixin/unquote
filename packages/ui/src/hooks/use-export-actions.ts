@@ -18,7 +18,7 @@ import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
 interface UseExportActionsParams {
   visibleRecords: JsonlRecord[];
-  resolveRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
+  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
   sourceAccess: LocalFileAccess | null;
   format: "json" | "jsonl";
   isCopyBlocked: boolean;
@@ -58,7 +58,7 @@ export const useExportActions = ({
     async (builder: ExportPartsBuilder, signal: AbortSignal) => {
       signal.throwIfAborted();
       if (!sourceAccess) {
-        const records = await resolveRecords(visibleRecords);
+        const records = await resolveRecords(visibleRecords, signal);
         signal.throwIfAborted();
         return addRecordsToBuilder(builder, records, signal);
       }
@@ -103,10 +103,13 @@ export const useExportActions = ({
   // Copy actions are invoked fire-and-forget from onClick, so a rejected file
   // read would become an unhandled rejection — surface it here instead.
   const resolveCopyRecords = useCallback(
-    async (records: JsonlRecord[]) => {
+    async (records: JsonlRecord[], signal: AbortSignal) => {
       try {
-        return await resolveRecords(records);
-      } catch {
+        return await resolveRecords(records, signal);
+      } catch (error) {
+        if (signal.aborted || isAbortError(error)) {
+          return null;
+        }
         toast.error(t("input.readFailed"));
         return null;
       }
@@ -129,8 +132,8 @@ export const useExportActions = ({
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    await copyText(async () => {
-      const records = await resolveCopyRecords(visibleRecords);
+    await copyText(async (signal) => {
+      const records = await resolveCopyRecords(visibleRecords, signal);
       if (!records) {
         return null;
       }
@@ -143,8 +146,8 @@ export const useExportActions = ({
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    await copyText(async () => {
-      const records = await resolveCopyRecords(visibleRecords);
+    await copyText(async (signal) => {
+      const records = await resolveCopyRecords(visibleRecords, signal);
       if (!records) {
         return null;
       }
@@ -162,8 +165,8 @@ export const useExportActions = ({
 
   const onCopyRecord = useCallback(
     (record: JsonlRecord) =>
-      copyText(async () => {
-        const records = await resolveCopyRecords([record]);
+      copyText(async (signal) => {
+        const records = await resolveCopyRecords([record], signal);
         if (!records) {
           return null;
         }
@@ -175,13 +178,16 @@ export const useExportActions = ({
 
   const onCopyRawLine = useCallback(
     (record: JsonlRecord) =>
-      copyText(async () => {
+      copyText(async (signal) => {
         if (!sourceAccess) {
           return record.status === "failed" ? record.rawLine : record.summary;
         }
         try {
-          return await sourceAccess.readRecordText(record);
-        } catch {
+          return await sourceAccess.readRecordText(record, signal);
+        } catch (error) {
+          if (signal.aborted || isAbortError(error)) {
+            return null;
+          }
           toast.error(t("input.readFailed"));
           return null;
         }

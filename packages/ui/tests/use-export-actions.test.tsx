@@ -34,7 +34,10 @@ const renderActions = ({
   isCopyBlocked = false,
   sourceAccess = null,
 }: {
-  getFullRecords?: (records: (typeof validRecord)[]) => Promise<(typeof validRecord)[]>;
+  getFullRecords?: (
+    records: (typeof validRecord)[],
+    signal?: AbortSignal,
+  ) => Promise<(typeof validRecord)[]>;
   isCopyBlocked?: boolean;
   sourceAccess?: LocalFileAccess | null;
 } = {}) =>
@@ -187,9 +190,11 @@ describe("useExportActions", () => {
       value: { writeText },
     });
     let resolveSlow!: (records: (typeof validRecord)[]) => void;
+    let slowSignal: AbortSignal | undefined;
     const getFullRecords = vi.fn(
-      () =>
+      (_records: (typeof validRecord)[], signal?: AbortSignal) =>
         new Promise<(typeof validRecord)[]>((resolve) => {
+          slowSignal = signal;
           resolveSlow = resolve;
         }),
     );
@@ -205,6 +210,7 @@ describe("useExportActions", () => {
       await bulkCopy;
     });
 
+    expect(slowSignal?.aborted).toBe(true);
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText.mock.calls[0]?.[0]).toContain("Raw line:");
   });
@@ -232,6 +238,49 @@ describe("useExportActions", () => {
     });
 
     expect(writeText).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("does not report a stale record-resolution failure after the source is replaced", async () => {
+    let copySignal: AbortSignal | undefined;
+    const getFullRecords = vi.fn(
+      (_records: (typeof validRecord)[], signal?: AbortSignal) =>
+        new Promise<(typeof validRecord)[]>((_resolve, reject) => {
+          copySignal = signal;
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    );
+    const { result, rerender } = renderActions({ getFullRecords });
+
+    const copy = result.current.onCopyJsonl();
+    rerender({ sourceRevision: 1 });
+    await act(async () => {
+      await copy;
+    });
+
+    expect(copySignal?.aborted).toBe(true);
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("does not report a stale raw-line failure after the source is replaced", async () => {
+    let copySignal: AbortSignal | undefined;
+    const readRecordText = vi.fn(
+      (_record: typeof validRecord, signal?: AbortSignal) =>
+        new Promise<string>((_resolve, reject) => {
+          copySignal = signal;
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    );
+    const sourceAccess = { readRecordText } as unknown as LocalFileAccess;
+    const { result, rerender } = renderActions({ sourceAccess });
+
+    const copy = result.current.onCopyRawLine(validRecord);
+    rerender({ sourceRevision: 1 });
+    await act(async () => {
+      await copy;
+    });
+
+    expect(copySignal?.aborted).toBe(true);
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 });

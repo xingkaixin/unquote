@@ -471,6 +471,23 @@ describe("useLocalFileSource", () => {
     expect(full[0]?.lineNumber).toBe(2);
   });
 
+  it("forwards caller cancellation while resolving records", async () => {
+    const resolveRecords = vi.fn(async (records) => records);
+    const access = { resolveRecords } as unknown as LocalFileAccess;
+    const { result } = renderHook(() => useLocalFileSource(access, 0), { wrapper });
+    const records = [makePreviewRecord(1)];
+    const controller = new AbortController();
+
+    await expect(result.current.resolveRecords(records, controller.signal)).resolves.toBe(records);
+    expect(resolveRecords).toHaveBeenCalledWith(records, controller.signal);
+
+    controller.abort();
+    await expect(result.current.resolveRecords(records, controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(resolveRecords).toHaveBeenCalledTimes(1);
+  });
+
   it("reports Full Record read failures and clears the in-flight mark", async () => {
     const file = makeFailingFile();
     const { result } = renderHook(() => useLocalFileSource(accessFor(file), 0), { wrapper });
