@@ -82,13 +82,19 @@ describe("record insight", () => {
       ).toBe("short");
     });
 
+    it("treats quoted keys as structural path segments", () => {
+      expect(
+        insightFor({ "a-b": { message: "a much longer message" }, z: { message: "short" } })
+          ?.message,
+      ).toBe("short");
+    });
+
     it("prefers the lexicographically smaller path at equal depth and length", () => {
       expect(insightFor({ b: { message: "yy" }, a: { message: "xx" } })?.message).toBe("xx");
     });
 
-    it("counts array indices as no extra depth, matching the path separators", () => {
-      // `$.items[0].message` and `$.other.message` both carry two separators,
-      // so the value length decides.
+    it("does not count array indices as extra field depth", () => {
+      // Both paths contain two object fields, so the value length decides.
       expect(
         insightFor({ items: [{ message: "from array" }], other: { message: "hi" } })?.message,
       ).toBe("hi");
