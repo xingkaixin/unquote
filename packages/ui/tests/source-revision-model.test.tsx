@@ -9,7 +9,15 @@ import {
   projectSourceWork,
   resolveSourceWork,
 } from "../src/lib/published-source";
-import { belongsToSourceRevision, shareSourceRevision } from "../src/lib/source-revision";
+import {
+  belongsToSourceRevision,
+  commitSourceRevisionResult,
+  createSourceRevisionState,
+  readSourceRevisionState,
+  replaceSourceRevisionState,
+  shareSourceRevision,
+  updateSourceRevisionState,
+} from "../src/lib/source-revision";
 
 describe("source revision model", () => {
   it("accepts only derivations owned by the active Source Revision", () => {
@@ -17,6 +25,37 @@ describe("source revision model", () => {
     expect(belongsToSourceRevision(2, { sourceRevision: 1 })).toBe(false);
     expect(shareSourceRevision(2, { sourceRevision: 2 }, { sourceRevision: 2 })).toBe(true);
     expect(shareSourceRevision(2, { sourceRevision: 2 }, { sourceRevision: 1 })).toBe(false);
+  });
+
+  it("projects fresh state and rejects updates from obsolete revisions", () => {
+    const first = createSourceRevisionState(1, { filter: "all" });
+    const secondInitial = { filter: "all" };
+
+    expect(readSourceRevisionState(2, first, secondInitial)).toBe(secondInitial);
+
+    const second = updateSourceRevisionState(first, 2, secondInitial, () => ({
+      filter: "message",
+    }));
+    const obsoleteUpdate = updateSourceRevisionState(second, 1, { filter: "all" }, () => ({
+      filter: "tool",
+    }));
+
+    expect(second).toEqual({ sourceRevision: 2, value: { filter: "message" } });
+    expect(obsoleteUpdate).toBe(second);
+  });
+
+  it("allows a future revision to be seeded while older seeds and results are rejected", () => {
+    const current = createSourceRevisionState(2, "current");
+    const future = replaceSourceRevisionState(current, 3, "seeded");
+
+    expect(future).toEqual({ sourceRevision: 3, value: "seeded" });
+    expect(replaceSourceRevisionState(future, 2, "obsolete")).toBe(future);
+    expect(
+      commitSourceRevisionResult(
+        { sourceRevision: 3, status: "pending" },
+        { sourceRevision: 2, status: "complete" },
+      ),
+    ).toEqual({ sourceRevision: 3, status: "pending" });
   });
 
   it("derives coherent work, import, and view projections from one published revision", () => {

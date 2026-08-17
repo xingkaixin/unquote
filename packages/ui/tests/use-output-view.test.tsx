@@ -73,6 +73,22 @@ describe("useOutputView", () => {
     expect(result.current.outputView).toBe("agent");
   });
 
+  it("ignores output setters retained from an obsolete Source Revision", () => {
+    const { result, rerender } = renderOutputView({
+      sourceRevision: 1,
+      agentSession: createSession(0),
+    });
+    const obsoleteSetOutputView = result.current.setOutputView;
+
+    rerender({ sourceRevision: 2, agentSession: createSession(0) });
+    act(() => result.current.setOutputView("trajectory"));
+    expect(result.current.outputView).toBe("trajectory");
+
+    act(() => obsoleteSetOutputView("json"));
+
+    expect(result.current.outputView).toBe("trajectory");
+  });
+
   it("defaults an asynchronously recognized Agent session only once per revision", () => {
     const thirdRevision = 3;
     const { result, rerender } = renderOutputView({
@@ -102,7 +118,7 @@ describe("useOutputView", () => {
     expect(result.current.outputView).toBe("json");
   });
 
-  it("defaults Agent after returning through a non-Agent revision", () => {
+  it("defaults Agent for a later revision after a non-Agent revision", () => {
     const { result, rerender } = renderOutputView({
       sourceRevision: 1,
       agentSession: createSession(0),
@@ -112,12 +128,12 @@ describe("useOutputView", () => {
     rerender({ sourceRevision: 2, agentSession: null });
     expect(result.current.outputView).toBe("json");
 
-    rerender({ sourceRevision: 1, agentSession: createSession(0) });
+    rerender({ sourceRevision: 3, agentSession: createSession(0) });
 
     expect(result.current.outputView).toBe("agent");
   });
 
-  it("defaults Agent after returning from another Agent revision", () => {
+  it("defaults Agent for each later Agent revision", () => {
     const { result, rerender } = renderOutputView({
       sourceRevision: 1,
       agentSession: createSession(0),
@@ -128,7 +144,7 @@ describe("useOutputView", () => {
     expect(result.current.outputView).toBe("agent");
 
     act(() => result.current.setOutputView("json"));
-    rerender({ sourceRevision: 1, agentSession: createSession(0) });
+    rerender({ sourceRevision: 3, agentSession: createSession(0) });
 
     expect(result.current.outputView).toBe("agent");
   });
