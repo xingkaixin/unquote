@@ -3,9 +3,11 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCopyToClipboard } from "../src/hooks/use-copy-to-clipboard";
 import { I18nProvider } from "../src/i18n/context";
+import { copyBytesLimit } from "../src/lib/record-export";
 
 const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
+  warning: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
@@ -62,6 +64,18 @@ describe("useCopyToClipboard", () => {
     await act(() => result.current(() => "payload"));
 
     expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
+  });
+
+  it("blocks a final clipboard payload above the byte budget", async () => {
+    const writeText = stubClipboard(vi.fn().mockResolvedValue(undefined));
+    const { result } = renderCopy();
+
+    await act(() => result.current(() => "x".repeat(copyBytesLimit + 1)));
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toastMocks.warning).toHaveBeenCalledWith(
+      "Data is too large to copy — use Export instead",
+    );
   });
 
   it("skips the write when the producer reports its own failure", async () => {

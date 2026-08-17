@@ -8,7 +8,6 @@ import { UnquoteApp } from "../src/app";
 import { memorySearchDebounceMs } from "../src/hooks/use-query-interaction";
 import { searchWorkerTimeoutMs } from "../src/hooks/use-search-worker";
 import * as agentSession from "../src/lib/agent-session";
-import { isCopyAboveThreshold } from "../src/lib/record-export";
 import { inspectorNodeLimit } from "../src/lib/selected-node";
 import {
   createInitialWorkspaceSelectionState,
@@ -2506,14 +2505,5 @@ describe("UnquoteApp", () => {
     );
 
     expect(performance.getEntriesByName("unquote:recordRows:build")).toHaveLength(1);
-  });
-
-  it("disables Copy above the large-source threshold and points to Export", () => {
-    // The guard is a pure rule; behavior is verified at the unit level to avoid
-    // parsing thousands of records in a render test.
-    expect(isCopyAboveThreshold(5000, 1)).toBe(false);
-    expect(isCopyAboveThreshold(5001, 1)).toBe(true);
-    expect(isCopyAboveThreshold(1, 20_000_001)).toBe(true);
-    expect(isCopyAboveThreshold(1, 20_000_000)).toBe(false);
   });
 });

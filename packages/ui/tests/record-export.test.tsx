@@ -1,17 +1,20 @@
 import { parseInput } from "@unquote/core";
+import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import {
   addRecordsToBuilder,
-  copyBytesLimit,
   copyRecordLimit,
   createExportFilename,
   downloadBlob,
   formatRecordsAsJson,
+  formatRecordsAsJsonForCopy,
   formatRecordsAsJsonParts,
   formatRecordsAsJsonl,
+  formatRecordsAsJsonlForCopy,
   formatRecordsAsJsonlParts,
   getCopyValue,
-  isCopyAboveThreshold,
+  isCopyRecordCountAboveThreshold,
+  isCopyTextAboveThreshold,
 } from "../src/lib/record-export";
 import type { ExportPartsBuilder } from "../src/lib/record-export";
 
@@ -40,10 +43,9 @@ describe("record-export", () => {
     });
   });
 
-  it("blocks copy only above the record or byte thresholds", () => {
-    expect(isCopyAboveThreshold(copyRecordLimit, copyBytesLimit)).toBe(false);
-    expect(isCopyAboveThreshold(copyRecordLimit + 1, 0)).toBe(true);
-    expect(isCopyAboveThreshold(0, copyBytesLimit + 1)).toBe(true);
+  it("blocks copy only above the record threshold", () => {
+    expect(isCopyRecordCountAboveThreshold(copyRecordLimit)).toBe(false);
+    expect(isCopyRecordCountAboveThreshold(copyRecordLimit + 1)).toBe(true);
   });
 
   it("formatRecordsAsJsonl joins record values with newlines", () => {
@@ -61,6 +63,48 @@ describe("record-export", () => {
     expect(formatRecordsAsJson(records, "jsonl")).toBe(
       JSON.stringify([{ a: 1 }, { a: 2 }], null, 2),
     );
+  });
+
+  it("matches the existing copy formats within budget", () => {
+    const records = recordsFrom('{"a":1}\n{bad}', "jsonl");
+
+    expect(formatRecordsAsJsonlForCopy(records)).toBe(formatRecordsAsJsonl(records));
+    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toBe(
+      formatRecordsAsJson(records, "jsonl"),
+    );
+    expect(formatRecordsAsJsonForCopy([], "json")).toBe("null");
+  });
+
+  it("checks the final UTF-8 payload at an inclusive byte limit", () => {
+    const records = recordsFrom('{"emoji":"😀"}', "json");
+    const text = formatRecordsAsJson(records, "json");
+    const byteLength = new TextEncoder().encode(text).byteLength;
+
+    expect(formatRecordsAsJsonForCopy(records, "json", byteLength)).toBe(text);
+    expect(formatRecordsAsJsonForCopy(records, "json", byteLength - 1)).toBeNull();
+    expect(isCopyTextAboveThreshold(text, byteLength)).toBe(false);
+    expect(isCopyTextAboveThreshold(text, byteLength - 1)).toBe(true);
+  });
+
+  it("stops serializing a Record when the copy budget is exhausted", () => {
+    const children: Record<string, JsonNode> = {
+      payload: { kind: "string", value: "x".repeat(100) },
+    };
+    Object.defineProperty(children, "unreachable", {
+      enumerable: true,
+      get() {
+        throw new Error("read beyond copy budget");
+      },
+    });
+    const record: JsonlRecord = {
+      id: "record-1",
+      lineNumber: 1,
+      summary: "large",
+      status: "full",
+      node: { kind: "object", children },
+    };
+
+    expect(formatRecordsAsJsonlForCopy([record], 20)).toBeNull();
   });
 
   it("preserves unsafe number lexemes in every export shape", async () => {

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { useRecordWorkspace } from "../src/hooks/use-record-workspace";
 import { I18nProvider } from "../src/i18n/context";
 import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
+import { copyBytesLimit } from "../src/lib/record-export";
 import type { RecordAppend } from "../src/lib/record-sequence";
 
 const wrapper = ({ children }: PropsWithChildren) => <I18nProvider>{children}</I18nProvider>;
@@ -37,6 +38,23 @@ const useTestWorkspace = ({ sourceRevision, sourceText, ...input }: WorkspaceInp
   });
 
 describe("useRecordWorkspace", () => {
+  it("does not block a small visible payload because the source text is large", () => {
+    const result = parseInput('{"value":1}', { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText: "x".repeat(copyBytesLimit + 1),
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+
+    expect(workspace.current.isCopyBlocked).toBe(false);
+  });
+
   it("opens an existing endpoint Record without replacing trajectory detail", () => {
     const sourceText = '{"value":1}\n{"value":2}';
     const result = parseInput(sourceText, { forcedFormat: "jsonl" });
