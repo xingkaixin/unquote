@@ -259,14 +259,15 @@ export const createJsonPartsBuilder = (format: "json" | "jsonl"): ExportPartsBui
 };
 
 // Chunked with main-thread yields so an "Exporting…" toast stays responsive.
-export const addRecordsToBuilder = async (
+export const addRecordBodiesToBuilder = async (
   builder: ExportPartsBuilder,
   records: JsonlRecord[],
+  bodyFor: (record: JsonlRecord) => string,
   signal?: AbortSignal,
 ): Promise<BlobPart[]> => {
   signal?.throwIfAborted();
   for (let index = 0; index < records.length; index += 1) {
-    builder.addBody(builder.bodyFor(records[index]!));
+    builder.addBody(bodyFor(records[index]!));
     if (index > 0 && index % exportChunkSize === 0) {
       await yieldToMain();
       signal?.throwIfAborted();
@@ -275,6 +276,12 @@ export const addRecordsToBuilder = async (
   signal?.throwIfAborted();
   return builder.finish();
 };
+
+export const addRecordsToBuilder = (
+  builder: ExportPartsBuilder,
+  records: JsonlRecord[],
+  signal?: AbortSignal,
+): Promise<BlobPart[]> => addRecordBodiesToBuilder(builder, records, builder.bodyFor, signal);
 
 export const formatRecordsAsJsonlParts = (records: JsonlRecord[]): Promise<BlobPart[]> =>
   addRecordsToBuilder(createJsonlPartsBuilder(), records);

@@ -226,6 +226,38 @@ describe("streaming export", () => {
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
+  it("aborts a local export whose source changes during final assembly", async () => {
+    vi.useFakeTimers();
+    const lines = Array.from({ length: 401 }, (_, index) => `{"id":${index + 1}}`);
+    const records = fullRecords(lines);
+    const sourceAccess = {
+      streamRecords: vi.fn(
+        async (_lineNumbers: ReadonlySet<number>, onRecord: (record: JsonlRecord) => void) => {
+          for (const record of records) {
+            onRecord(record);
+          }
+        },
+      ),
+    } as unknown as LocalFileAccess;
+    const { result, rerender } = renderExport({ visibleRecords: records, sourceAccess });
+
+    await act(async () => {
+      result.current.onExportJsonl();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    let settled: unknown;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    pending?.catch((error: unknown) => (settled = error));
+
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    rerender({ sourceRevision: 1 });
+    await act(async () => vi.runAllTimersAsync());
+
+    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
   it("does not build resolved records after their source revision changes", async () => {
     const records = fullRecords(['{"id":1}']);
     const resolvedRecord = { ...records[0]! };
@@ -338,8 +370,8 @@ describe("streaming export", () => {
     });
     await act(async () => {
       result.current.onExportJsonl();
-      await Promise.resolve();
-      await Promise.resolve();
+      const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+      await pending;
     });
 
     expect(downloadedText().split("\n")).toHaveLength(lineCount);
