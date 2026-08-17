@@ -21,7 +21,10 @@ import type { SearchMatch } from "../lib/record-search";
 import { projectSelectedNode } from "../lib/selected-node";
 import type { SourceRevision } from "../lib/source-revision";
 import { reconcileWorkspaceSelection, reduceWorkspaceSelection } from "../lib/workspace-selection";
-import type { WorkspaceSelectionState } from "../lib/workspace-selection";
+import type {
+  WorkspaceSelectionState,
+  WorkspaceSelectionVisibility,
+} from "../lib/workspace-selection";
 import { useExportActions } from "./use-export-actions";
 import { useLocalFileSource } from "./use-local-file-source";
 import { useQueryInteraction } from "./use-query-interaction";
@@ -38,18 +41,15 @@ interface UseRecordWorkspaceParams {
 
 const projectSelection = (
   selection: WorkspaceSelectionState,
-  visibleRecords: ParseResult["records"],
+  visibility: WorkspaceSelectionVisibility,
   recordAppend: RecordAppend | null,
 ) =>
   recordAppend
     ? reduceWorkspaceSelection(selection, {
         type: "recordsAppended",
-        firstRecordId: visibleRecords[0]?.id ?? null,
+        firstRecordId: visibility.firstRecordId,
       })
-    : reconcileWorkspaceSelection(
-        selection,
-        visibleRecords.map((record) => record.id),
-      );
+    : reconcileWorkspaceSelection(selection, visibility);
 
 export const useRecordWorkspace = ({
   source,
@@ -82,9 +82,19 @@ export const useRecordWorkspace = ({
   } = query.snapshot;
   const queryMatches = visibleMatches ?? emptyWorkspaceSearchMatches;
   const { selection, searchExpansionSource, searchExpandedPaths } = workspace.queryProjectionState;
+  const selectionVisibility = useMemo<WorkspaceSelectionVisibility>(
+    () => ({
+      firstRecordId: visibleRecords[0]?.id ?? null,
+      recordIds:
+        query.snapshot.recordFilter === "all"
+          ? recordsById
+          : new Set(visibleRecords.map((record) => record.id)),
+    }),
+    [query.snapshot.recordFilter, recordsById, visibleRecords],
+  );
   const projectedSelection = useMemo(
-    () => projectSelection(selection, visibleRecords, visibleRecordAppend),
-    [selection, visibleRecordAppend, visibleRecords],
+    () => projectSelection(selection, selectionVisibility, visibleRecordAppend),
+    [selection, selectionVisibility, visibleRecordAppend],
   );
   const groupedSearchExpandedPaths = useMemo(
     () => groupExpandedStringifiedPaths(queryMatches),
