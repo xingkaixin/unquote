@@ -61,9 +61,10 @@ Agent session dump 和日志通常以 JSONL 存储，一个文件可包含几十
 | U-6 | 搜索、路径跳转与筛选 | 在键和值中搜索，支持正则、大小写、JSONPath / jq 风格路径跳转及记录过滤。 |
 | U-7 | 工具栏与命令面板 | 当前 Record tree 工具栏执行展开/收起；`Cmd/Ctrl+K` 命令面板执行搜索、路径跳转、搜索选项与 Record 筛选。 |
 | U-8 | Agent session 视图 | 自动识别 Codex rollout 与 Claude Code JSONL，以会话信息、对话、工具调用、时间线和原始记录的关联视图呈现。 |
-| U-9 | 复制与导出 | 复制或导出可见记录为 JSONL 或格式化 JSON；大数据复制会提示改用导出。 |
-| U-10 | 文件概览与记录洞察 | 汇总成功/失败、嵌套路径和常见字段值，并识别日志、消息、事件、工具调用和错误记录。 |
-| U-11 | 大文件浏览 | JSONL 支持流式导入、按需取得 Full Record、虚拟列表和分块导出，降低首屏、滚动和导出时的内存压力。 |
+| U-9 | Agent 轨迹视图 | 将识别到的 Agent session 投影为按时间与 turn 组织的工作轨迹，提供指标、时间范围、类别和状态筛选、事件明细、告警及原始 Record 入口。 |
+| U-10 | 复制与导出 | 复制或导出可见记录为 JSONL 或格式化 JSON；大数据复制会提示改用导出。 |
+| U-11 | 文件概览与记录洞察 | 汇总成功/失败、嵌套路径和常见字段值，并识别日志、消息、事件、工具调用和错误记录。 |
+| U-12 | 大文件浏览 | JSONL 支持流式导入、按需取得 Full Record、虚拟列表和分块导出，降低首屏、滚动和导出时的内存压力。 |
 
 ### 4.3 Web（@unquote/web）
 
@@ -112,17 +113,30 @@ Record rail 只负责导航，不同时渲染多张 Record card。搜索、筛�
 并在 tree 中定位对应 JSON Node；本地大文件的目标若仍是 Preview Record，会先请求对应 Full Record。
 窄屏下 rail、tree 与 inspector 垂直排列，inspector 收入底部 disclosure。
 
-### 5.3 Agent output
+### 5.3 Agent 与 Trajectory outputs
 
-识别到 Agent Session 时，header 提供 Agent / JSON output 切换；默认 Agent output 仍保留返回 canonical
-Record 的入口。Agent 桌面布局为 timeline、conversation 与 session facts 三栏，窄屏使用与 JSON
-workspace 相同的堆叠策略。
+识别到 Agent Session 时，header 提供 Agent / Trajectory / JSON output 切换。每个 Source Revision
+首次识别成功时默认进入 Agent output；流式记录继续到达时保留用户已经选择的 output。Agent output
+仍保留返回 canonical Record 的入口。Agent 桌面布局为 timeline、conversation 与 session facts 三栏，
+窄屏使用与 JSON workspace 相同的堆叠策略。
 
 ```
 ┌────────────────────┬───────────────────────────────┬──────────────────────┐
 │ Agent timeline     │ Conversation                  │ Session facts        │
 │ event / turn       │ message / reasoning / tools   │ metadata / metrics   │
 └────────────────────┴───────────────────────────────┴──────────────────────┘
+```
+
+Trajectory output 将同一 Agent session 投影为带时间范围的工作轨迹。桌面布局由中心工作区和 detail
+两栏组成：中心工作区包含 session 指标、搜索与类别/状态筛选、时间轴 overview，以及按 turn 分组的
+虚拟化 ledger；detail 展示选中事件的事实、告警、受限长度的原始 Record JSON 和返回 Record 的入口。
+窄屏下中心内容垂直滚动，detail 收入底部 disclosure。
+
+```
+┌────────────────────────────────────────────┬─────────────────────────────┐
+│ Metrics / filters / time overview          │ Trajectory detail           │
+│ Turn-grouped event ledger                  │ facts / warnings / Records  │
+└────────────────────────────────────────────┴─────────────────────────────┘
 ```
 
 App header 始终承载 Source 替换、搜索、output 切换、偏好与复制/导出操作；解析、搜索、文件和错误状态
@@ -189,6 +203,7 @@ Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计�
 - Web Worker 解析、流式 JSONL、大记录虚拟化、按需取得 Full Record 和分块导出。
 - 顶部搜索执行文本搜索与上一个/下一个匹配导航；命令面板执行搜索、正则和大小写选项、JSONPath / jq 风格路径跳转与记录过滤。
 - Codex rollout 和 Claude Code JSONL 的 session 识别与专用浏览视图。
+- Agent session 的时间轨迹、turn ledger、指标、时间范围与类别/状态筛选、事件明细及原始 Record 入口。
 - 主题与语言偏好，以及浏览器扩展的独立页面、右键菜单和快捷键。
 
 ### 已否决
@@ -202,4 +217,4 @@ Core 将输入解析为判别式节点与 Record；UI 在遍历上下文中计�
 
 ## 9. 价值定位
 
-Unquote 的差异不在于替代通用 JSON formatter，而在于把难读的嵌套字符串和逐行 Agent 记录变为可探索的本地结构：递归 stringified JSON 展开、JSONL 原生导航，以及对已识别 Agent session 的上下文视图，同时覆盖 Web、Chrome 扩展与 Safari 扩展。
+Unquote 的差异不在于替代通用 JSON formatter，而在于把难读的嵌套字符串和逐行 Agent 记录变为可探索的本地结构：递归 stringified JSON 展开、JSONL 原生导航，以及对已识别 Agent session 的上下文与轨迹视图，同时覆盖 Web、Chrome 扩展与 Safari 扩展。

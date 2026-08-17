@@ -157,15 +157,17 @@ Use Tailwind's spacing scale and existing component patterns. The current interf
 - 4–8px gaps for icons, badges, and compact controls;
 - 10–16px internal padding for cards and toolbars;
 - 12–14px gaps between major workspace regions;
-- a 52px sticky application header;
-- a maximum application width of 1760px.
+- a 52px fixed-height application header;
+- a full-viewport application shell with independently scrolling panes.
 
-The desktop workspace uses an input/navigation rail plus a flexible output region. On smaller
-screens, Input and Output become tabs. Agent-session layouts use container queries at 44rem and
-64rem so they respond to their allocated panel width rather than the viewport alone.
+Source import occupies the empty state or a dialog; a loaded source does not retain an input
+editor. At viewport widths of 64rem and above, the JSON and Agent workspaces place fixed-width
+navigation and detail panes around a flexible center pane. Trajectory omits the navigation pane
+and uses a flexible center pane plus a fixed-width detail pane. Below 64rem, an optional navigation
+pane stacks above the center pane and the detail pane becomes a bounded bottom disclosure.
 
-Avoid fixed widths for data-bearing content. Prefer `minmax(0, 1fr)`, truncation for metadata, and
-scrolling for code or long JSON values.
+Keep the central data-bearing pane flexible with `min-width: 0`. Reserve fixed widths for
+navigation and detail panes, use truncation for metadata, and scroll code or long JSON values.
 
 ## Components
 
