@@ -9,9 +9,8 @@ import {
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
   downloadBlob,
-  formatRecord,
-  formatRecordsAsJson,
-  formatRecordsAsJsonl,
+  formatRecordsAsJsonForCopy,
+  formatRecordsAsJsonlForCopy,
 } from "../lib/record-export";
 import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
@@ -115,6 +114,16 @@ export const useExportActions = ({
     [resolveRecords, t],
   );
 
+  const acceptCopyPayload = useCallback(
+    (text: string | null) => {
+      if (text === null) {
+        toast.warning(t("toolbar.copyBlocked"));
+      }
+      return text;
+    },
+    [t],
+  );
+
   const onCopyJsonl = useCallback(async () => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
@@ -122,9 +131,12 @@ export const useExportActions = ({
     }
     await copyText(async () => {
       const records = await resolveCopyRecords(visibleRecords);
-      return records && formatRecordsAsJsonl(records);
+      if (!records) {
+        return null;
+      }
+      return acceptCopyPayload(formatRecordsAsJsonlForCopy(records));
     });
-  }, [copyText, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
+  }, [acceptCopyPayload, copyText, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
 
   const onCopyFormattedJson = useCallback(async () => {
     if (isCopyBlocked) {
@@ -133,9 +145,12 @@ export const useExportActions = ({
     }
     await copyText(async () => {
       const records = await resolveCopyRecords(visibleRecords);
-      return records && formatRecordsAsJson(records, format);
+      if (!records) {
+        return null;
+      }
+      return acceptCopyPayload(formatRecordsAsJsonForCopy(records, format));
     });
-  }, [copyText, format, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
+  }, [acceptCopyPayload, copyText, format, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
 
   const onExportJsonl = useCallback(() => {
     exportWithBuilder(createJsonlPartsBuilder(), "jsonl", "application/jsonl;charset=utf-8");
@@ -153,9 +168,9 @@ export const useExportActions = ({
           return null;
         }
         const [copyRecord = record] = records;
-        return formatRecord(copyRecord, 2);
+        return acceptCopyPayload(formatRecordsAsJsonForCopy([copyRecord], "json"));
       }),
-    [copyText, resolveCopyRecords],
+    [acceptCopyPayload, copyText, resolveCopyRecords],
   );
 
   const onCopyRawLine = useCallback(

@@ -1,13 +1,41 @@
-import type { JsonlRecord } from "@unquote/core";
-import { stringifyJsonNode } from "@unquote/core";
+import type { JsonNode, JsonlRecord } from "@unquote/core";
+import { stringifyJsonNode, stringifyJsonNodeBounded } from "@unquote/core";
 import { materializeRecord } from "./tree";
 
 // Copy builds one giant string and hands it to the clipboard API, which freezes
 // the main thread on large data. Export streams via Blob(parts[]) and is safe.
 export const copyRecordLimit = 5000;
 export const copyBytesLimit = 20_000_000;
-export const isCopyAboveThreshold = (recordCount: number, bytes: number) =>
-  recordCount > copyRecordLimit || bytes > copyBytesLimit;
+export const isCopyRecordCountAboveThreshold = (recordCount: number) =>
+  recordCount > copyRecordLimit;
+
+const normalizedByteLimit = (byteLimit: number) =>
+  Number.isFinite(byteLimit)
+    ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.trunc(byteLimit)))
+    : 0;
+
+const utf8ByteLengthWithin = (value: string, byteLimit: number) => {
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const first = value.charCodeAt(index);
+    let width = first <= 0x7f ? 1 : first <= 0x7ff ? 2 : 3;
+    if (first >= 0xd800 && first <= 0xdbff) {
+      const second = value.charCodeAt(index + 1);
+      if (second >= 0xdc00 && second <= 0xdfff) {
+        width = 4;
+        index += 1;
+      }
+    }
+    byteLength += width;
+    if (byteLength > byteLimit) {
+      return null;
+    }
+  }
+  return byteLength;
+};
+
+export const isCopyTextAboveThreshold = (text: string, byteLimit = copyBytesLimit) =>
+  utf8ByteLengthWithin(text, normalizedByteLimit(byteLimit)) === null;
 
 export const getCopyValue = (record: JsonlRecord) => {
   if (record.status !== "failed") {
@@ -22,6 +50,25 @@ export const getCopyValue = (record: JsonlRecord) => {
     rawLine: record.rawLine,
     context: record.errorMeta.context,
     summary: record.summary,
+  };
+};
+
+const copyNodeFor = (record: JsonlRecord): JsonNode => {
+  if (record.status !== "failed") {
+    return record.node;
+  }
+
+  return {
+    kind: "object",
+    children: {
+      lineNumber: { kind: "number", value: record.lineNumber },
+      error: { kind: "string", value: record.error },
+      line: { kind: "number", value: record.errorMeta.line },
+      column: { kind: "number", value: record.errorMeta.column },
+      rawLine: { kind: "string", value: record.rawLine },
+      context: { kind: "string", value: record.errorMeta.context },
+      summary: { kind: "string", value: record.summary },
+    },
   };
 };
 
@@ -41,6 +88,113 @@ export const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "js
 
   const bodies = records.map((record) => `  ${formatRecord(record, 2).replace(/\n/g, "\n  ")}`);
   return bodies.length === 0 ? "[]" : `[\n${bodies.join(",\n")}\n]`;
+};
+
+class CopyPayloadWriter {
+  private readonly chunks: string[] = [];
+  private byteLength = 0;
+  private exceeded = false;
+  readonly byteLimit: number;
+
+  constructor(byteLimit: number) {
+    this.byteLimit = normalizedByteLimit(byteLimit);
+  }
+
+  get remainingBytes() {
+    return Math.max(0, this.byteLimit - this.byteLength);
+  }
+
+  append(value: string) {
+    if (this.exceeded) {
+      return false;
+    }
+    const addedBytes = utf8ByteLengthWithin(value, this.remainingBytes);
+    if (addedBytes === null) {
+      this.exceeded = true;
+      return false;
+    }
+    this.chunks.push(value);
+    this.byteLength += addedBytes;
+    return true;
+  }
+
+  finish() {
+    return this.exceeded ? null : this.chunks.join("");
+  }
+}
+
+const boundedRecordText = (record: JsonlRecord, indent: number, maxLength: number) =>
+  stringifyJsonNodeBounded(copyNodeFor(record), maxLength, { indent });
+
+const appendRecord = (writer: CopyPayloadWriter, record: JsonlRecord, indent: number) => {
+  const serialized = boundedRecordText(record, indent, writer.remainingBytes);
+  return !serialized.truncated && writer.append(serialized.text);
+};
+
+const appendIndentedRecord = (writer: CopyPayloadWriter, record: JsonlRecord) => {
+  const serialized = boundedRecordText(record, 2, writer.remainingBytes);
+  if (serialized.truncated || !writer.append("  ")) {
+    return false;
+  }
+
+  let start = 0;
+  while (start < serialized.text.length) {
+    const newline = serialized.text.indexOf("\n", start);
+    if (newline < 0) {
+      return writer.append(serialized.text.slice(start));
+    }
+    if (!writer.append(serialized.text.slice(start, newline)) || !writer.append("\n  ")) {
+      return false;
+    }
+    start = newline + 1;
+  }
+  return true;
+};
+
+export const formatRecordsAsJsonlForCopy = (
+  records: JsonlRecord[],
+  byteLimit = copyBytesLimit,
+): string | null => {
+  if (isCopyRecordCountAboveThreshold(records.length)) {
+    return null;
+  }
+  const writer = new CopyPayloadWriter(byteLimit);
+  for (let index = 0; index < records.length; index += 1) {
+    if ((index > 0 && !writer.append("\n")) || !appendRecord(writer, records[index]!, 0)) {
+      return null;
+    }
+  }
+  return writer.finish();
+};
+
+export const formatRecordsAsJsonForCopy = (
+  records: JsonlRecord[],
+  format: "json" | "jsonl",
+  byteLimit = copyBytesLimit,
+): string | null => {
+  const writer = new CopyPayloadWriter(byteLimit);
+  if (format === "json") {
+    const record = records[0];
+    if (!record) {
+      return writer.append("null") ? writer.finish() : null;
+    }
+    return appendRecord(writer, record, 2) ? writer.finish() : null;
+  }
+  if (isCopyRecordCountAboveThreshold(records.length)) {
+    return null;
+  }
+  if (records.length === 0) {
+    return writer.append("[]") ? writer.finish() : null;
+  }
+  if (!writer.append("[\n")) {
+    return null;
+  }
+  for (let index = 0; index < records.length; index += 1) {
+    if ((index > 0 && !writer.append(",\n")) || !appendIndentedRecord(writer, records[index]!)) {
+      return null;
+    }
+  }
+  return writer.append("\n]") ? writer.finish() : null;
 };
 
 // Yield the main thread so a long stringify doesn't freeze the UI (toasts,

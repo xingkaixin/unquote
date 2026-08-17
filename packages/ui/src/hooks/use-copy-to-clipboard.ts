@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { writeClipboardText } from "../lib/clipboard";
+import { isCopyTextAboveThreshold } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 
 // Returning null means the caller already handled its own failure, so no
@@ -25,6 +26,10 @@ export const useCopyToClipboard = (sourceRevision: SourceRevision) => {
       const generation = (generationRef.current += 1);
       const text = await produceText();
       if (text === null || generation !== generationRef.current) {
+        return;
+      }
+      if (isCopyTextAboveThreshold(text)) {
+        toast.warning(t("toolbar.copyBlocked"));
         return;
       }
 

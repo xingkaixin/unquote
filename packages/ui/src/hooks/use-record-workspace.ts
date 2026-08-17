@@ -11,7 +11,7 @@ import {
   groupExpandedStringifiedPaths,
   mergeExpandedStringifiedPaths,
 } from "../lib/record-expansion";
-import { isCopyAboveThreshold } from "../lib/record-export";
+import { isCopyRecordCountAboveThreshold } from "../lib/record-export";
 import { recordContainsStringifiedJson } from "../lib/record-filter";
 import type { NestedFilterScope } from "../lib/record-filter";
 import type { RecordAppend } from "../lib/record-sequence";
@@ -60,7 +60,7 @@ export const useRecordWorkspace = ({
   translateError,
 }: UseRecordWorkspaceParams) => {
   const { t } = useTranslation();
-  const { text: sourceText, sourceAccess, sourceRevision } = resolveSourceWork(source);
+  const { sourceAccess, sourceRevision } = resolveSourceWork(source);
   const workspace = useWorkspaceSession(sourceRevision);
   const query = useQueryInteraction({
     source,
@@ -142,10 +142,7 @@ export const useRecordWorkspace = ({
     }
     return matchesByRecord;
   }, [queryMatches]);
-  const isCopyBlocked = isCopyAboveThreshold(
-    visibleRecords.length,
-    sourceAccess?.size ?? sourceText.length,
-  );
+  const isCopyBlocked = isCopyRecordCountAboveThreshold(visibleRecords.length);
   const nestedFilterScope: NestedFilterScope =
     query.snapshot.fileOverview.structurePrecision === "exact" ? "all-levels" : "top-level";
   const exportActions = useExportActions({
