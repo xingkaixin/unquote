@@ -5,6 +5,7 @@ import {
   type AgentSession,
 } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
+import type { AgentDetectionSample } from "../src/lib/agent-session/types";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const conversationItems = (session: AgentSession) =>
@@ -17,6 +18,15 @@ const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
   recordId: `record-${lineNumber}`,
+});
+
+const detectionSample = (overrides: Partial<AgentDetectionSample> = {}): AgentDetectionSample => ({
+  type: undefined,
+  hasObjectPayload: false,
+  hasUuid: false,
+  hasObjectMessage: false,
+  hasSessionId: false,
+  ...overrides,
 });
 
 const expectTrajectorySelectionsToResolve = (session: AgentSession) => {
@@ -40,29 +50,26 @@ const expectTrajectorySelectionsToResolve = (session: AgentSession) => {
   return trajectory;
 };
 
-const transcriptLine = (lineNumber: number): ParsedAgentLine =>
-  parsedLine(
-    {
-      type: lineNumber % 2 === 0 ? "assistant" : "user",
-      uuid: `uuid-${lineNumber}`,
-      message: { content: "message" },
-    },
-    lineNumber,
-  );
+const transcriptSample = (index: number): AgentDetectionSample =>
+  detectionSample({
+    type: index % 2 === 0 ? "assistant" : "user",
+    hasUuid: true,
+    hasObjectMessage: true,
+  });
 
 describe("claudeTranscriptAdapter", () => {
   it("scores transcript and metadata evidence", () => {
     expect(claudeTranscriptAdapter.detect([])).toBe(0);
-    expect(claudeTranscriptAdapter.detect([parsedLine(null, 1), transcriptLine(2)])).toBe(0);
+    expect(claudeTranscriptAdapter.detect([detectionSample(), transcriptSample(2)])).toBe(0);
     expect(
       claudeTranscriptAdapter.detect([
-        transcriptLine(1),
-        parsedLine({ type: "mode", sessionId: "session" }, 2),
+        transcriptSample(1),
+        detectionSample({ type: "mode", hasSessionId: true }),
       ]),
     ).toBe(0.6);
-    expect(claudeTranscriptAdapter.detect([transcriptLine(1), transcriptLine(2)])).toBe(0.75);
+    expect(claudeTranscriptAdapter.detect([transcriptSample(1), transcriptSample(2)])).toBe(0.75);
     expect(
-      claudeTranscriptAdapter.detect(Array.from({ length: 20 }, (_, i) => transcriptLine(i))),
+      claudeTranscriptAdapter.detect(Array.from({ length: 20 }, (_, i) => transcriptSample(i))),
     ).toBe(1);
   });
 

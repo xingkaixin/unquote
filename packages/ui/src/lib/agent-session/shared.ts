@@ -75,6 +75,10 @@ export const attachConversationItem = (event: AgentTimelineEvent, item: AgentCon
 };
 
 export const buildSession = (
-  session: Omit<AgentSession, "parseWarnings">,
+  session: Omit<AgentSession, "parseWarnings" | "parseWarningCount">,
   parseWarnings: AgentParseWarning[],
-): AgentSession => ({ ...session, parseWarnings: [...parseWarnings] });
+): AgentSession => ({
+  ...session,
+  parseWarnings: [...parseWarnings],
+  parseWarningCount: parseWarnings.length,
+});

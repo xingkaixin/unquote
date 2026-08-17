@@ -1,11 +1,13 @@
 import type {
   AgentAdapterBuilder,
+  AgentDetectionSample,
   AgentParseWarning,
   AgentSessionAdapter,
   ParsedAgentLine,
 } from "./types";
 import { claudeTranscriptAdapter } from "./claude-adapter";
 import { codexRolloutAdapter } from "./codex-adapter";
+import { getString, isRecord } from "./shared";
 
 export type {
   AgentContentBlock,
@@ -59,11 +61,13 @@ const detectionLineLimit = 80;
 const earlyDetectionLineCount = 20;
 const confidentDetectionScore = 0.75;
 const finalDetectionScore = 0.5;
+const parseWarningDetailLimit = 100;
 const agentProjectionWarning = "Unable to project Agent data from this line";
+const invalidJsonWarning = "Invalid JSON on this line";
 
 const adapters: AgentSessionAdapter[] = [codexRolloutAdapter, claudeTranscriptAdapter];
 
-const selectAdapter = (samples: ParsedAgentLine[], minScore: number) => {
+const selectAdapter = (samples: AgentDetectionSample[], minScore: number) => {
   let bestAdapter: AgentSessionAdapter | null = null;
   let bestScore = 0;
 
@@ -78,60 +82,129 @@ const selectAdapter = (samples: ParsedAgentLine[], minScore: number) => {
   return bestAdapter && bestScore >= minScore ? bestAdapter : null;
 };
 
-export const createAgentSessionTracker = (fileName?: string) => {
-  const samples: ParsedAgentLine[] = [];
-  const parseWarnings: AgentParseWarning[] = [];
-  let builder: AgentAdapterBuilder | null = null;
-  let disabled = false;
+interface WarningBuffer {
+  details: AgentParseWarning[];
+  totalCount: number;
+}
 
-  const pushToBuilder = (line: ParsedAgentLine) => {
+interface DetectionCandidate {
+  adapter: AgentSessionAdapter;
+  builder: AgentAdapterBuilder;
+  warnings: WarningBuffer;
+}
+
+type DetectionStatus = "collecting" | "detected" | "disabled";
+
+const emptyDetectionSample: AgentDetectionSample = {
+  type: undefined,
+  hasObjectPayload: false,
+  hasUuid: false,
+  hasObjectMessage: false,
+  hasSessionId: false,
+};
+
+const createDetectionSample = (data: unknown): AgentDetectionSample => {
+  if (!isRecord(data)) {
+    return emptyDetectionSample;
+  }
+
+  return {
+    type: getString(data, "type"),
+    hasObjectPayload: isRecord(data.payload),
+    hasUuid: getString(data, "uuid") !== undefined,
+    hasObjectMessage: isRecord(data.message),
+    hasSessionId: getString(data, "sessionId") !== undefined,
+  };
+};
+
+const appendWarning = (buffer: WarningBuffer, warning: AgentParseWarning) => {
+  buffer.totalCount += 1;
+  if (buffer.details.length < parseWarningDetailLimit) {
+    buffer.details.push(warning);
+  }
+};
+
+export const createAgentSessionTracker = (fileName?: string) => {
+  const samples: AgentDetectionSample[] = [];
+  let candidates: DetectionCandidate[] = adapters.map((adapter) => ({
+    adapter,
+    builder: adapter.createBuilder(fileName),
+    warnings: { details: [], totalCount: 0 },
+  }));
+  let status: DetectionStatus = "collecting";
+
+  const pushToCandidate = (candidate: DetectionCandidate, line: ParsedAgentLine) => {
     try {
-      builder?.push(line);
+      candidate.builder.push(line);
     } catch {
-      parseWarnings.push({ lineNumber: line.lineNumber, message: agentProjectionWarning });
+      appendWarning(candidate.warnings, {
+        lineNumber: line.lineNumber,
+        message: agentProjectionWarning,
+      });
     }
   };
 
-  const startBuilder = (adapter: AgentSessionAdapter) => {
-    builder = adapter.createBuilder(fileName);
-    for (const sample of samples) {
-      pushToBuilder(sample);
-    }
+  const disable = () => {
+    status = "disabled";
+    candidates = [];
     samples.splice(0, samples.length);
   };
 
   const tryDetect = (minScore: number) => {
     const adapter = selectAdapter(samples, minScore);
-    if (adapter) {
-      startBuilder(adapter);
-      return true;
+    if (!adapter) {
+      return false;
     }
-    return false;
+
+    const selectedCandidate = candidates.find((candidate) => candidate.adapter === adapter);
+    if (!selectedCandidate) {
+      return false;
+    }
+
+    status = "detected";
+    candidates = [selectedCandidate];
+    samples.splice(0, samples.length);
+    return true;
   };
 
-  const pushParsedLine = (line: ParsedAgentLine) => {
-    if (disabled) {
-      return;
-    }
-
-    if (builder) {
-      pushToBuilder(line);
-      return;
-    }
-
-    samples.push(line);
+  const evaluateDetection = () => {
     if (samples.length >= earlyDetectionLineCount && tryDetect(confidentDetectionScore)) {
       return;
     }
     if (samples.length >= detectionLineLimit && !tryDetect(finalDetectionScore)) {
-      disabled = true;
-      samples.splice(0, samples.length);
+      disable();
     }
   };
 
+  const pushParsedLine = (line: ParsedAgentLine) => {
+    if (status === "disabled") {
+      return;
+    }
+
+    for (const candidate of candidates) {
+      pushToCandidate(candidate, line);
+    }
+
+    if (status === "detected") {
+      return;
+    }
+
+    samples.push(createDetectionSample(line.data));
+    evaluateDetection();
+  };
+
   const pushParseWarning = (lineNumber: number) => {
-    if (!disabled) {
-      parseWarnings.push({ lineNumber, message: "Invalid JSON on this line" });
+    if (status === "disabled") {
+      return;
+    }
+
+    for (const candidate of candidates) {
+      appendWarning(candidate.warnings, { lineNumber, message: invalidJsonWarning });
+    }
+
+    if (status === "collecting") {
+      samples.push(emptyDetectionSample);
+      evaluateDetection();
     }
   };
 
@@ -139,10 +212,16 @@ export const createAgentSessionTracker = (fileName?: string) => {
     pushParsedLine,
     pushParseWarning,
     finish() {
-      if (!builder && !disabled) {
-        tryDetect(finalDetectionScore);
+      if (status === "collecting" && !tryDetect(finalDetectionScore)) {
+        disable();
       }
-      return builder ? builder.finish(parseWarnings) : null;
+      if (status !== "detected") {
+        return null;
+      }
+
+      const candidate = candidates[0]!;
+      const session = candidate.builder.finish(candidate.warnings.details);
+      return { ...session, parseWarningCount: candidate.warnings.totalCount };
     },
   };
 };

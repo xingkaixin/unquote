@@ -555,18 +555,13 @@ export const claudeTranscriptAdapter: AgentSessionAdapter = {
     let transcriptHits = 0;
     let metaHits = 0;
     for (const sample of samples) {
-      if (!isRecord(sample.data)) {
-        continue;
-      }
-
-      const type = getString(sample.data, "type");
       if (
-        (type === "user" || type === "assistant") &&
-        getString(sample.data, "uuid") &&
-        isRecord(sample.data.message)
+        (sample.type === "user" || sample.type === "assistant") &&
+        sample.hasUuid &&
+        sample.hasObjectMessage
       ) {
         transcriptHits += 1;
-      } else if (type && claudeMetaTypes.has(type) && getString(sample.data, "sessionId")) {
+      } else if (sample.type && claudeMetaTypes.has(sample.type) && sample.hasSessionId) {
         metaHits += 1;
       }
     }

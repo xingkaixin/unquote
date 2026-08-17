@@ -6,12 +6,24 @@ import {
 } from "../src/lib/agent-session";
 import { codexRolloutAdapter } from "../src/lib/agent-session/codex-adapter";
 import { createAgentTrajectoryPresentation } from "../src/lib/agent-session/trajectory-presentation";
+import type { AgentDetectionSample } from "../src/lib/agent-session/types";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,
   recordId: `record-${lineNumber}`,
+});
+
+const detectionSample = (
+  type: string | undefined,
+  hasObjectPayload = false,
+): AgentDetectionSample => ({
+  type,
+  hasObjectPayload,
+  hasUuid: false,
+  hasObjectMessage: false,
+  hasSessionId: false,
 });
 
 const conversationItems = (session: AgentSession) =>
@@ -26,19 +38,15 @@ describe("codexRolloutAdapter", () => {
     expect(codexRolloutAdapter.detect([])).toBe(0);
     expect(
       codexRolloutAdapter.detect([
-        parsedLine(null, 1),
-        parsedLine({ type: "session_meta", payload: null }, 2),
-        parsedLine({ type: "session_meta", payload: { id: "session" } }, 3),
+        detectionSample(undefined),
+        detectionSample("session_meta"),
+        detectionSample("session_meta", true),
       ]),
     ).toBe(1 / 3);
   });
 
   it("recognizes compacted Codex envelopes", () => {
-    expect(
-      codexRolloutAdapter.detect([
-        parsedLine({ type: "compacted", payload: { replacement: "private compaction body" } }, 1),
-      ]),
-    ).toBe(1);
+    expect(codexRolloutAdapter.detect([detectionSample("compacted", true)])).toBe(1);
   });
 
   it("tracks metadata, turn changes, event categories, and parse warnings", () => {

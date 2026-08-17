@@ -123,6 +123,42 @@ describe("createAgentSessionTracker", () => {
     expect(tracker.finish()).toBeNull();
   });
 
+  it("counts invalid lines toward the detection budget", () => {
+    const tracker = createAgentSessionTracker();
+
+    for (let lineNumber = 1; lineNumber < 80; lineNumber += 1) {
+      tracker.pushParseWarning(lineNumber);
+    }
+    tracker.pushParsedLine(line({ type: "session_meta", payload: { session_id: "too-late" } }, 80));
+    for (let lineNumber = 81; lineNumber <= 160; lineNumber += 1) {
+      tracker.pushParsedLine(
+        line({ type: "event_msg", payload: { type: "token_count" } }, lineNumber),
+      );
+    }
+
+    expect(tracker.finish()).toBeNull();
+  });
+
+  it("bounds warning details while preserving their total count", () => {
+    const tracker = createAgentSessionTracker();
+    tracker.pushParsedLine(
+      line({ type: "session_meta", payload: { session_id: "warning-budget" } }, 1),
+    );
+    for (let lineNumber = 2; lineNumber <= 20; lineNumber += 1) {
+      tracker.pushParsedLine(
+        line({ type: "event_msg", payload: { type: "token_count" } }, lineNumber),
+      );
+    }
+    for (let lineNumber = 21; lineNumber <= 170; lineNumber += 1) {
+      tracker.pushParseWarning(lineNumber);
+    }
+
+    const session = tracker.finish();
+
+    expect(session?.parseWarnings).toHaveLength(100);
+    expect(session?.parseWarningCount).toBe(150);
+  });
+
   it("keeps the session when one Agent projection fails", () => {
     const payload: Record<string, unknown> = { type: "function_call_output" };
     Object.defineProperty(payload, "output", {

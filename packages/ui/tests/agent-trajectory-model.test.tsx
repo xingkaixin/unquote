@@ -50,6 +50,7 @@ const session = (events: AgentTimelineEvent[]): AgentSession => ({
   meta: { eventCount: events.length, turnCount: 0 },
   events,
   parseWarnings: [],
+  parseWarningCount: 0,
 });
 
 const conversation = (id: string, role: AgentConversationItem["role"]): AgentConversationItem => ({

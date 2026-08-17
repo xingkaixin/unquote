@@ -10,6 +10,7 @@ const modelFor = (): AgentSessionModel => {
     meta: { eventCount: 0, turnCount: 0 },
     events: [],
     parseWarnings: [],
+    parseWarningCount: 0,
   };
   return createAgentSessionModel(session);
 };

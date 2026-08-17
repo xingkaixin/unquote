@@ -60,6 +60,7 @@ const session: AgentSession = {
     },
   ],
   parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
+  parseWarningCount: 1,
 };
 
 const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> = {}) => {
@@ -196,6 +197,7 @@ describe("AgentSessionView", () => {
       meta: { eventCount: 0, turnCount: 0 },
       events: [],
       parseWarnings: [],
+      parseWarningCount: 0,
     };
     renderView({ session: emptySession });
 
