@@ -361,6 +361,7 @@ const renderCodexAgentView = async () => {
   );
 
   await screen.findAllByRole("tab", { name: "Agent" });
+  await screen.findAllByText("Timeline");
   return user;
 };
 
@@ -374,6 +375,7 @@ const renderClaudeAgentView = async () => {
   );
 
   await screen.findAllByRole("tab", { name: "Agent" });
+  await screen.findAllByText("Timeline");
   return user;
 };
 
@@ -594,7 +596,7 @@ describe("UnquoteApp", () => {
     const trigger = screen.getAllByRole("button", { name: "Commands" })[0]!;
     await user.click(trigger);
 
-    const dialog = screen.getByRole("dialog", { name: "Find, jump, and commands" });
+    const dialog = await screen.findByRole("dialog", { name: "Find, jump, and commands" });
     const commandInput = within(dialog).getByRole("combobox", { name: "Search or jump" });
     const commandFilter = within(dialog).getByRole("textbox", { name: "Filter commands..." });
     const actionList = within(dialog).getByRole("listbox", { name: "Record filters" });
