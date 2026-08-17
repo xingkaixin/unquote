@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import {
+  addRecordBodiesToBuilder,
   addRecordsToBuilder,
   createExportFilename,
   createJsonPartsBuilder,
@@ -71,10 +72,12 @@ export const useExportActions = ({
       );
       signal.throwIfAborted();
 
-      for (const record of visibleRecords) {
-        builder.addBody(bodies.get(record.lineNumber) ?? builder.bodyFor(record));
-      }
-      return builder.finish();
+      return addRecordBodiesToBuilder(
+        builder,
+        visibleRecords,
+        (record) => bodies.get(record.lineNumber) ?? builder.bodyFor(record),
+        signal,
+      );
     },
     [resolveRecords, sourceAccess, visibleRecords],
   );
