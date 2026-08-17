@@ -92,14 +92,19 @@ describe("useCopyToClipboard", () => {
     const writeText = stubClipboard(vi.fn().mockResolvedValue(undefined));
     const slow = deferred<string>();
     const { result } = renderCopy();
+    let slowSignal: AbortSignal | undefined;
 
-    const slowCopy = result.current(() => slow.promise);
+    const slowCopy = result.current((signal) => {
+      slowSignal = signal;
+      return slow.promise;
+    });
     await act(() => result.current(() => "fast"));
     await act(async () => {
       slow.resolve("slow");
       await slowCopy;
     });
 
+    expect(slowSignal?.aborted).toBe(true);
     expect(writeText.mock.calls.map(([text]) => text)).toEqual(["fast"]);
   });
 
@@ -107,16 +112,21 @@ describe("useCopyToClipboard", () => {
     const writeText = stubClipboard(vi.fn().mockResolvedValue(undefined));
     const pending = deferred<string>();
     const { result, rerender } = renderCopy();
+    let copySignal: AbortSignal | undefined;
 
     // Started outside `act` so the rerender below can flush its effects while
     // this copy is still awaiting its text.
-    const copy = result.current(() => pending.promise);
+    const copy = result.current((signal) => {
+      copySignal = signal;
+      return pending.promise;
+    });
     rerender({ sourceRevision: 1 });
     await act(async () => {
       pending.resolve("from the previous source");
       await copy;
     });
 
+    expect(copySignal?.aborted).toBe(true);
     expect(writeText).not.toHaveBeenCalled();
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
@@ -125,14 +135,19 @@ describe("useCopyToClipboard", () => {
     const writeText = stubClipboard(vi.fn().mockResolvedValue(undefined));
     const pending = deferred<string>();
     const { result, unmount } = renderCopy();
+    let copySignal: AbortSignal | undefined;
 
-    const copy = result.current(() => pending.promise);
+    const copy = result.current((signal) => {
+      copySignal = signal;
+      return pending.promise;
+    });
     unmount();
     await act(async () => {
       pending.resolve("too late");
       await copy;
     });
 
+    expect(copySignal?.aborted).toBe(true);
     expect(writeText).not.toHaveBeenCalled();
   });
 });

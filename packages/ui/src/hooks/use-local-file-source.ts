@@ -9,7 +9,7 @@ import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision
 export interface LocalFileSource {
   resolveRecord: (record: JsonlRecord) => JsonlRecord;
   requestFullRecord: (record: JsonlRecord) => void;
-  resolveRecords: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
+  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
 }
 
 interface FullRecordScope extends SourceRevisionOwned {
@@ -216,8 +216,10 @@ export const useLocalFileSource = (
   );
 
   const resolveRecords = useCallback(
-    (records: JsonlRecord[]) =>
-      access ? access.resolveRecords(records) : Promise.resolve(records),
+    async (records: JsonlRecord[], signal?: AbortSignal) => {
+      signal?.throwIfAborted();
+      return access ? access.resolveRecords(records, signal) : records;
+    },
     [access],
   );
 
