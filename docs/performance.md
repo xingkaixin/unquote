@@ -77,6 +77,37 @@ rollout data.
 | DOM nodes max | 3000 |
 | JS heap used max | 256 MB |
 
+## UI bundle budgets
+
+`pnpm check` builds the Web and Chrome-extension surfaces, then runs
+`pnpm check:ui-bundle-budget`. The gate measures four independent costs for
+each surface:
+
+- initial JavaScript is the entry and every static module preload referenced by
+  the built HTML;
+- total UI JavaScript includes every synchronous and on-demand UI chunk, but
+  excludes parser/search workers and the separately budgeted extension
+  background;
+- the largest JavaScript chunk prevents the original oversized entry from
+  returning even when the aggregate remains under budget;
+- CSS includes all emitted stylesheets.
+
+The current Web build measures about 562 KiB / 181 KiB gzip for initial JS and
+698 KiB / 226 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 573 KiB / 185 KiB gzip initially and 709 KiB / 229
+KiB gzip in total. The ceilings allow roughly 7–10% growth without permitting
+the previous single 706 KiB entry to return.
+
+| Metric per surface | Budget |
+|---|---:|
+| Initial JavaScript | 620,000 bytes |
+| Initial JavaScript gzip | 205,000 bytes |
+| Total UI JavaScript | 760,000 bytes |
+| Total UI JavaScript gzip | 250,000 bytes |
+| Largest JavaScript chunk | 450,000 bytes |
+| CSS | 38,000 bytes |
+| CSS gzip | 9,000 bytes |
+
 ## Baseline
 
 Captured at `2026-08-15T22:26:15.670Z` with Node v24.19.0, macOS arm64, 10 CPU
