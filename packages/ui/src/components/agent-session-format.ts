@@ -1,12 +1,21 @@
 import { Bot, Brain, FileJson, TerminalSquare, UserRound, Wrench } from "lucide-react";
 import type { ComponentType } from "react";
 import type { useTranslation } from "../i18n/context";
-import type { Locale } from "../i18n/i18n";
-import type { AgentConversationRole, AgentEventCategory } from "../lib/agent-session";
+import type { Locale, MessageKey } from "../i18n/i18n";
+import type {
+  AgentConversationRole,
+  AgentEventCategory,
+  AgentParseWarningKind,
+} from "../lib/agent-session";
 
 const timestampFormatters: Record<Locale, Intl.DateTimeFormat> = {
   en: new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "medium" }),
   "zh-CN": new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium" }),
+};
+
+export const agentParseWarningMessageKey: Record<AgentParseWarningKind, MessageKey> = {
+  "invalid-json": "agent.warning.invalidJson",
+  "projection-failed": "agent.warning.projectionFailed",
 };
 
 export interface RoleConfig {

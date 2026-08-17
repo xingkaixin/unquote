@@ -24,7 +24,7 @@ export const createJsonlIngestion = (fileName?: string) => {
         data: parsedLine.value,
       });
     } else {
-      agentTracker.pushParseWarning(record.lineNumber);
+      agentTracker.pushParseWarning({ recordId: record.id, lineNumber: record.lineNumber });
     }
 
     total += 1;

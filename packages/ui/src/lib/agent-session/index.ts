@@ -19,6 +19,7 @@ export type {
   AgentCompactionEvidence,
   AgentModelOutputEvidence,
   AgentParseWarning,
+  AgentParseWarningKind,
   AgentSession,
   AgentSessionDetail,
   AgentSessionIntegrityIssue,
@@ -62,8 +63,6 @@ const earlyDetectionLineCount = 20;
 const confidentDetectionScore = 0.75;
 const finalDetectionScore = 0.5;
 const parseWarningDetailLimit = 100;
-const agentProjectionWarning = "Unable to project Agent data from this line";
-const invalidJsonWarning = "Invalid JSON on this line";
 
 const adapters: AgentSessionAdapter[] = [codexRolloutAdapter, claudeTranscriptAdapter];
 
@@ -138,8 +137,9 @@ export const createAgentSessionTracker = (fileName?: string) => {
       candidate.builder.push(line);
     } catch {
       appendWarning(candidate.warnings, {
+        kind: "projection-failed",
+        recordId: line.recordId,
         lineNumber: line.lineNumber,
-        message: agentProjectionWarning,
       });
     }
   };
@@ -193,13 +193,16 @@ export const createAgentSessionTracker = (fileName?: string) => {
     evaluateDetection();
   };
 
-  const pushParseWarning = (lineNumber: number) => {
+  const pushParseWarning = ({
+    recordId,
+    lineNumber,
+  }: Pick<ParsedAgentLine, "recordId" | "lineNumber">) => {
     if (status === "disabled") {
       return;
     }
 
     for (const candidate of candidates) {
-      appendWarning(candidate.warnings, { lineNumber, message: invalidJsonWarning });
+      appendWarning(candidate.warnings, { kind: "invalid-json", recordId, lineNumber });
     }
 
     if (status === "collecting") {

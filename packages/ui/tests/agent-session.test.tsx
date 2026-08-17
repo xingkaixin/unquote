@@ -33,7 +33,7 @@ const pushRawLine = (
       data: parseJson(raw, { numbers: "approximate" }),
     });
   } catch {
-    tracker.pushParseWarning(lineNumber);
+    tracker.pushParseWarning({ recordId: `record-${lineNumber}`, lineNumber });
   }
 };
 
@@ -55,7 +55,10 @@ describe("createAgentSessionTracker", () => {
     });
 
     pushRawLine(tracker, "", 1);
-    tracker.pushParseWarning(2);
+    tracker.pushParseWarning({
+      recordId: "source-revision:9/record:warning",
+      lineNumber: 2,
+    });
     tracker.pushParsedLine({
       lineNumber: 4,
       recordId: "record-4",
@@ -68,7 +71,13 @@ describe("createAgentSessionTracker", () => {
       fileName: "stream.jsonl",
       meta: { sessionId: "stream-session", eventCount: 1 },
       events: [{ lineNumber: 4 }],
-      parseWarnings: [{ lineNumber: 2, message: "Invalid JSON on this line" }],
+      parseWarnings: [
+        {
+          kind: "invalid-json",
+          recordId: "source-revision:9/record:warning",
+          lineNumber: 2,
+        },
+      ],
     });
     expect(session?.events[0]).not.toHaveProperty("rawLine");
   });
@@ -127,7 +136,7 @@ describe("createAgentSessionTracker", () => {
     const tracker = createAgentSessionTracker();
 
     for (let lineNumber = 1; lineNumber < 80; lineNumber += 1) {
-      tracker.pushParseWarning(lineNumber);
+      tracker.pushParseWarning({ recordId: `record-${lineNumber}`, lineNumber });
     }
     tracker.pushParsedLine(line({ type: "session_meta", payload: { session_id: "too-late" } }, 80));
     for (let lineNumber = 81; lineNumber <= 160; lineNumber += 1) {
@@ -150,7 +159,7 @@ describe("createAgentSessionTracker", () => {
       );
     }
     for (let lineNumber = 21; lineNumber <= 170; lineNumber += 1) {
-      tracker.pushParseWarning(lineNumber);
+      tracker.pushParseWarning({ recordId: `record-${lineNumber}`, lineNumber });
     }
 
     const session = tracker.finish();
@@ -177,7 +186,7 @@ describe("createAgentSessionTracker", () => {
 
     expect(session).toMatchObject({
       meta: { sessionId: "resilient-session", eventCount: 1 },
-      parseWarnings: [{ lineNumber: 2, message: "Unable to project Agent data from this line" }],
+      parseWarnings: [{ kind: "projection-failed", recordId: "record-2", lineNumber: 2 }],
     });
   });
 });

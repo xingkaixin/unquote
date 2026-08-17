@@ -24,9 +24,12 @@ export interface AgentSessionMeta {
   turnCount: number;
 }
 
+export type AgentParseWarningKind = "invalid-json" | "projection-failed";
+
 export interface AgentParseWarning {
+  kind: AgentParseWarningKind;
+  recordId: string;
   lineNumber: number;
-  message: string;
 }
 
 export interface AgentTokenUsage {

@@ -193,10 +193,11 @@ export const UnquoteApp = ({
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
-      setOutputView("json");
+      setFilter("all", { preserveActiveRecord: true });
       recordWorkspace.selectRecordById(recordId);
+      setOutputView("json");
     },
-    [recordWorkspace.selectRecordById, setOutputView],
+    [recordWorkspace.selectRecordById, setFilter, setOutputView],
   );
   const handleOpenTrajectoryRecord = useCallback(
     (selection: AgentDetailSelection, endpointRecordId: string) => {
