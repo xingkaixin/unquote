@@ -84,7 +84,8 @@ describe("codexRolloutAdapter", () => {
     builder.push(parsedLine({ type: "event_msg", payload: {} }, 11));
     builder.push(parsedLine({ type: "other", payload: {} }, 12));
 
-    const session = builder.finish([{ lineNumber: 13, message: "Invalid JSON on this line" }]);
+    const warning = { kind: "invalid-json" as const, recordId: "record-13", lineNumber: 13 };
+    const session = builder.finish([warning]);
 
     expect(session.meta).toMatchObject({
       sessionId: "legacy-session",
@@ -112,9 +113,7 @@ describe("codexRolloutAdapter", () => {
     expect(session.events[0]).not.toHaveProperty("turnIndex");
     expect(session.events[1]).toMatchObject({ turnIndex: 1 });
     expect(session.events[1]).not.toHaveProperty("timestamp");
-    expect(session.parseWarnings).toEqual([
-      { lineNumber: 13, message: "Invalid JSON on this line" },
-    ]);
+    expect(session.parseWarnings).toEqual([warning]);
   });
 
   it("projects verified Codex facts as trajectory evidence", () => {

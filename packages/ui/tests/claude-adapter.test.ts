@@ -159,7 +159,7 @@ describe("claudeTranscriptAdapter", () => {
       ),
     );
 
-    const session = builder.finish([{ lineNumber: 9, message: "Invalid JSON on this line" }]);
+    const session = builder.finish([{ kind: "invalid-json", recordId: "record-9", lineNumber: 9 }]);
 
     expect(session).toMatchObject({
       fileType: "Claude Code",

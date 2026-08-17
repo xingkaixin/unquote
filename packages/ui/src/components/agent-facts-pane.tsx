@@ -1,9 +1,12 @@
 import { useTranslation } from "../i18n/context";
 import type { AgentSession, AgentSessionModel } from "../lib/agent-session";
+import { agentParseWarningMessageKey } from "./agent-session-format";
+import { Button } from "./button";
 
 export interface AgentFactsPaneProps {
   session: AgentSession;
   model: AgentSessionModel;
+  onOpenRecord: (recordId: string) => void;
 }
 
 const metricItems = (
@@ -28,9 +31,10 @@ const Chip = ({ children, tone }: { children: string; tone: string }) => (
   </span>
 );
 
-export const AgentFactsPane = ({ session, model }: AgentFactsPaneProps) => {
+export const AgentFactsPane = ({ session, model, onOpenRecord }: AgentFactsPaneProps) => {
   const { t } = useTranslation();
   const metrics = metricItems(session, model, t);
+  const hiddenWarningCount = Math.max(0, session.parseWarningCount - session.parseWarnings.length);
   const location = [session.meta.cwd, session.meta.version ? `v${session.meta.version}` : ""]
     .filter(Boolean)
     .join(" · ");
@@ -62,6 +66,49 @@ export const AgentFactsPane = ({ session, model }: AgentFactsPaneProps) => {
           </Chip>
         ) : null}
       </div>
+
+      {session.parseWarningCount > 0 ? (
+        <section className="flex flex-col gap-2" aria-labelledby="agent-parse-warning-title">
+          <h3 id="agent-parse-warning-title" className="uq-label m-0">
+            {t("agent.warning.title")}
+          </h3>
+          {session.parseWarnings.length > 0 ? (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {session.parseWarnings.map((warning) => (
+                <li
+                  key={`${warning.kind}:${warning.recordId}:${warning.lineNumber}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-error px-2 py-1.5"
+                >
+                  <span className="flex min-w-0 flex-col gap-0.5 text-[11px]">
+                    <span className="text-error">
+                      {t(agentParseWarningMessageKey[warning.kind])}
+                    </span>
+                    <span className="font-mono text-text-secondary">
+                      {t("agent.line", { line: warning.lineNumber })}
+                    </span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`${t("agent.warning.openRecord")}: ${t("agent.line", {
+                      line: warning.lineNumber,
+                    })}`}
+                    onClick={() => onOpenRecord(warning.recordId)}
+                  >
+                    {t("agent.warning.openRecord")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {hiddenWarningCount > 0 ? (
+            <p className="m-0 text-[11px] text-text-secondary">
+              {t("agent.warning.more", { count: hiddenWarningCount })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {session.meta.sessionId || location ? (
         <div className="flex flex-col gap-1.5">

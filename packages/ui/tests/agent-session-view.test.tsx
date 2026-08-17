@@ -59,7 +59,7 @@ const session: AgentSession = {
       conversationItems: [],
     },
   ],
-  parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
+  parseWarnings: [{ kind: "invalid-json", recordId: "record-3", lineNumber: 3 }],
   parseWarningCount: 1,
 };
 
@@ -168,7 +168,7 @@ describe("AgentSessionView", () => {
   });
 
   it("summarizes the session in the facts pane", () => {
-    renderView();
+    const { callbacks } = renderView();
 
     expect(screen.getByText("Codex")).toBeInTheDocument();
     expect(screen.getByText("rollout.jsonl")).toBeInTheDocument();
@@ -176,6 +176,10 @@ describe("AgentSessionView", () => {
     expect(screen.getByText("session-1")).toBeInTheDocument();
     expect(screen.getByText("/repo · v1.0.0")).toBeInTheDocument();
     expect(screen.getByText("gpt-5")).toBeInTheDocument();
+    expect(screen.getByText("Invalid JSON")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Record: Line 3" }));
+    expect(callbacks.onOpenRecord).toHaveBeenCalledWith("record-3");
 
     const metrics = document.querySelector("[data-agent-metrics]");
     expect(metrics).toHaveAttribute("data-agent-metrics", "4");

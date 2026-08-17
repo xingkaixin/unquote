@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentFactsPane } from "../src/components/agent-facts-pane";
 import { I18nProvider } from "../src/i18n/context";
 import { createAgentSessionModel } from "../src/lib/agent-session";
@@ -42,16 +42,21 @@ const session: AgentSession = {
     turnCount: 2,
   },
   events: [toolEvent],
-  parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
+  parseWarnings: [{ kind: "invalid-json", recordId: "record-3", lineNumber: 3 }],
   parseWarningCount: 1,
 };
 
-const renderPane = (next: AgentSession = session) => {
+const renderPane = (next: AgentSession = session, onOpenRecord = vi.fn()) => {
   render(
     <I18nProvider>
-      <AgentFactsPane session={next} model={createAgentSessionModel(next)} />
+      <AgentFactsPane
+        session={next}
+        model={createAgentSessionModel(next)}
+        onOpenRecord={onOpenRecord}
+      />
     </I18nProvider>,
   );
+  return { onOpenRecord };
 };
 
 describe("AgentFactsPane", () => {
@@ -78,6 +83,27 @@ describe("AgentFactsPane", () => {
     renderPane({ ...session, parseWarningCount: 150 });
 
     expect(screen.getByText("150 warnings")).toBeInTheDocument();
+    expect(screen.getByText("149 more warnings not shown")).toBeInTheDocument();
+  });
+
+  it("explains parse warnings and opens their canonical Records", () => {
+    const projectionWarning = {
+      kind: "projection-failed" as const,
+      recordId: "record-4",
+      lineNumber: 4,
+    };
+    const { onOpenRecord } = renderPane({
+      ...session,
+      parseWarnings: [...session.parseWarnings, projectionWarning],
+      parseWarningCount: 2,
+    });
+
+    expect(screen.getByText("Parsing warnings")).toBeInTheDocument();
+    expect(screen.getByText("Invalid JSON")).toBeInTheDocument();
+    expect(screen.getByText("Could not interpret Agent data in this Record")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Record: Line 4" }));
+    expect(onOpenRecord).toHaveBeenCalledWith("record-4");
   });
 
   it("composes the working directory and version under the session id", () => {

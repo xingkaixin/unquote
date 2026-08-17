@@ -60,7 +60,7 @@ export const AgentSessionView = ({
             onOpenRecord={onOpenRecord}
           />
         }
-        right={<AgentFactsPane session={session} model={model} />}
+        right={<AgentFactsPane session={session} model={model} onOpenRecord={onOpenRecord} />}
       />
     </div>
   );

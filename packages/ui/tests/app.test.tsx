@@ -787,6 +787,28 @@ describe("UnquoteApp", () => {
     expect(screen.getAllByText("Tool call").length).toBeGreaterThan(0);
   });
 
+  it("opens an Agent parse warning Record even when filters hide it", async () => {
+    const user = userEvent.setup();
+    useDesktopViewport();
+    render(
+      <I18nProvider>
+        <UnquoteApp initialInput={`${codexRolloutSource}\nnot-json`} />
+      </I18nProvider>,
+    );
+
+    await screen.findByRole("button", { name: "Open Record: Line 5" });
+    await user.click(screen.getByRole("tab", { name: "JSONL" }));
+    await user.click(screen.getByRole("button", { name: "Messages" }));
+    expect(document.querySelector('[data-record-id="record-5"]')).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Agent" }));
+    await user.click(await screen.findByRole("button", { name: "Open Record: Line 5" }));
+
+    await waitFor(() => expect(document.getElementById("record-5")).toBeInTheDocument());
+    expect(document.querySelector(".uq-shell")).toHaveAttribute("data-output-view", "json");
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("does not show Agent output tabs without a recognized session", async () => {
     render(
       <I18nProvider>
