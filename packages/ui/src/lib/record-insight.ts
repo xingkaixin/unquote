@@ -21,11 +21,12 @@ export type RecordInsightField =
   | "error"
   | "message";
 
-export interface RecordInsightHit {
+interface RecordInsightHit {
   field: RecordInsightField;
   key: string;
   value: string;
   pathText: string;
+  keyDepth: number;
 }
 
 export interface RecordInsight {
@@ -136,12 +137,23 @@ const classifyInsightField = (
 const isErrorLikeValue = (value: string) => errorLikePattern.test(value);
 const isInstructionsText = (value: string) => agentsInstructionsPattern.test(value);
 
+const getKeyDepth = (pathSegments: readonly TreePathSegment[]) => {
+  let depth = 0;
+  for (const segment of pathSegments) {
+    if (segment.kind === "key") {
+      depth += 1;
+    }
+  }
+  return depth;
+};
+
 const addHit = (
   hits: RecordInsightHit[],
   field: RecordInsightField,
   key: string,
   value: string,
   pathText: string,
+  keyDepth: number,
 ) => {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -153,6 +165,7 @@ const addHit = (
     key,
     value: truncateText(trimmed, maxInsightValueLength),
     pathText,
+    keyDepth,
   });
 };
 
@@ -168,13 +181,14 @@ const addPrimitiveInsightHits = (
     return;
   }
 
-  addHit(hits, field, key, value, pathText);
+  const keyDepth = getKeyDepth(pathSegments);
+  addHit(hits, field, key, value, pathText, keyDepth);
   if (
     (field === "level" || field === "status" || field === "message") &&
     isErrorLikeValue(value) &&
     !isInstructionsText(value)
   ) {
-    addHit(hits, "error", key, value, pathText);
+    addHit(hits, "error", key, value, pathText, keyDepth);
   }
 };
 
@@ -205,6 +219,7 @@ export const createInsightCollector = (): InsightCollector => {
           candidate.key,
           getErrorContainerFallback(candidate),
           candidate.pathText,
+          getKeyDepth(candidate.pathSegments),
         );
       }
     },
@@ -212,23 +227,8 @@ export const createInsightCollector = (): InsightCollector => {
   };
 };
 
-const pathSeparator = ".".charCodeAt(0);
-
-const getPathDepth = (pathText: string) => {
-  let depth = 0;
-  for (let index = 0; index < pathText.length; index += 1) {
-    if (pathText.charCodeAt(index) === pathSeparator) {
-      depth += 1;
-    }
-  }
-  return depth;
-};
-
-// Counting separators replaces `split(".").length`: both sides of the
-// comparison shift by the same constant, so the ordering is unchanged and no
-// array is allocated per comparison.
 const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
-  getPathDepth(left.pathText) - getPathDepth(right.pathText) ||
+  left.keyDepth - right.keyDepth ||
   left.value.length - right.value.length ||
   left.pathText.localeCompare(right.pathText);
 
