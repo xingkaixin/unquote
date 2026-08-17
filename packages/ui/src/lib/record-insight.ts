@@ -25,6 +25,7 @@ interface RecordInsightHit {
   field: RecordInsightField;
   key: string;
   value: string;
+  inputLength: number;
   pathText: string;
   keyDepth: number;
 }
@@ -164,6 +165,7 @@ const addHit = (
     field,
     key,
     value: truncateText(trimmed, maxInsightValueLength),
+    inputLength: trimmed.length,
     pathText,
     keyDepth,
   });
@@ -229,7 +231,7 @@ export const createInsightCollector = (): InsightCollector => {
 
 const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
   left.keyDepth - right.keyDepth ||
-  left.value.length - right.value.length ||
+  left.inputLength - right.inputLength ||
   left.pathText.localeCompare(right.pathText);
 
 const getErrorHitPriority = (hit: RecordInsightHit) => {

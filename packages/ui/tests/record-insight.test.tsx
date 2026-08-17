@@ -82,6 +82,15 @@ describe("record insight", () => {
       ).toBe("short");
     });
 
+    it("prefers the shorter full input when both display values are truncated", () => {
+      const shorter = "s".repeat(170);
+      const longer = "l".repeat(200);
+
+      expect(insightFor({ a: { message: longer }, b: { message: shorter } })?.message).toBe(
+        `${"s".repeat(160)}...`,
+      );
+    });
+
     it("treats quoted keys as structural path segments", () => {
       expect(
         insightFor({ "a-b": { message: "a much longer message" }, z: { message: "short" } })
