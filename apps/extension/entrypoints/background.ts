@@ -64,7 +64,7 @@ export default defineBackground(() => {
     await openOptionsPage(handoffId ?? undefined);
   });
 
-  browser.runtime.onMessage.addListener((message: unknown) => {
+  browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (
       !message ||
       typeof message !== "object" ||
@@ -73,6 +73,7 @@ export default defineBackground(() => {
       return undefined;
     }
 
-    return handoffs.claim(message);
+    void handoffs.claim(message).then(sendResponse, () => sendResponse(""));
+    return true;
   });
 });
