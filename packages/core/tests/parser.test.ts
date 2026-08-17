@@ -29,6 +29,26 @@ describe("parseInput", () => {
     ).toBe(true);
   });
 
+  it("recursively expands consecutive stringified JSON layers", () => {
+    const values = [{ answer: 42 }, [1, 2], true, null, 123, "plain"];
+
+    for (const value of values) {
+      const payload = JSON.stringify(JSON.stringify(JSON.stringify(value)));
+      const result = parseInput(JSON.stringify({ payload }));
+      const record = result.records[0];
+
+      if (record?.status !== "full") {
+        throw new Error("Expected a full record");
+      }
+
+      expect(materializeNode(record.node)).toEqual({ payload: value });
+      expect(JSON.parse(formatResult(result))).toEqual({ payload: value });
+
+      const restored = restoreNode(record.node, [["$", "payload"]]);
+      expect(materializeNode(restored)).toEqual({ payload });
+    }
+  });
+
   it("stores only the facts required by each node shape", () => {
     const record = parseInput('{"object":{"value":1},"array":[true],"primitive":"text"}')
       .records[0];

@@ -144,22 +144,36 @@ const toNode = (
   throw new TypeError(`Unsupported JSON value: ${typeof value}`);
 };
 
+const parseStringifiedJsonLayers = (value: string): LosslessJsonValue | undefined => {
+  let current = value;
+  let hasParsedLayer = false;
+
+  while (true) {
+    const trimmed = current.trim();
+    if (!trimmed) {
+      return hasParsedLayer ? current : undefined;
+    }
+
+    try {
+      const parsed = parseLosslessJson(trimmed);
+      hasParsedLayer = true;
+      if (typeof parsed !== "string" || parsed === current) {
+        return parsed;
+      }
+      current = parsed;
+    } catch {
+      return hasParsedLayer ? current : undefined;
+    }
+  }
+};
+
 const maybeExpandString = (value: string, depth: number, maxDepth: number) => {
   if (depth > maxDepth) {
     return null;
   }
 
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  try {
-    const parsed = parseLosslessJson(trimmed);
-    return toNode(parsed, depth, maxDepth, value);
-  } catch {
-    return null;
-  }
+  const parsed = parseStringifiedJsonLayers(value);
+  return parsed === undefined ? null : toNode(parsed, depth, maxDepth, value);
 };
 
 const buildNode = (value: LosslessJsonValue, depth: number, maxDepth: number): FullJsonNode => {
