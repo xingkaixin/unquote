@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { JsonlRecord } from "@unquote/core";
 import { AgentTrajectoryView } from "../src/components/agent-trajectory-view";
 import { trajectoryLedgerVirtualizationThreshold } from "../src/components/agent-trajectory-ledger";
 import { useTrajectoryFilters } from "../src/hooks/use-trajectory-filters";
@@ -229,6 +230,30 @@ const renderView = (overrides: Partial<HarnessProps> = {}) => {
 afterEach(cleanup);
 
 describe("AgentTrajectoryView", () => {
+  it("bounds the inline raw JSON display for a large Record", () => {
+    const item = itemFor("large-raw", { recordId: "record-large" });
+    const model = modelFor([item]);
+    const selected = model.selectTrajectory(item.id);
+    const record: JsonlRecord = {
+      id: item.recordId,
+      lineNumber: 1,
+      summary: "large",
+      status: "full",
+      node: {
+        kind: "object",
+        children: { payload: { kind: "string", value: "x".repeat(50_000) } },
+      },
+    };
+
+    renderView({ model, records: [record], detailSelection: selected });
+
+    const raw = document.querySelector("[data-trajectory-raw] pre");
+    expect(raw?.textContent).toHaveLength(20_000);
+    expect(
+      screen.getByText("Truncated preview; open the Record for the full content."),
+    ).toBeInTheDocument();
+  });
+
   it("builds its presentation once for a stable model", () => {
     const sourceModel = modelFor([
       itemFor("first", { timestamp: 10 }),

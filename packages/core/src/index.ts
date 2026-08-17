@@ -9,7 +9,7 @@ export {
   restoreNode,
 } from "./parser.js";
 export type { JsonlRecordLineResult, ParseInputForIngestionResult } from "./parser.js";
-export { materializeNode, stringifyJsonNode } from "./serialization.js";
+export { materializeNode, stringifyJsonNode, stringifyJsonNodeBounded } from "./serialization.js";
 export { isFailedRecord, isFullRecord, isParsed, isPreviewRecord } from "./records.js";
 export { hasJsonNodeChildren, isStringifiedNode, isTruncatedJsonNode } from "./nodes.js";
 export { isStringifiedJson, mightBeStringifiedJson } from "./json-probe.js";

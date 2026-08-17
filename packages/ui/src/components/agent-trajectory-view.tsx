@@ -1,11 +1,6 @@
 import { useDeferredValue, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
-import {
-  isFullRecord,
-  isParsed,
-  stringifyJsonNode,
-  truncateAtCodePointBoundary,
-} from "@unquote/core";
+import { isFullRecord, isParsed, stringifyJsonNodeBounded } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
@@ -336,15 +331,10 @@ export const AgentTrajectoryView = ({
     if (!isFullRecord(resolved)) {
       return { kind: "preview" };
     }
-    const text = stringifyJsonNode(resolved.node, { indent: 2 });
-    if (text.length <= RAW_JSON_CHARACTER_LIMIT) {
-      return { kind: "full", text, truncated: false };
-    }
-    return {
-      kind: "full",
-      text: truncateAtCodePointBoundary(text, RAW_JSON_CHARACTER_LIMIT),
-      truncated: true,
-    };
+    const preview = stringifyJsonNodeBounded(resolved.node, RAW_JSON_CHARACTER_LIMIT, {
+      indent: 2,
+    });
+    return { kind: "full", ...preview };
   };
   const filteredPresentation = useMemo(
     () =>
