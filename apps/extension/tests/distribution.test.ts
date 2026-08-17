@@ -42,7 +42,7 @@ describe("extension manifest policy", () => {
       "48": "icon48.png",
       "128": "icon128.png",
     });
-    expect(manifest.options_ui).toEqual({ page: "options.html", open_in_tab: true });
+    expect(manifest).not.toHaveProperty("options_ui");
   });
 });
 

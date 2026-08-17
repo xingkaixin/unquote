@@ -37,8 +37,4 @@ export const createExtensionManifest = (browser: string) => ({
     default_icon: icons,
   },
   icons,
-  options_ui: {
-    page: "options.html",
-    open_in_tab: true,
-  },
 });
