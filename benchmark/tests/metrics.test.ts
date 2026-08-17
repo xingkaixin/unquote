@@ -270,7 +270,7 @@ describe("Agent trajectory performance measure", () => {
       ...expectedAgentTrajectoryRenderBudgetContract,
     ]);
     expect(budgetedRenderMetrics).not.toEqual(
-      expect.arrayContaining(expectedAgentTrajectoryRenderBudgetContract),
+      expect.arrayContaining([...expectedAgentTrajectoryRenderBudgetContract]),
     );
   });
 });
@@ -472,7 +472,7 @@ describe("collectBenchmarkGateFailures", () => {
   it.each(expectedAgentTrajectoryRenderBudgetContract)(
     "fails when required trajectory budget $budgetKey is missing",
     ({ metric, statistic, budgetKey }) => {
-      const caseBudgets = { ...benchmarkGateBudgets };
+      const caseBudgets: Record<string, number> = { ...benchmarkGateBudgets };
       delete caseBudgets[budgetKey];
 
       expect(

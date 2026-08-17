@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "benchmark/**/*.mjs",
+    "benchmark/**/*.ts",
+    "scripts/**/*.mjs",
+    "scripts/**/*.mts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ]
+}
