@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => {
       tab?: unknown,
     ) => Promise<void>;
     onInstalled?: () => void;
-    onMessage?: (message: unknown) => unknown;
+    onMessage?: (
+      message: unknown,
+      sender: unknown,
+      sendResponse: (response: unknown) => void,
+    ) => unknown;
   } = {};
   const storageValues = new Map<string, unknown>();
   const browser = {
@@ -59,9 +63,17 @@ const mocks = vi.hoisted(() => {
         }),
       },
       onMessage: {
-        addListener: vi.fn((listener: (message: unknown) => unknown) => {
-          listeners.onMessage = listener;
-        }),
+        addListener: vi.fn(
+          (
+            listener: (
+              message: unknown,
+              sender: unknown,
+              sendResponse: (response: unknown) => void,
+            ) => unknown,
+          ) => {
+            listeners.onMessage = listener;
+          },
+        ),
       },
     },
     storage: {
@@ -158,14 +170,20 @@ describe("extension background", () => {
     expect(handoffId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(JSON.stringify(mocks.browser.alarms.create.mock.calls)).not.toContain("payload");
 
-    expect(mocks.listeners.onMessage?.(null)).toBeUndefined();
-    expect(mocks.listeners.onMessage?.({ type: "unsupported" })).toBeUndefined();
-    await expect(
-      mocks.listeners.onMessage?.({
-        type: "unquote:claim-selection-handoff",
-        handoffId,
-      }),
-    ).resolves.toBe("payload");
+    const sendResponse = vi.fn();
+    expect(mocks.listeners.onMessage?.(null, {}, sendResponse)).toBeUndefined();
+    expect(mocks.listeners.onMessage?.({ type: "unsupported" }, {}, sendResponse)).toBeUndefined();
+    expect(
+      mocks.listeners.onMessage?.(
+        {
+          type: "unquote:claim-selection-handoff",
+          handoffId,
+        },
+        {},
+        sendResponse,
+      ),
+    ).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith("payload"));
     expect(mocks.storageValues).toHaveLength(0);
   });
 
