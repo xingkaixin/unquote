@@ -13,6 +13,11 @@ const createPopulatedState = (): WorkspaceSelectionState => ({
   scrollIntent: { kind: "path", recordId: "record-1", pathText: "$.payload.value" },
 });
 
+const visibilityFor = (...recordIds: string[]) => ({
+  firstRecordId: recordIds[0] ?? null,
+  recordIds: new Set(recordIds),
+});
+
 describe("reduceWorkspaceSelection", () => {
   it("creates an empty initial state", () => {
     expect(createInitialWorkspaceSelectionState()).toEqual({
@@ -105,7 +110,7 @@ describe("reduceWorkspaceSelection", () => {
   it("clears every hidden record-bound value in one visibility transition", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "recordsVisibilityChanged",
-      recordIds: ["record-2"],
+      visibility: visibilityFor("record-2"),
     });
 
     expect(state).toEqual({
@@ -129,7 +134,7 @@ describe("reduceWorkspaceSelection", () => {
         selectedPath: { recordId: "record-hidden", pathText: "$.payload", rawKey: "payload" },
         scrollIntent: { kind: "record", recordId: "record-hidden" },
       },
-      { type: "recordsVisibilityChanged", recordIds: ["record-visible"] },
+      { type: "recordsVisibilityChanged", visibility: visibilityFor("record-visible") },
     );
 
     expect(state).toEqual({
@@ -150,7 +155,7 @@ describe("reduceWorkspaceSelection", () => {
       },
     );
 
-    expect(reconcileWorkspaceSelection(navigated, ["record-1"])).toEqual({
+    expect(reconcileWorkspaceSelection(navigated, visibilityFor("record-1"))).toEqual({
       activeRecordId: "record-1",
       detailSelection: null,
       selectedPath: null,
@@ -162,7 +167,7 @@ describe("reduceWorkspaceSelection", () => {
     const current = createPopulatedState();
     const state = reduceWorkspaceSelection(current, {
       type: "recordsVisibilityChanged",
-      recordIds: ["record-1", "record-2"],
+      visibility: visibilityFor("record-1", "record-2"),
     });
 
     expect(state).toBe(current);
@@ -171,7 +176,7 @@ describe("reduceWorkspaceSelection", () => {
   it("clears the active record when no records remain visible", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "recordsVisibilityChanged",
-      recordIds: [],
+      visibility: visibilityFor(),
     });
 
     expect(state.activeRecordId).toBeNull();
@@ -181,7 +186,7 @@ describe("reduceWorkspaceSelection", () => {
     const current = createInitialWorkspaceSelectionState();
     const state = reduceWorkspaceSelection(current, {
       type: "recordsVisibilityChanged",
-      recordIds: [],
+      visibility: visibilityFor(),
     });
 
     expect(state).toBe(current);

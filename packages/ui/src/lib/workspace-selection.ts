@@ -1,5 +1,10 @@
 import type { AgentDetailSelection } from "./agent-session";
-import { issueScrollIntent, retainVisibleScrollIntent, type ScrollIntent } from "./scroll-intent";
+import {
+  issueScrollIntent,
+  retainVisibleScrollIntent,
+  type ScrollIntent,
+  type VisibleRecordIds,
+} from "./scroll-intent";
 
 export interface SelectedPath {
   recordId: string;
@@ -12,6 +17,11 @@ export interface WorkspaceSelectionState {
   detailSelection: AgentDetailSelection | null;
   selectedPath: SelectedPath | null;
   scrollIntent: ScrollIntent | null;
+}
+
+export interface WorkspaceSelectionVisibility {
+  firstRecordId: string | null;
+  recordIds: VisibleRecordIds;
 }
 
 export const createInitialWorkspaceSelectionState = (): WorkspaceSelectionState => ({
@@ -27,18 +37,18 @@ export type WorkspaceSelectionAction =
   | { type: "selectRecord"; recordId: string }
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
   | { type: "openAgentRecord"; selection: AgentDetailSelection; recordId: string }
-  | { type: "recordsVisibilityChanged"; recordIds: readonly string[] }
+  | { type: "recordsVisibilityChanged"; visibility: WorkspaceSelectionVisibility }
   | { type: "recordsAppended"; firstRecordId: string | null }
   | { type: "clearScrollIntent" };
 
 const retainVisibleRecordValue = <Value extends { recordId: string }>(
   value: Value | null,
-  visibleRecordIds: ReadonlySet<string>,
+  visibleRecordIds: VisibleRecordIds,
 ) => (value && !visibleRecordIds.has(value.recordId) ? null : value);
 
 const retainVisibleDetailSelection = (
   selection: AgentDetailSelection | null,
-  visibleRecordIds: ReadonlySet<string>,
+  visibleRecordIds: VisibleRecordIds,
 ) =>
   selection?.kind === "trajectory"
     ? selection
@@ -46,16 +56,15 @@ const retainVisibleDetailSelection = (
 
 export const reconcileWorkspaceSelection = (
   state: WorkspaceSelectionState,
-  recordIds: readonly string[],
+  visibility: WorkspaceSelectionVisibility,
 ): WorkspaceSelectionState => {
-  const visibleRecordIds = new Set(recordIds);
   const activeRecordId =
-    state.activeRecordId && visibleRecordIds.has(state.activeRecordId)
+    state.activeRecordId && visibility.recordIds.has(state.activeRecordId)
       ? state.activeRecordId
-      : (recordIds[0] ?? null);
-  const detailSelection = retainVisibleDetailSelection(state.detailSelection, visibleRecordIds);
-  const selectedPath = retainVisibleRecordValue(state.selectedPath, visibleRecordIds);
-  const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibleRecordIds);
+      : visibility.firstRecordId;
+  const detailSelection = retainVisibleDetailSelection(state.detailSelection, visibility.recordIds);
+  const selectedPath = retainVisibleRecordValue(state.selectedPath, visibility.recordIds);
+  const scrollIntent = retainVisibleScrollIntent(state.scrollIntent, visibility.recordIds);
 
   if (
     activeRecordId === state.activeRecordId &&
@@ -128,7 +137,7 @@ export const reduceWorkspaceSelection = (
       };
 
     case "recordsVisibilityChanged":
-      return reconcileWorkspaceSelection(state, action.recordIds);
+      return reconcileWorkspaceSelection(state, action.visibility);
 
     case "recordsAppended":
       // A pure append can never invalidate existing record-bound selection:

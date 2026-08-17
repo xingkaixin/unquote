@@ -114,6 +114,39 @@ describe("useRecordWorkspace", () => {
     expect(workspace.current.detailSelection).toBe(selection);
   });
 
+  it("reuses filtered Record IDs across selection changes", () => {
+    const sourceText = "invalid-one\ninvalid-two\ninvalid-three";
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const trackedRecord = result.records[2]!;
+    const trackedRecordId = trackedRecord.id;
+    let idReads = 0;
+    Object.defineProperty(trackedRecord, "id", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        idReads += 1;
+        return trackedRecordId;
+      },
+    });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+
+    act(() => workspace.current.query.intent.setFilter("errors"));
+    idReads = 0;
+    act(() => workspace.current.model.intent.selectRecord(result.records[1]!));
+
+    expect(idReads).toBe(0);
+  });
+
   it("does not update selection when an endpoint Record is absent", () => {
     const sourceText = '{"value":1}\n{"value":2}';
     const result = parseInput(sourceText, { forcedFormat: "jsonl" });

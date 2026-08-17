@@ -2,6 +2,10 @@ export type ScrollIntent =
   | { kind: "record"; recordId: string }
   | { kind: "path"; recordId: string; pathText: string };
 
+export interface VisibleRecordIds {
+  has(recordId: string): boolean;
+}
+
 interface ScrollRecord {
   id: string;
 }
@@ -15,7 +19,7 @@ export const issueScrollIntent = (target: ScrollIntent): ScrollIntent => ({ ...t
 
 export const retainVisibleScrollIntent = (
   intent: ScrollIntent | null,
-  visibleRecordIds: ReadonlySet<string>,
+  visibleRecordIds: VisibleRecordIds,
 ) => (intent && visibleRecordIds.has(intent.recordId) ? intent : null);
 
 export const resolveRecordScrollIndex = (
