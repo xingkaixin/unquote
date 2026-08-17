@@ -277,6 +277,45 @@ describe("local-file-source", () => {
     expect(result?.window.matches.map((match) => match.pathText)).toEqual(["$[250]", "$[251]"]);
   });
 
+  it("reuses the initial file scan when materializing another search window", async () => {
+    const contents = Array.from({ length: 300 }, (_, index) =>
+      JSON.stringify({ index, value: "needle" }),
+    ).join("\n");
+    const { file, sliceStarts } = makeMeasuredFile(contents, 64);
+    const access = createLocalFileAccess(file);
+    const options = { regex: false, caseSensitive: true, jq: false };
+
+    await access.search("needle", options, new AbortController().signal);
+    const result = await access.search(
+      "needle",
+      options,
+      new AbortController().signal,
+      Float64Array.from([250]),
+    );
+
+    expect(result?.window.matchIndexes).toEqual(Float64Array.from([250]));
+    expect(result?.window.matches[0]?.recordId).toBe("record-251");
+    expect(sliceStarts.at(-1)).toBeGreaterThan(0);
+  });
+
+  it("maps cached global indexes back to matches within one Record", async () => {
+    const contents = JSON.stringify(Array.from({ length: 300 }, () => "needle"));
+    const access = createLocalFileAccess(makeStreamedFile(contents));
+    const options = { regex: false, caseSensitive: true, jq: false };
+
+    await access.search("needle", options, new AbortController().signal);
+    const result = await access.search(
+      "needle",
+      options,
+      new AbortController().signal,
+      Float64Array.from([250, 251]),
+    );
+
+    expect(result?.total).toBe(300);
+    expect(result?.window.matchIndexes).toEqual(Float64Array.from([250, 251]));
+    expect(result?.window.matches.map((match) => match.pathText)).toEqual(["$[250]", "$[251]"]);
+  });
+
   it("returns null when aborted mid-scan", async () => {
     const file = makeStreamedFile('{"message":"needle"}\n{"message":"hay"}\n');
     const controller = new AbortController();

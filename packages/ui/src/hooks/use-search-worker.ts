@@ -61,6 +61,7 @@ const buildSearchRequest = (
     ? {
         type: "search-file",
         requestId,
+        sourceRevision,
         file: sourceAccess.getFile(),
         query,
         options,

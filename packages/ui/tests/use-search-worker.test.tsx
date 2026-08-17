@@ -505,6 +505,7 @@ describe("useSearchWorker", () => {
     expect(staleWorker.postMessage).toHaveBeenCalledWith({
       type: "search-file",
       requestId: 1,
+      sourceRevision: 0,
       file,
       query: "a",
       options: defaultOptions,

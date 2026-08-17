@@ -1,5 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
 import { createLocalFileAccess } from "../lib/local-file-source";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/record-search";
@@ -29,6 +30,7 @@ export type SearchRequest =
   | {
       type: "search-file";
       requestId: number;
+      sourceRevision: SourceRevision;
       file: File;
       query: string;
       options: SearchOptions;
@@ -45,6 +47,7 @@ interface TextRecordsCache {
 }
 
 let textRecordsCache: TextRecordsCache | null = null;
+let fileAccessCache: { sourceRevision: SourceRevision; access: LocalFileAccess } | null = null;
 
 const recordsForSource = (source: TextSearchSource): JsonlRecord[] => {
   if (source.kind === "cached") {
@@ -71,11 +74,16 @@ const searchText = ({
 // timeout, so this signal never needs to fire.
 const searchFile = ({
   file,
+  sourceRevision,
   query,
   options,
   windowIndexes,
-}: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchResultSet | null> =>
-  createLocalFileAccess(file).search(query, options, new AbortController().signal, windowIndexes);
+}: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchResultSet | null> => {
+  if (fileAccessCache?.sourceRevision !== sourceRevision) {
+    fileAccessCache = { sourceRevision, access: createLocalFileAccess(file) };
+  }
+  return fileAccessCache.access.search(query, options, new AbortController().signal, windowIndexes);
+};
 
 // Never include the raw error, input text, or query in the posted message —
 // the worker must not echo user input back through unrelated channels.

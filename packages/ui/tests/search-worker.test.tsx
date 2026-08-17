@@ -55,6 +55,7 @@ describe("search worker", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     vi.doUnmock("../src/lib/record-search");
+    vi.doUnmock("../src/lib/local-file-source");
   });
 
   it("finds matches in text input", async () => {
@@ -156,6 +157,7 @@ describe("search worker", () => {
     dispatch(workerScope, {
       type: "search-file",
       requestId: 1,
+      sourceRevision: 1,
       file,
       query: "world",
       options: defaultOptions,
@@ -167,12 +169,60 @@ describe("search worker", () => {
     expect(response.result.window.matches.length).toBeGreaterThan(0);
   });
 
+  it("reuses file access for windows within one source revision", async () => {
+    const result = {
+      total: 0,
+      matchLineNumbers: new Float64Array(),
+      window: { matchIndexes: new Float64Array(), matches: [] },
+    };
+    const search = vi.fn().mockResolvedValue(result);
+    const createLocalFileAccess = vi.fn(() => ({ search }));
+    vi.doMock("../src/lib/local-file-source", () => ({ createLocalFileAccess }));
+    const file = new File(["{}"], "payload.jsonl");
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, {
+      type: "search-file",
+      requestId: 1,
+      sourceRevision: 4,
+      file,
+      query: "needle",
+      options: defaultOptions,
+    });
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));
+    dispatch(workerScope, {
+      type: "search-file",
+      requestId: 2,
+      sourceRevision: 4,
+      file,
+      query: "needle",
+      options: defaultOptions,
+      windowIndexes: Float64Array.from([128]),
+    });
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(2));
+
+    expect(createLocalFileAccess).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(2);
+
+    dispatch(workerScope, {
+      type: "search-file",
+      requestId: 3,
+      sourceRevision: 5,
+      file,
+      query: "needle",
+      options: defaultOptions,
+    });
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(3));
+    expect(createLocalFileAccess).toHaveBeenCalledTimes(2);
+  });
+
   it("reports an error instead of empty matches when a file read fails", async () => {
     const file = makeFailingFile();
     const workerScope = await loadWorker();
     dispatch(workerScope, {
       type: "search-file",
       requestId: 1,
+      sourceRevision: 1,
       file,
       query: "world",
       options: defaultOptions,

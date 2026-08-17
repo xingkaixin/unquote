@@ -80,7 +80,7 @@ const scanRanges = (text: string, pattern: RegExp, visibleLength = text.length):
   return ranges;
 };
 
-const normalizeWindowIndexes = (indexes?: ArrayLike<number>) => {
+export const normalizeSearchWindowIndexes = (indexes?: ArrayLike<number>) => {
   if (!indexes) {
     return null;
   }
@@ -111,7 +111,7 @@ const createCollector = (
         return testPattern.test(text);
       }
     : (text: string) => testPattern.test(text);
-  const requestedIndexes = normalizeWindowIndexes(windowIndexes);
+  const requestedIndexes = normalizeSearchWindowIndexes(windowIndexes);
   const matchLineNumbers: number[] = [];
   const materializedIndexes: number[] = [];
   const matches: SearchMatch[] = [];
