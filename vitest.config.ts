@@ -12,6 +12,7 @@ export default defineConfig({
     projects: [
       "packages/core/vitest.config.ts",
       "packages/ui/vitest.config.ts",
+      "packages/ui/vitest.agent.config.ts",
       "apps/web/vitest.config.ts",
       "apps/extension/vitest.config.ts",
       "apps/safari/vitest.config.ts",
