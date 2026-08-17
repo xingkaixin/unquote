@@ -267,4 +267,21 @@ describe("useQueryInteraction", () => {
       }),
     );
   });
+
+  it("ignores query intents retained from an obsolete Source Revision", () => {
+    const { result: query, rerender } = renderRevisionedQuery({
+      sourceRevision: 0,
+      parseResult: result,
+      onNavigate: vi.fn(),
+    });
+    const obsoleteIntent = query.current.intent;
+
+    rerender({ sourceRevision: 1, parseResult: result, onNavigate: vi.fn() });
+    act(() => query.current.intent.setFilter("message"));
+    expect(query.current.snapshot.recordFilter).toBe("message");
+
+    act(() => obsoleteIntent.setFilter("tool"));
+
+    expect(query.current.snapshot.recordFilter).toBe("message");
+  });
 });

@@ -4,6 +4,7 @@ import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
+import { belongsToSourceRevision, commitSourceRevisionResult } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
@@ -28,6 +29,10 @@ interface SearchWorkerState {
   status: SearchWorkerStatus;
   errorKind: SearchWorkerErrorKind | null;
 }
+
+type SearchWorkerStateUpdate =
+  | SearchWorkerState
+  | ((current: SearchWorkerState) => SearchWorkerState);
 
 export interface SearchWorkerResult extends SearchWorkerState {
   requestWindow: (matchIndexes: Float64Array) => void;
@@ -137,6 +142,11 @@ export const useSearchWorker = (params: {
   const [state, setState] = useState<SearchWorkerState>(() =>
     query ? pendingResult(sourceRevision) : idleResult(sourceRevision),
   );
+  const commitState = useCallback((update: SearchWorkerStateUpdate) => {
+    setState((current) =>
+      commitSourceRevisionResult(current, typeof update === "function" ? update(current) : update),
+    );
+  }, []);
   const requestIdRef = useRef(0);
   const workerRef = useRef<Worker | null>(null);
   const workerSourceRevisionRef = useRef<SourceRevision | null>(null);
@@ -193,7 +203,7 @@ export const useSearchWorker = (params: {
   // would otherwise highlight the wrong record for one frame.
   if (inputsChanged) {
     setLastInputs({ text, forcedFormat, sourceAccess, query, options, sourceRevision });
-    setState(query ? pendingResult(sourceRevision) : idleResult(sourceRevision));
+    commitState(query ? pendingResult(sourceRevision) : idleResult(sourceRevision));
   }
 
   useEffect(
@@ -209,12 +219,12 @@ export const useSearchWorker = (params: {
   useEffect(() => {
     if (!query) {
       requestIdRef.current += 1;
-      setState(idleResult(sourceRevision));
+      commitState(idleResult(sourceRevision));
       return;
     }
 
     if (!activeWindowIndexes) {
-      setState(pendingResult(sourceRevision));
+      commitState(pendingResult(sourceRevision));
     }
 
     // The dispatched request's cleanup (worker listener/timeout, or the
@@ -233,7 +243,7 @@ export const useSearchWorker = (params: {
       const searchOnMainThread = () => {
         if (options.regex) {
           finishRequestMeasure();
-          setState({
+          commitState({
             sourceRevision,
             result: null,
             status: "error",
@@ -249,13 +259,13 @@ export const useSearchWorker = (params: {
             .then((result) => {
               finishRequestMeasure();
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
-                setState({ sourceRevision, result, status: "complete", errorKind: null });
+                commitState({ sourceRevision, result, status: "complete", errorKind: null });
               }
             })
             .catch(() => {
               finishRequestMeasure();
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
-                setState({
+                commitState({
                   sourceRevision,
                   result: null,
                   status: "error",
@@ -273,14 +283,14 @@ export const useSearchWorker = (params: {
         // between chunks.
         if (!isWithinMainThreadBudget(text.length)) {
           finishRequestMeasure();
-          setState({ sourceRevision, result: null, status: "error", errorKind: "too-large" });
+          commitState({ sourceRevision, result: null, status: "error", errorKind: "too-large" });
           return;
         }
 
         const result = parseTextResult(text, forcedFormat);
         const searchResult = searchRecords(result.records, query, options, activeWindowIndexes);
         finishRequestMeasure();
-        setState({
+        commitState({
           sourceRevision,
           result: searchResult,
           status: "complete",
@@ -340,7 +350,7 @@ export const useSearchWorker = (params: {
           return;
         }
         finishRequestMeasure();
-        setState({ sourceRevision, result: null, status: "error", errorKind });
+        commitState({ sourceRevision, result: null, status: "error", errorKind });
       }
 
       // An uncaught worker error or an undeserializable message can leave the
@@ -362,7 +372,7 @@ export const useSearchWorker = (params: {
           if (workerRef.current === currentWorker) {
             workerSourceRevisionRef.current = null;
           }
-          setState({
+          commitState({
             sourceRevision,
             result: null,
             status: "error",
@@ -370,7 +380,7 @@ export const useSearchWorker = (params: {
           });
           return;
         }
-        setState({
+        commitState({
           sourceRevision,
           result: response.result,
           status: "complete",
@@ -424,6 +434,7 @@ export const useSearchWorker = (params: {
     return () => dispatchCleanup?.();
   }, [
     activeWindowIndexes,
+    commitState,
     debounceMs,
     forcedFormat,
     options,
@@ -433,10 +444,11 @@ export const useSearchWorker = (params: {
     text,
   ]);
 
-  const snapshot = inputsChanged
-    ? query
-      ? pendingResult(sourceRevision)
-      : idleResult(sourceRevision)
-    : state;
+  const snapshot =
+    inputsChanged || !belongsToSourceRevision(sourceRevision, state)
+      ? query
+        ? pendingResult(sourceRevision)
+        : idleResult(sourceRevision)
+      : state;
   return { ...snapshot, requestWindow };
 };

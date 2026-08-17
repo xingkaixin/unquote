@@ -9,7 +9,7 @@ import { markPerf, measurePerf } from "../lib/perf";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
-import { belongsToSourceRevision } from "../lib/source-revision";
+import { belongsToSourceRevision, commitSourceRevisionResult } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
@@ -40,6 +40,8 @@ export interface ParserSnapshot {
   agentSession: ParsedText["agentSession"];
   recordAppend: RecordAppend | null;
 }
+
+type ParserStateUpdate = ParserSnapshot | ((current: ParserSnapshot) => ParserSnapshot);
 
 const pendingSnapshot = (
   sourceRevision: SourceRevision,
@@ -95,6 +97,11 @@ export const useParser = ({ source }: UseParserOptions) => {
       ? { sourceRevision, ...mountParse.parsed, recordAppend: null }
       : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
   );
+  const commitParserState = useEffectEvent((update: ParserStateUpdate) => {
+    setParserState((current) =>
+      commitSourceRevisionResult(current, typeof update === "function" ? update(current) : update),
+    );
+  });
   const canReuseMountParseRef = useRef(mountParse !== null);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -126,7 +133,7 @@ export const useParser = ({ source }: UseParserOptions) => {
     const isCurrentRequest = () => !settled && requestIdRef.current === requestId;
 
     const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
-      setParserState({
+      commitParserState({
         sourceRevision,
         result,
         agentSession,
@@ -136,7 +143,7 @@ export const useParser = ({ source }: UseParserOptions) => {
     };
 
     const reportUnparsedSource = () => {
-      setParserState({
+      commitParserState({
         ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
         progress: idleProgress,
       });
@@ -144,7 +151,7 @@ export const useParser = ({ source }: UseParserOptions) => {
     };
 
     const reportUnparsedSourceTooLarge = () => {
-      setParserState({
+      commitParserState({
         ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
         progress: idleProgress,
       });
@@ -200,13 +207,13 @@ export const useParser = ({ source }: UseParserOptions) => {
       return;
     }
 
-    setParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess));
+    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess));
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
 
     const publisher = createStreamPublisher<ParseResult["stats"], ParserProgress>(
       (records, stats, progress, recordAppend) => {
-        setParserState((current) => ({
+        commitParserState((current) => ({
           sourceRevision,
           result: { format: "jsonl", records, stats },
           agentSession: belongsToSourceRevision(sourceRevision, current)
@@ -315,7 +322,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       if (message.type === "error") {
         markPerf("parse:error");
         measurePerf("parse:error", "parse:start", "parse:error");
-        setParserState((current) => ({
+        commitParserState((current) => ({
           sourceRevision,
           result: { ...current.result, format: "jsonl", stats: message.stats },
           agentSession: null,
@@ -329,7 +336,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
       if (message.type === "complete-result") {
-        setParserState({
+        commitParserState({
           sourceRevision,
           result: message.result,
           agentSession: message.agentSession,
@@ -339,7 +346,7 @@ export const useParser = ({ source }: UseParserOptions) => {
         return;
       }
 
-      setParserState((current) => ({
+      commitParserState((current) => ({
         sourceRevision,
         result: { ...current.result, format: "jsonl", stats: message.stats },
         agentSession: message.agentSession,

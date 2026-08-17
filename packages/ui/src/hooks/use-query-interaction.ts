@@ -1,5 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
@@ -21,6 +21,7 @@ import { resolveTreePath, resolveTreePathMatches } from "../lib/tree-path";
 import type { TreePathMatch } from "../lib/tree-path";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
+import { useSourceRevisionState } from "./use-source-revision-state";
 
 export const memorySearchDebounceMs = 120;
 export const localFileSearchDebounceMs = 250;
@@ -41,34 +42,6 @@ interface SetFilterOptions {
   preserveActiveRecord?: boolean;
 }
 
-interface RevisionedQueryState {
-  sourceRevision: SourceRevision;
-  state: QueryInteractionState;
-}
-
-interface RevisionedQueryAction {
-  sourceRevision: SourceRevision;
-  action: QueryInteractionAction;
-}
-
-const createRevisionedQueryState = (sourceRevision: SourceRevision): RevisionedQueryState => ({
-  sourceRevision,
-  state: createInitialQueryInteractionState(),
-});
-
-const reduceRevisionedQueryState = (
-  current: RevisionedQueryState,
-  envelope: RevisionedQueryAction,
-): RevisionedQueryState => ({
-  sourceRevision: envelope.sourceRevision,
-  state: reduceQueryInteraction(
-    current.sourceRevision === envelope.sourceRevision
-      ? current.state
-      : createInitialQueryInteractionState(),
-    envelope.action,
-  ),
-});
-
 export const useQueryInteraction = ({
   source,
   resultRevision,
@@ -79,16 +52,15 @@ export const useQueryInteraction = ({
 }: UseQueryInteractionOptions) => {
   const sourceRevision = source.sourceRevision;
   const pausedAutomaticSearchNavigationRevisionRef = useRef<SourceRevision | null>(null);
-  const [storedQuery, dispatchToRevision] = useReducer(
-    reduceRevisionedQueryState,
+  const [state, updateQuery] = useSourceRevisionState(
     sourceRevision,
-    createRevisionedQueryState,
+    createInitialQueryInteractionState,
   );
-  const initialState = useMemo(createInitialQueryInteractionState, [sourceRevision]);
-  const state = storedQuery.sourceRevision === sourceRevision ? storedQuery.state : initialState;
   const dispatch = useCallback(
-    (action: QueryInteractionAction) => dispatchToRevision({ sourceRevision, action }),
-    [sourceRevision],
+    (action: QueryInteractionAction) => {
+      updateQuery((current) => reduceQueryInteraction(current, action));
+    },
+    [updateQuery],
   );
   const pauseAutomaticSearchNavigation = useCallback(() => {
     pausedAutomaticSearchNavigationRevisionRef.current = sourceRevision;

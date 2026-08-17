@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback } from "react";
 import type { AgentDetailSelection } from "../lib/agent-session";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
@@ -13,7 +13,7 @@ import {
 } from "../lib/record-expansion";
 import type { SearchMatch } from "../lib/record-search";
 import { belongsToSourceRevision } from "../lib/source-revision";
-import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
+import type { SourceRevision, SourceRevisionUpdater } from "../lib/source-revision";
 import { collectStringifiedPaths } from "../lib/tree";
 import type { TreeRow } from "../lib/tree";
 import {
@@ -21,14 +21,9 @@ import {
   reduceWorkspaceSelection,
 } from "../lib/workspace-selection";
 import type { SelectedPath, WorkspaceSelectionAction } from "../lib/workspace-selection";
+import { useSourceRevisionState } from "./use-source-revision-state";
 
 export type { SelectedPath } from "../lib/workspace-selection";
-
-interface RevisionedValue<Value> extends SourceRevisionOwned {
-  value: Value;
-}
-
-type RevisionedValueUpdater<Value> = (current: Value) => Value;
 
 const createExpandedPaths = (): ExpandedStringifiedPathsByRecord => new Map();
 
@@ -47,51 +42,6 @@ const createWorkspaceSessionValue = (): WorkspaceSessionValue => ({
   searchExpandedPaths: createExpandedPaths(),
   searchExpansionSource: emptyWorkspaceSearchMatches,
 });
-
-// Sample loading publishes a source and seeds that future revision in one
-// batched event. Older callbacks must not overwrite an already newer envelope.
-const useRevisionedValue = <Value>(
-  sourceRevision: SourceRevision,
-  createInitialValue: () => Value,
-) => {
-  const initialValue = useMemo(createInitialValue, [createInitialValue, sourceRevision]);
-  const [storedValue, setStoredValue] = useState<RevisionedValue<Value>>(() => ({
-    sourceRevision,
-    value: createInitialValue(),
-  }));
-  const value = belongsToSourceRevision(sourceRevision, storedValue)
-    ? storedValue.value
-    : initialValue;
-
-  const update = useCallback(
-    (updater: RevisionedValueUpdater<Value>) => {
-      setStoredValue((current) => {
-        if (current.sourceRevision > sourceRevision) {
-          return current;
-        }
-
-        const currentValue = belongsToSourceRevision(sourceRevision, current)
-          ? current.value
-          : createInitialValue();
-        const nextValue = updater(currentValue);
-        if (currentValue === nextValue && belongsToSourceRevision(sourceRevision, current)) {
-          return current;
-        }
-
-        return { sourceRevision, value: nextValue };
-      });
-    },
-    [createInitialValue, sourceRevision],
-  );
-
-  const replaceForRevision = useCallback((revision: SourceRevision, nextValue: Value) => {
-    setStoredValue((current) =>
-      current.sourceRevision > revision ? current : { sourceRevision: revision, value: nextValue },
-    );
-  }, []);
-
-  return [value, update, replaceForRevision] as const;
-};
 
 const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
   recordId: record.id,
@@ -124,7 +74,7 @@ const collectAllStringifiedPaths = (record: JsonlRecord, seed: ReadonlySet<strin
 };
 
 export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
-  const [workspaceState, updateWorkspace, replaceWorkspaceForRevision] = useRevisionedValue(
+  const [workspaceState, updateWorkspace, replaceWorkspaceForRevision] = useSourceRevisionState(
     sourceRevision,
     createWorkspaceSessionValue,
   );
@@ -138,7 +88,7 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [updateWorkspace],
   );
   const setExpandedPaths = useCallback(
-    (updater: RevisionedValueUpdater<ExpandedStringifiedPathsByRecord>) => {
+    (updater: SourceRevisionUpdater<ExpandedStringifiedPathsByRecord>) => {
       updateWorkspace((current) => {
         const expandedPaths = updater(current.expandedPaths);
         return expandedPaths === current.expandedPaths ? current : { ...current, expandedPaths };
@@ -147,7 +97,7 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [updateWorkspace],
   );
   const setSearchExpandedPaths = useCallback(
-    (updater: RevisionedValueUpdater<ExpandedStringifiedPathsByRecord>) => {
+    (updater: SourceRevisionUpdater<ExpandedStringifiedPathsByRecord>) => {
       updateWorkspace((current) => {
         const searchExpandedPaths = updater(current.searchExpandedPaths);
         return searchExpandedPaths === current.searchExpandedPaths
