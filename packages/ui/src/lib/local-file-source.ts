@@ -2,7 +2,12 @@ import { parseJsonlRecordLine, stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 import { measurePerfAsync } from "./perf";
-import { buildSearchPattern, createSearchResultCollector } from "./record-search";
+import {
+  buildSearchPattern,
+  createSearchResultCollector,
+  normalizeSearchWindowIndexes,
+  searchRecords,
+} from "./record-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
 
 export const fullRecordCacheLimit = 500;
@@ -211,6 +216,8 @@ const readJsonlFileLines = async (
 
   const reader = file.stream().getReader();
   const decoder = new TextDecoder();
+  const lineIndex = lineIndexFor(file);
+  let absoluteByteOffset = 0;
   let buffer = "";
   let readerCanceled = false;
 
@@ -230,6 +237,18 @@ const readJsonlFileLines = async (
         break;
       }
 
+      if (!value) {
+        continue;
+      }
+
+      let checkpointLineNumber = lineNumber;
+      for (let index = 0; index < value.byteLength; index += 1) {
+        if (value[index] === 10) {
+          checkpointLineNumber += 1;
+          lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + index + 1);
+        }
+      }
+
       const drained = drainJsonlLines(
         buffer,
         decoder.decode(value, { stream: true }),
@@ -238,6 +257,7 @@ const readJsonlFileLines = async (
       );
       buffer = drained.buffer;
       stopped = stopped || drained.stopped;
+      absoluteByteOffset += value.byteLength;
     }
   } catch (error) {
     if (!signal?.aborted) {
@@ -487,6 +507,98 @@ const searchJsonlFile = async (
     return signal.aborted ? null : collector.finish();
   });
 
+interface FileSearchCache {
+  query: string;
+  options: SearchOptions;
+  result: SearchResultSet;
+}
+
+interface RequestedLineMatches {
+  firstGlobalIndex: number;
+  globalIndexes: number[];
+}
+
+const hasSameSearch = (cache: FileSearchCache, query: string, options: SearchOptions) =>
+  cache.query === query &&
+  cache.options.regex === options.regex &&
+  cache.options.caseSensitive === options.caseSensitive &&
+  cache.options.jq === options.jq;
+
+const firstMatchIndexForLine = (lineNumbers: Float64Array, lineNumber: number) => {
+  let low = 0;
+  let high = lineNumbers.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (lineNumbers[middle]! < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+};
+
+const materializeSearchWindow = async (
+  file: File,
+  cache: FileSearchCache,
+  signal: AbortSignal,
+  windowIndexes: ArrayLike<number>,
+): Promise<SearchResultSet | null> => {
+  const requestedIndexes = normalizeSearchWindowIndexes(windowIndexes)!;
+  const requestedByLine = new Map<number, RequestedLineMatches>();
+  for (const globalIndex of requestedIndexes) {
+    const lineNumber = cache.result.matchLineNumbers[globalIndex];
+    if (lineNumber === undefined) {
+      continue;
+    }
+    const request = requestedByLine.get(lineNumber) ?? {
+      firstGlobalIndex: firstMatchIndexForLine(cache.result.matchLineNumbers, lineNumber),
+      globalIndexes: [],
+    };
+    request.globalIndexes.push(globalIndex);
+    requestedByLine.set(lineNumber, request);
+  }
+
+  const records = await readJsonlRecordsByLine(file, new Set(requestedByLine.keys()), signal);
+  if (signal.aborted) {
+    return null;
+  }
+
+  const materialized: {
+    globalIndex: number;
+    match: SearchResultSet["window"]["matches"][number];
+  }[] = [];
+  for (const [lineNumber, request] of requestedByLine) {
+    const record = records.get(lineNumber);
+    if (!record) {
+      continue;
+    }
+    const localIndexes = Float64Array.from(
+      request.globalIndexes.map((globalIndex) => globalIndex - request.firstGlobalIndex),
+    );
+    const localResult = searchRecords([record], cache.query, cache.options, localIndexes);
+    if (!localResult) {
+      continue;
+    }
+    localResult.window.matches.forEach((match, index) => {
+      const localIndex = localResult.window.matchIndexes[index];
+      if (localIndex !== undefined) {
+        materialized.push({ globalIndex: request.firstGlobalIndex + localIndex, match });
+      }
+    });
+  }
+  materialized.sort((left, right) => left.globalIndex - right.globalIndex);
+
+  return {
+    total: cache.result.total,
+    matchLineNumbers: cache.result.matchLineNumbers,
+    window: {
+      matchIndexes: Float64Array.from(materialized.map(({ globalIndex }) => globalIndex)),
+      matches: materialized.map(({ match }) => match),
+    },
+  };
+};
+
 export interface LocalFileAccess {
   readonly name: string;
   readonly size: number;
@@ -515,40 +627,59 @@ export interface LocalFileAccess {
 const formatRecordText = (record: JsonlRecord) =>
   record.status === "failed" ? record.rawLine : stringifyJsonNode(record.node);
 
-export const createLocalFileAccess = (file: File): LocalFileAccess => ({
-  name: file.name,
-  size: file.size,
-  getFile: () => file,
-  readText: (onProgress, signal) => readFileText(file, onProgress, signal),
-  readRecords: (lineNumbers, signal) => readJsonlRecordsByLine(file, new Set(lineNumbers), signal),
-  resolveRecords: async (records, signal) => {
-    const resolved = await readJsonlRecordsByLine(
-      file,
-      new Set(records.map((record) => record.lineNumber)),
-      signal,
-    );
-    return records.map((record) => resolved.get(record.lineNumber) ?? record);
-  },
-  streamRecords: (lineNumbers, onRecord, signal) =>
-    streamJsonlRecords(file, lineNumbers, onRecord, signal),
-  readRecordText: async (record, signal) => {
-    const resolved = (await readJsonlRecordsByLine(file, new Set([record.lineNumber]), signal)).get(
-      record.lineNumber,
-    );
-    if (resolved) {
-      return formatRecordText(resolved);
-    }
-    return record.status === "failed" ? record.rawLine : record.summary;
-  },
-  readRecordTextByLine: async (lineNumber, signal) => {
-    const line = (await readJsonlLinesByNumber(file, new Set([lineNumber]), signal)).get(
-      lineNumber,
-    );
-    if (line === undefined) {
-      throw new Error(`Record line ${lineNumber} was not found`);
-    }
-    return line;
-  },
-  search: (query, options, signal, windowIndexes) =>
-    searchJsonlFile(file, query, options, signal, windowIndexes),
-});
+export const createLocalFileAccess = (file: File): LocalFileAccess => {
+  let searchCache: FileSearchCache | null = null;
+
+  return {
+    name: file.name,
+    size: file.size,
+    getFile: () => file,
+    readText: (onProgress, signal) => readFileText(file, onProgress, signal),
+    readRecords: (lineNumbers, signal) =>
+      readJsonlRecordsByLine(file, new Set(lineNumbers), signal),
+    resolveRecords: async (records, signal) => {
+      const resolved = await readJsonlRecordsByLine(
+        file,
+        new Set(records.map((record) => record.lineNumber)),
+        signal,
+      );
+      return records.map((record) => resolved.get(record.lineNumber) ?? record);
+    },
+    streamRecords: (lineNumbers, onRecord, signal) =>
+      streamJsonlRecords(file, lineNumbers, onRecord, signal),
+    readRecordText: async (record, signal) => {
+      const resolved = (
+        await readJsonlRecordsByLine(file, new Set([record.lineNumber]), signal)
+      ).get(record.lineNumber);
+      if (resolved) {
+        return formatRecordText(resolved);
+      }
+      return record.status === "failed" ? record.rawLine : record.summary;
+    },
+    readRecordTextByLine: async (lineNumber, signal) => {
+      const line = (await readJsonlLinesByNumber(file, new Set([lineNumber]), signal)).get(
+        lineNumber,
+      );
+      if (line === undefined) {
+        throw new Error(`Record line ${lineNumber} was not found`);
+      }
+      return line;
+    },
+    search: async (query, options, signal, windowIndexes) => {
+      const cachedSearch = searchCache;
+      if (cachedSearch && hasSameSearch(cachedSearch, query, options)) {
+        return windowIndexes
+          ? measurePerfAsync("search:file", () =>
+              materializeSearchWindow(file, cachedSearch, signal, windowIndexes),
+            )
+          : cachedSearch.result;
+      }
+
+      const result = await searchJsonlFile(file, query, options, signal, windowIndexes);
+      if (result && !signal.aborted) {
+        searchCache = { query, options: { ...options }, result };
+      }
+      return result;
+    },
+  };
+};
