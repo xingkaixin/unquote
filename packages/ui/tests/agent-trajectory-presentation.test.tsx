@@ -965,6 +965,7 @@ describe("createAgentTrajectoryPresentation", () => {
       fileType: "Codex",
       meta: { eventCount: 3, turnCount: 1 },
       parseWarnings: [],
+      parseWarningCount: 0,
       events: [
         {
           ...eventFor("lifecycle-start", "Start", ""),

@@ -56,9 +56,9 @@ export const AgentFactsPane = ({ session, model }: AgentFactsPaneProps) => {
         {session.fileName ? (
           <Chip tone="border-border-medium text-text-secondary">{session.fileName}</Chip>
         ) : null}
-        {session.parseWarnings.length > 0 ? (
+        {session.parseWarningCount > 0 ? (
           <Chip tone="border-error text-error">
-            {t("agent.warnings", { count: session.parseWarnings.length })}
+            {t("agent.warnings", { count: session.parseWarningCount })}
           </Chip>
         ) : null}
       </div>

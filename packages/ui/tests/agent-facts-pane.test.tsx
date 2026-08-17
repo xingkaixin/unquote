@@ -43,6 +43,7 @@ const session: AgentSession = {
   },
   events: [toolEvent],
   parseWarnings: [{ lineNumber: 3, message: "Invalid JSON on this line" }],
+  parseWarningCount: 1,
 };
 
 const renderPane = (next: AgentSession = session) => {
@@ -73,6 +74,12 @@ describe("AgentFactsPane", () => {
     expect(screen.getByText("1 warnings")).toBeInTheDocument();
   });
 
+  it("shows the total when warning details are bounded", () => {
+    renderPane({ ...session, parseWarningCount: 150 });
+
+    expect(screen.getByText("150 warnings")).toBeInTheDocument();
+  });
+
   it("composes the working directory and version under the session id", () => {
     renderPane();
 
@@ -95,6 +102,7 @@ describe("AgentFactsPane", () => {
       meta: { sessionId: "session-1", eventCount: 1, turnCount: 0 },
       events: session.events,
       parseWarnings: [],
+      parseWarningCount: 0,
     });
 
     expect(screen.getByText("session-1")).toBeInTheDocument();

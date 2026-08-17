@@ -44,6 +44,7 @@ const modelFor = (entries: AgentConversationEntry[]) => {
     meta: { eventCount: entries.length, turnCount: 1 },
     events: entries.map(({ item, event }) => ({ ...event, conversationItems: [item] })),
     parseWarnings: [],
+    parseWarningCount: 0,
   };
   return createAgentSessionModel(session);
 };

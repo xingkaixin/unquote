@@ -804,11 +804,7 @@ export const codexRolloutAdapter: AgentSessionAdapter = {
 
     let hits = 0;
     for (const sample of samples) {
-      if (!isRecord(sample.data)) {
-        continue;
-      }
-      const type = getString(sample.data, "type");
-      if (type && codexEnvelopeTypes.has(type) && isRecord(sample.data.payload)) {
+      if (sample.type && codexEnvelopeTypes.has(sample.type) && sample.hasObjectPayload) {
         hits += 1;
       }
     }

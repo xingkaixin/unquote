@@ -27,6 +27,7 @@ const createSession = (eventCount: number): AgentSession => ({
     conversationItems: [],
   })),
   parseWarnings: [],
+  parseWarningCount: 0,
 });
 
 const renderOutputView = (initialProps: OutputViewProps) =>

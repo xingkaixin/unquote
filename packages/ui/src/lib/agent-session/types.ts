@@ -187,6 +187,7 @@ export interface AgentSession {
   meta: AgentSessionMeta;
   events: AgentTimelineEvent[];
   parseWarnings: AgentParseWarning[];
+  parseWarningCount: number;
 }
 
 export type AgentCanonicalSelection =
@@ -398,6 +399,14 @@ export interface ParsedAgentLine {
   data: unknown;
 }
 
+export interface AgentDetectionSample {
+  type: string | undefined;
+  hasObjectPayload: boolean;
+  hasUuid: boolean;
+  hasObjectMessage: boolean;
+  hasSessionId: boolean;
+}
+
 export interface AgentAdapterBuilder {
   push(line: ParsedAgentLine): void;
   finish(parseWarnings: AgentParseWarning[]): AgentSession;
@@ -406,6 +415,6 @@ export interface AgentAdapterBuilder {
 export interface AgentSessionAdapter {
   // Same value the builder's finish() writes into session.fileType.
   fileType: AgentSession["fileType"];
-  detect(samples: ParsedAgentLine[]): number;
+  detect(samples: AgentDetectionSample[]): number;
   createBuilder(fileName?: string): AgentAdapterBuilder;
 }

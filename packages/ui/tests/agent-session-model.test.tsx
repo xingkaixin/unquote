@@ -36,6 +36,7 @@ const session = (events: AgentTimelineEvent[]): AgentSession => ({
   meta: { eventCount: events.length, turnCount: 1 },
   events,
   parseWarnings: [],
+  parseWarningCount: 0,
 });
 
 describe("createAgentSessionModel", () => {
