@@ -4,6 +4,7 @@ import {
   materializeLosslessValue,
   validateJsonNumberLexeme,
 } from "./lossless-json.js";
+import { truncateAtCodePointBoundary } from "./utils.js";
 
 type SerializableValue =
   | { representation: "node"; value: JsonNode }
@@ -16,12 +17,15 @@ interface ContainerView {
   valueAt: (index: number) => SerializableValue;
 }
 
-type ResolvedValue = { literal: string } | { container: ContainerView };
+type ResolvedValue = { literal: string } | { string: string } | { container: ContainerView };
 
 const jsonLiteral = (value: string | boolean | null) => JSON.stringify(value);
 
 const resolveLosslessValue = (value: LosslessJsonValue): ResolvedValue => {
-  if (value === null || typeof value === "string" || typeof value === "boolean") {
+  if (typeof value === "string") {
+    return { string: value };
+  }
+  if (value === null || typeof value === "boolean") {
     return { literal: jsonLiteral(value) };
   }
   if (value.type === "number") {
@@ -95,6 +99,9 @@ const resolveNode = (node: JsonNode): ResolvedValue => {
             : "null",
     };
   }
+  if (node.kind === "string") {
+    return { string: node.value };
+  }
   return { literal: jsonLiteral(node.value) };
 };
 
@@ -112,52 +119,129 @@ const normalizedIndent = (indent: number | undefined) => {
   return Math.max(0, Math.min(10, Math.trunc(indent)));
 };
 
-export const stringifyJsonNode = (node: JsonNode, options: FormatOptions = {}) => {
+interface SerializationResult {
+  text: string;
+  truncated: boolean;
+}
+
+interface SerializationWriter {
+  append(value: string): boolean;
+  appendJsonString(value: string): boolean;
+  finish(): SerializationResult;
+  readonly truncated: boolean;
+}
+
+const normalizedMaxLength = (maxLength: number) =>
+  Number.isFinite(maxLength) ? Math.max(0, Math.trunc(maxLength)) : 0;
+
+const createWriter = (maxLength?: number): SerializationWriter => {
+  const chunks: string[] = [];
+  let length = 0;
+  let truncated = false;
+
+  const append = (value: string) => {
+    if (truncated) {
+      return false;
+    }
+    if (maxLength === undefined || length + value.length <= maxLength) {
+      chunks.push(value);
+      length += value.length;
+      return true;
+    }
+
+    const prefix = truncateAtCodePointBoundary(value, maxLength - length);
+    if (prefix) {
+      chunks.push(prefix);
+      length += prefix.length;
+    }
+    truncated = true;
+    return false;
+  };
+
+  return {
+    append,
+    appendJsonString(value) {
+      if (maxLength === undefined) {
+        return append(jsonLiteral(value));
+      }
+      if (!append('"')) {
+        return false;
+      }
+      for (const character of value) {
+        if (!append(jsonLiteral(character).slice(1, -1))) {
+          return false;
+        }
+      }
+      return append('"');
+    },
+    finish: () => ({ text: chunks.join(""), truncated }),
+    get truncated() {
+      return truncated;
+    },
+  };
+};
+
+const serializeJsonNode = (
+  node: JsonNode,
+  options: FormatOptions,
+  maxLength?: number,
+): SerializationResult => {
   const indentation = " ".repeat(normalizedIndent(options.indent));
   const pretty = indentation.length > 0;
-  const chunks: string[] = [];
+  const writer = createWriter(maxLength);
   const pending: SerializationTask[] = [
     { type: "value", source: { representation: "node", value: node }, depth: 0 },
   ];
 
-  while (pending.length > 0) {
+  while (pending.length > 0 && !writer.truncated) {
     const task = pending.pop()!;
     if (task.type === "value") {
       const resolved = resolveValue(task.source);
       if ("literal" in resolved) {
-        chunks.push(resolved.literal);
+        writer.append(resolved.literal);
+        continue;
+      }
+      if ("string" in resolved) {
+        writer.appendJsonString(resolved.string);
         continue;
       }
 
       const { container } = resolved;
-      chunks.push(container.kind === "array" ? "[" : "{");
+      if (!writer.append(container.kind === "array" ? "[" : "{")) {
+        break;
+      }
       if (container.length === 0) {
-        chunks.push(container.kind === "array" ? "]" : "}");
+        writer.append(container.kind === "array" ? "]" : "}");
         continue;
       }
-      if (pretty) {
-        chunks.push("\n");
+      if (pretty && !writer.append("\n")) {
+        break;
       }
       pending.push({ type: "container", view: container, index: 0, depth: task.depth });
       continue;
     }
 
     if (task.index >= task.view.length) {
-      if (pretty) {
-        chunks.push("\n", indentation.repeat(task.depth));
+      if (pretty && !writer.append(`\n${indentation.repeat(task.depth)}`)) {
+        break;
       }
-      chunks.push(task.view.kind === "array" ? "]" : "}");
+      writer.append(task.view.kind === "array" ? "]" : "}");
       continue;
     }
 
-    if (task.index > 0) {
-      chunks.push(",", pretty ? "\n" : "");
+    if (task.index > 0 && !writer.append(pretty ? ",\n" : ",")) {
+      break;
     }
-    if (pretty) {
-      chunks.push(indentation.repeat(task.depth + 1));
+    if (pretty && !writer.append(indentation.repeat(task.depth + 1))) {
+      break;
     }
     if (task.view.kind === "object") {
-      chunks.push(JSON.stringify(task.view.keyAt(task.index)), pretty ? ": " : ":");
+      if (
+        !writer.appendJsonString(task.view.keyAt(task.index)) ||
+        !writer.append(pretty ? ": " : ":")
+      ) {
+        break;
+      }
     }
 
     pending.push({ ...task, index: task.index + 1 });
@@ -168,8 +252,17 @@ export const stringifyJsonNode = (node: JsonNode, options: FormatOptions = {}) =
     });
   }
 
-  return chunks.join("");
+  return writer.finish();
 };
+
+export const stringifyJsonNode = (node: JsonNode, options: FormatOptions = {}) =>
+  serializeJsonNode(node, options).text;
+
+export const stringifyJsonNodeBounded = (
+  node: JsonNode,
+  maxLength: number,
+  options: FormatOptions = {},
+) => serializeJsonNode(node, options, normalizedMaxLength(maxLength));
 
 export const materializeNode = (node: JsonNode, options: MaterializeOptions = {}): unknown => {
   if (node.kind === "object" && node.children) {
