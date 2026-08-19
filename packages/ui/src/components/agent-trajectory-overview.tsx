@@ -13,8 +13,17 @@ import {
   type AgentTrajectoryPresentation,
   type AgentTrajectoryTimeRange,
 } from "../lib/agent-session/trajectory-presentation";
-import { formatClockTime } from "../lib/format";
-import { formatTimestamp } from "./agent-session-format";
+import {
+  clampTrajectoryRange,
+  coordinateForTrajectoryRangeValue,
+  finiteTrajectoryRange,
+  formatTrajectoryRangeValue,
+  rangeCoordinateMax,
+  trajectoryRangeStep,
+  trajectoryRangeValueFromInput,
+  trajectoryTickOffsetLabel,
+  trajectoryTickTimeLabel,
+} from "./agent-trajectory-overview-range";
 import { formatTrajectoryDuration, trajectoryKindMessageKey } from "./agent-trajectory-format";
 import { Button } from "./button";
 import { RangeSlider } from "./range-slider";
@@ -23,7 +32,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 const ZOOM_FACTOR = 2;
 const SVG_HEIGHT = 3;
 const BUCKET_SEGMENT_INSET = 0.15;
-const RANGE_KEYBOARD_INCREMENT_COUNT = 100;
 // Above this many visible items the chart falls back to aggregated buckets so
 // the DOM stays bounded for large sessions. Typical sessions run a few hundred
 // items, so they get per-event spans; the trajectory DOM budget in
@@ -98,238 +106,6 @@ const bucketColorKey = (bucket: AgentTrajectoryOverviewBucket): ChartColorKey | 
   return bucket.kind;
 };
 
-const finiteRange = (range: AgentTrajectoryTimeRange | null) => {
-  if (
-    !range ||
-    !Number.isFinite(range.start) ||
-    !Number.isFinite(range.end) ||
-    range.start > range.end
-  ) {
-    return null;
-  }
-  return range;
-};
-
-const nextRepresentable = (value: number) => {
-  if (!Number.isFinite(value)) {
-    return value;
-  }
-  if (value === 0) {
-    return Number.MIN_VALUE;
-  }
-  const view = new DataView(new ArrayBuffer(Float64Array.BYTES_PER_ELEMENT));
-  view.setFloat64(0, value, false);
-  const bits = view.getBigUint64(0, false);
-  // Adjacent Float64 values move through bit patterns in opposite directions around zero.
-  view.setBigUint64(0, value > 0 ? bits + 1n : bits - 1n, false);
-  return view.getFloat64(0, false);
-};
-
-const previousRepresentable = (value: number) => -nextRepresentable(-value);
-
-const finiteDomainSpan = (domain: AgentTrajectoryTimeRange) => {
-  const span = domain.end - domain.start;
-  return Number.isFinite(span) && span >= 0 ? span : null;
-};
-
-const rangeCoordinateMax = (domain: AgentTrajectoryTimeRange) => finiteDomainSpan(domain) ?? 1;
-
-const usableStepWithin = (candidate: number, span: number) =>
-  Number.isFinite(candidate) && candidate > 0 && candidate <= span ? candidate : 0;
-
-const rangeStepFor = (domain: AgentTrajectoryTimeRange | null) => {
-  if (!domain) {
-    return 1;
-  }
-  const span = finiteDomainSpan(domain);
-  if (span === null) {
-    return 1 / RANGE_KEYBOARD_INCREMENT_COUNT;
-  }
-  if (span === 0) {
-    return 1;
-  }
-  const startResolution = usableStepWithin(nextRepresentable(domain.start) - domain.start, span);
-  const endResolution = usableStepWithin(domain.end - previousRepresentable(domain.end), span);
-  const candidate = Math.max(span / RANGE_KEYBOARD_INCREMENT_COUNT, startResolution, endResolution);
-  return candidate > 0 && Number.isFinite(candidate) ? Math.min(candidate, span) : span;
-};
-
-const clampCoordinate = (value: number, maximum: number) => Math.min(maximum, Math.max(0, value));
-
-const coordinateForRangeValue = (value: number, domain: AgentTrajectoryTimeRange) => {
-  if (value <= domain.start) {
-    return 0;
-  }
-  const maximum = rangeCoordinateMax(domain);
-  if (value >= domain.end) {
-    return maximum;
-  }
-  const span = finiteDomainSpan(domain);
-  if (span !== null) {
-    return clampCoordinate(value - domain.start, span);
-  }
-  const scale = Math.max(Math.abs(domain.start), Math.abs(domain.end));
-  const scaledStart = domain.start / scale;
-  const scaledSpan = domain.end / scale - scaledStart;
-  const coordinate = (value / scale - scaledStart) / scaledSpan;
-  return Number.isFinite(coordinate) ? clampCoordinate(coordinate, 1) : 0;
-};
-
-const rangeValueForCoordinate = (coordinate: number, domain: AgentTrajectoryTimeRange) => {
-  const maximum = rangeCoordinateMax(domain);
-  const clamped = clampCoordinate(coordinate, maximum);
-  if (clamped === 0) {
-    return domain.start;
-  }
-  if (clamped === maximum) {
-    return domain.end;
-  }
-  const span = finiteDomainSpan(domain);
-  if (span !== null) {
-    return domain.start + clamped;
-  }
-  return domain.start * (1 - clamped) + domain.end * clamped;
-};
-
-const snapRangeCoordinate = (value: number, maximum: number, step: number) => {
-  const clamped = clampCoordinate(value, maximum);
-  if (clamped === 0 || clamped === maximum) {
-    return clamped;
-  }
-  return clampCoordinate(Math.round(clamped / step) * step, maximum);
-};
-
-const rangeValueFromInput = (
-  value: string,
-  currentValue: number,
-  domain: AgentTrajectoryTimeRange,
-) => {
-  const coordinate = Number(value);
-  if (!Number.isFinite(coordinate)) {
-    return null;
-  }
-  const maximum = rangeCoordinateMax(domain);
-  const snapped = snapRangeCoordinate(coordinate, maximum, rangeStepFor(domain));
-  const currentCoordinate = coordinateForRangeValue(currentValue, domain);
-  const candidate = rangeValueForCoordinate(snapped, domain);
-  if (snapped > currentCoordinate && candidate <= currentValue) {
-    const next = nextRepresentable(currentValue);
-    return next <= domain.end ? next : currentValue;
-  }
-  if (snapped < currentCoordinate && candidate >= currentValue) {
-    const previous = previousRepresentable(currentValue);
-    return previous >= domain.start ? previous : currentValue;
-  }
-  return Math.min(domain.end, Math.max(domain.start, candidate));
-};
-
-const fractionalSecondDigitsFor = (domain: AgentTrajectoryTimeRange) => {
-  const span = domain.end - domain.start;
-  if (!Number.isFinite(span) || span >= 100_000) {
-    return 0;
-  }
-  if (span >= 10_000) {
-    return 1;
-  }
-  if (span >= 1_000) {
-    return 2;
-  }
-  return 3;
-};
-
-const formatPreciseTimestamp = (
-  value: number,
-  locale: "en" | "zh-CN",
-  fractionalSecondDigits: 0 | 1 | 2 | 3,
-) => {
-  if (fractionalSecondDigits === 0) {
-    return formatTimestamp(value, undefined, locale);
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    fractionalSecondDigits,
-  }).format(date);
-};
-
-const formatSubMillisecondOffset = (offset: number, locale: "en" | "zh-CN") =>
-  new Intl.NumberFormat(locale, {
-    style: "unit",
-    unit: "millisecond",
-    unitDisplay: "short",
-    signDisplay: "always",
-    notation: offset !== 0 && Math.abs(offset) < 0.001 ? "scientific" : "standard",
-    maximumSignificantDigits: 15,
-  }).format(offset);
-
-const formatRangeValue = (
-  value: number,
-  domain: AgentTrajectoryTimeRange,
-  locale: "en" | "zh-CN",
-) => {
-  const wholeMilliseconds = Math.trunc(value);
-  const timestamp = formatPreciseTimestamp(
-    wholeMilliseconds,
-    locale,
-    fractionalSecondDigitsFor(domain),
-  );
-  const readable =
-    timestamp ||
-    new Intl.NumberFormat(locale, {
-      notation: "scientific",
-      maximumSignificantDigits: 17,
-    }).format(value);
-  const fractionalMilliseconds = value - wholeMilliseconds;
-  return fractionalMilliseconds !== 0
-    ? `${readable} · ${formatSubMillisecondOffset(fractionalMilliseconds, locale)}`
-    : readable;
-};
-
-// Beyond this offset a duration in minutes prints hundreds of digits, so
-// switch to scientific milliseconds. Also past the valid Date range.
-const HUGE_TICK_OFFSET_MS = 1e15;
-
-const tickTimeLabel = (value: number, locale: "en" | "zh-CN") => {
-  if (Number.isNaN(new Date(value).getTime())) {
-    return new Intl.NumberFormat(locale, {
-      notation: "scientific",
-      maximumSignificantDigits: 6,
-    }).format(value);
-  }
-  return formatClockTime(value, locale);
-};
-
-const tickOffsetLabel = (offsetMs: number, locale: "en" | "zh-CN") => {
-  if (!Number.isFinite(offsetMs) || offsetMs > HUGE_TICK_OFFSET_MS) {
-    return `+${new Intl.NumberFormat(locale, {
-      style: "unit",
-      unit: "millisecond",
-      unitDisplay: "short",
-      notation: "scientific",
-      maximumSignificantDigits: 4,
-    }).format(offsetMs)}`;
-  }
-  return `+${formatTrajectoryDuration(offsetMs, locale)}`;
-};
-
-const clampToRange = (range: AgentTrajectoryTimeRange | null, bounds: AgentTrajectoryTimeRange) => {
-  const candidate = finiteRange(range);
-  if (!candidate) {
-    return bounds;
-  }
-  const start = Math.min(bounds.end, Math.max(bounds.start, candidate.start));
-  const end = Math.min(bounds.end, Math.max(bounds.start, candidate.end));
-  return start <= end ? { start, end } : { start: end, end: start };
-};
-
 // Ascending stroke widths so denser buckets read as heavier marks.
 const DENSITY_STROKE_WIDTHS = [0.08, 0.14, 0.22] as const;
 
@@ -397,7 +173,7 @@ export const AgentTrajectoryOverview = ({
   const { locale, t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-  const domain = finiteRange(presentation.timeDomain);
+  const domain = finiteTrajectoryRange(presentation.timeDomain);
   const timeFactCount = domain ? Math.max(1, presentation.timedItemCount) : 0;
   // The selected time range IS the viewport: narrowing the range zooms the
   // chart into it while the same range filters the ledger below.
@@ -434,7 +210,7 @@ export const AgentTrajectoryOverview = ({
     return () => observer.disconnect();
   }, [domain?.end, domain?.start]);
 
-  const selectedRange = domain ? clampToRange(timeRange, domain) : null;
+  const selectedRange = domain ? clampTrajectoryRange(timeRange, domain) : null;
   const timeScale = useMemo(
     () => createTrajectoryTimeScale(presentation, activeViewport),
     [activeViewport?.end, activeViewport?.start, presentation],
@@ -448,27 +224,28 @@ export const AgentTrajectoryOverview = ({
   // The middle tick follows the compressed axis so it lands mid-chart.
   const tickLabels = activeViewport
     ? [
-        tickTimeLabel(Math.trunc(activeViewport.start), locale),
-        tickOffsetLabel(
+        trajectoryTickTimeLabel(Math.trunc(activeViewport.start), locale),
+        trajectoryTickOffsetLabel(
           timeScale
             ? timeScale.fromRatio(0.5) - activeViewport.start
             : (activeViewport.end - activeViewport.start) / 2,
           locale,
         ),
-        tickOffsetLabel(activeViewport.end - activeViewport.start, locale),
+        trajectoryTickOffsetLabel(activeViewport.end - activeViewport.start, locale),
       ]
     : [];
   const controlsDisabled = !domain;
   const inputMin = 0;
   const inputMax = domain ? rangeCoordinateMax(domain) : 0;
   const inputStart =
-    domain && selectedRange ? coordinateForRangeValue(selectedRange.start, domain) : 0;
-  const inputEnd = domain && selectedRange ? coordinateForRangeValue(selectedRange.end, domain) : 0;
-  const inputStep = rangeStepFor(domain);
+    domain && selectedRange ? coordinateForTrajectoryRangeValue(selectedRange.start, domain) : 0;
+  const inputEnd =
+    domain && selectedRange ? coordinateForTrajectoryRangeValue(selectedRange.end, domain) : 0;
+  const inputStep = trajectoryRangeStep(domain);
   const rangeStartText =
-    domain && selectedRange ? formatRangeValue(selectedRange.start, domain, locale) : "";
+    domain && selectedRange ? formatTrajectoryRangeValue(selectedRange.start, domain, locale) : "";
   const rangeEndText =
-    domain && selectedRange ? formatRangeValue(selectedRange.end, domain, locale) : "";
+    domain && selectedRange ? formatTrajectoryRangeValue(selectedRange.end, domain, locale) : "";
 
   const changeRange = (next: readonly number[]) => {
     if (!domain || !selectedRange || next.length !== 2) {
@@ -479,11 +256,11 @@ export const AgentTrajectoryOverview = ({
     const nextStart =
       next[0] === inputStart
         ? selectedRange.start
-        : rangeValueFromInput(String(next[0]), selectedRange.start, domain);
+        : trajectoryRangeValueFromInput(String(next[0]), selectedRange.start, domain);
     const nextEnd =
       next[1] === inputEnd
         ? selectedRange.end
-        : rangeValueFromInput(String(next[1]), selectedRange.end, domain);
+        : trajectoryRangeValueFromInput(String(next[1]), selectedRange.end, domain);
     if (nextStart === null || nextEnd === null) {
       return;
     }
