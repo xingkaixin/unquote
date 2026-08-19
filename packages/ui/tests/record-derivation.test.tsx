@@ -113,17 +113,18 @@ describe("record derivation", () => {
     expect(preview.insight?.timestamp).toBe("9007199254740993");
   });
 
-  it("reuses the insight map instance across appends", () => {
+  it("publishes a new insight map without mutating the previous snapshot", () => {
     const records = parseRecords(sampleLines).slice(0, 1);
-    const state = createRecordDerivationState();
+    const initialState = createRecordDerivationState();
 
-    const first = updateRecordDerivations(records, state);
+    const first = updateRecordDerivations(records, initialState);
     const appendedRecords = [...records, ...parseRecords(sampleLines).slice(1)];
-    const second = updateRecordDerivations(appendedRecords, state, {
+    const second = updateRecordDerivations(appendedRecords, first.state, {
       previousRecords: records,
     });
 
-    expect(second.insights).toBe(first.insights);
+    expect(second.insights).not.toBe(first.insights);
+    expect([...first.insights.keys()]).toEqual(["record-1"]);
     expect([...second.insights.keys()]).toEqual(["record-1", "record-2", "record-3"]);
   });
 
@@ -138,7 +139,7 @@ describe("record derivation", () => {
         }),
       ),
     );
-    const state = createRecordDerivationState();
+    let state = createRecordDerivationState();
     let streamedRecords: JsonlRecord[] = [];
 
     for (let offset = 0; offset < allRecords.length; offset += 17) {
@@ -149,6 +150,7 @@ describe("record derivation", () => {
         state,
         previousRecords.length > 0 ? { previousRecords } : null,
       );
+      state = derived.state;
       expect([...derived.insights]).toEqual([...createRecordInsightMap(streamedRecords)]);
       expect(derived.overview).toEqual(createFileOverview(streamedRecords));
     }

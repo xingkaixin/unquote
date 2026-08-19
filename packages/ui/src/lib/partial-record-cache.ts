@@ -8,6 +8,7 @@ export interface PartialRecordCache {
 }
 
 export interface PartialRecordCacheUpdate<T> {
+  cache: PartialRecordCache;
   rebuilt: boolean;
   processed: { record: JsonlRecord; value: T }[];
 }
@@ -34,7 +35,12 @@ export const updatePartialRecordCache = <T>(
     processed.push({ record, value: process(record) });
   }
 
-  state.records = records;
-  state.processedLength = records.length;
-  return { rebuilt, processed };
+  return {
+    cache: {
+      records,
+      processedLength: records.length,
+    },
+    rebuilt,
+    processed,
+  };
 };

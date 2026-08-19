@@ -95,7 +95,7 @@ describe("useRecordPipeline", () => {
     expect(pipeline.current.matchCount).toBe(0);
   });
 
-  it("reuses the same recordsById Map instance across a streamed append", () => {
+  it("publishes a new recordsById Map without mutating the previous snapshot", () => {
     const r1 = rec("r1");
     const r2 = rec("r2");
     const initialResult = buildResult([r1, r2]);
@@ -123,7 +123,13 @@ describe("useRecordPipeline", () => {
       recordAppend: { previousRecords: initialResult.records },
     });
 
-    expect(pipeline.current.recordsById).toBe(mapBeforeAppend);
+    expect(pipeline.current.recordsById).not.toBe(mapBeforeAppend);
+    expect(mapBeforeAppend).toEqual(
+      new Map([
+        ["r1", r1],
+        ["r2", r2],
+      ]),
+    );
     expect(pipeline.current.visibleRecordAppend).toEqual({
       previousRecords: initialResult.records,
     });
