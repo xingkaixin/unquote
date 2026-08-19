@@ -4,6 +4,10 @@ export const en = {
   "app.chrome": "Chrome Extension",
   "app.edge": "Edge Extension",
   "app.skipToContent": "Skip to main content",
+  "deferredLoad.title": "This view couldn't be loaded",
+  "deferredLoad.description":
+    "The application code may have changed, or the network may be unavailable.",
+  "deferredLoad.retry": "Try again",
   "theme.toggle": "Switch theme",
   "theme.light": "Light",
   "theme.dark": "Dark",

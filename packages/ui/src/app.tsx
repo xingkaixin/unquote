@@ -1,7 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { AppHeader } from "./components/app-header";
 import type { AgentTrajectoryViewProps } from "./components/agent-trajectory-view";
+import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
+import { DeferredLoadError } from "./components/deferred-load-error";
 import { Toaster } from "./components/sonner";
 import { SourceImportPanel } from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
@@ -9,6 +11,7 @@ import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
+import { useDeferredComponent } from "./hooks/use-deferred-component";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
@@ -119,22 +122,8 @@ export const UnquoteApp = ({
   const { intent: queryIntent } = query;
   const { setFilter } = queryIntent;
   const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
-  const [LoadedAgentTrajectoryView, setLoadedAgentTrajectoryView] =
-    useState<ComponentType<AgentTrajectoryViewProps> | null>(null);
-  useEffect(() => {
-    if (!agentSession || LoadedAgentTrajectoryView) {
-      return;
-    }
-    let active = true;
-    void loadAgentTrajectoryView().then((component) => {
-      if (active) {
-        setLoadedAgentTrajectoryView(() => component);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [agentSession, LoadedAgentTrajectoryView]);
+  const trajectoryView = useDeferredComponent(loadAgentTrajectoryView, Boolean(agentSession));
+  const LoadedAgentTrajectoryView = trajectoryView.component;
   const agentSessionModel = useMemo(
     () => (agentSession ? createAgentSessionModel(agentSession) : null),
     [agentSession],
@@ -310,34 +299,38 @@ export const UnquoteApp = ({
     />
   );
   const output = (
-    <Suspense fallback={null}>
-      {agentSession && agentSessionModel && outputView === "agent" ? (
-        <AgentSessionView
-          session={agentSession}
-          model={agentSessionModel}
-          isDesktop={isDesktop}
-          detailSelection={recordWorkspace.detailSelection}
-          onDetailSelectionChange={recordWorkspace.selectAgentDetail}
-          onOpenRecord={handleOpenRecord}
-        />
-      ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
-        LoadedAgentTrajectoryView ? (
-          <LoadedAgentTrajectoryView
+    <DeferredLoadBoundary resetKey={`${resultRevision}:${outputView}`}>
+      <Suspense fallback={null}>
+        {agentSession && agentSessionModel && outputView === "agent" ? (
+          <AgentSessionView
+            session={agentSession}
             model={agentSessionModel}
-            records={result.records}
-            resolveRecord={recordWorkspace.resolveRecord}
-            requestFullRecord={recordWorkspace.requestFullRecord}
             isDesktop={isDesktop}
-            filters={trajectoryFilters}
             detailSelection={recordWorkspace.detailSelection}
             onDetailSelectionChange={recordWorkspace.selectAgentDetail}
-            onOpenRecord={handleOpenTrajectoryRecord}
+            onOpenRecord={handleOpenRecord}
           />
-        ) : null
-      ) : (
-        <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
-      )}
-    </Suspense>
+        ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
+          trajectoryView.failed ? (
+            <DeferredLoadError onRetry={trajectoryView.retry} />
+          ) : LoadedAgentTrajectoryView ? (
+            <LoadedAgentTrajectoryView
+              model={agentSessionModel}
+              records={result.records}
+              resolveRecord={recordWorkspace.resolveRecord}
+              requestFullRecord={recordWorkspace.requestFullRecord}
+              isDesktop={isDesktop}
+              filters={trajectoryFilters}
+              detailSelection={recordWorkspace.detailSelection}
+              onDetailSelectionChange={recordWorkspace.selectAgentDetail}
+              onOpenRecord={handleOpenTrajectoryRecord}
+            />
+          ) : null
+        ) : (
+          <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
+        )}
+      </Suspense>
+    </DeferredLoadBoundary>
   );
   const emptyState = (
     <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
@@ -426,36 +419,38 @@ export const UnquoteApp = ({
           {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
         />
         {importOpen || commandPaletteOpen ? (
-          <Suspense fallback={null}>
-            {importOpen ? (
-              <ImportDialog open dismissible={hasData} onClose={() => setImportOpen(false)}>
-                {importPanel("h-[220px]")}
-              </ImportDialog>
-            ) : null}
-            {commandPaletteOpen ? (
-              <CommandPalette
-                open
-                inputValue={commandInput}
-                regex={searchRegex}
-                caseSensitive={searchCaseSensitive}
-                jq={searchJq}
-                matchCount={matchCount}
-                pathMatchCount={pathMatches.length}
-                visibleCount={visibleStats.total}
-                totalCount={result.stats.total}
-                filterMode={recordFilter}
-                nestedFilterScope={recordWorkspace.model.filter.nestedScope}
-                onClose={() => setCommandPaletteOpen(false)}
-                onInputChange={queryIntent.changeCommandInput}
-                onSearch={queryIntent.searchFromCommand}
-                onJumpPath={queryIntent.submitToolbarQuery}
-                onRegexChange={(value) => queryIntent.setOption("regex", value)}
-                onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
-                onJqChange={(value) => queryIntent.setOption("jq", value)}
-                onFilterChange={queryIntent.setFilter}
-              />
-            ) : null}
-          </Suspense>
+          <DeferredLoadBoundary resetKey={`${importOpen}:${commandPaletteOpen}`}>
+            <Suspense fallback={null}>
+              {importOpen ? (
+                <ImportDialog open dismissible={hasData} onClose={() => setImportOpen(false)}>
+                  {importPanel("h-[220px]")}
+                </ImportDialog>
+              ) : null}
+              {commandPaletteOpen ? (
+                <CommandPalette
+                  open
+                  inputValue={commandInput}
+                  regex={searchRegex}
+                  caseSensitive={searchCaseSensitive}
+                  jq={searchJq}
+                  matchCount={matchCount}
+                  pathMatchCount={pathMatches.length}
+                  visibleCount={visibleStats.total}
+                  totalCount={result.stats.total}
+                  filterMode={recordFilter}
+                  nestedFilterScope={recordWorkspace.model.filter.nestedScope}
+                  onClose={() => setCommandPaletteOpen(false)}
+                  onInputChange={queryIntent.changeCommandInput}
+                  onSearch={queryIntent.searchFromCommand}
+                  onJumpPath={queryIntent.submitToolbarQuery}
+                  onRegexChange={(value) => queryIntent.setOption("regex", value)}
+                  onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
+                  onJqChange={(value) => queryIntent.setOption("jq", value)}
+                  onFilterChange={queryIntent.setFilter}
+                />
+              ) : null}
+            </Suspense>
+          </DeferredLoadBoundary>
         ) : null}
         <Toaster theme={theme} />
       </div>
