@@ -1,6 +1,6 @@
 import type { ParseResult } from "@unquote/core";
 import { toast } from "sonner";
-import { useCallback, useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo } from "react";
 import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
 import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
@@ -285,15 +285,28 @@ export const useRecordWorkspace = ({
     ],
   );
 
-  if (
-    projectedSelection !== selection ||
-    searchExpansionSource !== queryMatches ||
-    projectedSearchExpandedPaths !== searchExpandedPaths
-  ) {
-    // React restarts this component before committing its children, so no pane
-    // can observe a stale selection paired with a new visible Record set.
+  useLayoutEffect(() => {
+    if (
+      projectedSelection === selection &&
+      searchExpansionSource === queryMatches &&
+      projectedSearchExpandedPaths === searchExpandedPaths
+    ) {
+      return;
+    }
+
+    // The current render already uses the pure projections above, so descendants
+    // commit coherently. Persist them before paint without updating state during
+    // render, preventing a hidden selection from reappearing later.
     workspace.commitQueryProjection(projectedSelection, queryMatches, projectedSearchExpandedPaths);
-  }
+  }, [
+    projectedSearchExpandedPaths,
+    projectedSelection,
+    queryMatches,
+    searchExpandedPaths,
+    searchExpansionSource,
+    selection,
+    workspace.commitQueryProjection,
+  ]);
 
   return {
     model,

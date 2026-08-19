@@ -26,10 +26,14 @@ describe("partial-record-cache", () => {
   });
 
   it("processes only an explicitly signaled immutable append", () => {
-    const state = createPartialRecordCache();
+    const initialState = createPartialRecordCache();
     const a = rec("a");
     const previousRecords = [a];
-    updatePartialRecordCache(previousRecords, state, (record) => record.id);
+    const state = updatePartialRecordCache(
+      previousRecords,
+      initialState,
+      (record) => record.id,
+    ).cache;
 
     const calls: string[] = [];
     const { rebuilt, processed } = updatePartialRecordCache(
@@ -48,10 +52,10 @@ describe("partial-record-cache", () => {
   });
 
   it("rebuilds when an append signal is missing", () => {
-    const state = createPartialRecordCache();
+    const initialState = createPartialRecordCache();
     const a = rec("a");
     const previousRecords = [a];
-    updatePartialRecordCache(previousRecords, state, (r) => r.id);
+    const state = updatePartialRecordCache(previousRecords, initialState, (r) => r.id).cache;
     const calls: string[] = [];
     const { rebuilt } = updatePartialRecordCache([a, rec("b")], state, (r) => {
       calls.push(r.id);
@@ -62,10 +66,14 @@ describe("partial-record-cache", () => {
   });
 
   it("rebuilds when the consumer did not process the signaled previous snapshot", () => {
-    const state = createPartialRecordCache();
+    const initialState = createPartialRecordCache();
     const a = rec("a");
     const processedRecords = [a];
-    updatePartialRecordCache(processedRecords, state, (record) => record.id);
+    const state = updatePartialRecordCache(
+      processedRecords,
+      initialState,
+      (record) => record.id,
+    ).cache;
 
     const skippedRecords = [a, rec("b")];
     const calls: string[] = [];
@@ -84,10 +92,10 @@ describe("partial-record-cache", () => {
   });
 
   it("rebuilds when an immutable snapshot changes the processed prefix", () => {
-    const state = createPartialRecordCache();
+    const initialState = createPartialRecordCache();
     const a = rec("a");
     const b = rec("b");
-    updatePartialRecordCache([a, b], state, (record) => record.id);
+    const state = updatePartialRecordCache([a, b], initialState, (record) => record.id).cache;
 
     const replacement = rec("a");
     const calls: string[] = [];
@@ -103,8 +111,19 @@ describe("partial-record-cache", () => {
 
   it("does not retain per-record derived values", () => {
     const state = createPartialRecordCache();
-    updatePartialRecordCache([rec("a"), rec("b")], state, (r) => r.id);
+    const updated = updatePartialRecordCache([rec("a"), rec("b")], state, (r) => r.id).cache;
 
-    expect(state).not.toHaveProperty("entries");
+    expect(updated).not.toHaveProperty("entries");
+  });
+
+  it("returns a new cache without mutating the previous snapshot", () => {
+    const previous = createPartialRecordCache();
+    const records = [rec("a")];
+
+    const updated = updatePartialRecordCache(records, previous, (record) => record.id).cache;
+
+    expect(updated).not.toBe(previous);
+    expect(previous).toEqual({ records: null, processedLength: 0 });
+    expect(updated).toEqual({ records, processedLength: 1 });
   });
 });

@@ -57,26 +57,32 @@ export const updateRecordDerivations = (
   records: JsonlRecord[],
   state: RecordDerivationState,
   recordAppend: RecordAppend | null = null,
-): { insights: Map<string, RecordInsight>; overview: FileOverview } => {
-  const { rebuilt, processed } = updatePartialRecordCache(
+): {
+  state: RecordDerivationState;
+  insights: Map<string, RecordInsight>;
+  overview: FileOverview;
+} => {
+  const { cache, rebuilt, processed } = updatePartialRecordCache(
     records,
     state.cache,
     deriveRecord,
     recordAppend,
   );
-  if (rebuilt) {
-    state.insights = new Map();
-    state.overview = createFileOverviewAggregate();
-  }
+  const insights = rebuilt ? new Map<string, RecordInsight>() : new Map(state.insights);
+  const overview = rebuilt ? createFileOverviewAggregate() : { ...state.overview };
 
   for (const { record, value } of processed) {
     if (value.insight) {
-      state.insights.set(record.id, value.insight);
+      insights.set(record.id, value.insight);
     } else {
-      state.insights.delete(record.id);
+      insights.delete(record.id);
     }
-    addSummaryToFileOverview(state.overview, record, value.overview);
+    addSummaryToFileOverview(overview, record, value.overview);
   }
 
-  return { insights: state.insights, overview: toFileOverview(state.overview, records.length) };
+  return {
+    state: { cache, insights, overview },
+    insights,
+    overview: toFileOverview(overview, records.length),
+  };
 };

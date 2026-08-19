@@ -69,10 +69,15 @@ export const useRecordPipeline = ({
 
   // Insights and the file overview share one traversal per record, so they are
   // derived together rather than as two independent memos.
-  const derivations = useMemo(
-    () => updateRecordDerivations(result.records, derivationStateRef.current, recordAppend),
-    [recordAppend, result.records],
-  );
+  const derivations = useMemo(() => {
+    const update = updateRecordDerivations(
+      result.records,
+      derivationStateRef.current,
+      recordAppend,
+    );
+    derivationStateRef.current = update.state;
+    return update;
+  }, [recordAppend, result.records]);
   const recordInsights = derivations.insights;
   const fileOverview = derivations.overview;
   const recordsById = useMemo(() => {
@@ -81,12 +86,15 @@ export const useRecordPipeline = ({
     const prevRecords = state.records;
     const isRecordAppend = isRecordAppendFrom(prevRecords, records, recordAppend);
 
-    // Reusing the Map avoids rebuilding every prior entry for each streamed tail.
+    // Copy-on-write keeps the Map returned by a committed render immutable while
+    // still avoiding record traversal for the already indexed prefix.
     if (isRecordAppend && prevRecords) {
+      const nextMap = new Map(state.map);
       for (let index = prevRecords.length; index < records.length; index += 1) {
         const record = records[index]!;
-        state.map.set(record.id, record);
+        nextMap.set(record.id, record);
       }
+      state.map = nextMap;
     } else {
       state.map = new Map(records.map((record) => [record.id, record]));
     }
