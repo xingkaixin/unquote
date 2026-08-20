@@ -2,6 +2,7 @@ import type { JsonKind, MaterializeOptions } from "./types.js";
 import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 
 export const DEFAULT_MAX_DEPTH = 100;
+export const MAX_SUPPORTED_DEPTH = 1_000;
 
 export const getJsonKind = (value: unknown): JsonKind => {
   if (value === null) {
