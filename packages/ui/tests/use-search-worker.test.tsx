@@ -600,6 +600,20 @@ describe("useSearchWorker", () => {
     ).toBe(false);
   });
 
+  it("resets to pending immediately when the query changes, never exposing stale matches", () => {
+    const { rerender } = render(<Probe query="a" text="text" />);
+    const worker = MockWorker.instances[0]!;
+    act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("record-3") }));
+
+    const committed = rendersCommittedDuring(() => rerender(<Probe query="b" text="text" />));
+
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(screen.getByTestId("record-id")).toHaveTextContent("");
+    expect(
+      committed.some((entry) => entry.status === "complete" && entry.matches === "record-3"),
+    ).toBe(false);
+  });
+
   it("resets to pending immediately on rerender when options change, never exposing stale matches", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;

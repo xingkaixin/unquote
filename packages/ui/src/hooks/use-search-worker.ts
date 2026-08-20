@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
-import { belongsToSourceRevision, commitSourceRevisionResult } from "../lib/source-revision";
+import { commitSourceRevisionResult } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
@@ -25,8 +25,15 @@ export type SearchWorkerErrorKind =
   | "too-large"
   | "regex-without-worker";
 
-interface SearchWorkerState {
+interface SearchIdentity {
   sourceRevision: SourceRevision;
+  query: string;
+  regex: boolean;
+  caseSensitive: boolean;
+  jq: boolean;
+}
+
+interface SearchWorkerState extends SearchIdentity {
   result: SearchResultSet | null;
   status: SearchWorkerStatus;
   errorKind: SearchWorkerErrorKind | null;
@@ -36,22 +43,53 @@ type SearchWorkerStateUpdate =
   | SearchWorkerState
   | ((current: SearchWorkerState) => SearchWorkerState);
 
-export interface SearchWorkerResult extends SearchWorkerState {
+export interface SearchWorkerResult {
+  sourceRevision: SourceRevision;
+  result: SearchResultSet | null;
+  status: SearchWorkerStatus;
+  errorKind: SearchWorkerErrorKind | null;
   requestWindow: (matchIndexes: Float64Array) => void;
 }
 
-const idleResult = (sourceRevision: SourceRevision): SearchWorkerState => ({
+const createSearchIdentity = (
+  sourceRevision: SourceRevision,
+  query: string,
+  options: SearchOptions,
+): SearchIdentity => ({
   sourceRevision,
+  query,
+  regex: options.regex,
+  caseSensitive: options.caseSensitive,
+  jq: options.jq,
+});
+
+const hasSameSearchIdentity = (left: SearchIdentity, right: SearchIdentity) =>
+  left.sourceRevision === right.sourceRevision &&
+  left.query === right.query &&
+  left.regex === right.regex &&
+  left.caseSensitive === right.caseSensitive &&
+  left.jq === right.jq;
+
+const idleResult = (identity: SearchIdentity): SearchWorkerState => ({
+  ...identity,
   result: null,
   status: "idle",
   errorKind: null,
 });
-const pendingResult = (sourceRevision: SourceRevision): SearchWorkerState => ({
-  sourceRevision,
+const pendingResult = (identity: SearchIdentity): SearchWorkerState => ({
+  ...identity,
   result: null,
   status: "pending",
   errorKind: null,
 });
+const completedResult = (
+  identity: SearchIdentity,
+  result: SearchResultSet | null,
+): SearchWorkerState => ({ ...identity, result, status: "complete", errorKind: null });
+const failedResult = (
+  identity: SearchIdentity,
+  errorKind: SearchWorkerErrorKind,
+): SearchWorkerState => ({ ...identity, result: null, status: "error", errorKind });
 
 const buildSearchRequest = (
   requestId: number,
@@ -95,12 +133,7 @@ const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileSearchAccess | null) =>
     ? largeFileSearchWorkerTimeoutMs
     : searchWorkerTimeoutMs;
 
-interface SearchWindowRequest {
-  sourceRevision: SourceRevision;
-  query: string;
-  regex: boolean;
-  caseSensitive: boolean;
-  jq: boolean;
+interface SearchWindowRequest extends SearchIdentity {
   matchIndexes: Float64Array;
 }
 
@@ -116,18 +149,6 @@ const hasSameIndexes = (left: Float64Array, right: Float64Array) => {
   return true;
 };
 
-const belongsToSearch = (
-  request: SearchWindowRequest | null,
-  sourceRevision: SourceRevision,
-  query: string,
-  options: SearchOptions,
-) =>
-  request?.sourceRevision === sourceRevision &&
-  request.query === query &&
-  request.regex === options.regex &&
-  request.caseSensitive === options.caseSensitive &&
-  request.jq === options.jq;
-
 export const useSearchWorker = (params: {
   source: SourceWorkProjection;
   query: string;
@@ -136,13 +157,22 @@ export const useSearchWorker = (params: {
   // within the window fires. Defaults to 0 (dispatch immediately).
   debounceMs?: number;
 }): SearchWorkerResult => {
-  const { source, query, options, debounceMs = 0 } = params;
+  const { source, query, options: requestedOptions, debounceMs = 0 } = params;
   const { text, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
-  // Seed both states from the mount-time inputs so the first render already
-  // matches what the reconciliation below would otherwise compute one pass
-  // later, avoiding a guaranteed extra render-phase setState on every mount.
+  const options = useMemo<SearchOptions>(
+    () => ({
+      regex: requestedOptions.regex,
+      caseSensitive: requestedOptions.caseSensitive,
+      jq: requestedOptions.jq,
+    }),
+    [requestedOptions.caseSensitive, requestedOptions.jq, requestedOptions.regex],
+  );
+  const searchIdentity = useMemo(
+    () => createSearchIdentity(sourceRevision, query, options),
+    [options, query, sourceRevision],
+  );
   const [state, setState] = useState<SearchWorkerState>(() =>
-    query ? pendingResult(sourceRevision) : idleResult(sourceRevision),
+    query ? pendingResult(searchIdentity) : idleResult(searchIdentity),
   );
   const commitState = useCallback((update: SearchWorkerStateUpdate) => {
     setState((current) =>
@@ -154,7 +184,7 @@ export const useSearchWorker = (params: {
   const workerSourceRevisionRef = useRef<SourceRevision | null>(null);
   const [windowRequest, setWindowRequest] = useState<SearchWindowRequest | null>(null);
   const activeWindowIndexes =
-    windowRequest && belongsToSearch(windowRequest, sourceRevision, query, options)
+    windowRequest && hasSameSearchIdentity(windowRequest, searchIdentity)
       ? windowRequest.matchIndexes
       : undefined;
   const requestWindow = useCallback(
@@ -166,47 +196,19 @@ export const useSearchWorker = (params: {
       setWindowRequest((current) => {
         if (
           current &&
-          belongsToSearch(current, sourceRevision, query, options) &&
+          hasSameSearchIdentity(current, searchIdentity) &&
           hasSameIndexes(current.matchIndexes, nextIndexes)
         ) {
           return current;
         }
         return {
-          sourceRevision,
-          query,
-          regex: options.regex,
-          caseSensitive: options.caseSensitive,
-          jq: options.jq,
+          ...searchIdentity,
           matchIndexes: nextIndexes,
         };
       });
     },
-    [options.caseSensitive, options.jq, options.regex, query, sourceRevision],
+    [searchIdentity],
   );
-
-  const [lastInputs, setLastInputs] = useState(() => ({
-    text,
-    forcedFormat,
-    sourceAccess,
-    query,
-    options,
-    sourceRevision,
-  }));
-  const inputsChanged =
-    lastInputs.text !== text ||
-    lastInputs.forcedFormat !== forcedFormat ||
-    lastInputs.sourceAccess !== sourceAccess ||
-    lastInputs.query !== query ||
-    lastInputs.options !== options ||
-    lastInputs.sourceRevision !== sourceRevision;
-  // Reset state synchronously during render (not in the effect below) so no
-  // committed render can ever pair new inputs with stale matches from a
-  // prior source: record ids collide across sources, so a stale match
-  // would otherwise highlight the wrong record for one frame.
-  if (inputsChanged) {
-    setLastInputs({ text, forcedFormat, sourceAccess, query, options, sourceRevision });
-    commitState(query ? pendingResult(sourceRevision) : idleResult(sourceRevision));
-  }
 
   useEffect(
     () => () => {
@@ -221,12 +223,12 @@ export const useSearchWorker = (params: {
   useEffect(() => {
     if (!query) {
       requestIdRef.current += 1;
-      commitState(idleResult(sourceRevision));
+      commitState(idleResult(searchIdentity));
       return;
     }
 
     if (!activeWindowIndexes) {
-      commitState(pendingResult(sourceRevision));
+      commitState(pendingResult(searchIdentity));
     }
 
     // The dispatched request's cleanup (worker listener/timeout, or the
@@ -245,12 +247,7 @@ export const useSearchWorker = (params: {
       const searchOnMainThread = () => {
         if (options.regex) {
           finishRequestMeasure();
-          commitState({
-            sourceRevision,
-            result: null,
-            status: "error",
-            errorKind: "regex-without-worker",
-          });
+          commitState(failedResult(searchIdentity, "regex-without-worker"));
           return;
         }
 
@@ -261,18 +258,13 @@ export const useSearchWorker = (params: {
             .then((result) => {
               finishRequestMeasure();
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
-                commitState({ sourceRevision, result, status: "complete", errorKind: null });
+                commitState(completedResult(searchIdentity, result));
               }
             })
             .catch(() => {
               finishRequestMeasure();
               if (!controller.signal.aborted && requestIdRef.current === requestId) {
-                commitState({
-                  sourceRevision,
-                  result: null,
-                  status: "error",
-                  errorKind: "worker-error",
-                });
+                commitState(failedResult(searchIdentity, "worker-error"));
               }
             });
           dispatchCleanup = () => controller.abort();
@@ -285,19 +277,14 @@ export const useSearchWorker = (params: {
         // between chunks.
         if (!isWithinMainThreadBudget(text.length)) {
           finishRequestMeasure();
-          commitState({ sourceRevision, result: null, status: "error", errorKind: "too-large" });
+          commitState(failedResult(searchIdentity, "too-large"));
           return;
         }
 
         const result = parseTextResult(text, forcedFormat);
         const searchResult = searchRecords(result.records, query, options, activeWindowIndexes);
         finishRequestMeasure();
-        commitState({
-          sourceRevision,
-          result: searchResult,
-          status: "complete",
-          errorKind: null,
-        });
+        commitState(completedResult(searchIdentity, searchResult));
       };
 
       if (typeof Worker === "undefined") {
@@ -352,7 +339,7 @@ export const useSearchWorker = (params: {
           return;
         }
         finishRequestMeasure();
-        commitState({ sourceRevision, result: null, status: "error", errorKind });
+        commitState(failedResult(searchIdentity, errorKind));
       }
 
       // An uncaught worker error or an undeserializable message can leave the
@@ -374,20 +361,10 @@ export const useSearchWorker = (params: {
           if (workerRef.current === currentWorker) {
             workerSourceRevisionRef.current = null;
           }
-          commitState({
-            sourceRevision,
-            result: null,
-            status: "error",
-            errorKind: "worker-error",
-          });
+          commitState(failedResult(searchIdentity, "worker-error"));
           return;
         }
-        commitState({
-          sourceRevision,
-          result: response.result,
-          status: "complete",
-          errorKind: null,
-        });
+        commitState(completedResult(searchIdentity, response.result));
       }
 
       currentWorker.addEventListener("message", onMessage);
@@ -441,16 +418,22 @@ export const useSearchWorker = (params: {
     forcedFormat,
     options,
     query,
+    searchIdentity,
     sourceAccess,
     sourceRevision,
     text,
   ]);
 
-  const snapshot =
-    inputsChanged || !belongsToSourceRevision(sourceRevision, state)
-      ? query
-        ? pendingResult(sourceRevision)
-        : idleResult(sourceRevision)
-      : state;
-  return { ...snapshot, requestWindow };
+  const snapshot = hasSameSearchIdentity(state, searchIdentity)
+    ? state
+    : query
+      ? pendingResult(searchIdentity)
+      : idleResult(searchIdentity);
+  return {
+    sourceRevision: snapshot.sourceRevision,
+    result: snapshot.result,
+    status: snapshot.status,
+    errorKind: snapshot.errorKind,
+    requestWindow,
+  };
 };
