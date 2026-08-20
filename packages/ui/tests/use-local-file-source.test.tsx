@@ -3,6 +3,7 @@ import { materializeNode, parseJsonlRecordLine } from "@unquote/core";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLocalFileSource } from "../src/hooks/use-local-file-source";
+import type { LocalFileRecordAccess } from "../src/hooks/use-local-file-source";
 import { I18nProvider } from "../src/i18n/context";
 import { createLocalFileAccess, type LocalFileAccess } from "../src/lib/local-file-source";
 
@@ -473,7 +474,7 @@ describe("useLocalFileSource", () => {
 
   it("forwards caller cancellation while resolving records", async () => {
     const resolveRecords = vi.fn(async (records) => records);
-    const access = { resolveRecords } as unknown as LocalFileAccess;
+    const access: LocalFileRecordAccess = { resolveRecords, readRecords: vi.fn() };
     const { result } = renderHook(() => useLocalFileSource(access, 0), { wrapper });
     const records = [makePreviewRecord(1)];
     const controller = new AbortController();

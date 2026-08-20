@@ -17,10 +17,12 @@ import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
+export type LocalFileExportAccess = Pick<LocalFileAccess, "readRecordText" | "streamRecords">;
+
 interface UseExportActionsParams {
   visibleRecords: JsonlRecord[];
   resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
-  sourceAccess: LocalFileAccess | null;
+  sourceAccess: LocalFileExportAccess | null;
   format: "json" | "jsonl";
   isCopyBlocked: boolean;
   sourceRevision: SourceRevision;

@@ -3,8 +3,8 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useExportActions } from "../src/hooks/use-export-actions";
+import type { LocalFileExportAccess } from "../src/hooks/use-export-actions";
 import { I18nProvider } from "../src/i18n/context";
-import type { LocalFileAccess } from "../src/lib/local-file-source";
 
 const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
@@ -39,7 +39,7 @@ const renderActions = ({
     signal?: AbortSignal,
   ) => Promise<(typeof validRecord)[]>;
   isCopyBlocked?: boolean;
-  sourceAccess?: LocalFileAccess | null;
+  sourceAccess?: LocalFileExportAccess | null;
 } = {}) =>
   renderHook(
     ({ sourceRevision }: { sourceRevision: number }) =>
@@ -167,7 +167,7 @@ describe("useExportActions", () => {
       value: { writeText },
     });
     const readRecordText = vi.fn().mockResolvedValue('{"raw":true}');
-    const sourceAccess = { readRecordText } as unknown as LocalFileAccess;
+    const sourceAccess: LocalFileExportAccess = { readRecordText, streamRecords: vi.fn() };
     const { result } = renderActions({ sourceAccess });
 
     await act(async () => {
@@ -271,7 +271,7 @@ describe("useExportActions", () => {
           signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
         }),
     );
-    const sourceAccess = { readRecordText } as unknown as LocalFileAccess;
+    const sourceAccess: LocalFileExportAccess = { readRecordText, streamRecords: vi.fn() };
     const { result, rerender } = renderActions({ sourceAccess });
 
     const copy = result.current.onCopyRawLine(validRecord);

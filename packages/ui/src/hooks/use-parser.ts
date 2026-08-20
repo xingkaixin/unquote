@@ -6,7 +6,6 @@ import { useTranslation } from "../i18n/context";
 import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
-import type { LocalFileAccess } from "../lib/local-file-source";
 import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
 import { belongsToSourceRevision, commitSourceRevisionResult } from "../lib/source-revision";
@@ -46,10 +45,10 @@ type ParserStateUpdate = ParserSnapshot | ((current: ParserSnapshot) => ParserSn
 const pendingSnapshot = (
   sourceRevision: SourceRevision,
   forcedFormat: "json" | "jsonl" | undefined,
-  sourceAccess: LocalFileAccess | null | undefined,
+  hasLocalFile: boolean,
 ): ParserSnapshot => ({
   sourceRevision,
-  result: sourceAccess ? emptyResult("jsonl") : emptyResult(forcedFormat),
+  result: hasLocalFile ? emptyResult("jsonl") : emptyResult(forcedFormat),
   progress: { ...idleProgress, done: false },
   agentSession: null,
   recordAppend: null,
@@ -95,7 +94,7 @@ export const useParser = ({ source }: UseParserOptions) => {
   const [parserState, setParserState] = useState<ParserSnapshot>(() =>
     mountParse
       ? { sourceRevision, ...mountParse.parsed, recordAppend: null }
-      : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+      : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null),
   );
   const commitParserState = useEffectEvent((update: ParserStateUpdate) => {
     setParserState((current) =>
@@ -144,7 +143,7 @@ export const useParser = ({ source }: UseParserOptions) => {
 
     const reportUnparsedSource = () => {
       commitParserState({
-        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null),
         progress: idleProgress,
       });
       reportFileReadError();
@@ -152,7 +151,7 @@ export const useParser = ({ source }: UseParserOptions) => {
 
     const reportUnparsedSourceTooLarge = () => {
       commitParserState({
-        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess),
+        ...pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null),
         progress: idleProgress,
       });
       reportInputTooLarge();
@@ -207,7 +206,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       return;
     }
 
-    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess));
+    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null));
     markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
 
@@ -388,5 +387,5 @@ export const useParser = ({ source }: UseParserOptions) => {
 
   return belongsToSourceRevision(sourceRevision, parserState)
     ? parserState
-    : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess);
+    : pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null);
 };

@@ -6,6 +6,8 @@ import { fullRecordCacheLimit, type LocalFileAccess } from "../lib/local-file-so
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
 
+export type LocalFileRecordAccess = Pick<LocalFileAccess, "readRecords" | "resolveRecords">;
+
 export interface LocalFileSource {
   resolveRecord: (record: JsonlRecord) => JsonlRecord;
   requestFullRecord: (record: JsonlRecord) => void;
@@ -13,7 +15,7 @@ export interface LocalFileSource {
 }
 
 interface FullRecordScope extends SourceRevisionOwned {
-  access: LocalFileAccess | null;
+  access: LocalFileRecordAccess | null;
   controller: AbortController;
   inFlightLines: Set<number>;
   // Lines queued by `requestFullRecord` calls in the current tick; merged into
@@ -30,7 +32,7 @@ interface FullRecordCache extends SourceRevisionOwned {
 const emptyFullRecordsByLine: ReadonlyMap<number, JsonlRecord> = new Map();
 
 const createFullRecordScope = (
-  access: LocalFileAccess | null,
+  access: LocalFileRecordAccess | null,
   sourceRevision: SourceRevision,
 ): FullRecordScope => ({
   sourceRevision,
@@ -57,7 +59,7 @@ const createFullRecordCache = (sourceRevision: SourceRevision): FullRecordCache 
  * `useSearchWorker`; this hook owns only browse-time record state.
  */
 export const useLocalFileSource = (
-  access: LocalFileAccess | null,
+  access: LocalFileRecordAccess | null,
   sourceRevision: SourceRevision,
 ): LocalFileSource => {
   const { t } = useTranslation();

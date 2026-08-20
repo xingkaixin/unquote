@@ -683,7 +683,7 @@ describe("useSearchWorker", () => {
     const file = new File(["{}"], "big.jsonl");
     Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes * 4 });
     const search = vi.fn().mockResolvedValue(resultStub("from-file"));
-    const access = { ...createLocalFileAccess(file), search } as LocalFileAccess;
+    const access = { ...createLocalFileAccess(file), search };
 
     render(<Probe query="a" text="" access={access} />);
     await act(async () => undefined);
@@ -696,7 +696,7 @@ describe("useSearchWorker", () => {
     Reflect.deleteProperty(globalThis, "Worker");
     const file = new File(["{}"], "payload.jsonl");
     const search = vi.fn().mockResolvedValue(resultStub("from-file"));
-    const access = { ...createLocalFileAccess(file), search } as LocalFileAccess;
+    const access = { ...createLocalFileAccess(file), search };
 
     render(
       <Probe

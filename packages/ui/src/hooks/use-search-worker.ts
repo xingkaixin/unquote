@@ -12,6 +12,8 @@ import type { SearchOptions, SearchResultSet } from "../lib/record-search";
 import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
+type LocalFileSearchAccess = Pick<LocalFileAccess, "getFile" | "search" | "size">;
+
 export const searchWorkerTimeoutMs = 5000;
 export const largeFileSearchWorkerTimeoutMs = 15_000;
 const largeFileSearchBytes = 1_000_000;
@@ -55,7 +57,7 @@ const buildSearchRequest = (
   requestId: number,
   text: string,
   forcedFormat: "json" | "jsonl" | undefined,
-  sourceAccess: LocalFileAccess | null,
+  sourceAccess: LocalFileSearchAccess | null,
   query: string,
   options: SearchOptions,
   sourceRevision: SourceRevision,
@@ -88,7 +90,7 @@ const buildSearchRequest = (
         ...(windowIndexes ? { windowIndexes } : {}),
       };
 
-const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileAccess | null) =>
+const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileSearchAccess | null) =>
   sourceAccess && sourceAccess.size > largeFileSearchBytes
     ? largeFileSearchWorkerTimeoutMs
     : searchWorkerTimeoutMs;
