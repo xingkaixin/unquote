@@ -5,6 +5,7 @@ import {
   isStringifiedNode,
   isTruncatedJsonNode,
   materializeNode,
+  MAX_SUPPORTED_DEPTH,
   parseInput,
   parseInputForIngestion,
   parseJsonlRecordLine,
@@ -18,6 +19,17 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 describe("parseInput", () => {
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, MAX_SUPPORTED_DEPTH + 1])(
+    "rejects an unsupported maxDepth of %s",
+    (maxDepth) => {
+      expect(() => parseInput('{"value":1}', { maxDepth })).toThrow(RangeError);
+      expect(() => parseJsonlRecordLine('{"value":1}', 1, { maxDepth })).toThrow(RangeError);
+      expect(() => parseJsonlRecordLineWithValue('{"value":1}', 1, { maxDepth })).toThrow(
+        RangeError,
+      );
+    },
+  );
+
   it("parses json and expands stringified nodes", () => {
     const result = parseInput('{"payload":"{\\"user\\":{\\"id\\":42}}"}');
     expect(result.format).toBe("json");

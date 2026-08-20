@@ -55,6 +55,7 @@ export type {
 } from "./types.js";
 export {
   DEFAULT_MAX_DEPTH,
+  MAX_SUPPORTED_DEPTH,
   getJsonKind,
   parseJson,
   probeJsonl,

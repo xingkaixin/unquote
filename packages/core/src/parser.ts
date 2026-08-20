@@ -14,7 +14,20 @@ import { getErrorMessage, getParseErrorMeta } from "./parse-error.js";
 import { createFullJsonlRecord, createPreviewJsonlRecord } from "./record-builder.js";
 import { isFailedRecord, isParsed } from "./records.js";
 import { stringifyJsonNode } from "./serialization.js";
-import { DEFAULT_MAX_DEPTH, probeJsonl, truncateAtCodePointBoundary } from "./utils.js";
+import {
+  DEFAULT_MAX_DEPTH,
+  MAX_SUPPORTED_DEPTH,
+  probeJsonl,
+  truncateAtCodePointBoundary,
+} from "./utils.js";
+
+const resolveMaxDepth = (maxDepth: number | undefined) => {
+  const resolved = maxDepth ?? DEFAULT_MAX_DEPTH;
+  if (!Number.isSafeInteger(resolved) || resolved < 0 || resolved > MAX_SUPPORTED_DEPTH) {
+    throw new RangeError(`maxDepth must be an integer between 0 and ${MAX_SUPPORTED_DEPTH}`);
+  }
+  return resolved;
+};
 
 const createParseErrorRecord = (
   line: string,
@@ -65,9 +78,9 @@ const withApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
       }
     : result;
 
-const parseFullJsonlRecordLine = (line: string, lineNumber: number, options: ParseOptions) =>
+const parseFullJsonlRecordLine = (line: string, lineNumber: number, maxDepth: number) =>
   parseJsonlRecordLineWith(line, lineNumber, (value) =>
-    createFullJsonlRecord(value, lineNumber, options.maxDepth ?? DEFAULT_MAX_DEPTH),
+    createFullJsonlRecord(value, lineNumber, maxDepth),
   );
 
 export const parseJsonlRecordLineWithValue = (
@@ -75,14 +88,16 @@ export const parseJsonlRecordLineWithValue = (
   lineNumber: number,
   options: ParseOptions = {},
 ): JsonlRecordLineResult<FullJsonlRecord> =>
-  withApproximateValue(parseFullJsonlRecordLine(line, lineNumber, options));
+  withApproximateValue(
+    parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)),
+  );
 
 export const parseJsonlRecordLine = (
   line: string,
   lineNumber: number,
   options: ParseOptions = {},
 ): FullJsonlRecord | FailedJsonlRecord =>
-  parseFullJsonlRecordLine(line, lineNumber, options).record;
+  parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)).record;
 
 export const parsePreviewJsonlRecordLineWithValue = (
   line: string,
@@ -216,10 +231,10 @@ type ParsedInputWithLines<TLine> =
 const parseInputWithJsonlLines = <TLine>(
   input: string,
   options: ParseOptions,
-  parseLine: (line: string, lineNumber: number) => TLine,
+  parseLine: (line: string, lineNumber: number, maxDepth: number) => TLine,
   getRecord: (line: TLine) => FullJsonlRecord | FailedJsonlRecord,
 ): ParsedInputWithLines<TLine> => {
-  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const maxDepth = resolveMaxDepth(options.maxDepth);
 
   if (!input.trim()) {
     const format = options.forcedFormat ?? detectFormat(input);
@@ -236,12 +251,21 @@ const parseInputWithJsonlLines = <TLine>(
   }
 
   if (options.forcedFormat === "jsonl") {
-    return { format: "jsonl", lines: parseLooseJsonlLines(input.split(/\r?\n/), parseLine) };
+    return {
+      format: "jsonl",
+      lines: parseLooseJsonlLines(input.split(/\r?\n/), (line, lineNumber) =>
+        parseLine(line, lineNumber, maxDepth),
+      ),
+    };
   }
 
   // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
   const lines = input.split(/\r?\n/);
-  const strict = parseStrictJsonlLines(lines, parseLine, getRecord);
+  const strict = parseStrictJsonlLines(
+    lines,
+    (line, lineNumber) => parseLine(line, lineNumber, maxDepth),
+    getRecord,
+  );
   if (strict.kind === "complete") {
     if (strict.lines.length > 1) {
       return { format: "jsonl", lines: strict.lines };
@@ -273,7 +297,11 @@ const parseInputWithJsonlLines = <TLine>(
     return { format: "json", result: single };
   }
 
-  const loose = parseLooseJsonlLines(lines, parseLine, strict);
+  const loose = parseLooseJsonlLines(
+    lines,
+    (line, lineNumber) => parseLine(line, lineNumber, maxDepth),
+    strict,
+  );
   if (loose.length > 1 && loose.some((line) => isParsed(getRecord(line)))) {
     return { format: "jsonl", lines: loose };
   }
@@ -288,7 +316,7 @@ export const parseInputForIngestion = (
   const parsed = parseInputWithJsonlLines(
     input,
     options,
-    (line, lineNumber) => parseFullJsonlRecordLine(line, lineNumber, options),
+    (line, lineNumber, maxDepth) => parseFullJsonlRecordLine(line, lineNumber, maxDepth),
     (line) => line.record,
   );
   return parsed.format === "json"
@@ -300,7 +328,7 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
   const parsed = parseInputWithJsonlLines(
     input,
     options,
-    (line, lineNumber) => parseJsonlRecordLine(line, lineNumber, options),
+    (line, lineNumber, maxDepth) => parseFullJsonlRecordLine(line, lineNumber, maxDepth).record,
     (record) => record,
   );
   return parsed.format === "json" ? parsed.result : buildJsonlResult(parsed.lines);
