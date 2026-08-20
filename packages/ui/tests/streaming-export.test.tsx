@@ -20,6 +20,7 @@ vi.mock("../src/lib/record-export", async () => ({
 }));
 
 import { useExportActions } from "../src/hooks/use-export-actions";
+import type { LocalFileExportAccess } from "../src/hooks/use-export-actions";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
 import { formatRecordsAsJsonParts, formatRecordsAsJsonlParts } from "../src/lib/record-export";
@@ -43,7 +44,7 @@ const renderExport = ({
   resolveRecords = vi.fn(async (records: JsonlRecord[]) => records),
 }: {
   visibleRecords: JsonlRecord[];
-  sourceAccess: LocalFileAccess | null;
+  sourceAccess: LocalFileExportAccess | null;
   format?: "json" | "jsonl";
   resolveRecords?: (records: JsonlRecord[]) => Promise<JsonlRecord[]>;
 }) => ({
@@ -230,7 +231,8 @@ describe("streaming export", () => {
     vi.useFakeTimers();
     const lines = Array.from({ length: 401 }, (_, index) => `{"id":${index + 1}}`);
     const records = fullRecords(lines);
-    const sourceAccess = {
+    const sourceAccess: LocalFileExportAccess = {
+      readRecordText: vi.fn(),
       streamRecords: vi.fn(
         async (_lineNumbers: ReadonlySet<number>, onRecord: (record: JsonlRecord) => void) => {
           for (const record of records) {
@@ -238,7 +240,7 @@ describe("streaming export", () => {
           }
         },
       ),
-    } as unknown as LocalFileAccess;
+    };
     const { result, rerender } = renderExport({ visibleRecords: records, sourceAccess });
 
     await act(async () => {
