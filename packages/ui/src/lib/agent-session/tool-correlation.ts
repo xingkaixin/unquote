@@ -140,3 +140,7 @@ export const uniqueToolPair = <TCall, TResult, TCompletion>(
   group.calls.length === 1 && group.results.length === 1
     ? ([group.calls[0]!, group.results[0]!] as const)
     : null;
+
+export const hasRepeatedToolOccurrences = <TCall, TResult, TCompletion>(
+  group: ToolCorrelationGroup<TCall, TResult, TCompletion>,
+) => group.calls.length > 1 || group.results.length > 1 || group.completions.length > 1;

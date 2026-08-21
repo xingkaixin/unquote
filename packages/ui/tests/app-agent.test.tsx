@@ -93,12 +93,13 @@ describe("UnquoteApp", () => {
       performance.clearMeasures(measureName);
 
       const user = await renderCodexAgentView();
-      expect(performance.getEntriesByName(measureName)).toHaveLength(1);
+      expect(performance.getEntriesByName(measureName)).toHaveLength(0);
 
       await user.click(screen.getByRole("tab", { name: "Trajectory" }));
       await waitFor(() =>
         expect(document.querySelector("[data-trajectory-ready]")).toBeInTheDocument(),
       );
+      expect(performance.getEntriesByName(measureName)).toHaveLength(1);
 
       await user.click(screen.getByRole("tab", { name: "Agent" }));
       await screen.findAllByText("Timeline");

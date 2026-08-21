@@ -8,7 +8,6 @@ import type {
   AgentTimelineEvent,
   AgentTrajectoryItem,
   AgentTrajectoryModel,
-  AgentTrajectoryToolItem,
   AgentToolStatus,
 } from "./types";
 import { measurePerfFn } from "../perf";
@@ -20,6 +19,7 @@ import {
   uniqueToolPair,
   type ToolCorrelationGroup,
 } from "./tool-correlation";
+import { createAgentToolLifecycleStates } from "./tool-lifecycle";
 import { createAgentTrajectoryModelFromCanonicalSession } from "./trajectory-model";
 
 const detailForEvent = (
@@ -104,30 +104,26 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     }
   }
 
-  const trajectory: AgentTrajectoryModel = measurePerfFn("agentTrajectory:build", () =>
-    createAgentTrajectoryModelFromCanonicalSession(canonicalSession),
-  );
-  const trajectoryItemById = new Map<string, AgentTrajectoryItem>();
-  const trajectoryToolByConversationItem = new Map<
-    AgentConversationItem,
-    AgentTrajectoryToolItem
-  >();
+  const toolLifecycleStates = createAgentToolLifecycleStates(canonicalSession);
+  let trajectoryProjection:
+    | {
+        model: AgentTrajectoryModel;
+        itemById: ReadonlyMap<string, AgentTrajectoryItem>;
+      }
+    | undefined;
 
-  for (const item of trajectory.items) {
-    trajectoryItemById.set(item.id, item);
-    if (item.kind !== "tool") {
-      continue;
+  const getTrajectoryProjection = () => {
+    if (!trajectoryProjection) {
+      const model = measurePerfFn("agentTrajectory:build", () =>
+        createAgentTrajectoryModelFromCanonicalSession(canonicalSession),
+      );
+      trajectoryProjection = {
+        model,
+        itemById: new Map(model.items.map((item) => [item.id, item])),
+      };
     }
-    for (const selection of [item.callSelection, item.resultSelection]) {
-      if (!selection || selection.kind !== "conversation") {
-        continue;
-      }
-      const entry = conversationById.get(selection.id);
-      if (entry && entry.event.recordId === selection.recordId) {
-        trajectoryToolByConversationItem.set(entry.item, item);
-      }
-    }
-  }
+    return trajectoryProjection;
+  };
 
   const resolveEvent = (event: AgentTimelineEvent) =>
     detailForEvent(event, firstConversationByEventId.get(event.id)?.item);
@@ -139,7 +135,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     }
 
     if (selection.kind === "trajectory") {
-      const item = trajectoryItemById.get(selection.id);
+      const item = getTrajectoryProjection().itemById.get(selection.id);
       return item ? resolveDetail(item.selection) : null;
     }
 
@@ -174,7 +170,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   };
 
   const selectTrajectory = (itemId: string): AgentDetailSelection | null => {
-    const item = trajectoryItemById.get(itemId);
+    const item = getTrajectoryProjection().itemById.get(itemId);
     return item ? { kind: "trajectory", id: item.id, recordId: item.recordId } : null;
   };
 
@@ -184,9 +180,9 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   };
 
   const resolveToolStatus = (item: AgentConversationItem): AgentToolStatus => {
-    const trajectoryTool = trajectoryToolByConversationItem.get(item);
-    if (trajectoryTool) {
-      return trajectoryTool.status === "running" ? "pending" : trajectoryTool.status;
+    const lifecycleState = toolLifecycleStates.get(item);
+    if (lifecycleState) {
+      return lifecycleState.status;
     }
 
     const result = toolResultBlock(item);
@@ -199,9 +195,9 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   };
 
   const resolveToolName = (item: AgentConversationItem): string | undefined => {
-    const trajectoryTool = trajectoryToolByConversationItem.get(item);
-    if (trajectoryTool) {
-      return trajectoryTool.toolName;
+    const lifecycleState = toolLifecycleStates.get(item);
+    if (lifecycleState) {
+      return lifecycleState.toolName;
     }
 
     const call = toolUseBlock(item);
@@ -217,7 +213,9 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     events,
     conversation,
     integrityIssues: canonicalSession.integrityIssues,
-    trajectory,
+    get trajectory() {
+      return getTrajectoryProjection().model;
+    },
     resolveDetail,
     selectEvent,
     selectConversation,

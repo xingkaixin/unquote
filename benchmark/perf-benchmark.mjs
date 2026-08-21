@@ -456,7 +456,6 @@ const runRenderFixture = async (client, fixture) => {
           : null
       })
       let agentSessionReadyMs = null
-      let agentTrajectoryBuildEntries = null
       if (expectsAgentSession && shell.dataset.agentSession !== 'true') {
         throw new Error('expected Agent Session, received ' + JSON.stringify(shell.dataset))
       }
@@ -469,11 +468,6 @@ const runRenderFixture = async (client, fixture) => {
         })
         await settleFrames()
         agentSessionReadyMs = performance.now() - start
-        if (expectsAgentSession) {
-          agentTrajectoryBuildEntries = performance
-            .getEntriesByName(${JSON.stringify(agentTrajectoryBuildMetric.entryName)}, 'measure')
-            .map((entry) => ({ duration: entry.duration }))
-        }
       } else {
         await waitFor('json-view', () => shell.dataset.outputView === 'json')
       }
@@ -484,7 +478,6 @@ const runRenderFixture = async (client, fixture) => {
         firstRecordReadyMs: firstRecordReady - start,
         completeReadyMs: completeReady - start,
         agentSessionReadyMs,
-        agentTrajectoryBuildEntries,
         domNodes: document.getElementsByTagName('*').length,
         railRows: document.querySelectorAll('[data-record-rail] [data-record-id]').length,
       }
@@ -501,26 +494,7 @@ const runRenderFixture = async (client, fixture) => {
     throw new Error(settledResult.exceptionDetails.text ?? "Runtime.evaluate failed");
   }
 
-  const { agentTrajectoryBuildEntries, ...settledValues } = settledResult.result.value;
-  let settled = settledValues;
-  if (agentTrajectoryMetric) {
-    const trajectorySample = resolvePerformanceMeasure(
-      agentTrajectoryMetric,
-      agentTrajectoryBuildEntries,
-    );
-    const trajectoryFailure = trajectorySample.failure
-      ? {
-          measurementFailures: {
-            [agentTrajectoryMetric.metric]: trajectorySample.failure,
-          },
-        }
-      : {};
-    settled = {
-      ...settledValues,
-      [agentTrajectoryMetric.metric]: trajectorySample.value,
-      measurementFailures: mergeMeasurementFailures([settledValues, trajectoryFailure]),
-    };
-  }
+  const settled = settledResult.result.value;
 
   const readMetrics = async () => {
     await client.invoke("HeapProfiler.collectGarbage").catch(() => null);
@@ -588,6 +562,7 @@ const runRenderFixture = async (client, fixture) => {
       let agentTrajectoryItemSelectionReadyMs = null
       let agentTrajectoryDomNodes = null
       let trajectoryPageDomNodes = null
+      let agentTrajectoryBuildEntries = null
       if (expectsAgentSession) {
         if (shell.dataset.agentSession !== 'true' || shell.dataset.outputView !== 'agent') {
           throw new Error('Agent interaction started outside the Agent view')
@@ -630,6 +605,9 @@ const runRenderFixture = async (client, fixture) => {
           throw new Error('No geometrically visible trajectory ledger item after settling')
         }
         agentTrajectoryReadyMs = performance.now() - trajectoryReadyStart
+        agentTrajectoryBuildEntries = performance
+          .getEntriesByName(${JSON.stringify(agentTrajectoryBuildMetric.entryName)}, 'measure')
+          .map((entry) => ({ duration: entry.duration }))
         agentTrajectoryDomNodes = 1 + trajectoryRoot.querySelectorAll('*').length
         trajectoryPageDomNodes = document.getElementsByTagName('*').length
 
@@ -827,6 +805,7 @@ const runRenderFixture = async (client, fixture) => {
         searchReadyMs,
         agentToolReadyMs,
         agentTrajectoryReadyMs,
+        agentTrajectoryBuildEntries,
         agentTrajectoryItemSelectionReadyMs,
         agentTrajectoryDomNodes,
         trajectoryPageDomNodes,
@@ -848,7 +827,26 @@ const runRenderFixture = async (client, fixture) => {
     throw new Error(interactionResult.exceptionDetails.text ?? "Runtime.evaluate failed");
   }
   const interactionMetrics = await readMetrics();
-  const interaction = interactionResult.result.value;
+  const { agentTrajectoryBuildEntries, ...interactionValues } = interactionResult.result.value;
+  let interaction = interactionValues;
+  if (agentTrajectoryMetric) {
+    const trajectorySample = resolvePerformanceMeasure(
+      agentTrajectoryMetric,
+      agentTrajectoryBuildEntries,
+    );
+    const trajectoryFailure = trajectorySample.failure
+      ? {
+          measurementFailures: {
+            [agentTrajectoryMetric.metric]: trajectorySample.failure,
+          },
+        }
+      : {};
+    interaction = {
+      ...interactionValues,
+      [agentTrajectoryMetric.metric]: trajectorySample.value,
+      measurementFailures: mergeMeasurementFailures([interactionValues, trajectoryFailure]),
+    };
+  }
   debug(`Capturing heap snapshot for ${fixture.path}`);
   const heapSnapshot = await captureHeapSnapshot(client, fixture);
 

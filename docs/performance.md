@@ -193,9 +193,9 @@ budget is `ceil50((1000 + 250) × 1.1) = 1400` nodes. The defaults are therefore
 
 Agent fixtures also report `agentTrajectoryBuildMs` from exactly one
 `unquote:agentTrajectory:build` PerformanceMeasure. The entry covers only the
-pure trajectory projection held by the memoized Agent session model; parsing,
-React rendering, and DOM readiness are outside its duration. Missing,
-duplicate, or invalid entries are recorded under
+pure trajectory projection created when the Trajectory view first requests the
+memoized model; parsing, Agent-view rendering, and Trajectory DOM readiness are
+outside its duration. Missing, duplicate, or invalid entries are recorded under
 `measurementFailures.agentTrajectoryBuildMs` instead of being treated as zero.
 The benchmark requires one valid sample per run and gates each Agent fixture's
 p50 at 50 ms; `UNQUOTE_BENCH_AGENT_TRAJECTORY_BUDGET_MS` provides the usual

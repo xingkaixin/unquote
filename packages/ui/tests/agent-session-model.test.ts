@@ -55,16 +55,22 @@ describe("createAgentSessionModel", () => {
     expect(model.trajectory).toEqual(createAgentTrajectoryModel(source));
   });
 
-  it("records one finite, non-negative trajectory build measure per model", () => {
+  it("records one finite, non-negative trajectory build measure on first access", () => {
     performance.clearMeasures(trajectoryMeasureName);
 
-    createAgentSessionModel(session([event("event-1", "record-1")]));
+    const model = createAgentSessionModel(session([event("event-1", "record-1")]));
+
+    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(0);
+
+    const trajectory = model.trajectory;
 
     const measures = performance.getEntriesByName(trajectoryMeasureName, "measure");
     expect(measures).toHaveLength(1);
     expect(measures[0]?.duration).toSatisfy(
       (duration) => typeof duration === "number" && Number.isFinite(duration) && duration >= 0,
     );
+    expect(model.trajectory).toBe(trajectory);
+    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(1);
   });
 
   it("keeps direct trajectory construction free of User Timing", () => {
@@ -651,6 +657,7 @@ describe("tool call and result pairing", () => {
     expect(model.resolveToolStatus(projectedCall)).toBe("failed");
     expect(model.resolveToolStatus(projectedResult)).toBe("failed");
     expect(model.resolveToolName(projectedResult)).toBe("mcp_tool");
+    expect(performance.getEntriesByName(trajectoryMeasureName, "measure")).toHaveLength(0);
   });
 
   it("does not recover a result name after duplicate completion evidence", () => {
