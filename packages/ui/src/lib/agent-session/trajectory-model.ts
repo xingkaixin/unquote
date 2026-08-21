@@ -22,9 +22,11 @@ import type {
   AgentTimelineEvent,
 } from "./types";
 import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity";
+import { resolveToolLifecycleStatus } from "./tool-lifecycle";
 import {
   createToolCorrelationGroups,
   forEachToolCorrelationGroup,
+  hasRepeatedToolOccurrences,
   syntheticTurnScope,
   toolCorrelationGroupFor,
   toolCorrelationScope,
@@ -303,13 +305,8 @@ const toolStatusFor = (
   result: ToolResultOccurrence | undefined,
   completion: ToolCompletionOccurrence | undefined,
 ): AgentTrajectoryToolItem["status"] => {
-  if (result?.evidence.status === "failed" || completion?.evidence.status === "failed") {
-    return "failed";
-  }
-  if (result?.evidence.status === "completed" || completion?.evidence.status === "completed") {
-    return "completed";
-  }
-  return "running";
+  const status = resolveToolLifecycleStatus(result?.evidence.status, completion?.evidence.status);
+  return status === "pending" ? "running" : status;
 };
 
 const toolEndpointFor = (occurrence: ToolTerminalOccurrence) => occurrence.evidence.phase;
@@ -417,9 +414,6 @@ const addDuplicateWarning = (
   warnings.push({ ...occurrence.source, kind, callId });
 };
 
-const hasRepeatedToolOccurrence = (group: ToolGroup) =>
-  group.calls.length > 1 || group.results.length > 1 || group.completions.length > 1;
-
 const addDuplicateWarnings = (group: ToolGroup, warnings: AgentTrajectoryWarning[]) => {
   for (const occurrences of [group.calls, group.results, group.completions]) {
     for (let index = 1; index < occurrences.length; index += 1) {
@@ -429,7 +423,7 @@ const addDuplicateWarnings = (group: ToolGroup, warnings: AgentTrajectoryWarning
 };
 
 const finalizeToolGroup = (group: ToolGroup, warnings: AgentTrajectoryWarning[]) => {
-  if (hasRepeatedToolOccurrence(group)) {
+  if (hasRepeatedToolOccurrences(group)) {
     addDuplicateWarnings(group, warnings);
     for (const call of group.calls) {
       call.draft.item = toolItemFor(call, undefined, undefined, warnings);
