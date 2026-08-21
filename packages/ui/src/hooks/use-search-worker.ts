@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { resolveSourceWork } from "../lib/published-source";
-import type { SourceWorkProjection } from "../lib/published-source";
+import type { PublishedSourceRevision } from "../lib/published-source";
 import { parseTextResult } from "../lib/parse-text";
 import { startPerfMeasure } from "../lib/perf";
 import { commitSourceRevisionResult } from "../lib/source-revision";
@@ -148,7 +148,7 @@ const hasSameIndexes = (left: Float64Array, right: Float64Array) => {
 };
 
 export const useSearchWorker = (params: {
-  source: SourceWorkProjection;
+  source: PublishedSourceRevision;
   query: string;
   options: SearchOptions;
   // Delay before a request is actually dispatched; only the last query

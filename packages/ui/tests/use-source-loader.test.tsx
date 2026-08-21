@@ -2,11 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../src/i18n/context";
-import {
-  projectSourceImport,
-  projectSourceWork,
-  resolveSourceWork,
-} from "../src/lib/published-source";
+import { projectSourceImport, resolveSourceWork } from "../src/lib/published-source";
 import { sourceDetectionProbeByteBudget } from "../src/lib/source-detect";
 import {
   createControlledStreamFile,
@@ -29,7 +25,7 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 import { useSourceLoader } from "../src/hooks/use-source-loader";
 
 const snapshot = (current: ReturnType<typeof useSourceLoader>) => {
-  const work = resolveSourceWork(projectSourceWork(current.source));
+  const work = resolveSourceWork(current.source);
   const importProjection = projectSourceImport(current.source);
   return {
     sourceRevision: current.source.sourceRevision,

@@ -12,7 +12,6 @@ import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
 import {
   createStreamingFileSourceRevision,
   createTextSourceRevision,
-  projectSourceWork,
 } from "../src/lib/published-source";
 import type { SearchMatch, SearchOptions, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
@@ -104,11 +103,9 @@ const Probe = ({
 }) => {
   const source = useMemo(() => {
     const sourceAccess = access ?? (sourceFile ? createLocalFileAccess(sourceFile) : null);
-    return projectSourceWork(
-      sourceAccess
-        ? createStreamingFileSourceRevision(sourceRevision, sourceAccess, "jsonl")
-        : createTextSourceRevision(sourceRevision, text, "auto"),
-    );
+    return sourceAccess
+      ? createStreamingFileSourceRevision(sourceRevision, sourceAccess, "jsonl")
+      : createTextSourceRevision(sourceRevision, text, "auto");
   }, [access, sourceFile, sourceRevision, text]);
   const result = useSearchWorker({
     source,

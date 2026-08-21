@@ -21,7 +21,7 @@ import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
 import { useSourceLoader } from "./hooks/use-source-loader";
 import { createAgentSessionModel, type AgentDetailSelection } from "./lib/agent-session";
 import { formatFileSize } from "./lib/format";
-import { projectSourceImport, projectSourceView, projectSourceWork } from "./lib/published-source";
+import { projectSourceImport, projectSourceView } from "./lib/published-source";
 import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
@@ -74,7 +74,6 @@ export const UnquoteApp = ({
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
   } = useSourceLoader({ initialInput });
-  const sourceWork = projectSourceWork(source);
   const sourceImport = useMemo(() => projectSourceImport(source), [source]);
   const sourceView = useMemo(() => projectSourceView(source), [source]);
   const { theme, setTheme } = useThemePreference();
@@ -85,7 +84,7 @@ export const UnquoteApp = ({
     progress,
     agentSession,
     recordAppend,
-  } = useParser({ source: sourceWork });
+  } = useParser({ source });
   const hasData = sourceView.hasData;
 
   const translateError = useCallback(
@@ -93,7 +92,7 @@ export const UnquoteApp = ({
     [t],
   );
   const recordWorkspace = useRecordWorkspace({
-    source: sourceWork,
+    source,
     resultRevision,
     result,
     recordAppend,

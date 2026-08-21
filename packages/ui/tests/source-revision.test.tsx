@@ -10,7 +10,6 @@ import { createLocalFileAccess } from "../src/lib/local-file-source";
 import {
   createStreamingFileSourceRevision,
   createTextSourceRevision,
-  projectSourceWork,
 } from "../src/lib/published-source";
 import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
@@ -83,15 +82,13 @@ const RevisionProbe = ({
 }: ProbeProps) => {
   const source = useMemo(
     () =>
-      projectSourceWork(
-        sourceFile
-          ? createStreamingFileSourceRevision(
-              sourceRevision,
-              createLocalFileAccess(sourceFile),
-              "jsonl",
-            )
-          : createTextSourceRevision(sourceRevision, text, forcedFormat),
-      ),
+      sourceFile
+        ? createStreamingFileSourceRevision(
+            sourceRevision,
+            createLocalFileAccess(sourceFile),
+            "jsonl",
+          )
+        : createTextSourceRevision(sourceRevision, text, forcedFormat),
     [forcedFormat, sourceFile, sourceRevision, text],
   );
   const parser = useParser({ source });
