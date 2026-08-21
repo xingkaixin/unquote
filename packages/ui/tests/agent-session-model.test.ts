@@ -7,7 +7,6 @@ import {
   type AgentTimelineEvent,
   type AgentTrajectoryToolItem,
 } from "../src/lib/agent-session";
-import * as trajectoryModel from "../src/lib/agent-session/trajectory-model";
 
 const trajectoryMeasureName = "unquote:agentTrajectory:build";
 
@@ -51,12 +50,9 @@ describe("createAgentSessionModel", () => {
       },
     ]);
 
-    const buildTrajectory = vi.spyOn(trajectoryModel, "createAgentTrajectoryModel");
     const model = createAgentSessionModel(source);
 
-    expect(buildTrajectory).toHaveBeenCalledOnce();
-    expect(buildTrajectory).toHaveBeenCalledWith(source);
-    expect(model.trajectory).toBe(buildTrajectory.mock.results[0]?.value);
+    expect(model.trajectory).toEqual(createAgentTrajectoryModel(source));
   });
 
   it("records one finite, non-negative trajectory build measure per model", () => {

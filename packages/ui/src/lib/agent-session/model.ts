@@ -4,7 +4,6 @@ import type {
   AgentDetailSelection,
   AgentSession,
   AgentSessionDetail,
-  AgentSessionIntegrityIssue,
   AgentSessionModel,
   AgentTimelineEvent,
   AgentTrajectoryItem,
@@ -13,6 +12,7 @@ import type {
   AgentToolStatus,
 } from "./types";
 import { measurePerfFn } from "../perf";
+import { canonicalizeAgentSession } from "./identity";
 import {
   createToolCorrelationGroups,
   toolCorrelationGroupFor,
@@ -20,7 +20,7 @@ import {
   uniqueToolPair,
   type ToolCorrelationGroup,
 } from "./tool-correlation";
-import { createAgentTrajectoryModel } from "./trajectory-model";
+import { createAgentTrajectoryModelFromCanonicalSession } from "./trajectory-model";
 
 const detailForEvent = (
   event: AgentTimelineEvent,
@@ -59,9 +59,9 @@ const explicitTurnIdsByConversationItem = (event: AgentTimelineEvent) => {
 };
 
 export const createAgentSessionModel = (session: AgentSession): AgentSessionModel => {
+  const canonicalSession = canonicalizeAgentSession(session);
   const events: AgentTimelineEvent[] = [];
   const conversation: AgentConversationEntry[] = [];
-  const integrityIssues: AgentSessionIntegrityIssue[] = [];
   const eventById = new Map<string, AgentTimelineEvent>();
   const eventByRecordId = new Map<string, AgentTimelineEvent>();
   const conversationById = new Map<string, AgentConversationEntry>();
@@ -69,26 +69,13 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const toolGroups = createToolCorrelationGroups<AgentConversationItem, AgentConversationItem>();
   const toolGroupByItem = new Map<AgentConversationItem, ToolGroup>();
 
-  for (const event of session.events) {
-    if (eventById.has(event.id)) {
-      integrityIssues.push({ kind: "duplicate-event-id", id: event.id });
-      continue;
-    }
-    if (eventByRecordId.has(event.recordId)) {
-      integrityIssues.push({ kind: "duplicate-record-id", recordId: event.recordId });
-      continue;
-    }
-
+  for (const { event, conversationItems } of canonicalSession.events) {
     events.push(event);
     eventById.set(event.id, event);
     eventByRecordId.set(event.recordId, event);
     const evidenceTurnIds = explicitTurnIdsByConversationItem(event);
 
-    for (const item of event.conversationItems) {
-      if (conversationById.has(item.id)) {
-        integrityIssues.push({ kind: "duplicate-conversation-id", id: item.id });
-        continue;
-      }
+    for (const item of conversationItems) {
       const entry = { item, event };
       conversation.push(entry);
       conversationById.set(item.id, entry);
@@ -118,7 +105,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   }
 
   const trajectory: AgentTrajectoryModel = measurePerfFn("agentTrajectory:build", () =>
-    createAgentTrajectoryModel(session),
+    createAgentTrajectoryModelFromCanonicalSession(canonicalSession),
   );
   const trajectoryItemById = new Map<string, AgentTrajectoryItem>();
   const trajectoryToolByConversationItem = new Map<
@@ -229,7 +216,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   return {
     events,
     conversation,
-    integrityIssues,
+    integrityIssues: canonicalSession.integrityIssues,
     trajectory,
     resolveDetail,
     selectEvent,
