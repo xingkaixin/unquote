@@ -458,7 +458,6 @@ interface CodexEventProjection {
   kind: string;
   label: string;
   preview: string;
-  eventRole?: string;
   conversation?: CodexConversationProjection;
   trajectoryEvidence?: AgentTrajectoryEvidence;
 }
@@ -487,7 +486,6 @@ const projectCodexResponseItem = (
         kind: item.itemType,
         label: item.messageRole ?? item.itemType,
         preview: truncatePreview(item.text),
-        ...(item.messageRole === undefined ? {} : { eventRole: item.messageRole }),
         conversation: {
           id: conversationItemId,
           role: item.conversationRole,
@@ -758,19 +756,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
       );
       addOptionalNumber(event, "timestamp", parseTimestamp(envelope.timestamp));
       addOptionalNumber(event, "turnIndex", turnIndex);
-      addOptionalString(
-        event,
-        "model",
-        envelopeType === "turn_context" ? getString(payload, "model") : model,
-      );
       addOptionalString(event, "timestampLabel", getString(envelope, "timestamp"));
-      addOptionalString(event, "role", projection.eventRole);
-      if (envelopeType === "session_meta") {
-        addOptionalString(event, "sessionId", sessionId);
-        addOptionalString(event, "cwd", getString(payload, "cwd") ?? cwd);
-      } else if (envelopeType === "turn_context") {
-        addOptionalString(event, "cwd", getString(payload, "cwd") ?? cwd);
-      }
 
       if (projection.conversation) {
         attachConversationItem(event, {

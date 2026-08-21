@@ -32,7 +32,6 @@ export type {
   AgentToolLifecycleEvidence,
   AgentToolResultEvidence,
   AgentTimelineEvent,
-  AgentTokenUsage,
   AgentToolStatus,
   AgentTrajectoryEvidence,
   AgentTrajectoryAssistantReasoningItem,
