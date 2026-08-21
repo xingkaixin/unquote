@@ -13,7 +13,8 @@ import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { createStreamPublisher } from "../lib/stream-publisher";
-import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
+import { createWorkerRequest, spawnWorker } from "../lib/worker-lifecycle";
+import type { WorkerRequest } from "../lib/worker-lifecycle";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
@@ -129,8 +130,6 @@ export const useParser = ({ source }: UseParserOptions) => {
 
     let settled = false;
     let dispatched = false;
-    const isCurrentRequest = () => !settled && requestIdRef.current === requestId;
-
     const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
       commitParserState({
         sourceRevision,
@@ -227,12 +226,14 @@ export const useParser = ({ source }: UseParserOptions) => {
     // A worker that refuses work, raises an uncaught error, or sends an
     // undeserializable message is dropped so the next request builds a fresh
     // one, while this request still reaches exactly one terminal state.
-    const abandonWorker = () => {
+    const handleWorkerTermination = () => {
       if (workerRef.current === currentWorker) {
         workerRef.current = null;
       }
-      currentWorker.terminate();
-      if (!isCurrentRequest()) {
+    };
+
+    const handleWorkerFailure = () => {
+      if (settled || requestIdRef.current !== requestId) {
         return;
       }
       settled = true;
@@ -243,12 +244,13 @@ export const useParser = ({ source }: UseParserOptions) => {
       reportUnparsedSource();
     };
 
+    let workerRequest: WorkerRequest;
+
     const post = (message: ParserRequest) => {
-      if (postToWorker(currentWorker, message)) {
+      if (workerRequest.post(message)) {
         dispatched = true;
         return true;
       }
-      abandonWorker();
       return false;
     };
 
@@ -317,6 +319,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       }
 
       settled = true;
+      workerRequest.finish();
       publisher.flush();
       if (message.type === "error") {
         markPerf("parse:error");
@@ -354,9 +357,11 @@ export const useParser = ({ source }: UseParserOptions) => {
       }));
     };
 
-    currentWorker.addEventListener("message", onMessage);
-    currentWorker.addEventListener("error", abandonWorker);
-    currentWorker.addEventListener("messageerror", abandonWorker);
+    workerRequest = createWorkerRequest(currentWorker, {
+      onMessage,
+      onFailure: handleWorkerFailure,
+      onTerminate: handleWorkerTermination,
+    });
     return () => {
       const shouldTerminateWorker = dispatched && !settled && workerRef.current === currentWorker;
       settled = true;
@@ -365,12 +370,10 @@ export const useParser = ({ source }: UseParserOptions) => {
         window.clearTimeout(chunkTimeoutId);
       }
       publisher.cancel();
-      currentWorker.removeEventListener("message", onMessage);
-      currentWorker.removeEventListener("error", abandonWorker);
-      currentWorker.removeEventListener("messageerror", abandonWorker);
       if (shouldTerminateWorker) {
-        workerRef.current = null;
-        currentWorker.terminate();
+        workerRequest.terminate();
+      } else {
+        workerRequest.finish();
       }
     };
   }, [forcedFormat, input, mountParse, sourceAccess, sourceRevision]);
