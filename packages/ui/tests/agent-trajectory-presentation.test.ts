@@ -15,14 +15,18 @@ import {
 } from "../src/lib/agent-session";
 import {
   agentTrajectoryWarningKinds,
-  createAgentTrajectoryOverview,
   createAgentTrajectoryPresentation,
-  createTrajectoryTimeScale,
   filterAgentTrajectoryPresentation,
+} from "../src/lib/agent-session/trajectory-presentation";
+import {
+  createAgentTrajectoryOverview,
   trajectoryOverviewBucketCount,
+} from "../src/lib/agent-session/trajectory-overview";
+import {
+  createTrajectoryTimeScale,
   trajectoryOverviewSpans,
   zoomTrajectoryViewport,
-} from "../src/lib/agent-session/trajectory-presentation";
+} from "../src/lib/agent-session/trajectory-time-scale";
 
 const isWellFormed = (value: string) =>
   (String.prototype as unknown as { isWellFormed: (this: string) => boolean }).isWellFormed.call(

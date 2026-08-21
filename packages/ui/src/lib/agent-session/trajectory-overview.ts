@@ -1,10 +1,5 @@
 import type { AgentTrajectoryItemKind, AgentTrajectoryStatus } from "./types";
-import type {
-  AgentTrajectoryLane,
-  AgentTrajectoryOverview,
-  AgentTrajectoryOverviewBucket,
-  AgentTrajectoryPresentation,
-} from "./trajectory-presentation";
+import type { AgentTrajectoryLane, AgentTrajectoryPresentation } from "./trajectory-presentation";
 import { createTrajectoryTimeScale } from "./trajectory-time-scale";
 import {
   clampTrajectoryRangeToDomain,
@@ -16,6 +11,21 @@ import {
 
 const MINIMUM_BUCKET_WIDTH_PX = 6;
 const MAXIMUM_BUCKET_COUNT = 512;
+
+export interface AgentTrajectoryOverviewBucket {
+  readonly count: number;
+  readonly interval: AgentTrajectoryTimeRange | null;
+  readonly status: AgentTrajectoryStatus | null;
+  // Dominant item kind by count; ties keep the first observed kind.
+  readonly kind: AgentTrajectoryItemKind | null;
+}
+
+export interface AgentTrajectoryOverview {
+  readonly viewport: AgentTrajectoryTimeRange | null;
+  readonly bucketCount: number;
+  readonly lanes: Readonly<Record<AgentTrajectoryLane, readonly AgentTrajectoryOverviewBucket[]>>;
+  readonly turnBoundaries: readonly AgentTrajectoryOverviewBucket[];
+}
 
 interface MutableOverviewBucket {
   count: number;
