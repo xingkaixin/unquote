@@ -1,5 +1,4 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue } from "@unquote/core";
 import type { AgentSession } from "../lib/agent-session";
 import { createJsonlIngestion } from "../lib/jsonl-ingestion";
 import { drainJsonlLines } from "../lib/jsonl-lines";
@@ -137,10 +136,9 @@ const parseJsonlLine = (requestId: number, session: JsonlSession, line: string) 
     return;
   }
 
-  const parsedLine = session.compactForTransfer
-    ? parsePreviewJsonlRecordLineWithValue(line, session.lineNumber)
-    : parseJsonlRecordLineWithValue(line, session.lineNumber);
-  const record = session.ingestion.push(parsedLine);
+  const record = session.compactForTransfer
+    ? session.ingestion.ingestPreviewLine(line, session.lineNumber)
+    : session.ingestion.ingestFullLine(line, session.lineNumber);
   session.lineNumber += 1;
   session.batch.push(record);
 

@@ -197,7 +197,7 @@ describe("parseInput", () => {
     }
   });
 
-  it("retains parsed values and physical line numbers for JSONL ingestion", () => {
+  it("defers parsed values and retains physical line numbers for JSONL ingestion", () => {
     const input = '{"event":"one"}\n\n{bad}\n{"count":2}';
     const parsed = parseInputForIngestion(input, { forcedFormat: "jsonl" });
 
@@ -207,11 +207,18 @@ describe("parseInput", () => {
     }
 
     expect(parsed.lines).toMatchObject([
-      { record: { status: "full", lineNumber: 1 }, value: { event: "one" } },
+      { record: { status: "full", lineNumber: 1 }, materializeValue: expect.any(Function) },
       { record: { status: "failed", lineNumber: 3 } },
-      { record: { status: "full", lineNumber: 4 }, value: { count: 2 } },
+      { record: { status: "full", lineNumber: 4 }, materializeValue: expect.any(Function) },
     ]);
-    expect(parsed.lines[1]).not.toHaveProperty("value");
+    const first = parsed.lines[0];
+    const last = parsed.lines[2];
+    if (!first || !("materializeValue" in first) || !last || !("materializeValue" in last)) {
+      throw new Error("Expected parsed ingestion lines");
+    }
+    expect(first.materializeValue()).toEqual({ event: "one" });
+    expect(parsed.lines[1]).not.toHaveProperty("materializeValue");
+    expect(last.materializeValue()).toEqual({ count: 2 });
     expect(parsed.lines.map(({ record }) => record)).toEqual(
       parseInput(input, { forcedFormat: "jsonl" }).records,
     );

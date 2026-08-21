@@ -3,12 +3,18 @@ export {
   parseInput,
   parseInputForIngestion,
   parseJsonlRecordLine,
+  parseJsonlRecordLineForIngestion,
   parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
+  parsePreviewJsonlRecordLineForIngestion,
   parsePreviewJsonlRecordLineWithValue,
   restoreNode,
 } from "./parser.js";
-export type { JsonlRecordLineResult, ParseInputForIngestionResult } from "./parser.js";
+export type {
+  JsonlRecordIngestionLine,
+  JsonlRecordLineResult,
+  ParseInputForIngestionResult,
+} from "./parser.js";
 export {
   materializeNode,
   stringifyJsonNode,
