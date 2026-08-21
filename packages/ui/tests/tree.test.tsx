@@ -129,9 +129,8 @@ describe("tree paths", () => {
     const leaf = rows.find((row) => row.valueLabel === '"needle"');
     const matches = matchesOf(
       searchRecords(result.records, expectedJsonPath, {
-        regex: false,
+        syntax: "jq",
         caseSensitive: true,
-        jq: true,
       }),
     );
 
@@ -198,7 +197,7 @@ describe("tree paths", () => {
     });
     const result = parseInput(line);
     const record = result.records[0]!;
-    const options = { regex: false, caseSensitive: false, jq: false };
+    const options = { syntax: "text", caseSensitive: false } as const;
     const pattern = buildSearchPattern("needle", options);
 
     expect(pattern).not.toBeNull();
@@ -215,7 +214,7 @@ describe("tree paths", () => {
 
   it("searches object keys without treating roots or array indexes as keys", () => {
     const result = parseInput('{"0":"object-key","items":[10,20,30]}');
-    const options = { regex: false, caseSensitive: true, jq: false };
+    const options = { syntax: "text", caseSensitive: true } as const;
     const matches = matchesOf(searchRecords(result.records, "0", options));
 
     expect(matches).toEqual([
@@ -252,9 +251,8 @@ describe("tree paths", () => {
       const result = parseInput(JSON.stringify(values));
 
       const searchResult = searchRecords(result.records, "needle", {
-        regex: false,
+        syntax: "text",
         caseSensitive: true,
-        jq: false,
       });
 
       expect(searchResult?.total).toBe(oversizedMatchCount);
@@ -283,16 +281,14 @@ describe("tree paths", () => {
       "[1,2]",
     ];
     const pattern = buildSearchPattern("nested", {
-      regex: false,
+      syntax: "text",
       caseSensitive: true,
-      jq: false,
     })!;
     const parse = vi.spyOn(JSON, "parse");
 
     const matches = searchJsonValue(values, "record-1", pattern, {
-      regex: false,
+      syntax: "text",
       caseSensitive: true,
-      jq: false,
     }).window.matches;
 
     expect(parse).toHaveBeenCalledTimes(8);
@@ -321,7 +317,7 @@ describe("tree paths", () => {
     const row = buildRecordRows(record, new Set()).find(
       (candidate) => candidate.pathText === pathText,
     )!;
-    const options = { regex: false, caseSensitive: true, jq: false };
+    const options = { syntax: "text", caseSensitive: true } as const;
 
     const visibleMatch = matchesOf(searchRecords(result.records, "visible", options));
     const boundaryMatch = matchesOf(searchRecords(result.records, "edge", options));
@@ -354,9 +350,8 @@ describe("tree paths", () => {
       { forcedFormat: "jsonl" },
     );
     const matches = searchRecords(result.records, "boom", {
-      regex: false,
+      syntax: "text",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(

@@ -1,4 +1,5 @@
 import type { RecordFilterMode } from "./record-filter";
+import type { SearchSyntax } from "./record-search";
 import type { TreePathMatch } from "./tree-path";
 
 export type QueryModeState =
@@ -17,9 +18,8 @@ export type QueryMode = QueryModeState["mode"];
 export interface QueryInteractionState {
   toolbarQuery: string;
   modeState: QueryModeState;
-  searchRegex: boolean;
+  searchSyntax: SearchSyntax;
   searchCaseSensitive: boolean;
-  searchJq: boolean;
   recordFilter: RecordFilterMode;
   commandInput: string;
 }
@@ -30,9 +30,8 @@ export const isPathLikeQuery = (value: string) =>
 export const createInitialQueryInteractionState = (): QueryInteractionState => ({
   toolbarQuery: "",
   modeState: { mode: "idle" },
-  searchRegex: false,
+  searchSyntax: "text",
   searchCaseSensitive: false,
-  searchJq: false,
   recordFilter: "all",
   commandInput: "",
 });
@@ -108,19 +107,15 @@ export const reduceQueryInteraction = (
 
     case "setSearchOption": {
       const modeState = resetSearchMatchIndex(state.modeState);
-      if (action.kind === "jq" && action.on) {
-        return { ...state, modeState, searchJq: true, searchRegex: false };
+      if (action.kind === "caseSensitive") {
+        return { ...state, modeState, searchCaseSensitive: action.on };
       }
-      if (action.kind === "regex" && action.on) {
-        return { ...state, modeState, searchRegex: true, searchJq: false };
-      }
-      if (action.kind === "jq") {
-        return { ...state, modeState, searchJq: action.on };
-      }
-      if (action.kind === "regex") {
-        return { ...state, modeState, searchRegex: action.on };
-      }
-      return { ...state, modeState, searchCaseSensitive: action.on };
+      const searchSyntax = action.on
+        ? action.kind
+        : state.searchSyntax === action.kind
+          ? "text"
+          : state.searchSyntax;
+      return { ...state, modeState, searchSyntax };
     }
 
     case "setRecordFilter": {

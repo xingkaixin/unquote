@@ -455,8 +455,7 @@ const buildRawLineProbe = (
 ): RegExp | null => {
   // Numbers, containers, paths, and escaped strings can match text absent from the raw JSON.
   if (
-    options.regex ||
-    options.jq ||
+    options.syntax !== "text" ||
     unsafeRawProbePattern.test(query) ||
     numericLabelPattern.test(query) ||
     containerLabelPattern.test(query)
@@ -520,9 +519,8 @@ interface RequestedLineMatches {
 
 const hasSameSearch = (cache: FileSearchCache, query: string, options: SearchOptions) =>
   cache.query === query &&
-  cache.options.regex === options.regex &&
-  cache.options.caseSensitive === options.caseSensitive &&
-  cache.options.jq === options.jq;
+  cache.options.syntax === options.syntax &&
+  cache.options.caseSensitive === options.caseSensitive;
 
 const firstMatchIndexForLine = (lineNumbers: Float64Array, lineNumber: number) => {
   let low = 0;

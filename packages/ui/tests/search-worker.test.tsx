@@ -5,7 +5,7 @@ interface WorkerScope {
   postMessage: ReturnType<typeof vi.fn>;
 }
 
-const defaultOptions = { regex: false, caseSensitive: false, jq: false };
+const defaultOptions = { syntax: "text", caseSensitive: false } as const;
 
 const loadWorker = async () => {
   const workerScope: WorkerScope = { onmessage: null, postMessage: vi.fn() };
@@ -140,7 +140,7 @@ describe("search worker", () => {
         forcedFormat: "json",
       },
       query: "(",
-      options: { ...defaultOptions, regex: true },
+      options: { ...defaultOptions, syntax: "regex" },
     });
 
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(1));

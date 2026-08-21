@@ -109,15 +109,14 @@ describe("query-interaction", () => {
     expect(cleared.modeState).toEqual({ mode: "idle" });
   });
 
-  it("enforces jq and regex mutual exclusion in both directions", () => {
+  it("represents text, jq, and regex as one active syntax", () => {
     const base = searchState("needle", 2);
     const afterJq = reduceQueryInteraction(base, {
       type: "setSearchOption",
       kind: "jq",
       on: true,
     });
-    expect(afterJq.searchJq).toBe(true);
-    expect(afterJq.searchRegex).toBe(false);
+    expect(afterJq.searchSyntax).toBe("jq");
     expect(afterJq.modeState).toMatchObject({ mode: "search", currentMatchIndex: 0 });
 
     const afterRegex = reduceQueryInteraction(afterJq, {
@@ -125,16 +124,14 @@ describe("query-interaction", () => {
       kind: "regex",
       on: true,
     });
-    expect(afterRegex.searchRegex).toBe(true);
-    expect(afterRegex.searchJq).toBe(false);
+    expect(afterRegex.searchSyntax).toBe("regex");
 
     const back = reduceQueryInteraction(afterRegex, {
       type: "setSearchOption",
       kind: "jq",
       on: true,
     });
-    expect(back.searchJq).toBe(true);
-    expect(back.searchRegex).toBe(false);
+    expect(back.searchSyntax).toBe("jq");
 
     const caseSensitive = reduceQueryInteraction(base, {
       type: "setSearchOption",
@@ -142,7 +139,7 @@ describe("query-interaction", () => {
       on: true,
     });
     expect(caseSensitive.searchCaseSensitive).toBe(true);
-    expect(caseSensitive.searchJq).toBe(false);
+    expect(caseSensitive.searchSyntax).toBe("text");
   });
 
   it("applies a successful path resolution and lands on the first target", () => {

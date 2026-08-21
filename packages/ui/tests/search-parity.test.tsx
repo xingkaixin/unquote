@@ -83,9 +83,8 @@ const expectParity = async (query: string, options: SearchOptions) => {
 describe("search parity between memory and file search paths", () => {
   it("matches a case-insensitive substring across nested and stringified fields", async () => {
     const { memoryMatches } = await expectParity("needle", {
-      regex: false,
+      syntax: "text",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(memoryMatches?.length).toBeGreaterThan(3);
@@ -93,9 +92,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("matches case-sensitively when caseSensitive is true", async () => {
     const { memoryMatches } = await expectParity("Needle", {
-      regex: false,
+      syntax: "text",
       caseSensitive: true,
-      jq: false,
     });
 
     expect(memoryMatches).toEqual([expect.objectContaining({ recordId: "record-2" })]);
@@ -103,9 +101,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("matches case-insensitively for the same query when caseSensitive is false", async () => {
     const { memoryMatches } = await expectParity("Needle", {
-      regex: false,
+      syntax: "text",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(memoryMatches?.length).toBeGreaterThan(1);
@@ -113,9 +110,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("matches a regex pattern spanning multiple records", async () => {
     const { memoryMatches } = await expectParity("needle[-\\w]*", {
-      regex: true,
+      syntax: "regex",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(memoryMatches?.length).toBeGreaterThan(3);
@@ -123,9 +119,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("matches jq path text for a stringified-expanded prefix", async () => {
     const { memoryMatches } = await expectParity("$.payload", {
-      regex: false,
+      syntax: "jq",
       caseSensitive: true,
-      jq: true,
     });
 
     expect(memoryMatches?.length).toBeGreaterThan(1);
@@ -133,9 +128,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("matches a query inside deeply nested stringified content", async () => {
     const { memoryMatches } = await expectParity("deepest", {
-      regex: false,
+      syntax: "text",
       caseSensitive: true,
-      jq: false,
     });
 
     expect(memoryMatches).toEqual([
@@ -151,7 +145,7 @@ describe("search parity between memory and file search paths", () => {
   });
 
   it("does not treat record roots or array indexes as searchable keys", async () => {
-    const options: SearchOptions = { regex: false, caseSensitive: true, jq: false };
+    const options: SearchOptions = { syntax: "text", caseSensitive: true };
 
     const indexMatches = await expectParity("[0]", options);
     const rootMatches = await expectParity("$", options);
@@ -162,9 +156,8 @@ describe("search parity between memory and file search paths", () => {
 
   it("returns no matches on both paths for a non-matching query", async () => {
     const { memoryMatches, fileMatches } = await expectParity("zzz-not-present", {
-      regex: false,
+      syntax: "text",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(memoryMatches).toEqual([]);
@@ -179,9 +172,8 @@ describe("search parity between memory and file search paths", () => {
     ["6", "a synthesized container-count label"],
   ])("preserves parity for %s in %s", async (query) => {
     const { memoryMatches } = await expectParity(query, {
-      regex: false,
+      syntax: "text",
       caseSensitive: true,
-      jq: false,
     });
 
     expect(memoryMatches).toEqual(
@@ -194,9 +186,8 @@ describe("search parity between memory and file search paths", () => {
     performance.clearMeasures("unquote:search:file");
 
     await expectParity("needle", {
-      regex: false,
+      syntax: "text",
       caseSensitive: false,
-      jq: false,
     });
 
     expect(performance.getEntriesByName("unquote:search:memory")).toHaveLength(1);
@@ -206,7 +197,7 @@ describe("search parity between memory and file search paths", () => {
 
 describe("search parity for the empty query", () => {
   it("returns null on both search paths", async () => {
-    const options: SearchOptions = { regex: false, caseSensitive: false, jq: false };
+    const options: SearchOptions = { syntax: "text", caseSensitive: false };
 
     expect(searchInMemory("", options)).toBeNull();
     await expect(searchInFile("", options)).resolves.toBeNull();

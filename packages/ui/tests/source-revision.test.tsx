@@ -16,7 +16,7 @@ import { shareSourceRevision } from "../src/lib/source-revision";
 import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
-const options = { regex: false, caseSensitive: false, jq: false };
+const options = { syntax: "text", caseSensitive: false } as const;
 
 const match = (): SearchMatch => ({
   recordId: "record-1",

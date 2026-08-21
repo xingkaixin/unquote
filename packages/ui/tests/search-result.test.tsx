@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { searchRecords, searchResultWindowSize } from "../src/lib/record-search";
 import { createSearchResultVisibility, projectSearchResult } from "../src/lib/search-result";
 
-const options = { regex: false, caseSensitive: true, jq: false };
+const options = { syntax: "text", caseSensitive: true } as const;
 
 const makeRecords = (count: number) =>
   parseInput(
