@@ -66,13 +66,13 @@ const expectCodexSession = (
       sessionId: "synthetic-agent-session-v1",
       model: "benchmark-model-v1",
       turnCount,
-      eventCount: recordCount,
     },
     parseWarnings: [],
   });
   if (!session) {
     throw new Error("Synthetic fixture did not produce an Agent Session");
   }
+  expect(session.events).toHaveLength(recordCount);
 
   const model = createAgentSessionModel(session);
   expect(

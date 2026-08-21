@@ -20,7 +20,6 @@ export interface AgentSessionMeta {
   model?: string;
   cwd?: string;
   version?: string;
-  eventCount: number;
   turnCount: number;
 }
 
@@ -351,10 +350,6 @@ export type AgentTrajectoryWarning =
     });
 
 export interface AgentTrajectoryStats {
-  readonly turnCount: number;
-  readonly itemCount: number;
-  readonly toolCount: number;
-  readonly failedToolCount: number;
   readonly tokenUsage: AgentTrajectoryTokenUsageSnapshot;
 }
 

@@ -116,11 +116,6 @@ const modelFor = (
     turns,
     warnings: options.warnings ?? [],
     stats: {
-      turnCount: turns.length,
-      itemCount: items.length,
-      toolCount: items.filter((item) => item.kind === "tool").length,
-      failedToolCount: items.filter((item) => item.kind === "tool" && item.status === "failed")
-        .length,
       tokenUsage: options.tokenUsage ?? {},
     },
   };

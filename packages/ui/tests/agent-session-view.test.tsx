@@ -15,7 +15,6 @@ const session: AgentSession = {
     model: "gpt-5",
     cwd: "/repo",
     version: "1.0.0",
-    eventCount: 3,
     turnCount: 1,
   },
   events: [
@@ -198,7 +197,7 @@ describe("AgentSessionView", () => {
   it("renders a minimal empty session", () => {
     const emptySession: AgentSession = {
       fileType: "Claude Code",
-      meta: { eventCount: 0, turnCount: 0 },
+      meta: { turnCount: 0 },
       events: [],
       parseWarnings: [],
       parseWarningCount: 0,

@@ -168,10 +168,10 @@ describe("claudeTranscriptAdapter", () => {
         sessionId: "session",
         cwd: "/repo",
         version: "1.0.0",
-        eventCount: 7,
         turnCount: 2,
       },
     });
+    expect(session.meta).not.toHaveProperty("eventCount");
     expect(session.events.map((event) => event.category)).toEqual([
       "meta",
       "user",

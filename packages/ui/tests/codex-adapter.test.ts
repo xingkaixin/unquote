@@ -92,9 +92,9 @@ describe("codexRolloutAdapter", () => {
       cwd: "/repo",
       version: "1.0.0",
       model: "gpt-test",
-      eventCount: 10,
       turnCount: 2,
     });
+    expect(session.meta).not.toHaveProperty("eventCount");
     expect(session.events.map((event) => event.category)).toEqual([
       "meta",
       "meta",
@@ -1145,7 +1145,10 @@ describe("codexRolloutAdapter", () => {
         durationMs: 1250,
       },
     ]);
-    expect(trajectory.stats).toMatchObject({ toolCount: 1, failedToolCount: 1 });
+    expect(trajectory.items.filter((item) => item.kind === "tool")).toHaveLength(1);
+    expect(
+      trajectory.items.filter((item) => item.kind === "tool" && item.status === "failed"),
+    ).toHaveLength(1);
     expect(trajectory.items).toEqual([
       expect.objectContaining({
         kind: "tool",
