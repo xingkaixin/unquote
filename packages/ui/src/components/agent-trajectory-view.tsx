@@ -262,11 +262,10 @@ const RAW_JSON_CHARACTER_LIMIT = 20_000;
 
 export interface AgentTrajectoryViewProps {
   model: AgentSessionModel;
-  records: readonly JsonlRecord[];
   // Streamed sources hold Preview Records; these swap in and request the
   // cached Full Record so the detail pane can show real JSON.
-  resolveRecord: (record: JsonlRecord) => JsonlRecord;
-  requestFullRecord: (record: JsonlRecord) => void;
+  resolveRecordById: (recordId: string) => JsonlRecord | null;
+  requestFullRecordById: (recordId: string) => void;
   isDesktop: boolean;
   filters: TrajectoryFilters;
   detailSelection: AgentDetailSelection | null;
@@ -298,9 +297,8 @@ const rawRecordIdsFor = (item: AgentTrajectoryPresentationItem | null): string[]
 
 export const AgentTrajectoryView = ({
   model,
-  records,
-  resolveRecord,
-  requestFullRecord,
+  resolveRecordById,
+  requestFullRecordById,
   isDesktop,
   filters,
   detailSelection,
@@ -315,17 +313,9 @@ export const AgentTrajectoryView = ({
     () => new Map(presentation.items.map((item) => [item.item.id, item])),
     [presentation],
   );
-  const recordById = useMemo(
-    () => new Map(records.map((record) => [record.id, record])),
-    [records],
-  );
   const resolveRawJson = (recordId: string): TrajectoryRawJson | null => {
-    const record = recordById.get(recordId);
-    if (!record || !isParsed(record)) {
-      return null;
-    }
-    const resolved = resolveRecord(record);
-    if (!isParsed(resolved)) {
+    const resolved = resolveRecordById(recordId);
+    if (!resolved || !isParsed(resolved)) {
       return null;
     }
     if (!isFullRecord(resolved)) {
@@ -353,12 +343,12 @@ export const AgentTrajectoryView = ({
   // blocks; the cache update re-renders the detail pane with the JSON.
   useEffect(() => {
     for (const recordId of rawRecordIdsFor(selectedItem)) {
-      const record = recordById.get(recordId);
-      if (record && isParsed(record) && !isFullRecord(resolveRecord(record))) {
-        requestFullRecord(record);
+      const record = resolveRecordById(recordId);
+      if (record && isParsed(record) && !isFullRecord(record)) {
+        requestFullRecordById(recordId);
       }
     }
-  }, [recordById, requestFullRecord, resolveRecord, selectedItem]);
+  }, [requestFullRecordById, resolveRecordById, selectedItem]);
 
   const selectItem = (itemId: string) => {
     const selection = model.selectTrajectory(itemId);
