@@ -247,8 +247,8 @@ Active match auto-scroll:
 
 ### Internationalization
 
-- `Locale = "en" | "zh-CN"`
-- `Messages` type is derived from the canonical `en.ts` schema and re-exported via `i18n/i18n.ts`; `zh-CN.ts` is checked against the same key set
+- `Locale = "en" | "zh-CN" | "ja"`, derived from the keys of the locale registry in `i18n/i18n.ts`
+- `Messages` type is derived from the canonical `en.ts` schema; the registry keeps the `en.ts`, `zh-CN.ts`, and `ja.ts` catalogs, browser-language prefixes, and menu labels together
 - `createTranslator(messages)` returns `t(key, params?)` function
 - Locale persisted to `localStorage` key `unquote-locale`
 
@@ -270,7 +270,7 @@ Active match auto-scroll:
   - Keyboard shortcut: `Ctrl+Shift+U` / `Cmd+Shift+U`
   - Action click: opens options page
   - Stores selected text in `browser.storage.session`, extension reads it on open
-- **i18n:** Manifest uses `__MSG_appName__` / `__MSG_appDescription__` with `_locales/en/messages.json` and `zh_CN/messages.json`
+- **i18n:** Manifest uses `__MSG_appName__` / `__MSG_appDescription__` with `_locales/en/messages.json`, `zh_CN/messages.json`, and `ja/messages.json`
 
 ## Safari Extension (`apps/safari`)
 
@@ -325,7 +325,7 @@ Safari extensions ship inside a native macOS app, so `apps/safari` holds an Xcod
 ## Development Guidelines
 
 - **New components** go in `packages/ui/src/components/`
-- **New i18n keys** must be added to `en.ts` and `zh-CN.ts`
+- **New i18n keys** must be added to `en.ts`, `zh-CN.ts`, and `ja.ts`
 - **Core parser changes** should include tests in `packages/core/tests/`
 - **Agent session parser changes** should include tests in `packages/ui/tests/agent-session.test.tsx`.
 - **UI tests** use `@testing-library/react` + jsdom. Mock `Worker` as in `packages/ui/tests/app.test.tsx`.

@@ -1,14 +1,41 @@
+import { en } from "./en";
 import type { Messages, MessageKey } from "./en";
+import { ja } from "./ja";
+import { zhCN } from "./zh-CN";
 
-export type Locale = "en" | "zh-CN" | "ja";
 export type { Messages, MessageKey };
 
 const STORAGE_KEY = "unquote-locale";
 
-const SUPPORTED: readonly Locale[] = ["en", "zh-CN", "ja"];
+export const localeRegistry = {
+  en: {
+    label: "locale.english",
+    languagePrefixes: ["en"],
+    messages: en,
+  },
+  "zh-CN": {
+    label: "locale.chinese",
+    languagePrefixes: ["zh"],
+    messages: zhCN,
+  },
+  ja: {
+    label: "locale.japanese",
+    languagePrefixes: ["ja"],
+    messages: ja,
+  },
+} as const satisfies Record<
+  string,
+  { label: MessageKey; languagePrefixes: readonly string[]; messages: Messages }
+>;
 
-const isLocale = (value: string): value is Locale =>
-  (SUPPORTED as readonly string[]).includes(value);
+export type Locale = keyof typeof localeRegistry;
+
+const keysOf = <T extends object>(value: T) => Object.keys(value) as Array<keyof T>;
+
+export const supportedLocales = Object.freeze(keysOf(localeRegistry));
+const defaultLocale: Locale = "en";
+
+const isLocale = (value: string): value is Locale => Object.hasOwn(localeRegistry, value);
 
 export const detectLocale = (): Locale => {
   try {
@@ -18,14 +45,12 @@ export const detectLocale = (): Locale => {
     }
   } catch {}
 
-  const lang = navigator.language;
-  if (lang.startsWith("zh")) {
-    return "zh-CN";
-  }
-  if (lang.startsWith("ja")) {
-    return "ja";
-  }
-  return "en";
+  const browserLanguage = navigator.language;
+  return (
+    supportedLocales.find((locale) =>
+      localeRegistry[locale].languagePrefixes.some((prefix) => browserLanguage.startsWith(prefix)),
+    ) ?? defaultLocale
+  );
 };
 
 export const persistLocale = (locale: Locale) => {

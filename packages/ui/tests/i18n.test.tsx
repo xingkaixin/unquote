@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { en } from "../src/i18n/en";
-import { createTranslator, detectLocale, persistLocale } from "../src/i18n/i18n";
+import {
+  createTranslator,
+  detectLocale,
+  localeRegistry,
+  persistLocale,
+  supportedLocales,
+} from "../src/i18n/i18n";
 import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 
@@ -147,7 +153,8 @@ describe("i18n", () => {
   it("locks every trajectory message in every locale catalog", () => {
     expect(trajectoryMessageKeys).toHaveLength(81);
 
-    for (const catalog of [en, zhCN, ja]) {
+    for (const locale of supportedLocales) {
+      const catalog = localeRegistry[locale].messages;
       for (const key of trajectoryMessageKeys) {
         expect(catalog).toHaveProperty(key);
         expect(catalog[key]).not.toBe("");
@@ -162,7 +169,8 @@ describe("i18n", () => {
   });
 
   it("keeps every locale catalog complete", () => {
-    for (const catalog of [zhCN, ja]) {
+    for (const locale of supportedLocales) {
+      const catalog = localeRegistry[locale].messages;
       expect(Object.keys(catalog).sort()).toEqual(Object.keys(en).sort());
       expect(Object.values(catalog).every(Boolean)).toBe(true);
     }
