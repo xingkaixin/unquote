@@ -1,52 +1,10 @@
-import type { JsonlRecord } from "@unquote/core";
 import { useTranslation } from "../i18n/context";
-import type { RecordFilterMode } from "../lib/record-filter";
-import type { NestedFilterScope } from "../lib/record-filter";
-import type { RecordInsight } from "../lib/record-insight";
-import type { SearchMatch } from "../lib/record-search";
-import type { RecordViewActions } from "../lib/record-view";
-import type { ScrollIntent } from "../lib/scroll-intent";
-import type { SelectedNodeProjection } from "../lib/selected-node";
+import type { RecordWorkspaceModel } from "../lib/record-workspace-model";
 import { NodeInspector } from "./node-inspector";
 import { RecordFilterBar } from "./record-filter-bar";
 import { RecordRail } from "./record-rail";
 import { RecordTreePane } from "./record-tree-pane";
 import { WorkspaceColumns } from "./workspace-columns";
-
-export interface RecordWorkspaceModel {
-  filter: {
-    mode: RecordFilterMode;
-    shown: number;
-    total: number;
-    nestedScope: NestedFilterScope;
-  };
-  records: {
-    visible: readonly JsonlRecord[];
-    insights: ReadonlyMap<string, RecordInsight>;
-    turnIndexByRecordId: ReadonlyMap<string, number> | null;
-  };
-  active: {
-    id: string;
-    record: JsonlRecord | null;
-    expandedStringifiedPaths: ReadonlySet<string>;
-    searchMatches: SearchMatch[];
-    activeMatchPath: string | null;
-    selectedPath: string | null;
-    selectedNode: SelectedNodeProjection;
-    expandedNestedCount: number;
-    hasNestedJson: boolean;
-  };
-  scrollIntent: ScrollIntent | null;
-  intent: {
-    setFilter: (mode: RecordFilterMode) => void;
-    selectRecord: (record: JsonlRecord) => void;
-    recordView: RecordViewActions;
-    expandAll: () => void;
-    collapseAll: () => void;
-    copySelectedValue: () => void;
-    copySelectedPath: () => void;
-  };
-}
 
 interface RecordWorkspaceProps {
   isDesktop: boolean;

@@ -4,7 +4,6 @@ import { isFullRecord, isParsed, stringifyJsonNodeBounded } from "@unquote/core"
 import type { JsonlRecord } from "@unquote/core";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
-import type { TrajectoryFilters } from "../hooks/use-trajectory-filters";
 import type {
   AgentCanonicalSelection,
   AgentDetailSelection,
@@ -20,6 +19,7 @@ import {
   type AgentTrajectoryPresentationItem,
   type AgentTrajectoryPresentationSummary,
 } from "../lib/agent-session/trajectory-presentation";
+import type { TrajectoryFilters } from "../lib/trajectory-filters";
 import { AgentTrajectoryDetail, type TrajectoryRawJson } from "./agent-trajectory-detail";
 import { formatTrajectoryDuration } from "./agent-trajectory-format";
 import { AgentTrajectoryLedger } from "./agent-trajectory-ledger";

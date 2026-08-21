@@ -1,6 +1,6 @@
 import { Braces, ClipboardCopy, Download, List } from "lucide-react";
 import { useTranslation } from "../i18n/context";
-import { isOutputView, type OutputView } from "../hooks/use-output-view";
+import { isOutputView, type OutputView } from "../lib/output-view";
 import type { ThemeToggleProps } from "./theme-toggle";
 import { Button } from "./button";
 import {

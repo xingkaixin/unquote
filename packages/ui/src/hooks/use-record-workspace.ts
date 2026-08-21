@@ -1,7 +1,6 @@
 import type { ParseResult } from "@unquote/core";
 import { toast } from "sonner";
 import { useCallback, useMemo } from "react";
-import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
 import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
 import { resolveSourceWork } from "../lib/published-source";
@@ -17,6 +16,7 @@ import type { RecordAppend } from "../lib/record-sequence";
 import type { RecordViewActions } from "../lib/record-view";
 import { narrowPathToRecord } from "../lib/record-view";
 import type { SearchMatch } from "../lib/record-search";
+import type { RecordWorkspaceModel } from "../lib/record-workspace-model";
 import { projectSelectedNode } from "../lib/selected-node";
 import type { SourceRevision } from "../lib/source-revision";
 import type { WorkspaceSelectionVisibility } from "../lib/workspace-selection";
