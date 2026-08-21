@@ -93,9 +93,25 @@ export const useRecordWorkspace = ({
     ? (recordsById.get(projectedSelection.activeRecordId) ?? null)
     : null;
   const displayedRecordId = activeRecord?.id ?? "";
+  const resolveRecordById = useCallback(
+    (recordId: string) => {
+      const record = recordsById.get(recordId);
+      return record ? localFileSource.resolveRecord(record) : null;
+    },
+    [localFileSource.resolveRecord, recordsById],
+  );
+  const requestFullRecordById = useCallback(
+    (recordId: string) => {
+      const record = recordsById.get(recordId);
+      if (record) {
+        localFileSource.requestFullRecord(record);
+      }
+    },
+    [localFileSource.requestFullRecord, recordsById],
+  );
   const renderedActiveRecord = useMemo(
-    () => (activeRecord ? localFileSource.resolveRecord(activeRecord) : null),
-    [activeRecord, localFileSource.resolveRecord],
+    () => (activeRecord ? resolveRecordById(activeRecord.id) : null),
+    [activeRecord, resolveRecordById],
   );
   const activeRecordHasNestedJson = useMemo(
     () => Boolean(renderedActiveRecord && recordContainsStringifiedJson(renderedActiveRecord)),
@@ -284,7 +300,7 @@ export const useRecordWorkspace = ({
     openAgentRecord,
     selectRecordById,
     setSampleExpansions: workspace.setSampleExpansions,
-    resolveRecord: localFileSource.resolveRecord,
-    requestFullRecord: localFileSource.requestFullRecord,
+    resolveRecordById,
+    requestFullRecordById,
   };
 };

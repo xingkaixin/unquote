@@ -194,9 +194,8 @@ const renderView = (overrides: Partial<HarnessProps> = {}) => {
   };
   const props: HarnessProps = {
     model: modelFor([itemFor("default", { timestamp: 10 })]),
-    records: [],
-    resolveRecord: (record) => record,
-    requestFullRecord: vi.fn(),
+    resolveRecordById: () => null,
+    requestFullRecordById: vi.fn(),
     isDesktop: true,
     detailSelection: null,
     onDetailSelectionChange: callbacks.onDetailSelectionChange,
@@ -240,13 +239,36 @@ describe("AgentTrajectoryView", () => {
       },
     };
 
-    renderView({ model, records: [record], detailSelection: selected });
+    renderView({ model, resolveRecordById: () => record, detailSelection: selected });
 
     const raw = document.querySelector("[data-trajectory-raw] pre");
     expect(raw?.textContent).toHaveLength(20_000);
     expect(
       screen.getByText("Truncated preview; open the Record for the full content."),
     ).toBeInTheDocument();
+  });
+
+  it("requests the selected Preview Record by id", () => {
+    const item = itemFor("preview", { recordId: "record-preview" });
+    const model = modelFor([item]);
+    const selected = model.selectTrajectory(item.id);
+    const requestFullRecordById = vi.fn();
+    const record: JsonlRecord = {
+      id: item.recordId,
+      lineNumber: 1,
+      summary: "preview",
+      status: "preview",
+      node: { kind: "object", childCount: 1, preview: true },
+    };
+
+    renderView({
+      model,
+      resolveRecordById: () => record,
+      requestFullRecordById,
+      detailSelection: selected,
+    });
+
+    expect(requestFullRecordById).toHaveBeenCalledWith(record.id);
   });
 
   it("builds its presentation once for a stable model", () => {
