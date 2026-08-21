@@ -9,6 +9,7 @@ import type { SourceRevision } from "../lib/source-revision";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
+import type { SearchErrorKind, SearchStatus } from "../lib/search-lifecycle";
 import { createWorkerRequest, spawnWorker } from "../lib/worker-lifecycle";
 import type { WorkerRequest } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
@@ -19,13 +20,6 @@ export const searchWorkerTimeoutMs = 5000;
 export const largeFileSearchWorkerTimeoutMs = 15_000;
 const largeFileSearchBytes = 1_000_000;
 
-export type SearchWorkerStatus = "idle" | "pending" | "complete" | "error";
-export type SearchWorkerErrorKind =
-  | "timeout"
-  | "worker-error"
-  | "too-large"
-  | "regex-without-worker";
-
 interface SearchIdentity {
   sourceRevision: SourceRevision;
   query: string;
@@ -35,8 +29,8 @@ interface SearchIdentity {
 
 interface SearchWorkerState extends SearchIdentity {
   result: SearchResultSet | null;
-  status: SearchWorkerStatus;
-  errorKind: SearchWorkerErrorKind | null;
+  status: SearchStatus;
+  errorKind: SearchErrorKind | null;
 }
 
 type SearchWorkerStateUpdate =
@@ -46,8 +40,8 @@ type SearchWorkerStateUpdate =
 export interface SearchWorkerResult {
   sourceRevision: SourceRevision;
   result: SearchResultSet | null;
-  status: SearchWorkerStatus;
-  errorKind: SearchWorkerErrorKind | null;
+  status: SearchStatus;
+  errorKind: SearchErrorKind | null;
   requestWindow: (matchIndexes: Float64Array) => void;
 }
 
@@ -84,10 +78,12 @@ const completedResult = (
   identity: SearchIdentity,
   result: SearchResultSet | null,
 ): SearchWorkerState => ({ ...identity, result, status: "complete", errorKind: null });
-const failedResult = (
-  identity: SearchIdentity,
-  errorKind: SearchWorkerErrorKind,
-): SearchWorkerState => ({ ...identity, result: null, status: "error", errorKind });
+const failedResult = (identity: SearchIdentity, errorKind: SearchErrorKind): SearchWorkerState => ({
+  ...identity,
+  result: null,
+  status: "error",
+  errorKind,
+});
 
 const buildSearchRequest = (
   requestId: number,
@@ -309,7 +305,7 @@ export const useSearchWorker = (params: {
         }
       };
 
-      const commitFailure = (errorKind: SearchWorkerErrorKind) => {
+      const commitFailure = (errorKind: SearchErrorKind) => {
         if (requestIdRef.current !== requestId) {
           return;
         }

@@ -2,7 +2,7 @@ import type { ParseStats } from "@unquote/core";
 import type { createTranslator } from "../i18n/i18n";
 import type { ParserProgress } from "./parse-text";
 import type { QueryInteractionState } from "./query-interaction";
-import type { SearchWorkerErrorKind, SearchWorkerStatus } from "../hooks/use-search-worker";
+import type { SearchErrorKind, SearchStatus } from "./search-lifecycle";
 
 type Translator = ReturnType<typeof createTranslator>;
 type RecordFilter = QueryInteractionState["recordFilter"];
@@ -65,8 +65,8 @@ export interface ToolbarSummaryInput {
   visibleStats: ParseStats;
   recordFilter: RecordFilter;
   searchQuery: string;
-  searchStatus: SearchWorkerStatus;
-  searchErrorKind: SearchWorkerErrorKind | null;
+  searchStatus: SearchStatus;
+  searchErrorKind: SearchErrorKind | null;
   pathError: string | null;
   matchCount: number;
 }

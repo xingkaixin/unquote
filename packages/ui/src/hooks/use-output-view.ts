@@ -1,12 +1,8 @@
 import { useCallback, useEffect } from "react";
 import type { AgentSession } from "../lib/agent-session";
+import type { OutputView } from "../lib/output-view";
 import type { SourceRevision } from "../lib/source-revision";
 import { useSourceRevisionState } from "./use-source-revision-state";
-
-export type OutputView = "agent" | "trajectory" | "json";
-
-export const isOutputView = (value: string): value is OutputView =>
-  value === "agent" || value === "trajectory" || value === "json";
 
 interface OutputViewState {
   selected: OutputView;

@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { isOutputView, useOutputView } from "../src/hooks/use-output-view";
+import { useOutputView } from "../src/hooks/use-output-view";
+import { isOutputView } from "../src/lib/output-view";
 import type { AgentSession } from "../src/lib/agent-session";
 import type { SourceRevision } from "../src/lib/source-revision";
 
