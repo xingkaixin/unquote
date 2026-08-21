@@ -91,6 +91,10 @@ interface DetectionCandidate {
   warnings: WarningBuffer;
 }
 
+interface DeferredParsedAgentLine extends Pick<ParsedAgentLine, "recordId" | "lineNumber"> {
+  materializeData: () => unknown;
+}
+
 type DetectionStatus = "collecting" | "detected" | "disabled";
 
 const emptyDetectionSample: AgentDetectionSample = {
@@ -175,10 +179,18 @@ export const createAgentSessionTracker = (fileName?: string) => {
     }
   };
 
-  const pushParsedLine = (line: ParsedAgentLine) => {
+  const pushParsedLine = (input: ParsedAgentLine | DeferredParsedAgentLine) => {
     if (status === "disabled") {
       return;
     }
+    const line: ParsedAgentLine =
+      "materializeData" in input
+        ? {
+            recordId: input.recordId,
+            lineNumber: input.lineNumber,
+            data: input.materializeData(),
+          }
+        : input;
 
     for (const candidate of candidates) {
       pushToCandidate(candidate, line);

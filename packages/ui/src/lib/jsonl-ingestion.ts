@@ -1,7 +1,7 @@
 import type {
   FullJsonlRecord,
   JsonlRecord,
-  JsonlRecordLineResult,
+  JsonlRecordIngestionLine,
   ParseResult,
   PreviewJsonlRecord,
 } from "@unquote/core";
@@ -14,14 +14,16 @@ export const createJsonlIngestion = (fileName?: string) => {
   let success = 0;
 
   const push = (
-    parsedLine: JsonlRecordLineResult<FullJsonlRecord> | JsonlRecordLineResult<PreviewJsonlRecord>,
+    parsedLine:
+      | JsonlRecordIngestionLine<FullJsonlRecord>
+      | JsonlRecordIngestionLine<PreviewJsonlRecord>,
   ): JsonlRecord => {
     const { record } = parsedLine;
-    if ("value" in parsedLine) {
+    if ("materializeValue" in parsedLine) {
       agentTracker.pushParsedLine({
         recordId: record.id,
         lineNumber: record.lineNumber,
-        data: parsedLine.value,
+        materializeData: parsedLine.materializeValue,
       });
     } else {
       agentTracker.pushParseWarning({ recordId: record.id, lineNumber: record.lineNumber });

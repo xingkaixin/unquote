@@ -51,6 +51,10 @@ export type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord
   | { record: T; value: unknown }
   | { record: FailedJsonlRecord };
 
+export type JsonlRecordIngestionLine<T extends FullJsonlRecord | PreviewJsonlRecord> =
+  | { record: T; materializeValue: () => unknown }
+  | { record: FailedJsonlRecord };
+
 type JsonlRecordLineSourceResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
   | { record: T; source: LosslessJsonValue }
   | { record: FailedJsonlRecord };
@@ -78,6 +82,16 @@ const withApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
       }
     : result;
 
+const withLazyApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
+  result: JsonlRecordLineSourceResult<T>,
+): JsonlRecordIngestionLine<T> =>
+  "source" in result
+    ? {
+        record: result.record,
+        materializeValue: () => materializeLosslessValue(result.source, { numbers: "approximate" }),
+      }
+    : result;
+
 const parseFullJsonlRecordLine = (line: string, lineNumber: number, maxDepth: number) =>
   parseJsonlRecordLineWith(line, lineNumber, (value) =>
     createFullJsonlRecord(value, lineNumber, maxDepth),
@@ -89,6 +103,15 @@ export const parseJsonlRecordLineWithValue = (
   options: ParseOptions = {},
 ): JsonlRecordLineResult<FullJsonlRecord> =>
   withApproximateValue(
+    parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)),
+  );
+
+export const parseJsonlRecordLineForIngestion = (
+  line: string,
+  lineNumber: number,
+  options: ParseOptions = {},
+): JsonlRecordIngestionLine<FullJsonlRecord> =>
+  withLazyApproximateValue(
     parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)),
   );
 
@@ -104,6 +127,16 @@ export const parsePreviewJsonlRecordLineWithValue = (
   lineNumber: number,
 ): JsonlRecordLineResult<PreviewJsonlRecord> =>
   withApproximateValue(
+    parseJsonlRecordLineWith(line, lineNumber, (value) =>
+      createPreviewJsonlRecord(value, lineNumber),
+    ),
+  );
+
+export const parsePreviewJsonlRecordLineForIngestion = (
+  line: string,
+  lineNumber: number,
+): JsonlRecordIngestionLine<PreviewJsonlRecord> =>
+  withLazyApproximateValue(
     parseJsonlRecordLineWith(line, lineNumber, (value) =>
       createPreviewJsonlRecord(value, lineNumber),
     ),
@@ -222,7 +255,7 @@ const detectFormat = (input: string): "json" | "jsonl" =>
 
 export type ParseInputForIngestionResult =
   | { format: "json"; result: ParseResult }
-  | { format: "jsonl"; lines: JsonlRecordLineResult<FullJsonlRecord>[] };
+  | { format: "jsonl"; lines: JsonlRecordIngestionLine<FullJsonlRecord>[] };
 
 type ParsedInputWithLines<TLine> =
   | { format: "json"; result: ParseResult }
@@ -321,7 +354,7 @@ export const parseInputForIngestion = (
   );
   return parsed.format === "json"
     ? parsed
-    : { format: "jsonl", lines: parsed.lines.map(withApproximateValue) };
+    : { format: "jsonl", lines: parsed.lines.map(withLazyApproximateValue) };
 };
 
 export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {

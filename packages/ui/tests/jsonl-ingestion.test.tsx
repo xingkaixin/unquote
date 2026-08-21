@@ -1,4 +1,8 @@
-import { parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue } from "@unquote/core";
+import {
+  parseJsonlRecordLine,
+  parseJsonlRecordLineForIngestion,
+  parsePreviewJsonlRecordLineForIngestion,
+} from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJsonlIngestion } from "../src/lib/jsonl-ingestion";
 import { parseText } from "../src/lib/parse-text";
@@ -11,7 +15,7 @@ const streamText = (input: string, fileName?: string) => {
     if (!line.trim()) {
       return [];
     }
-    return [ingestion.push(parseJsonlRecordLineWithValue(line, index + 1))];
+    return [ingestion.push(parseJsonlRecordLineForIngestion(line, index + 1))];
   });
 
   return {
@@ -47,7 +51,10 @@ describe("JSONL ingestion", () => {
       payload: { session_id: "canonical-link" },
     });
 
-    for (const parseLine of [parseJsonlRecordLineWithValue, parsePreviewJsonlRecordLineWithValue]) {
+    for (const parseLine of [
+      parseJsonlRecordLineForIngestion,
+      parsePreviewJsonlRecordLineForIngestion,
+    ]) {
       const ingestion = createJsonlIngestion("rollout.jsonl");
       const record = ingestion.push(parseLine(input, 17));
       const session = ingestion.finishAgentSession();
@@ -55,6 +62,22 @@ describe("JSONL ingestion", () => {
       expect(session?.events[0]?.recordId).toBe(record.id);
       expect(session?.events[0]?.lineNumber).toBe(record.lineNumber);
     }
+  });
+
+  it("stops materializing values after generic JSONL exhausts the detection budget", () => {
+    const ingestion = createJsonlIngestion("events.jsonl");
+    const materializeValue = vi.fn(() => ({ event: "worker.tick" }));
+
+    for (let lineNumber = 1; lineNumber <= 100; lineNumber += 1) {
+      const record = parseJsonlRecordLine('{"event":"worker.tick"}', lineNumber);
+      if (record.status !== "full") {
+        throw new Error("Expected a full record");
+      }
+      ingestion.push({ record, materializeValue });
+    }
+
+    expect(materializeValue).toHaveBeenCalledTimes(80);
+    expect(ingestion.finishAgentSession()).toBeNull();
   });
 
   it.each([
