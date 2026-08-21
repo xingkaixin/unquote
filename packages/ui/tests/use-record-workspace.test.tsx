@@ -75,8 +75,12 @@ describe("useRecordWorkspace", () => {
       recordId: result.records[0]!.id,
     } as const;
 
-    act(() => workspace.current.openAgentRecord(selection, result.records[1]!.id));
+    let opened = false;
+    act(() => {
+      opened = workspace.current.openAgentRecord(selection, result.records[1]!.id);
+    });
 
+    expect(opened).toBe(true);
     expect(workspace.current.model.active.id).toBe(result.records[1]!.id);
     expect(workspace.current.detailSelection).toBe(selection);
     expect(workspace.current.model.scrollIntent).toEqual({
@@ -170,8 +174,12 @@ describe("useRecordWorkspace", () => {
     const detailSelection = workspace.current.detailSelection;
     const scrollIntent = workspace.current.model.scrollIntent;
 
-    act(() => workspace.current.openAgentRecord(selection, "missing-record"));
+    let opened = true;
+    act(() => {
+      opened = workspace.current.openAgentRecord(selection, "missing-record");
+    });
 
+    expect(opened).toBe(false);
     expect(workspace.current.model.active.id).toBe(activeRecordId);
     expect(workspace.current.detailSelection).toBe(detailSelection);
     expect(workspace.current.model.scrollIntent).toBe(scrollIntent);

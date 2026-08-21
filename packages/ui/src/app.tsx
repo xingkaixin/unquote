@@ -191,15 +191,13 @@ export const UnquoteApp = ({
   );
   const handleOpenTrajectoryRecord = useCallback(
     (selection: AgentDetailSelection, endpointRecordId: string) => {
-      if (!result.records.some((record) => record.id === endpointRecordId)) {
+      if (!recordWorkspace.openAgentRecord(selection, endpointRecordId, { reveal: true })) {
         return;
       }
 
-      setFilter("all", { preserveActiveRecord: true });
-      recordWorkspace.openAgentRecord(selection, endpointRecordId);
       setOutputView("json");
     },
-    [recordWorkspace.openAgentRecord, result.records, setFilter, setOutputView],
+    [recordWorkspace.openAgentRecord, setOutputView],
   );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the

@@ -194,13 +194,17 @@ export const useRecordWorkspace = ({
     [recordsById, workspace.selectRecord],
   );
   const openAgentRecord = useCallback(
-    (selection: AgentDetailSelection, recordId: string) => {
+    (selection: AgentDetailSelection, recordId: string, options?: { reveal: boolean }) => {
       if (!recordsById.has(recordId)) {
-        return;
+        return false;
+      }
+      if (options?.reveal) {
+        query.intent.setFilter("all", { preserveActiveRecord: true });
       }
       workspace.openAgentRecord(selection, recordId);
+      return true;
     },
-    [recordsById, workspace.openAgentRecord],
+    [query.intent.setFilter, recordsById, workspace.openAgentRecord],
   );
   const model = useMemo<RecordWorkspaceModel>(
     () => ({
