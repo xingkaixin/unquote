@@ -1,4 +1,5 @@
 import type { AgentTrajectoryTimeRange } from "../lib/agent-session/trajectory-time";
+import type { Locale } from "../i18n/i18n";
 import { formatClockTime } from "../lib/format";
 import { formatTimestamp } from "./agent-session-format";
 import { formatTrajectoryDuration } from "./agent-trajectory-format";
@@ -150,7 +151,7 @@ const fractionalSecondDigitsFor = (domain: AgentTrajectoryTimeRange) => {
 
 const formatPreciseTimestamp = (
   value: number,
-  locale: "en" | "zh-CN",
+  locale: Locale,
   fractionalSecondDigits: 0 | 1 | 2 | 3,
 ) => {
   if (fractionalSecondDigits === 0) {
@@ -171,7 +172,7 @@ const formatPreciseTimestamp = (
   }).format(date);
 };
 
-const formatSubMillisecondOffset = (offset: number, locale: "en" | "zh-CN") =>
+const formatSubMillisecondOffset = (offset: number, locale: Locale) =>
   new Intl.NumberFormat(locale, {
     style: "unit",
     unit: "millisecond",
@@ -184,7 +185,7 @@ const formatSubMillisecondOffset = (offset: number, locale: "en" | "zh-CN") =>
 export const formatTrajectoryRangeValue = (
   value: number,
   domain: AgentTrajectoryTimeRange,
-  locale: "en" | "zh-CN",
+  locale: Locale,
 ) => {
   const wholeMilliseconds = Math.trunc(value);
   const timestamp = formatPreciseTimestamp(
@@ -208,7 +209,7 @@ export const formatTrajectoryRangeValue = (
 // switch to scientific milliseconds. Also past the valid Date range.
 const HUGE_TICK_OFFSET_MS = 1e15;
 
-export const trajectoryTickTimeLabel = (value: number, locale: "en" | "zh-CN") => {
+export const trajectoryTickTimeLabel = (value: number, locale: Locale) => {
   if (Number.isNaN(new Date(value).getTime())) {
     return new Intl.NumberFormat(locale, {
       notation: "scientific",
@@ -218,7 +219,7 @@ export const trajectoryTickTimeLabel = (value: number, locale: "en" | "zh-CN") =
   return formatClockTime(value, locale);
 };
 
-export const trajectoryTickOffsetLabel = (offsetMs: number, locale: "en" | "zh-CN") => {
+export const trajectoryTickOffsetLabel = (offsetMs: number, locale: Locale) => {
   if (!Number.isFinite(offsetMs) || offsetMs > HUGE_TICK_OFFSET_MS) {
     return `+${new Intl.NumberFormat(locale, {
       style: "unit",

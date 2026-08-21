@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { en } from "./en";
+import { ja } from "./ja";
 import { zhCN } from "./zh-CN";
 import { createTranslator, detectLocale, persistLocale } from "./i18n";
 import type { Locale, MessageKey, Messages } from "./i18n";
 
-const locales: Record<Locale, Messages> = { en, "zh-CN": zhCN };
+const locales: Record<Locale, Messages> = { en, "zh-CN": zhCN, ja };
 
 interface I18nContextValue {
   locale: Locale;

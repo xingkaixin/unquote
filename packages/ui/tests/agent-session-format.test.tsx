@@ -6,11 +6,12 @@ import {
   roleConfig,
 } from "../src/components/agent-session-format";
 import { createTranslator } from "../src/i18n/i18n";
+import type { Locale } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
 
 const timestamp = Date.UTC(2026, 5, 6, 13, 44, 6);
 
-const expectedTimestamp = (locale: "en" | "zh-CN") =>
+const expectedTimestamp = (locale: Locale) =>
   new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "medium",
@@ -20,6 +21,7 @@ describe("formatTimestamp", () => {
   it("formats a numeric timestamp with the application locale", () => {
     expect(formatTimestamp(timestamp, undefined, "en")).toBe(expectedTimestamp("en"));
     expect(formatTimestamp(timestamp, undefined, "zh-CN")).toBe(expectedTimestamp("zh-CN"));
+    expect(formatTimestamp(timestamp, undefined, "ja")).toBe(expectedTimestamp("ja"));
   });
 
   it("formats a valid ISO label when a numeric timestamp is unavailable", () => {

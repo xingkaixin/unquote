@@ -239,6 +239,10 @@ describe("UnquoteApp", () => {
         "aria-checked",
         "false",
       );
+      expect(screen.getByRole("menuitemradio", { name: "Japanese" })).toHaveAttribute(
+        "aria-checked",
+        "false",
+      );
     });
 
     it("renders and parses input", async () => {
@@ -311,6 +315,36 @@ describe("UnquoteApp", () => {
       expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
       expect(screen.getAllByText("粘贴、拖入或选择一个文件").length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "自动" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("shows sample chip labels in Japanese locale", () => {
+      localStorage.setItem("unquote-locale", "ja");
+
+      render(
+        <I18nProvider>
+          <UnquoteApp />
+        </I18nProvider>,
+      );
+
+      const sampleGroup = screen.getAllByRole("group", { name: "サンプル入力" })[0]!;
+      expect(
+        within(sampleGroup).getByRole("button", {
+          name: "エスケープされた API レスポンス",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(sampleGroup).getByRole("button", {
+          name: "エージェントのツール呼び出し JSONL",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(sampleGroup).getByRole("button", { name: "有効・無効混在の JSONL" }),
+      ).toBeInTheDocument();
+      expect(document.documentElement).toHaveAttribute("lang", "ja");
+      expect(
+        screen.getAllByText("貼り付け、ドロップ、またはファイルを選択").length,
+      ).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "自動" })).toHaveAttribute("aria-pressed", "true");
     });
 
     it("updates document language and accessible copy when locale changes", async () => {

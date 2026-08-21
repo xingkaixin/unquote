@@ -1,11 +1,11 @@
 import type { Messages, MessageKey } from "./en";
 
-export type Locale = "en" | "zh-CN";
+export type Locale = "en" | "zh-CN" | "ja";
 export type { Messages, MessageKey };
 
 const STORAGE_KEY = "unquote-locale";
 
-const SUPPORTED: readonly Locale[] = ["en", "zh-CN"];
+const SUPPORTED: readonly Locale[] = ["en", "zh-CN", "ja"];
 
 const isLocale = (value: string): value is Locale =>
   (SUPPORTED as readonly string[]).includes(value);
@@ -21,6 +21,9 @@ export const detectLocale = (): Locale => {
   const lang = navigator.language;
   if (lang.startsWith("zh")) {
     return "zh-CN";
+  }
+  if (lang.startsWith("ja")) {
+    return "ja";
   }
   return "en";
 };

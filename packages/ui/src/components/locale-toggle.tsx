@@ -13,6 +13,7 @@ import type { Locale, MessageKey } from "../i18n/i18n";
 const localeOptions: { locale: Locale; label: MessageKey }[] = [
   { locale: "en", label: "locale.english" },
   { locale: "zh-CN", label: "locale.chinese" },
+  { locale: "ja", label: "locale.japanese" },
 ];
 
 export const LocaleToggle = () => {
