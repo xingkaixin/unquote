@@ -7,7 +7,6 @@ import type {
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
-  AgentTokenUsage,
   AgentTrajectoryEvidence,
   AgentTrajectoryTokenUsage,
 } from "./types";
@@ -218,12 +217,9 @@ const claudePreview = (
   return "";
 };
 
-interface ClaudeUsage {
-  display: AgentTokenUsage;
-  trajectory: AgentTrajectoryTokenUsage;
-}
-
-const parseClaudeUsage = (record: Record<string, unknown>): ClaudeUsage | undefined => {
+const parseClaudeUsage = (
+  record: Record<string, unknown>,
+): AgentTrajectoryTokenUsage | undefined => {
   const message = record.message;
   if (!isRecord(message)) {
     return undefined;
@@ -261,15 +257,7 @@ const parseClaudeUsage = (record: Record<string, unknown>): ClaudeUsage | undefi
     trajectory.outputTokens = outputTokens;
   }
 
-  return {
-    display: {
-      inputTokens: inputTokens ?? 0,
-      outputTokens: outputTokens ?? 0,
-      cacheCreationInputTokens: cacheCreationInputTokens ?? 0,
-      cacheReadInputTokens: cacheReadInputTokens ?? 0,
-    },
-    trajectory,
-  };
+  return trajectory;
 };
 
 const claudeBlockEvidence = (
@@ -461,26 +449,13 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       );
       addOptionalNumber(event, "timestamp", timestamp);
       addOptionalNumber(event, "turnIndex", turnIndex);
-      addOptionalString(event, "requestId", getString(record, "requestId"));
-      addOptionalString(event, "model", parseClaudeModel(record));
-      addOptionalString(event, "uuid", getString(record, "uuid"));
-      addOptionalString(event, "sessionId", getString(record, "sessionId"));
-      addOptionalString(event, "cwd", getString(record, "cwd"));
       addOptionalString(event, "timestampLabel", getString(record, "timestamp"));
 
-      if (isRecord(record.message)) {
-        addOptionalString(event, "role", getString(record.message, "role"));
-        addOptionalString(event, "stopReason", getString(record.message, "stop_reason"));
-      }
-
       const usage = parseClaudeUsage(record);
-      if (usage) {
-        event.usage = usage.display;
-      }
 
       // One API response spans several records that repeat the same usage
       // object, so only the request's first record contributes to totals.
-      let trajectoryUsage = usage?.trajectory;
+      let trajectoryUsage = usage;
       const requestId = getString(record, "requestId");
       if (trajectoryUsage && requestId) {
         if (seenUsageRequestIds.has(requestId)) {
@@ -501,8 +476,11 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       }
 
       if (type === "user" || type === "assistant") {
+        const stopReason = isRecord(record.message)
+          ? getString(record.message, "stop_reason")
+          : undefined;
         const trailingLifecycle =
-          type === "assistant" && event.stopReason === "end_turn" ? closeCurrentTurn() : [];
+          type === "assistant" && stopReason === "end_turn" ? closeCurrentTurn() : [];
         const evidence = [
           ...leadingLifecycle,
           ...claudeBlockEvidence(items, turnId, trajectoryUsage),

@@ -342,7 +342,7 @@ describe("agent session", () => {
       "thinking",
       "tool_call",
     ]);
-    expect(session?.events[4]?.usage).toEqual({
+    expect(createAgentSessionModel(session!).trajectory.stats.tokenUsage).toEqual({
       inputTokens: 10,
       outputTokens: 20,
       cacheCreationInputTokens: 3,

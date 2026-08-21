@@ -31,13 +31,6 @@ export interface AgentParseWarning {
   lineNumber: number;
 }
 
-export interface AgentTokenUsage {
-  inputTokens: number;
-  cacheCreationInputTokens: number;
-  cacheReadInputTokens: number;
-  outputTokens: number;
-}
-
 export interface AgentTrajectoryTokenUsage {
   inputTokens?: number;
   cacheCreationInputTokens?: number;
@@ -164,15 +157,7 @@ export interface AgentTimelineEvent {
   conversationItems: AgentConversationItem[];
   timestamp?: number;
   turnIndex?: number;
-  requestId?: string;
-  model?: string;
-  usage?: AgentTokenUsage;
-  uuid?: string;
-  sessionId?: string;
-  cwd?: string;
   timestampLabel?: string;
-  role?: string;
-  stopReason?: string;
   trajectoryEvidence?: readonly AgentTrajectoryEvidence[];
 }
 
