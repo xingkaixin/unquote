@@ -129,6 +129,35 @@ const codexModelOutputRole = (
 const codexResponseItemType = (payload: Record<string, unknown>) =>
   getString(payload, "type") ?? "response_item";
 
+type NormalizedCodexResponseItem =
+  | {
+      type: "message";
+      itemType: "message";
+      messageRole: string | undefined;
+      conversationRole: AgentConversationRole;
+      evidenceRole: AgentModelOutputEvidence["role"] | undefined;
+      text: string;
+    }
+  | { type: "reasoning"; itemType: "reasoning"; text: string }
+  | { type: "agent-message"; itemType: "agent_message" }
+  | {
+      type: "tool-call";
+      itemType: "function_call" | "custom_tool_call";
+      toolName: string;
+      callId: string | undefined;
+      text: string | undefined;
+    }
+  | {
+      type: "tool-result";
+      itemType: "function_call_output" | "custom_tool_call_output";
+      callId: string | undefined;
+      text: string;
+      preview: string;
+      status: "completed" | "failed";
+      evidenceStatus: "completed" | "failed" | undefined;
+    }
+  | { type: "unknown"; itemType: string };
+
 const isObjectOutput = (value: unknown): value is Record<string, unknown> =>
   isRecord(value) && !Array.isArray(value);
 
@@ -168,32 +197,43 @@ const isFailedCodexToolOutput = (payload: Record<string, unknown>) => {
   return output ? isFailedStructuredToolOutput(output) : false;
 };
 
-const codexResponseBlock = (
+const normalizeCodexResponseItem = (
   payload: Record<string, unknown>,
-  itemType: string,
-): AgentContentBlock | undefined => {
+): NormalizedCodexResponseItem => {
+  const itemType = codexResponseItemType(payload);
   if (itemType === "message") {
-    const text = extractCodexMessageText(payload.content);
-    return text ? { type: "text", text: truncateBlockText(text) } : undefined;
+    const messageRole = getString(payload, "role");
+    return {
+      type: "message",
+      itemType,
+      messageRole,
+      conversationRole: codexMessageRole(messageRole),
+      evidenceRole: codexModelOutputRole(messageRole),
+      text: extractCodexMessageText(payload.content),
+    };
   }
 
   if (itemType === "reasoning") {
-    return { type: "thinking", text: truncateBlockText(extractCodexReasoningText(payload)) };
+    return { type: "reasoning", itemType, text: extractCodexReasoningText(payload) };
+  }
+
+  if (itemType === "agent_message") {
+    return { type: "agent-message", itemType };
   }
 
   if (itemType === "function_call" || itemType === "custom_tool_call") {
     const toolName = getString(payload, "name") ?? "tool";
     const callId = getString(payload, "call_id");
-    const argsSource =
+    // Keep the raw argument string: parsing a large payload would retain a value
+    // that no consumer needs beyond its bounded preview.
+    const text =
       itemType === "function_call" ? getString(payload, "arguments") : getString(payload, "input");
     return {
-      type: "tool_use",
-      // The raw argument string is what the preview shows, so it is never
-      // parsed: a large tool payload would cost a full parse and stay resident
-      // for a value no consumer reads.
-      text: truncateBlockText(argsSource ?? "{}"),
+      type: "tool-call",
+      itemType,
       toolName,
-      ...(callId ? { toolCallId: callId } : {}),
+      callId,
+      text,
     };
   }
 
@@ -201,28 +241,20 @@ const codexResponseBlock = (
     const text = formatAgentBlockValue(payload.output);
     const callId = getString(payload, "call_id");
     const status = isFailedCodexToolOutput(payload) ? "failed" : "completed";
-    if (!text && status !== "failed") {
-      return undefined;
-    }
     return {
-      type: "tool_result",
+      type: "tool-result",
+      itemType,
+      callId,
       text,
-      ...(callId ? { toolCallId: callId } : {}),
+      preview: formatAgentPreviewValue(payload.output),
       status,
+      evidenceStatus:
+        status === "failed" || text || payload.status === "completed" ? status : undefined,
     };
   }
 
-  return undefined;
+  return { type: "unknown", itemType };
 };
-
-interface CodexResponseEvidenceContext {
-  payload: Record<string, unknown>;
-  itemType: string;
-  messageRole?: string;
-  turnId?: string;
-  conversationItemId: string;
-  block?: AgentContentBlock;
-}
 
 const withTurnId = (turnId: string | undefined) => (turnId ? { turnId } : {});
 
@@ -415,237 +447,238 @@ const codexEventEvidence = (
   return undefined;
 };
 
-const codexToolResultEvidenceStatus = (
-  payload: Record<string, unknown>,
-  block: AgentContentBlock | undefined,
-) => {
-  if (block?.type === "tool_result") {
-    return block.status;
-  }
-  return payload.status === "completed" ? "completed" : undefined;
-};
+interface CodexConversationProjection {
+  id: string;
+  role: AgentConversationRole;
+  block?: AgentContentBlock;
+}
 
-const codexResponseEvidence = ({
-  payload,
-  itemType,
-  messageRole,
-  turnId,
-  conversationItemId,
-  block,
-}: CodexResponseEvidenceContext): AgentTrajectoryEvidence | undefined => {
-  if (itemType === "message") {
-    const role = codexModelOutputRole(messageRole);
-    if (!role) {
-      return undefined;
+interface CodexEventProjection {
+  category: AgentEventCategory;
+  kind: string;
+  label: string;
+  preview: string;
+  eventRole?: string;
+  conversation?: CodexConversationProjection;
+  trajectoryEvidence?: AgentTrajectoryEvidence;
+}
+
+const projectCodexResponseItem = (
+  item: NormalizedCodexResponseItem,
+  lineNumber: number,
+  turnId: string | undefined,
+): CodexEventProjection => {
+  switch (item.type) {
+    case "message": {
+      const conversationItemId = `conv-${lineNumber}-${item.conversationRole}`;
+      const block = item.text
+        ? ({ type: "text", text: truncateBlockText(item.text) } satisfies AgentContentBlock)
+        : undefined;
+      const trajectoryEvidence = item.evidenceRole
+        ? ({
+            kind: "model-output",
+            role: item.evidenceRole,
+            ...withTurnId(turnId),
+            conversationItemId,
+          } satisfies AgentTrajectoryEvidence)
+        : undefined;
+      return {
+        category: codexMessageCategory(item.messageRole),
+        kind: item.itemType,
+        label: item.messageRole ?? item.itemType,
+        preview: truncatePreview(item.text),
+        ...(item.messageRole === undefined ? {} : { eventRole: item.messageRole }),
+        conversation: {
+          id: conversationItemId,
+          role: item.conversationRole,
+          ...(block === undefined ? {} : { block }),
+        },
+        ...(trajectoryEvidence === undefined ? {} : { trajectoryEvidence }),
+      };
     }
-    return {
-      kind: "model-output",
-      role,
-      ...withTurnId(turnId),
-      conversationItemId,
-    };
-  }
-
-  if (itemType === "reasoning") {
-    return {
-      kind: "model-output",
-      role: "reasoning",
-      ...withTurnId(turnId),
-      conversationItemId,
-    };
-  }
-
-  if (itemType === "agent_message") {
-    return { kind: "subagent-activity", status: "completed", ...withTurnId(turnId) };
-  }
-
-  if (itemType === "function_call" || itemType === "custom_tool_call") {
-    if (block?.type !== "tool_use") {
-      return undefined;
+    case "reasoning": {
+      const conversationItemId = `conv-${lineNumber}-thinking`;
+      return {
+        category: "thinking",
+        kind: item.itemType,
+        label: item.itemType,
+        preview: truncatePreview(item.text),
+        conversation: {
+          id: conversationItemId,
+          role: "thinking",
+          block: { type: "thinking", text: truncateBlockText(item.text) },
+        },
+        trajectoryEvidence: {
+          kind: "model-output",
+          role: "reasoning",
+          ...withTurnId(turnId),
+          conversationItemId,
+        },
+      };
     }
-    return {
-      kind: "tool-lifecycle",
-      phase: "call",
-      toolName: block.toolName,
-      ...withTurnId(turnId),
-      ...(block.toolCallId ? { callId: block.toolCallId } : {}),
-      conversationItemId,
-    };
+    case "agent-message":
+      return {
+        category: "unknown",
+        kind: item.itemType,
+        label: item.itemType,
+        preview: "",
+        conversation: {
+          id: `conv-${lineNumber}-response-item`,
+          role: "system",
+        },
+        trajectoryEvidence: {
+          kind: "subagent-activity",
+          status: "completed",
+          ...withTurnId(turnId),
+        },
+      };
+    case "tool-call": {
+      const conversationItemId = `conv-${lineNumber}-tool-call`;
+      const block = {
+        type: "tool_use",
+        text: truncateBlockText(item.text ?? "{}"),
+        toolName: item.toolName,
+        ...(item.callId ? { toolCallId: item.callId } : {}),
+      } satisfies AgentContentBlock;
+      return {
+        category: "tool",
+        kind: item.itemType,
+        label: `tool_use ${item.toolName}`,
+        preview: truncatePreview(item.text ?? ""),
+        conversation: { id: conversationItemId, role: "tool_call", block },
+        trajectoryEvidence: {
+          kind: "tool-lifecycle",
+          phase: "call",
+          toolName: item.toolName,
+          ...withTurnId(turnId),
+          ...(item.callId ? { callId: item.callId } : {}),
+          conversationItemId,
+        },
+      };
+    }
+    case "tool-result": {
+      const conversationItemId = `conv-${lineNumber}-tool-result`;
+      const block =
+        item.text || item.status === "failed"
+          ? ({
+              type: "tool_result",
+              text: item.text,
+              ...(item.callId ? { toolCallId: item.callId } : {}),
+              status: item.status,
+            } satisfies AgentContentBlock)
+          : undefined;
+      return {
+        category: "tool",
+        kind: item.itemType,
+        label: `tool_result ${shortCallId(item.callId) ?? "unknown"}`,
+        preview: item.preview,
+        conversation: {
+          id: conversationItemId,
+          role: "tool_result",
+          ...(block === undefined ? {} : { block }),
+        },
+        trajectoryEvidence: {
+          kind: "tool-lifecycle",
+          phase: "result",
+          ...withTurnId(turnId),
+          ...(item.evidenceStatus === undefined ? {} : { status: item.evidenceStatus }),
+          ...(item.callId ? { callId: item.callId } : {}),
+          conversationItemId,
+        },
+      };
+    }
+    case "unknown":
+      return {
+        category: "unknown",
+        kind: item.itemType,
+        label: item.itemType,
+        preview: "",
+        conversation: {
+          id: `conv-${lineNumber}-response-item`,
+          role: "system",
+        },
+      };
   }
-
-  if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    const callId = block?.type === "tool_result" ? block.toolCallId : getString(payload, "call_id");
-    const status = codexToolResultEvidenceStatus(payload, block);
-    return {
-      kind: "tool-lifecycle",
-      phase: "result",
-      ...withTurnId(turnId),
-      ...(status === undefined ? {} : { status }),
-      ...(callId ? { callId } : {}),
-      conversationItemId,
-    };
-  }
-
-  return undefined;
 };
 
-const codexResponseRole = (itemType: string, role: string | undefined): AgentConversationRole => {
-  if (itemType === "message") {
-    return codexMessageRole(role);
+const codexEventCategory = (eventType: string): AgentEventCategory => {
+  if (eventType === "user_message") {
+    return "user";
   }
-  if (itemType === "reasoning") {
-    return "thinking";
+  if (eventType === "agent_message") {
+    return "assistant";
   }
-  if (itemType === "function_call" || itemType === "custom_tool_call") {
-    return "tool_call";
-  }
-  if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    return "tool_result";
-  }
-  return "system";
-};
-
-const codexResponseItemId = (lineNumber: number, itemType: string, role: string | undefined) => {
-  if (itemType === "message") {
-    return `conv-${lineNumber}-${codexMessageRole(role)}`;
-  }
-  if (itemType === "reasoning") {
-    return `conv-${lineNumber}-thinking`;
-  }
-  if (itemType === "function_call" || itemType === "custom_tool_call") {
-    return `conv-${lineNumber}-tool-call`;
-  }
-  if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    return `conv-${lineNumber}-tool-result`;
-  }
-  return `conv-${lineNumber}-response-item`;
-};
-
-const codexKind = (envelopeType: string, payload: Record<string, unknown>) => {
-  if (envelopeType === "event_msg") {
-    return getString(payload, "type") ?? "event_msg";
-  }
-  if (envelopeType === "response_item") {
-    return codexResponseItemType(payload);
-  }
-  return envelopeType;
-};
-
-const codexCategory = (
-  envelopeType: string,
-  payload: Record<string, unknown>,
-): AgentEventCategory => {
-  if (envelopeType === "session_meta" || envelopeType === "turn_context") {
+  if (
+    eventType === "task_started" ||
+    eventType === "task_complete" ||
+    eventType === "turn_aborted" ||
+    eventType === "token_count"
+  ) {
     return "meta";
   }
-
-  if (envelopeType === "event_msg") {
-    const kind = getString(payload, "type") ?? "event_msg";
-    if (kind === "user_message") {
-      return "user";
-    }
-    if (kind === "agent_message") {
-      return "assistant";
-    }
-    if (
-      kind === "task_started" ||
-      kind === "task_complete" ||
-      kind === "turn_aborted" ||
-      kind === "token_count"
-    ) {
-      return "meta";
-    }
-    if (codexToolCompletionEventTypes.has(kind)) {
-      return "tool";
-    }
-    return "unknown";
-  }
-
-  if (envelopeType === "response_item") {
-    const itemType = codexResponseItemType(payload);
-    if (itemType === "message") {
-      return codexMessageCategory(getString(payload, "role"));
-    }
-    if (itemType === "reasoning") {
-      return "thinking";
-    }
-    if (
-      itemType === "function_call" ||
-      itemType === "custom_tool_call" ||
-      itemType === "function_call_output" ||
-      itemType === "custom_tool_call_output"
-    ) {
-      return "tool";
-    }
-  }
-
-  return "unknown";
+  return codexToolCompletionEventTypes.has(eventType) ? "tool" : "unknown";
 };
 
-const codexLabel = (envelopeType: string, payload: Record<string, unknown>) => {
-  if (envelopeType === "session_meta" || envelopeType === "turn_context") {
-    return envelopeType;
-  }
+interface CodexEventProjectionContext {
+  lineNumber: number;
+  sessionId: string | undefined;
+  cwd: string | undefined;
+  turnId: string | undefined;
+  eventType: string | undefined;
+}
 
-  if (envelopeType === "event_msg") {
-    return getString(payload, "type") ?? "event_msg";
-  }
-
-  if (envelopeType === "response_item") {
-    const itemType = codexResponseItemType(payload);
-    if (itemType === "message") {
-      return getString(payload, "role") ?? "message";
-    }
-    if (itemType === "reasoning") {
-      return "reasoning";
-    }
-    if (itemType === "function_call" || itemType === "custom_tool_call") {
-      return `tool_use ${getString(payload, "name") ?? "tool"}`;
-    }
-    if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-      return `tool_result ${shortCallId(getString(payload, "call_id")) ?? "unknown"}`;
-    }
-    return itemType;
-  }
-
-  return envelopeType;
-};
-
-const codexPreview = (
+const projectCodexEvent = (
   envelopeType: string,
   payload: Record<string, unknown>,
-  sessionId: string | undefined,
-  cwd: string | undefined,
-) => {
-  if (envelopeType === "session_meta") {
-    return truncatePreview(sessionId ?? cwd ?? "");
-  }
-  if (envelopeType === "turn_context") {
-    return truncatePreview(
-      [getString(payload, "model"), getString(payload, "cwd")].filter(Boolean).join(" - "),
+  context: CodexEventProjectionContext,
+): CodexEventProjection => {
+  if (envelopeType === "response_item") {
+    return projectCodexResponseItem(
+      normalizeCodexResponseItem(payload),
+      context.lineNumber,
+      context.turnId,
     );
   }
   if (envelopeType === "event_msg") {
-    return truncatePreview(getString(payload, "message") ?? getString(payload, "turn_id") ?? "");
+    const kind = context.eventType ?? "event_msg";
+    const trajectoryEvidence = codexEventEvidence(context.eventType, payload, context.turnId);
+    return {
+      category: codexEventCategory(kind),
+      kind,
+      label: kind,
+      preview: truncatePreview(
+        getString(payload, "message") ?? getString(payload, "turn_id") ?? "",
+      ),
+      ...(trajectoryEvidence === undefined ? {} : { trajectoryEvidence }),
+    };
   }
-  if (envelopeType !== "response_item") {
-    return "";
+  if (envelopeType === "session_meta") {
+    return {
+      category: "meta",
+      kind: envelopeType,
+      label: envelopeType,
+      preview: truncatePreview(context.sessionId ?? context.cwd ?? ""),
+    };
   }
-
-  const itemType = codexResponseItemType(payload);
-  if (itemType === "message") {
-    return truncatePreview(extractCodexMessageText(payload.content));
+  if (envelopeType === "turn_context") {
+    return {
+      category: "meta",
+      kind: envelopeType,
+      label: envelopeType,
+      preview: truncatePreview(
+        [getString(payload, "model"), getString(payload, "cwd")].filter(Boolean).join(" - "),
+      ),
+    };
   }
-  if (itemType === "reasoning") {
-    return truncatePreview(extractCodexReasoningText(payload));
-  }
-  if (itemType === "function_call" || itemType === "custom_tool_call") {
-    return truncatePreview(getString(payload, "arguments") ?? getString(payload, "input") ?? "");
-  }
-  if (itemType === "function_call_output" || itemType === "custom_tool_call_output") {
-    return formatAgentPreviewValue(payload.output);
-  }
-  return "";
+  return {
+    category: "unknown",
+    kind: envelopeType,
+    label: envelopeType,
+    preview: "",
+    ...(envelopeType === "compacted"
+      ? { trajectoryEvidence: { kind: "compaction", ...withTurnId(context.turnId) } }
+      : {}),
+  };
 };
 
 const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
@@ -709,18 +742,19 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
           ? (payloadTurnId ?? currentTurnId)
           : currentTurnId;
       const turnIndex = turnIndexFor(eventTurnId);
-      const itemType =
-        envelopeType === "response_item" ? codexResponseItemType(payload) : undefined;
-      const messageRole =
-        envelopeType === "response_item" && itemType === "message"
-          ? getString(payload, "role")
-          : undefined;
+      const projection = projectCodexEvent(envelopeType, payload, {
+        lineNumber: line.lineNumber,
+        sessionId,
+        cwd,
+        turnId: eventTurnId,
+        eventType,
+      });
       const event = createBaseEvent(
         line,
-        codexCategory(envelopeType, payload),
-        codexKind(envelopeType, payload),
-        codexLabel(envelopeType, payload),
-        codexPreview(envelopeType, payload, sessionId, cwd),
+        projection.category,
+        projection.kind,
+        projection.label,
+        projection.preview,
       );
       addOptionalNumber(event, "timestamp", parseTimestamp(envelope.timestamp));
       addOptionalNumber(event, "turnIndex", turnIndex);
@@ -730,7 +764,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         envelopeType === "turn_context" ? getString(payload, "model") : model,
       );
       addOptionalString(event, "timestampLabel", getString(envelope, "timestamp"));
-      addOptionalString(event, "role", messageRole);
+      addOptionalString(event, "role", projection.eventRole);
       if (envelopeType === "session_meta") {
         addOptionalString(event, "sessionId", sessionId);
         addOptionalString(event, "cwd", getString(payload, "cwd") ?? cwd);
@@ -738,32 +772,17 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         addOptionalString(event, "cwd", getString(payload, "cwd") ?? cwd);
       }
 
-      let trajectoryEvidence: AgentTrajectoryEvidence | undefined;
-      if (envelopeType === "response_item" && itemType) {
-        const block = codexResponseBlock(payload, itemType);
-        const conversationItemId = codexResponseItemId(line.lineNumber, itemType, messageRole);
+      if (projection.conversation) {
         attachConversationItem(event, {
-          id: conversationItemId,
-          role: codexResponseRole(itemType, messageRole),
+          id: projection.conversation.id,
+          role: projection.conversation.role,
           ...(turnIndex === undefined ? {} : { turnIndex }),
-          ...(block ? { block } : {}),
+          ...(projection.conversation.block ? { block: projection.conversation.block } : {}),
         });
-        trajectoryEvidence = codexResponseEvidence({
-          payload,
-          itemType,
-          ...(messageRole === undefined ? {} : { messageRole }),
-          ...(currentTurnId === undefined ? {} : { turnId: currentTurnId }),
-          conversationItemId,
-          ...(block === undefined ? {} : { block }),
-        });
-      } else if (envelopeType === "event_msg") {
-        trajectoryEvidence = codexEventEvidence(eventType, payload, eventTurnId);
-      } else if (envelopeType === "compacted") {
-        trajectoryEvidence = { kind: "compaction", ...withTurnId(eventTurnId) };
       }
 
-      if (trajectoryEvidence) {
-        event.trajectoryEvidence = [trajectoryEvidence];
+      if (projection.trajectoryEvidence) {
+        event.trajectoryEvidence = [projection.trajectoryEvidence];
       }
 
       events.push(event);
