@@ -78,18 +78,6 @@ const modelFor = (
   items: readonly AgentTrajectoryItem[],
   turns: readonly AgentTrajectoryTurn[] = [],
 ): AgentSessionModel => {
-  let toolCount = 0;
-  let failedToolCount = 0;
-  for (const item of items) {
-    if (item.kind !== "tool") {
-      continue;
-    }
-    toolCount += 1;
-    if (item.status === "failed") {
-      failedToolCount += 1;
-    }
-  }
-
   return {
     events: [],
     conversation: [],
@@ -99,10 +87,6 @@ const modelFor = (
       items,
       warnings: [],
       stats: {
-        turnCount: turns.length,
-        itemCount: items.length,
-        toolCount,
-        failedToolCount,
         tokenUsage: {},
       },
     },

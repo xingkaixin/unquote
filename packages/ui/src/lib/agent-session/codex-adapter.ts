@@ -780,7 +780,6 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
           fileType: "Codex",
           ...(fileName ? { fileName } : {}),
           meta: {
-            eventCount: events.length,
             turnCount,
             ...(sessionId ? { sessionId } : {}),
             ...(model ? { model } : {}),

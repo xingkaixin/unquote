@@ -142,11 +142,6 @@ const modelFor = (
     items,
     warnings,
     stats: {
-      turnCount: turns.length,
-      itemCount: items.length,
-      toolCount: items.filter((item) => item.kind === "tool").length,
-      failedToolCount: items.filter((item) => item.kind === "tool" && item.status === "failed")
-        .length,
       tokenUsage,
     },
   };
@@ -967,7 +962,7 @@ describe("createAgentTrajectoryPresentation", () => {
   it("keeps a reversed terminal lifecycle warning unattached to the preceding item", () => {
     const session = {
       fileType: "Codex",
-      meta: { eventCount: 3, turnCount: 1 },
+      meta: { turnCount: 1 },
       parseWarnings: [],
       parseWarningCount: 0,
       events: [

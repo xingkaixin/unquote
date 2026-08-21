@@ -530,7 +530,6 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           fileType: "Claude Code",
           ...(fileName ? { fileName } : {}),
           meta: {
-            eventCount: events.length,
             turnCount,
             ...(sessionId ? { sessionId } : {}),
             ...(model ? { model } : {}),

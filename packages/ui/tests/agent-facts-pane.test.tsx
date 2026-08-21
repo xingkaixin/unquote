@@ -38,7 +38,6 @@ const session: AgentSession = {
     model: "gpt-5",
     cwd: "/repo",
     version: "1.0.0",
-    eventCount: 1,
     turnCount: 2,
   },
   events: [toolEvent],
@@ -116,7 +115,7 @@ describe("AgentFactsPane", () => {
   });
 
   it("keeps the session block for a working directory with no version", () => {
-    renderPane({ ...session, meta: { cwd: "/repo", eventCount: 1, turnCount: 0 } });
+    renderPane({ ...session, meta: { cwd: "/repo", turnCount: 0 } });
 
     expect(screen.getByText("Session")).toBeInTheDocument();
     expect(screen.getByText("/repo")).toBeInTheDocument();
@@ -125,7 +124,7 @@ describe("AgentFactsPane", () => {
   it("omits every fact the session does not carry", () => {
     renderPane({
       fileType: "Claude Code",
-      meta: { sessionId: "session-1", eventCount: 1, turnCount: 0 },
+      meta: { sessionId: "session-1", turnCount: 0 },
       events: session.events,
       parseWarnings: [],
       parseWarningCount: 0,
@@ -138,7 +137,7 @@ describe("AgentFactsPane", () => {
   });
 
   it("drops the session block entirely when nothing identifies the session", () => {
-    renderPane({ ...session, meta: { eventCount: 0, turnCount: 0 } });
+    renderPane({ ...session, meta: { turnCount: 0 } });
 
     expect(screen.queryByText("Session")).not.toBeInTheDocument();
   });

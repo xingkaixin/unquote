@@ -724,8 +724,6 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
   forEachToolCorrelationGroup(toolGroups, (group) => finalizeToolGroup(group, warnings));
 
   const items: AgentTrajectoryItem[] = [];
-  let toolCount = 0;
-  let failedToolCount = 0;
   for (const draft of itemDrafts) {
     if (!draft.item) {
       continue;
@@ -733,12 +731,6 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     items.push(draft.item);
     if (draft.turn) {
       draft.turn.items.push(draft.item);
-    }
-    if (draft.item.kind === "tool") {
-      toolCount += 1;
-      if (draft.item.status === "failed") {
-        failedToolCount += 1;
-      }
     }
   }
 
@@ -812,10 +804,6 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     items,
     warnings,
     stats: {
-      turnCount: trajectoryTurns.length,
-      itemCount: items.length,
-      toolCount,
-      failedToolCount,
       tokenUsage: totalTokenUsage,
     },
   };

@@ -7,7 +7,7 @@ import type { AgentSession, AgentSessionModel } from "../src/lib/agent-session";
 const modelFor = (): AgentSessionModel => {
   const session: AgentSession = {
     fileType: "Codex",
-    meta: { eventCount: 0, turnCount: 0 },
+    meta: { turnCount: 0 },
     events: [],
     parseWarnings: [],
     parseWarningCount: 0,

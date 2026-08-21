@@ -13,7 +13,6 @@ const createSession = (eventCount: number): AgentSession => ({
   fileType: "Codex",
   meta: {
     sessionId: "session-1",
-    eventCount,
     turnCount: 0,
   },
   events: Array.from({ length: eventCount }, (_, index) => ({

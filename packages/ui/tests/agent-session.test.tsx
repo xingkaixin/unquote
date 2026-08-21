@@ -69,7 +69,7 @@ describe("createAgentSessionTracker", () => {
     expect(session).toMatchObject({
       fileType: "Codex",
       fileName: "stream.jsonl",
-      meta: { sessionId: "stream-session", eventCount: 1 },
+      meta: { sessionId: "stream-session" },
       events: [{ lineNumber: 4 }],
       parseWarnings: [
         {
@@ -114,7 +114,7 @@ describe("createAgentSessionTracker", () => {
 
     const session = tracker.finish();
     expect(session?.fileType).toBe("Codex");
-    expect(session?.meta.eventCount).toBe(16);
+    expect(session?.events).toHaveLength(16);
     expect(session?.events.at(-1)).toMatchObject({ lineNumber: 81, kind: "task_complete" });
   });
 
@@ -185,7 +185,7 @@ describe("createAgentSessionTracker", () => {
     const session = tracker.finish();
 
     expect(session).toMatchObject({
-      meta: { sessionId: "resilient-session", eventCount: 1 },
+      meta: { sessionId: "resilient-session" },
       parseWarnings: [{ kind: "projection-failed", recordId: "record-2", lineNumber: 2 }],
     });
   });
@@ -258,7 +258,6 @@ describe("agent session", () => {
         sessionId: "session-from-newer-codex",
         cwd: "/repo",
         version: "0.137.0",
-        eventCount: 6,
         turnCount: 1,
       },
     });
@@ -335,7 +334,6 @@ describe("agent session", () => {
       meta: {
         sessionId: "claude-session",
         model: "claude-sonnet-4-5",
-        eventCount: 5,
         turnCount: 1,
       },
     });

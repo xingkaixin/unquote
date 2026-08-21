@@ -393,7 +393,11 @@ const summaryTokenKeys = [
   "reasoningOutputTokens",
 ] as const;
 
-const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresentationSummary => {
+const summaryForPresentation = (
+  model: AgentSessionModel,
+  toolCount: number,
+  failedToolCount: number,
+): AgentTrajectoryPresentationSummary => {
   const tokenUsage = model.trajectory.stats.tokenUsage;
   const tokens: Partial<Record<(typeof summaryTokenKeys)[number], number>> = {};
   for (const key of summaryTokenKeys) {
@@ -404,10 +408,10 @@ const summaryForPresentation = (model: AgentSessionModel): AgentTrajectoryPresen
   }
   const durationMs = sumKnownTurnDurations(model.trajectory.turns);
   return {
-    turns: model.trajectory.stats.turnCount,
-    events: model.trajectory.stats.itemCount,
-    tools: model.trajectory.stats.toolCount,
-    failures: model.trajectory.stats.failedToolCount,
+    turns: model.trajectory.turns.length,
+    events: model.trajectory.items.length,
+    tools: toolCount,
+    failures: failedToolCount,
     ...(durationMs === undefined ? {} : { durationMs }),
     tokens,
     warningCount: model.trajectory.warnings.length,
@@ -469,7 +473,15 @@ export const createAgentTrajectoryPresentation = (
   const draftByItemId = new Map<string, PresentationItemDraft>();
   const draftBySourceItem = new Map<AgentTrajectoryItem, PresentationItemDraft>();
   const candidatesBySelection = new Map<string, WarningCandidateGroup>();
+  let toolCount = 0;
+  let failedToolCount = 0;
   for (const item of trajectory.items) {
+    if (item.kind === "tool") {
+      toolCount += 1;
+      if (item.status === "failed") {
+        failedToolCount += 1;
+      }
+    }
     const detail = model.resolveDetail(item.selection);
     const turn = turnByItemId.get(item.id) ?? null;
     const draft: PresentationItemDraft = {
@@ -573,7 +585,7 @@ export const createAgentTrajectoryPresentation = (
   return {
     items: presentationItems,
     groups,
-    summary: summaryForPresentation(model),
+    summary: summaryForPresentation(model, toolCount, failedToolCount),
     unattachedWarningGroups: unattachedWarningGroups.groups,
     timeDomain: domainFor(presentationItems, trajectory.turns),
     timedItemCount,

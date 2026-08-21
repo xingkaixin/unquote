@@ -47,7 +47,7 @@ const event = (
 
 const session = (events: AgentTimelineEvent[]): AgentSession => ({
   fileType: "Codex",
-  meta: { eventCount: events.length, turnCount: 0 },
+  meta: { turnCount: 0 },
   events,
   parseWarnings: [],
   parseWarningCount: 0,
@@ -192,7 +192,7 @@ const assertTrajectoryOutputIsReadonly = (model: AgentTrajectoryModel) => {
   // @ts-expect-error Trajectory turns are an immutable public result.
   model.turns = [];
   // @ts-expect-error Trajectory statistics are an immutable public result.
-  model.stats.turnCount = 0;
+  model.stats = { tokenUsage: {} };
 
   const turn = model.turns[0];
   if (turn) {
@@ -888,7 +888,7 @@ describe("createAgentTrajectoryModel", () => {
 
     expect(model.turns[0]?.status).toBe("completed");
     expect(toolItems(model).map((item) => item.status)).toEqual(["completed", "failed", "running"]);
-    expect(model.stats).toMatchObject({ toolCount: 3, failedToolCount: 1 });
+    expect(model.stats).toEqual({ tokenUsage: {} });
     expect(warningKinds(model)).toContain("unpaired-tool-call");
   });
 
@@ -1609,7 +1609,7 @@ describe("createAgentTrajectoryModel", () => {
     expect(itemById(model, "continued:evidence-0").step).toBeUndefined();
     expect(itemById(model, "next-turn-assistant:evidence-0").step).toBeUndefined();
     expect(model.turns[0]?.status).toBe("completed");
-    expect(model.stats.failedToolCount).toBe(1);
+    expect(toolItems(model).filter((item) => item.status === "failed")).toHaveLength(1);
   });
 
   it("attaches sparse token usage only to the prior model output while retaining safe totals", () => {
@@ -2392,7 +2392,8 @@ describe("createAgentTrajectoryModel", () => {
     const model = createAgentTrajectoryModel(session(guardedEvents));
 
     expect(model.items).toHaveLength(3_997);
-    expect(model.stats).toMatchObject({ itemCount: 3_997, toolCount: 1, failedToolCount: 0 });
+    expect(toolItems(model)).toHaveLength(1);
+    expect(toolItems(model).filter((item) => item.status === "failed")).toHaveLength(0);
     expect(model.turns).toMatchObject([
       { id: trajectoryTurnId("evidence", "large-turn"), status: "completed", durationMs: 100 },
     ]);

@@ -41,7 +41,7 @@ const buildEntry = (
 const modelFor = (entries: AgentConversationEntry[]) => {
   const session: AgentSession = {
     fileType: "Codex",
-    meta: { eventCount: entries.length, turnCount: 1 },
+    meta: { turnCount: 1 },
     events: entries.map(({ item, event }) => ({ ...event, conversationItems: [item] })),
     parseWarnings: [],
     parseWarningCount: 0,
