@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentTrajectoryOverview } from "../src/components/agent-trajectory-overview";
 import { TooltipProvider } from "../src/components/tooltip";
 import { I18nProvider, useTranslation } from "../src/i18n/context";
+import type { Locale } from "../src/i18n/i18n";
 import { createTranslator } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
 import { formatClockTime } from "../src/lib/format";
@@ -24,7 +25,7 @@ import {
 
 const translate = createTranslator(en);
 
-const formattedTimestamp = (timestamp: number, locale: "en" | "zh-CN" = "en") =>
+const formattedTimestamp = (timestamp: number, locale: Locale = "en") =>
   new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "medium",
@@ -673,7 +674,7 @@ describe("AgentTrajectoryOverview", () => {
     expect(Number(rangeEnd().value)).toBeCloseTo(endCoordinate, 12);
   });
 
-  it.each(["en", "zh-CN"] as const)(
+  it.each(["en", "zh-CN", "ja"] as const)(
     "distinguishes sub-millisecond values in %s visible and assistive text",
     async (locale) => {
       const start = Date.UTC(2026, 5, 6, 10, 0, 0);
@@ -710,6 +711,9 @@ describe("AgentTrajectoryOverview", () => {
     ["zh-CN", "positive adjacent", 1e16, 1e16 + 2],
     ["zh-CN", "negative adjacent", -1e16, -1e16 + 2],
     ["zh-CN", "huge", 1e300, 1.1e300],
+    ["ja", "positive adjacent", 1e16, 1e16 + 2],
+    ["ja", "negative adjacent", -1e16, -1e16 + 2],
+    ["ja", "huge", 1e300, 1.1e300],
   ] as const)(
     "keeps %s %s invalid-Date values distinct and bounded",
     async (locale, _, start, end) => {

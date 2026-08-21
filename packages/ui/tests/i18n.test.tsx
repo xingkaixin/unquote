@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { en } from "../src/i18n/en";
 import { createTranslator, detectLocale, persistLocale } from "../src/i18n/i18n";
+import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 
 const originalLanguage = navigator.language;
@@ -113,6 +114,12 @@ describe("i18n", () => {
     expect(detectLocale()).toBe("zh-CN");
   });
 
+  it("detects Japanese browser locales", () => {
+    Object.defineProperty(navigator, "language", { configurable: true, value: "ja-JP" });
+
+    expect(detectLocale()).toBe("ja");
+  });
+
   it("falls back safely when locale storage cannot be read", () => {
     vi.spyOn(localStorage, "getItem").mockImplementation(() => {
       throw new Error("unavailable");
@@ -137,31 +144,34 @@ describe("i18n", () => {
     expect(t("error.location", { line: 2, column: 4 })).toBe("Line 2, column 4");
   });
 
-  it("locks every trajectory message in both locale catalogs", () => {
+  it("locks every trajectory message in every locale catalog", () => {
     expect(trajectoryMessageKeys).toHaveLength(81);
 
-    for (const key of trajectoryMessageKeys) {
-      expect(en).toHaveProperty(key);
-      expect(zhCN).toHaveProperty(key);
-      expect(en[key]).not.toBe("");
-      expect(zhCN[key]).not.toBe("");
-    }
+    for (const catalog of [en, zhCN, ja]) {
+      for (const key of trajectoryMessageKeys) {
+        expect(catalog).toHaveProperty(key);
+        expect(catalog[key]).not.toBe("");
+      }
 
-    expect(
-      Object.keys(en)
-        .filter((key) => key === "app.tab.trajectory" || key.startsWith("trajectory."))
-        .sort(),
-    ).toEqual([...trajectoryMessageKeys].sort());
-    expect(
-      Object.keys(zhCN)
-        .filter((key) => key === "app.tab.trajectory" || key.startsWith("trajectory."))
-        .sort(),
-    ).toEqual([...trajectoryMessageKeys].sort());
+      expect(
+        Object.keys(catalog)
+          .filter((key) => key === "app.tab.trajectory" || key.startsWith("trajectory."))
+          .sort(),
+      ).toEqual([...trajectoryMessageKeys].sort());
+    }
   });
 
-  it("renders derived trajectory facts, identifiers, and statuses in both languages", () => {
+  it("keeps every locale catalog complete", () => {
+    for (const catalog of [zhCN, ja]) {
+      expect(Object.keys(catalog).sort()).toEqual(Object.keys(en).sort());
+      expect(Object.values(catalog).every(Boolean)).toBe(true);
+    }
+  });
+
+  it("renders derived trajectory facts, identifiers, and statuses in every language", () => {
     const english = createTranslator(en);
     const chinese = createTranslator(zhCN);
+    const japanese = createTranslator(ja);
 
     expect(english("trajectory.derivedStep", { step: 7 })).toBe("≈ derived step 7");
     expect(chinese("trajectory.derivedStep", { step: 7 })).toBe("约为派生步骤 7");
@@ -179,6 +189,13 @@ describe("i18n", () => {
     expect(chinese("trajectory.status.failed")).toBe("失败");
     expect(english("trajectory.warning.missingTimestamp")).toBe("Missing timestamp");
     expect(chinese("trajectory.warning.missingTimestamp")).toBe("缺少时间戳");
+    expect(japanese("trajectory.derivedStep", { step: 7 })).toBe("≈ 推定ステップ 7");
+    expect(japanese("trajectory.line", { line: 42 })).toBe("42 行目");
+    expect(japanese("trajectory.turn", { turn: 4 })).toBe("ターン 4");
+    expect(japanese("trajectory.visibleCount", { visible: 3, total: 8 })).toBe("8 件中 3 件を表示");
+    expect(japanese("trajectory.openResult")).toBe("結果レコードを開く");
+    expect(japanese("trajectory.status.failed")).toBe("失敗");
+    expect(japanese("trajectory.warning.missingTimestamp")).toBe("タイムスタンプがありません");
     expect(english("trajectory.derivedStep", { step: 7 })).not.toBe(
       chinese("trajectory.derivedStep", { step: 7 }),
     );
@@ -191,11 +208,10 @@ describe("i18n", () => {
       "createTranslator",
       "detectLocale",
       "en",
+      "ja",
       "persistLocale",
       "zhCN",
     ]);
-    expect(entry.createTranslator(entry.en)("extension.openInUnquote")).toBe(
-      en["extension.openInUnquote"],
-    );
+    expect(entry.createTranslator(entry.ja)("locale.japanese")).toBe("日本語");
   });
 });

@@ -11,6 +11,7 @@ import type {
 const timestampFormatters: Record<Locale, Intl.DateTimeFormat> = {
   en: new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "medium" }),
   "zh-CN": new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium" }),
+  ja: new Intl.DateTimeFormat("ja", { dateStyle: "medium", timeStyle: "medium" }),
 };
 
 export const agentParseWarningMessageKey: Record<AgentParseWarningKind, MessageKey> = {

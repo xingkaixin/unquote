@@ -15,6 +15,7 @@ export const en = {
   "locale.toggle": "Change language",
   "locale.english": "English",
   "locale.chinese": "Chinese (Simplified)",
+  "locale.japanese": "Japanese",
   "toolbar.copyJsonl": "Copy JSONL",
   "toolbar.copyFormattedJson": "Copy formatted JSON",
   "toolbar.copyBlocked": "Data is too large to copy — use Export instead",
@@ -231,7 +232,6 @@ export const en = {
   "error.copyRawLine": "Copy raw line",
   "error.copyDetails": "Copy error",
   "error.message": "Error: {message}",
-  "extension.openInUnquote": "Open in Unquote",
   "search.inputLabel": "Search or jump",
   "search.regex": "Regex",
   "search.caseSensitive": "Case sensitive",
@@ -262,6 +262,6 @@ export const en = {
 } as const;
 
 // en is the canonical schema: the key set and Messages type derive from it, so
-// a new message is edited in en + zh-CN only (no separate interface to sync).
+// every locale catalog stays in sync without a separate interface.
 export type Messages = Record<keyof typeof en, string>;
 export type MessageKey = keyof typeof en;

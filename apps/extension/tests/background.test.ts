@@ -56,6 +56,9 @@ const mocks = vi.hoisted(() => {
         ),
       },
     },
+    i18n: {
+      getMessage: vi.fn((name: string) => (name === "openInUnquote" ? "Unquote で開く" : "")),
+    },
     runtime: {
       onInstalled: {
         addListener: vi.fn((listener: () => void) => {
@@ -123,12 +126,13 @@ describe("extension background", () => {
     mocks.storageValues.clear();
   });
 
-  it("creates the localized selection context menu after installation", () => {
+  it("creates the selection context menu from the browser locale", () => {
     mocks.listeners.onInstalled?.();
 
+    expect(mocks.browser.i18n.getMessage).toHaveBeenCalledWith("openInUnquote");
     expect(mocks.browser.contextMenus.create).toHaveBeenCalledWith({
       id: menuId,
-      title: "Open in Unquote",
+      title: "Unquote で開く",
       contexts: ["selection"],
     });
   });
