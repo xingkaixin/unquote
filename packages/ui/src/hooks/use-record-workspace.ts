@@ -1,6 +1,6 @@
 import type { ParseResult } from "@unquote/core";
 import { toast } from "sonner";
-import { useCallback, useLayoutEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
 import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
@@ -8,7 +8,6 @@ import { resolveSourceWork } from "../lib/published-source";
 import type { SourceWorkProjection } from "../lib/published-source";
 import {
   getExpandedStringifiedPaths,
-  groupExpandedStringifiedPaths,
   mergeExpandedStringifiedPaths,
 } from "../lib/record-expansion";
 import { isCopyRecordCountAboveThreshold } from "../lib/record-export";
@@ -20,15 +19,15 @@ import { narrowPathToRecord } from "../lib/record-view";
 import type { SearchMatch } from "../lib/record-search";
 import { projectSelectedNode } from "../lib/selected-node";
 import type { SourceRevision } from "../lib/source-revision";
-import { reconcileWorkspaceSelection, reduceWorkspaceSelection } from "../lib/workspace-selection";
-import type {
-  WorkspaceSelectionState,
-  WorkspaceSelectionVisibility,
-} from "../lib/workspace-selection";
+import type { WorkspaceSelectionVisibility } from "../lib/workspace-selection";
 import { useExportActions } from "./use-export-actions";
 import { useLocalFileSource } from "./use-local-file-source";
 import { useQueryInteraction } from "./use-query-interaction";
-import { emptyWorkspaceSearchMatches, useWorkspaceSession } from "./use-workspace-session";
+import {
+  emptyWorkspaceSearchMatches,
+  useWorkspaceQueryProjection,
+  useWorkspaceSession,
+} from "./use-workspace-session";
 
 interface UseRecordWorkspaceParams {
   source: SourceWorkProjection;
@@ -38,18 +37,6 @@ interface UseRecordWorkspaceParams {
   agentSession: AgentSession | null;
   translateError: (reason: "invalid" | "not-found") => string;
 }
-
-const projectSelection = (
-  selection: WorkspaceSelectionState,
-  visibility: WorkspaceSelectionVisibility,
-  recordAppend: RecordAppend | null,
-) =>
-  recordAppend
-    ? reduceWorkspaceSelection(selection, {
-        type: "recordsAppended",
-        firstRecordId: visibility.firstRecordId,
-      })
-    : reconcileWorkspaceSelection(selection, visibility);
 
 export const useRecordWorkspace = ({
   source,
@@ -81,7 +68,6 @@ export const useRecordWorkspace = ({
     visibleMatches,
   } = query.snapshot;
   const queryMatches = visibleMatches ?? emptyWorkspaceSearchMatches;
-  const { selection, searchExpansionSource, searchExpandedPaths } = workspace.queryProjectionState;
   const selectionVisibility = useMemo<WorkspaceSelectionVisibility>(
     () => ({
       firstRecordId: visibleRecords[0]?.id ?? null,
@@ -92,16 +78,12 @@ export const useRecordWorkspace = ({
     }),
     [query.snapshot.recordFilter, recordsById, visibleRecords],
   );
-  const projectedSelection = useMemo(
-    () => projectSelection(selection, selectionVisibility, visibleRecordAppend),
-    [selection, selectionVisibility, visibleRecordAppend],
-  );
-  const groupedSearchExpandedPaths = useMemo(
-    () => groupExpandedStringifiedPaths(queryMatches),
-    [queryMatches],
-  );
-  const projectedSearchExpandedPaths =
-    searchExpansionSource === queryMatches ? searchExpandedPaths : groupedSearchExpandedPaths;
+  const { selection: projectedSelection, searchExpandedPaths: projectedSearchExpandedPaths } =
+    useWorkspaceQueryProjection(workspace, {
+      visibility: selectionVisibility,
+      recordAppend: visibleRecordAppend,
+      searchMatches: queryMatches,
+    });
   const displayedExpandedPaths = useMemo(
     () =>
       mergeExpandedStringifiedPaths(workspace.state.expandedPaths, projectedSearchExpandedPaths),
@@ -284,29 +266,6 @@ export const useRecordWorkspace = ({
       workspace.selectRecord,
     ],
   );
-
-  useLayoutEffect(() => {
-    if (
-      projectedSelection === selection &&
-      searchExpansionSource === queryMatches &&
-      projectedSearchExpandedPaths === searchExpandedPaths
-    ) {
-      return;
-    }
-
-    // The current render already uses the pure projections above, so descendants
-    // commit coherently. Persist them before paint without updating state during
-    // render, preventing a hidden selection from reappearing later.
-    workspace.commitQueryProjection(projectedSelection, queryMatches, projectedSearchExpandedPaths);
-  }, [
-    projectedSearchExpandedPaths,
-    projectedSelection,
-    queryMatches,
-    searchExpandedPaths,
-    searchExpansionSource,
-    selection,
-    workspace.commitQueryProjection,
-  ]);
 
   return {
     model,
