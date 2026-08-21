@@ -21,6 +21,7 @@ import type {
   AgentTrajectoryWarning,
   AgentTimelineEvent,
 } from "./types";
+import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity";
 import {
   createToolCorrelationGroups,
   forEachToolCorrelationGroup,
@@ -480,7 +481,9 @@ const conversationItemIdFor = (evidence: AgentTrajectoryEvidence) => {
 const terminalLifecycle = (evidence: AgentTrajectoryEvidence) =>
   evidence.kind === "turn-lifecycle" && evidence.phase !== "start";
 
-export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajectoryModel => {
+export const createAgentTrajectoryModelFromCanonicalSession = (
+  session: CanonicalAgentSession,
+): AgentTrajectoryModel => {
   const turns: TurnDraft[] = [];
   const explicitTurnById = new Map<string, TurnDraft>();
   const fallbackTurnByIndex = new Map<number, TurnDraft>();
@@ -494,9 +497,6 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
   const warnings: AgentTrajectoryWarning[] = [];
   const lastModelItemByTurn = new Map<TurnDraft, ItemDraft>();
   const totalTokenUsage: AgentTrajectoryTokenUsageDraft = {};
-  const seenEventIds = new Set<string>();
-  const seenRecordIds = new Set<string>();
-  const seenConversationIds = new Set<string>();
 
   const createTurn = (
     scope: TrajectoryTurnScope,
@@ -571,21 +571,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
     }
   };
 
-  for (const event of session.events) {
-    if (seenEventIds.has(event.id) || seenRecordIds.has(event.recordId)) {
-      continue;
-    }
-    seenEventIds.add(event.id);
-    seenRecordIds.add(event.recordId);
-
-    const canonicalConversationIds = new Set<string>();
-    for (const item of event.conversationItems) {
-      if (!seenConversationIds.has(item.id)) {
-        seenConversationIds.add(item.id);
-        canonicalConversationIds.add(item.id);
-      }
-    }
-
+  for (const { event, conversationItemIds } of session.events) {
     const evidenceList = event.trajectoryEvidence;
     if (!evidenceList) {
       continue;
@@ -594,7 +580,7 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
     let evidenceIndex = 0;
     for (const evidence of evidenceList) {
       const conversationItemId = conversationItemIdFor(evidence);
-      const selection = selectionFor(event, conversationItemId, canonicalConversationIds);
+      const selection = selectionFor(event, conversationItemId, conversationItemIds);
       const source = warningSourceFor(event, selection);
       const turn = resolveTurn(event, evidence, selection);
       if (turn && !terminalLifecycle(evidence)) {
@@ -834,3 +820,6 @@ export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajecto
     },
   };
 };
+
+export const createAgentTrajectoryModel = (session: AgentSession): AgentTrajectoryModel =>
+  createAgentTrajectoryModelFromCanonicalSession(canonicalizeAgentSession(session));
