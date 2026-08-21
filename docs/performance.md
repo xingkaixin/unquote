@@ -80,7 +80,7 @@ rollout data.
 ## UI bundle budgets
 
 `pnpm check` builds the Web and Chrome-extension surfaces, then runs
-`pnpm check:ui-bundle-budget`. The gate measures four independent costs for
+`pnpm check:ui-bundle-budget`. The gate measures three independent costs for
 each surface:
 
 - initial JavaScript is the entry and every static module preload referenced by
@@ -88,15 +88,15 @@ each surface:
 - total UI JavaScript includes every synchronous and on-demand UI chunk, but
   excludes parser/search workers and the separately budgeted extension
   background;
-- the largest JavaScript chunk prevents the original oversized entry from
-  returning even when the aggregate remains under budget;
 - CSS includes all emitted stylesheets.
 
-The current Web build measures about 562 KiB / 181 KiB gzip for initial JS and
-698 KiB / 226 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 573 KiB / 185 KiB gzip initially and 709 KiB / 229
-KiB gzip in total. The ceilings allow roughly 7–10% growth without permitting
-the previous single 706 KiB entry to return.
+The current Web build measures about 575 KiB / 185 KiB gzip for initial JS and
+712 KiB / 229 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 585 KiB / 188 KiB gzip initially and 723 KiB / 233
+KiB gzip in total. The ceilings preserve limited growth headroom without
+permitting the previous 706 KiB initial payload to return. Chunk layout is
+deliberately not budgeted because bundler releases may regroup the same modules
+without changing the amount of JavaScript loaded by either surface.
 
 | Metric per surface | Budget |
 |---|---:|
@@ -104,7 +104,6 @@ the previous single 706 KiB entry to return.
 | Initial JavaScript gzip | 205,000 bytes |
 | Total UI JavaScript | 760,000 bytes |
 | Total UI JavaScript gzip | 250,000 bytes |
-| Largest JavaScript chunk | 450,000 bytes |
 | CSS | 38,000 bytes |
 | CSS gzip | 9,000 bytes |
 
