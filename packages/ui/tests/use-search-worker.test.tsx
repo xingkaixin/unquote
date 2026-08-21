@@ -14,10 +14,10 @@ import {
   createTextSourceRevision,
   projectSourceWork,
 } from "../src/lib/published-source";
-import type { SearchMatch, SearchResultSet } from "../src/lib/record-search";
+import type { SearchMatch, SearchOptions, SearchResultSet } from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
-const defaultOptions = { regex: false, caseSensitive: false, jq: false };
+const defaultOptions: SearchOptions = { syntax: "text", caseSensitive: false };
 
 const matchStub = (recordId: string): SearchMatch => ({
   recordId,
@@ -98,7 +98,7 @@ const Probe = ({
   sourceFile?: File | null;
   sourceRevision?: number;
   debounceMs?: number;
-  options?: typeof defaultOptions;
+  options?: SearchOptions;
   access?: LocalFileAccess;
   windowIndexes?: Float64Array;
 }) => {
@@ -266,7 +266,9 @@ describe("useSearchWorker", () => {
   });
 
   it("terminates a regex worker and reports a timeout when no response arrives", async () => {
-    render(<Probe query="^(a+)+$" text="aaaaaaaa!" options={{ ...defaultOptions, regex: true }} />);
+    render(
+      <Probe query="^(a+)+$" text="aaaaaaaa!" options={{ ...defaultOptions, syntax: "regex" }} />,
+    );
     const worker = MockWorker.instances[0]!;
 
     await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
@@ -338,7 +340,7 @@ describe("useSearchWorker", () => {
       <Probe
         query="^(a+)+$"
         text='{"a":"aaaaaaaa!"}'
-        options={{ ...defaultOptions, regex: true }}
+        options={{ ...defaultOptions, syntax: "regex" }}
       />,
     );
 
@@ -353,7 +355,7 @@ describe("useSearchWorker", () => {
     MockWorker.failPostMessage = true;
     const parse = vi.spyOn(JSON, "parse");
 
-    render(<Probe query="a" text="text" options={{ ...defaultOptions, regex: true }} />);
+    render(<Probe query="a" text="text" options={{ ...defaultOptions, syntax: "regex" }} />);
 
     expect(MockWorker.instances[0]?.terminated).toBe(true);
     expect(parse).not.toHaveBeenCalled();
@@ -418,7 +420,7 @@ describe("useSearchWorker", () => {
       <Probe
         query="^(a+)+$"
         text='{"a":"aaaaaaaa!"}'
-        options={{ ...defaultOptions, regex: true }}
+        options={{ ...defaultOptions, syntax: "regex" }}
       />,
     );
 
@@ -429,13 +431,15 @@ describe("useSearchWorker", () => {
   });
 
   it("keeps regex search on the interruptible worker path", () => {
-    render(<Probe query="[" text='{"a":"hello"}' options={{ ...defaultOptions, regex: true }} />);
+    render(
+      <Probe query="[" text='{"a":"hello"}' options={{ ...defaultOptions, syntax: "regex" }} />,
+    );
 
     const worker = MockWorker.instances[0]!;
     expect(worker.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         query: "[",
-        options: { ...defaultOptions, regex: true },
+        options: { ...defaultOptions, syntax: "regex" },
       }),
     );
 
@@ -673,7 +677,7 @@ describe("useSearchWorker", () => {
 
   it.each([
     ["a plain query", "hello", defaultOptions],
-    ["a jq path query", "$.a", { ...defaultOptions, jq: true }],
+    ["a jq path query", "$.a", { ...defaultOptions, syntax: "jq" as const }],
   ])("searches %s within the budget", (_label, query, options) => {
     Reflect.deleteProperty(globalThis, "Worker");
 
@@ -717,7 +721,7 @@ describe("useSearchWorker", () => {
         query="^(a+)+$"
         text=""
         access={access}
-        options={{ ...defaultOptions, regex: true }}
+        options={{ ...defaultOptions, syntax: "regex" }}
       />,
     );
     await act(async () => undefined);

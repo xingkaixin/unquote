@@ -2,6 +2,7 @@ import { cleanup } from "@testing-library/react";
 import { parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, vi } from "vitest";
+import type { SearchOptions } from "../../src/lib/record-search";
 import { MockWorkerEvents } from "./mock-worker-events";
 
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
@@ -69,7 +70,7 @@ Object.assign(globalThis, {
           const result = searchRecords(
             parsed.records,
             query,
-            options as { regex: boolean; caseSensitive: boolean; jq: boolean },
+            options as SearchOptions,
             windowIndexes ?? initialSearchWindowIndexes,
           );
           this.respond({ type: "result", requestId, result });
@@ -85,12 +86,7 @@ Object.assign(globalThis, {
     ) {
       import("../../src/lib/local-file-source").then(({ createLocalFileAccess }) => {
         createLocalFileAccess(file)
-          .search(
-            query,
-            options as { regex: boolean; caseSensitive: boolean; jq: boolean },
-            new AbortController().signal,
-            windowIndexes,
-          )
+          .search(query, options as SearchOptions, new AbortController().signal, windowIndexes)
           .then((result) => {
             this.respond({ type: "result", requestId, result });
           })

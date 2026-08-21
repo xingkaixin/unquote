@@ -169,7 +169,7 @@ describe("local-file-source", () => {
 
     const result = await createLocalFileAccess(file).search(
       "needle",
-      { regex: false, caseSensitive: false, jq: false },
+      { syntax: "text", caseSensitive: false },
       controller.signal,
     );
 
@@ -184,7 +184,7 @@ describe("local-file-source", () => {
 
     const result = await createLocalFileAccess(file).search(
       "9007199254740993",
-      { regex: false, caseSensitive: true, jq: false },
+      { syntax: "text", caseSensitive: true },
       controller.signal,
     );
 
@@ -202,7 +202,7 @@ describe("local-file-source", () => {
 
     const result = await createLocalFileAccess(
       makeStreamedFile([skippedLine, matchedLine, escapedLine].join("\n")),
-    ).search("needle", { regex: false, caseSensitive: false, jq: false }, controller.signal);
+    ).search("needle", { syntax: "text", caseSensitive: false }, controller.signal);
 
     expect(result?.window.matches.map((match) => match.recordId)).toEqual(["record-2", "record-3"]);
     expect(parse.mock.calls.filter(([input]) => input === skippedLine)).toHaveLength(0);
@@ -219,7 +219,7 @@ describe("local-file-source", () => {
       }),
       JSON.stringify({ message: "hay", "needle.key": true }),
     ].join("\n");
-    const options = { regex: false, caseSensitive: true, jq: true };
+    const options = { syntax: "jq", caseSensitive: true } as const;
     const controller = new AbortController();
     const expected = searchRecords(
       parseInput(contents, { forcedFormat: "jsonl" }).records,
@@ -251,7 +251,7 @@ describe("local-file-source", () => {
 
     const result = await createLocalFileAccess(file).search(
       "needle",
-      { regex: false, caseSensitive: true, jq: false },
+      { syntax: "text", caseSensitive: true },
       controller.signal,
     );
 
@@ -267,7 +267,7 @@ describe("local-file-source", () => {
 
     const result = await createLocalFileAccess(file).search(
       "needle",
-      { regex: false, caseSensitive: true, jq: false },
+      { syntax: "text", caseSensitive: true },
       controller.signal,
       Float64Array.from([250, 251]),
     );
@@ -283,7 +283,7 @@ describe("local-file-source", () => {
     ).join("\n");
     const { file, sliceStarts } = makeMeasuredFile(contents, 64);
     const access = createLocalFileAccess(file);
-    const options = { regex: false, caseSensitive: true, jq: false };
+    const options = { syntax: "text", caseSensitive: true } as const;
 
     await access.search("needle", options, new AbortController().signal);
     const result = await access.search(
@@ -301,7 +301,7 @@ describe("local-file-source", () => {
   it("maps cached global indexes back to matches within one Record", async () => {
     const contents = JSON.stringify(Array.from({ length: 300 }, () => "needle"));
     const access = createLocalFileAccess(makeStreamedFile(contents));
-    const options = { regex: false, caseSensitive: true, jq: false };
+    const options = { syntax: "text", caseSensitive: true } as const;
 
     await access.search("needle", options, new AbortController().signal);
     const result = await access.search(
@@ -323,7 +323,7 @@ describe("local-file-source", () => {
 
     const matches = await createLocalFileAccess(file).search(
       "needle",
-      { regex: false, caseSensitive: false, jq: false },
+      { syntax: "text", caseSensitive: false },
       controller.signal,
     );
 
@@ -340,7 +340,7 @@ describe("local-file-source", () => {
     try {
       const search = createLocalFileAccess(file).search(
         "needle",
-        { regex: false, caseSensitive: true, jq: false },
+        { syntax: "text", caseSensitive: true },
         controller.signal,
       );
       controller.abort();
@@ -385,7 +385,7 @@ describe("local-file-source", () => {
     const controller = new AbortController();
     const search = createLocalFileAccess(file).search(
       "needle",
-      { regex: false, caseSensitive: true, jq: false },
+      { syntax: "text", caseSensitive: true },
       controller.signal,
     );
 
@@ -401,7 +401,7 @@ describe("local-file-source", () => {
 
     const matches = await createLocalFileAccess(file).search(
       "",
-      { regex: false, caseSensitive: false, jq: false },
+      { syntax: "text", caseSensitive: false },
       controller.signal,
     );
 

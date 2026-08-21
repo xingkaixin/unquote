@@ -24,10 +24,11 @@ export interface SearchMatch {
   stringifiedPathChain: string[];
 }
 
+export type SearchSyntax = "text" | "regex" | "jq";
+
 export interface SearchOptions {
-  regex: boolean;
+  syntax: SearchSyntax;
   caseSensitive: boolean;
-  jq: boolean;
 }
 
 export interface SearchResultWindow {
@@ -126,7 +127,7 @@ const createCollector = (
     const valueText = formatJsonValueLabel(context);
     const keyMatched = keyText ? matchesPattern(keyText) : false;
     const valueMatched = matchesPattern(valueText);
-    const pathMatched = options.jq && matchesPattern(context.jsonPath);
+    const pathMatched = options.syntax === "jq" && matchesPattern(context.jsonPath);
 
     if (!keyMatched && !valueMatched && !pathMatched) {
       return;
@@ -151,7 +152,7 @@ const createCollector = (
         pattern,
         getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
       ),
-      pathRanges: options.jq ? scanRanges(context.jsonPath, pattern) : [],
+      pathRanges: options.syntax === "jq" ? scanRanges(context.jsonPath, pattern) : [],
       stringifiedPathChain: [...context.stringifiedChain],
     });
   };
@@ -204,7 +205,7 @@ export const buildSearchPattern = (query: string, options: SearchOptions): RegEx
 
   const flags = options.caseSensitive ? "g" : "gi";
 
-  if (options.regex) {
+  if (options.syntax === "regex") {
     try {
       return new RegExp(query, flags);
     } catch {

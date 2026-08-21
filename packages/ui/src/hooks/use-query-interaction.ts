@@ -92,11 +92,10 @@ export const useQueryInteraction = ({
   const currentPathMatchIndex = mode === "path" ? state.modeState.currentIndex : 0;
   const searchOptions = useMemo<SearchOptions>(
     () => ({
-      regex: state.searchRegex,
+      syntax: state.searchSyntax,
       caseSensitive: state.searchCaseSensitive,
-      jq: state.searchJq,
     }),
-    [state.searchCaseSensitive, state.searchJq, state.searchRegex],
+    [state.searchCaseSensitive, state.searchSyntax],
   );
   const searchWorker = useSearchWorker({
     source,
@@ -328,9 +327,9 @@ export const useQueryInteraction = ({
     snapshot: {
       toolbarQuery: state.toolbarQuery,
       searchQuery,
-      searchRegex: state.searchRegex,
+      searchRegex: state.searchSyntax === "regex",
       searchCaseSensitive: state.searchCaseSensitive,
-      searchJq: state.searchJq,
+      searchJq: state.searchSyntax === "jq",
       recordFilter: state.recordFilter,
       commandInput: state.commandInput,
       pathError,

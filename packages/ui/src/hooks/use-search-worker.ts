@@ -29,9 +29,8 @@ export type SearchWorkerErrorKind =
 interface SearchIdentity {
   sourceRevision: SourceRevision;
   query: string;
-  regex: boolean;
+  syntax: SearchOptions["syntax"];
   caseSensitive: boolean;
-  jq: boolean;
 }
 
 interface SearchWorkerState extends SearchIdentity {
@@ -59,17 +58,15 @@ const createSearchIdentity = (
 ): SearchIdentity => ({
   sourceRevision,
   query,
-  regex: options.regex,
+  syntax: options.syntax,
   caseSensitive: options.caseSensitive,
-  jq: options.jq,
 });
 
 const hasSameSearchIdentity = (left: SearchIdentity, right: SearchIdentity) =>
   left.sourceRevision === right.sourceRevision &&
   left.query === right.query &&
-  left.regex === right.regex &&
-  left.caseSensitive === right.caseSensitive &&
-  left.jq === right.jq;
+  left.syntax === right.syntax &&
+  left.caseSensitive === right.caseSensitive;
 
 const idleResult = (identity: SearchIdentity): SearchWorkerState => ({
   ...identity,
@@ -162,11 +159,10 @@ export const useSearchWorker = (params: {
   const { text, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
   const options = useMemo<SearchOptions>(
     () => ({
-      regex: requestedOptions.regex,
+      syntax: requestedOptions.syntax,
       caseSensitive: requestedOptions.caseSensitive,
-      jq: requestedOptions.jq,
     }),
-    [requestedOptions.caseSensitive, requestedOptions.jq, requestedOptions.regex],
+    [requestedOptions.caseSensitive, requestedOptions.syntax],
   );
   const searchIdentity = useMemo(
     () => createSearchIdentity(sourceRevision, query, options),
@@ -246,7 +242,7 @@ export const useSearchWorker = (params: {
       // Reached both when no Worker exists and when one fails to start: the
       // request still has to settle somewhere.
       const searchOnMainThread = () => {
-        if (options.regex) {
+        if (options.syntax === "regex") {
           finishRequestMeasure();
           commitState(failedResult(searchIdentity, "regex-without-worker"));
           return;

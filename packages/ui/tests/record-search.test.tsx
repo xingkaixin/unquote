@@ -7,9 +7,9 @@ import {
   searchJsonValue,
   searchRecords,
 } from "../src/lib/record-search";
-import type { SearchResultSet } from "../src/lib/record-search";
+import type { SearchOptions, SearchResultSet } from "../src/lib/record-search";
 
-const defaultOptions = { regex: false, caseSensitive: false, jq: false };
+const defaultOptions: SearchOptions = { syntax: "text", caseSensitive: false };
 
 const recordsFor = (value: unknown) =>
   parseInput(JSON.stringify(value), { forcedFormat: "json" }).records;
@@ -66,7 +66,7 @@ describe("search pattern semantics", () => {
   it("advances past zero-length regex matches without looping", () => {
     const matches = searchJsonValue({ blob: "abc" }, "record-1", /x*/g, {
       ...defaultOptions,
-      regex: true,
+      syntax: "regex",
     }).window.matches;
     const blob = matches.find((match) => match.pathText === "$.blob");
 
@@ -98,7 +98,7 @@ describe("search pattern semantics", () => {
       { start: 0, end: 6 },
     ]);
     expect(
-      matchesOf(searchRecords(records, "$.needle", { ...defaultOptions, jq: true }))?.[0]
+      matchesOf(searchRecords(records, "$.needle", { ...defaultOptions, syntax: "jq" }))?.[0]
         ?.pathRanges,
     ).toEqual([{ start: 0, end: 8 }]);
   });
@@ -118,9 +118,9 @@ describe("search pattern semantics", () => {
   });
 
   it("returns no matches for an invalid regex", () => {
-    expect(buildSearchPattern("[", { ...defaultOptions, regex: true })).toBeNull();
+    expect(buildSearchPattern("[", { ...defaultOptions, syntax: "regex" })).toBeNull();
     expect(
-      searchRecords(recordsFor({ blob: "x" }), "[", { ...defaultOptions, regex: true }),
+      searchRecords(recordsFor({ blob: "x" }), "[", { ...defaultOptions, syntax: "regex" }),
     ).toBeNull();
   });
 });
