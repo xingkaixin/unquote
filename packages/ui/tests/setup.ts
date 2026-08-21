@@ -1,5 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { toast } from "sonner";
+import { afterEach, vi } from "vitest";
+
+afterEach(() => {
+  toast.dismiss();
+});
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
