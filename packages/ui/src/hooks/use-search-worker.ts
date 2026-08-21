@@ -9,7 +9,8 @@ import type { SourceRevision } from "../lib/source-revision";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
-import { postToWorker, spawnWorker } from "../lib/worker-lifecycle";
+import { createWorkerRequest, spawnWorker } from "../lib/worker-lifecycle";
+import type { WorkerRequest } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
 type LocalFileSearchAccess = Pick<LocalFileAccess, "getFile" | "search" | "size">;
@@ -302,57 +303,29 @@ export const useSearchWorker = (params: {
         searchOnMainThread();
         return;
       }
-      // Re-bound after the null check because the hoisted lifecycle functions
-      // below would otherwise not see the narrowed type.
       const currentWorker: Worker = availableWorker;
       workerRef.current = currentWorker;
-      let timeoutId: number | undefined;
-      let settled = false;
 
-      function discardWorker() {
+      const handleWorkerTermination = () => {
         if (workerRef.current === currentWorker) {
           workerRef.current = null;
           workerSourceRevisionRef.current = null;
         }
-        currentWorker.terminate();
-      }
+      };
 
-      function finalizeRequest(terminateWorker: boolean) {
-        if (settled) {
-          return false;
-        }
-        settled = true;
-        if (timeoutId !== undefined) {
-          window.clearTimeout(timeoutId);
-        }
-        currentWorker.removeEventListener("message", onMessage);
-        currentWorker.removeEventListener("error", onWorkerFailure);
-        currentWorker.removeEventListener("messageerror", onWorkerFailure);
-        if (terminateWorker) {
-          discardWorker();
-        }
-        return true;
-      }
-
-      function failRequest(errorKind: SearchWorkerErrorKind) {
-        if (requestIdRef.current !== requestId || !finalizeRequest(true)) {
+      const commitFailure = (errorKind: SearchWorkerErrorKind) => {
+        if (requestIdRef.current !== requestId) {
           return;
         }
         finishRequestMeasure();
         commitState(failedResult(searchIdentity, errorKind));
-      }
+      };
 
-      // An uncaught worker error or an undeserializable message can leave the
-      // cached parse behind, so the instance is dropped even when this request
-      // already settled.
-      function onWorkerFailure() {
-        discardWorker();
-        failRequest("worker-error");
-      }
+      let workerRequest: WorkerRequest;
 
       function onMessage(event: MessageEvent<SearchWorkerResponse>) {
         const response = event.data;
-        if (response.requestId !== requestIdRef.current || !finalizeRequest(false)) {
+        if (response.requestId !== requestIdRef.current || !workerRequest.finish()) {
           return;
         }
         finishRequestMeasure();
@@ -367,12 +340,13 @@ export const useSearchWorker = (params: {
         commitState(completedResult(searchIdentity, response.result));
       }
 
-      currentWorker.addEventListener("message", onMessage);
-      currentWorker.addEventListener("error", onWorkerFailure);
-      currentWorker.addEventListener("messageerror", onWorkerFailure);
+      workerRequest = createWorkerRequest(currentWorker, {
+        onMessage,
+        onFailure: () => commitFailure("worker-error"),
+        onTerminate: handleWorkerTermination,
+      });
       const sendText = !sourceAccess && workerSourceRevisionRef.current !== sourceRevision;
-      const posted = postToWorker(
-        currentWorker,
+      const posted = workerRequest.post(
         buildSearchRequest(
           requestId,
           text,
@@ -386,19 +360,19 @@ export const useSearchWorker = (params: {
         ),
       );
       if (!posted) {
-        failRequest("worker-error");
         return;
       }
       if (sendText) {
         workerSourceRevisionRef.current = sourceRevision;
       }
 
-      timeoutId = window.setTimeout(
-        () => failRequest("timeout"),
-        getSearchWorkerTimeoutMs(sourceAccess),
-      );
+      workerRequest.setTimeout(() => {
+        if (requestIdRef.current === requestId && workerRequest.terminate()) {
+          commitFailure("timeout");
+        }
+      }, getSearchWorkerTimeoutMs(sourceAccess));
 
-      dispatchCleanup = () => void finalizeRequest(true);
+      dispatchCleanup = () => void workerRequest.terminate();
     };
 
     if (debounceMs > 0 && !activeWindowIndexes) {
