@@ -80,6 +80,7 @@ describe("source revision model", () => {
     });
     expect(Object.isFrozen(imported)).toBe(true);
     expect(Object.isFrozen(projectSourceWork(imported))).toBe(true);
+    expect(projectSourceWork(imported)).toBe(imported);
   });
 
   it("routes only streaming revisions through Local-file Source Access", () => {
@@ -103,7 +104,7 @@ describe("source revision model", () => {
       kind: "memory",
       sourceRevision: 5,
       text: '{"value":1}',
-      forcedFormat: undefined,
+      mode: "auto",
     });
   });
 });

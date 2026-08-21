@@ -75,8 +75,8 @@ export const UnquoteApp = ({
     onFileDrop: handleFileDrop,
   } = useSourceLoader({ initialInput });
   const sourceWork = projectSourceWork(source);
-  const sourceImport = projectSourceImport(source);
-  const sourceView = projectSourceView(source);
+  const sourceImport = useMemo(() => projectSourceImport(source), [source]);
+  const sourceView = useMemo(() => projectSourceView(source), [source]);
   const { theme, setTheme } = useThemePreference();
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const {
