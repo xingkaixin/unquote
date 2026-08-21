@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createFileOverview } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
 import { filterRecords } from "../src/lib/record-filter";
+import { createRecordInsightMap } from "../src/lib/record-insight";
 import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
 import type { SearchResultSet } from "../src/lib/record-search";
 import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
@@ -361,7 +362,9 @@ describe("tree paths", () => {
       filterRecords(result.records, "errors", matches).map((record) => record.lineNumber),
     ).toEqual([3]);
     expect(
-      filterRecords(result.records, "nested", matches).map((record) => record.lineNumber),
+      filterRecords(result.records, "nested", matches, createRecordInsightMap(result.records)).map(
+        (record) => record.lineNumber,
+      ),
     ).toEqual([1]);
   });
 

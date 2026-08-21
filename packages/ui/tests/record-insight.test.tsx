@@ -139,6 +139,28 @@ describe("record insight", () => {
     ).toEqual([3, 4]);
   });
 
+  it("filters nested records from insights without reading record trees", () => {
+    const result = parseInput('{"payload":"{\\"nested\\":true}"}\n{"payload":{"nested":true}}', {
+      forcedFormat: "jsonl",
+    });
+    const insights = createRecordInsightMap(result.records);
+    const guardedRecords = result.records.map(
+      (record) =>
+        new Proxy(record, {
+          get(target, property, receiver) {
+            if (property === "node") {
+              throw new Error("nested filtering read the record tree");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }),
+    );
+
+    expect(
+      filterRecords(guardedRecords, "nested", null, insights).map((record) => record.lineNumber),
+    ).toEqual([1]);
+  });
+
   it("does not classify AGENTS instructions as errors from wording", () => {
     const result = parseInput(
       JSON.stringify({
@@ -208,6 +230,8 @@ describe("record insight", () => {
       message: "ready",
       nestedJsonCount: 1,
     });
-    expect(filterRecords([record], "nested", null)).toEqual([record]);
+    expect(filterRecords([record], "nested", null, createRecordInsightMap([record]))).toEqual([
+      record,
+    ]);
   });
 });
