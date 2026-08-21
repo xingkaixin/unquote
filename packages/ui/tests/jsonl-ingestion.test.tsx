@@ -15,7 +15,7 @@ const streamText = (input: string, fileName?: string) => {
     if (!line.trim()) {
       return [];
     }
-    return [ingestion.push(parseJsonlRecordLineForIngestion(line, index + 1))];
+    return [ingestion.ingestFullLine(line, index + 1)];
   });
 
   return {

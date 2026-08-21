@@ -225,6 +225,9 @@ export const createAgentSessionTracker = (fileName?: string) => {
   return {
     pushParsedLine,
     pushParseWarning,
+    get needsParsedValues() {
+      return status !== "disabled";
+    },
     finish() {
       if (status === "collecting" && !tryDetect(finalDetectionScore)) {
         disable();
