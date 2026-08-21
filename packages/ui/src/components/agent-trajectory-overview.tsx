@@ -4,15 +4,19 @@ import { useTranslation } from "../i18n/context";
 import type { AgentTrajectoryItemKind } from "../lib/agent-session";
 import {
   createAgentTrajectoryOverview,
-  createTrajectoryTimeScale,
   trajectoryOverviewBucketCount,
+  type AgentTrajectoryOverviewBucket,
+} from "../lib/agent-session/trajectory-overview";
+import type {
+  AgentTrajectoryLane,
+  AgentTrajectoryPresentation,
+  AgentTrajectoryTimeRange,
+} from "../lib/agent-session/trajectory-presentation";
+import {
+  createTrajectoryTimeScale,
   trajectoryOverviewSpans,
   zoomTrajectoryViewport,
-  type AgentTrajectoryLane,
-  type AgentTrajectoryOverviewBucket,
-  type AgentTrajectoryPresentation,
-  type AgentTrajectoryTimeRange,
-} from "../lib/agent-session/trajectory-presentation";
+} from "../lib/agent-session/trajectory-time-scale";
 import {
   clampTrajectoryRange,
   coordinateForTrajectoryRangeValue,

@@ -5,7 +5,6 @@ import type {
   AgentSessionModel,
   AgentTrajectoryItem,
   AgentTrajectoryItemKind,
-  AgentTrajectoryStatus,
   AgentTrajectoryTurn,
   AgentTrajectoryWarning,
 } from "./types";
@@ -17,16 +16,6 @@ import {
 } from "./trajectory-time";
 
 export type { AgentTrajectoryTimeRange } from "./trajectory-time";
-export {
-  createAgentTrajectoryOverview,
-  trajectoryOverviewBucketCount,
-} from "./trajectory-overview";
-export {
-  createTrajectoryTimeScale,
-  trajectoryOverviewSpans,
-  zoomTrajectoryViewport,
-} from "./trajectory-time-scale";
-export type { AgentTrajectoryOverviewSpan, TrajectoryTimeScale } from "./trajectory-time-scale";
 
 const agentTrajectoryWarningKindOrder = {
   "missing-timestamp": true,
@@ -152,21 +141,6 @@ export type AgentTrajectoryLedgerRow =
 export interface FilteredAgentTrajectoryPresentation {
   readonly visibleItems: readonly AgentTrajectoryPresentationItem[];
   readonly ledgerRows: readonly AgentTrajectoryLedgerRow[];
-}
-
-export interface AgentTrajectoryOverviewBucket {
-  readonly count: number;
-  readonly interval: AgentTrajectoryTimeRange | null;
-  readonly status: AgentTrajectoryStatus | null;
-  // Dominant item kind by count; ties keep the first observed kind.
-  readonly kind: AgentTrajectoryItemKind | null;
-}
-
-export interface AgentTrajectoryOverview {
-  readonly viewport: AgentTrajectoryTimeRange | null;
-  readonly bucketCount: number;
-  readonly lanes: Readonly<Record<AgentTrajectoryLane, readonly AgentTrajectoryOverviewBucket[]>>;
-  readonly turnBoundaries: readonly AgentTrajectoryOverviewBucket[];
 }
 
 interface PresentationItemDraft {
