@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { UnquoteApp } from "../src/app";
@@ -187,6 +187,28 @@ describe("UnquoteApp", () => {
       await user.keyboard("{Escape}");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(trigger).toHaveFocus();
+    });
+
+    it("replaces the command palette when opening the import dialog", async () => {
+      const user = userEvent.setup();
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput='{"ok":true}' />
+        </I18nProvider>,
+      );
+
+      const importTrigger = sourceButton();
+      await user.click(screen.getAllByRole("button", { name: "Commands" })[0]!);
+      expect(
+        await screen.findByRole("dialog", { name: "Find, jump, and commands" }),
+      ).toBeInTheDocument();
+
+      fireEvent.click(importTrigger);
+
+      expect(await screen.findByRole("dialog", { name: "Import data" })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Find, jump, and commands" }),
+      ).not.toBeInTheDocument();
     });
 
     it("exposes theme and locale choices as checked menu radio items", async () => {
