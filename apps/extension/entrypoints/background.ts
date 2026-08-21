@@ -1,6 +1,5 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
-import { createTranslator, en } from "@unquote/ui/i18n";
 import {
   claimSelectionHandoffMessageType,
   createSelectionHandoffStore,
@@ -10,7 +9,6 @@ import {
 } from "../src/selection-handoff";
 
 const OPEN_MENU_ID = "unquote-open-selection";
-const t = createTranslator(en);
 const handoffStorage = browser.storage.session as unknown as HandoffSessionStorage;
 const handoffAlarms = browser.alarms as unknown as HandoffAlarms;
 const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
@@ -35,7 +33,7 @@ export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({
       id: OPEN_MENU_ID,
-      title: t("extension.openInUnquote"),
+      title: browser.i18n.getMessage("openInUnquote"),
       contexts: ["selection"],
     });
   });

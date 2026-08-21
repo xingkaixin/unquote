@@ -1,0 +1,14 @@
+{
+  "appName": {
+    "message": "Unquote - エスケープ JSON 展開・JSONL ビューア"
+  },
+  "appDescription": {
+    "message": "文字列化された JSON を展開し、JSONL をローカルで閲覧できます。"
+  },
+  "openInUnquote": {
+    "message": "Unquote で開く"
+  },
+  "openUnquote": {
+    "message": "Unquote を開く"
+  }
+}
