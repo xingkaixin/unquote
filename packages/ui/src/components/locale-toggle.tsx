@@ -8,13 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Button } from "./button";
-import type { Locale, MessageKey } from "../i18n/i18n";
-
-const localeOptions: { locale: Locale; label: MessageKey }[] = [
-  { locale: "en", label: "locale.english" },
-  { locale: "zh-CN", label: "locale.chinese" },
-  { locale: "ja", label: "locale.japanese" },
-];
+import { localeRegistry, supportedLocales } from "../i18n/i18n";
 
 export const LocaleToggle = () => {
   const { locale, setLocale, t } = useTranslation();
@@ -29,9 +23,9 @@ export const LocaleToggle = () => {
       />
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup value={locale} onValueChange={setLocale}>
-          {localeOptions.map(({ locale: optionLocale, label }) => (
+          {supportedLocales.map((optionLocale) => (
             <DropdownMenuRadioItem key={optionLocale} value={optionLocale}>
-              {t(label)}
+              {t(localeRegistry[optionLocale].label)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -1,12 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { en } from "./en";
-import { ja } from "./ja";
-import { zhCN } from "./zh-CN";
-import { createTranslator, detectLocale, persistLocale } from "./i18n";
-import type { Locale, MessageKey, Messages } from "./i18n";
-
-const locales: Record<Locale, Messages> = { en, "zh-CN": zhCN, ja };
+import { createTranslator, detectLocale, localeRegistry, persistLocale } from "./i18n";
+import type { Locale, MessageKey } from "./i18n";
 
 interface I18nContextValue {
   locale: Locale;
@@ -33,7 +28,7 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
   }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => {
-    const t = createTranslator(locales[locale]);
+    const t = createTranslator(localeRegistry[locale].messages);
     return {
       locale,
       t,
