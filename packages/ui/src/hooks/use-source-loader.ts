@@ -6,7 +6,6 @@ import {
   createImportedFileSourceRevision,
   createStreamingFileSourceRevision,
   createTextSourceRevision,
-  projectSourceImport,
   type PublishedSourceRevision,
 } from "../lib/published-source";
 import type { SourceMode } from "../lib/source-candidate";
@@ -63,19 +62,13 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     return source.sourceRevision;
   };
 
-  const onSourceChange = (
-    value: string,
-    sourceMode: SourceMode = projectSourceImport(state.source).mode,
-  ) => {
+  const onSourceChange = (value: string, sourceMode: SourceMode = state.source.mode) => {
     fileImportIdRef.current += 1;
     abortActiveRead();
     return publishSource(createTextSourceRevision(nextSourceRevision(), value, sourceMode));
   };
 
-  const onFileDrop = async (
-    file: File,
-    sourceMode: SourceMode = projectSourceImport(state.source).mode,
-  ) => {
+  const onFileDrop = async (file: File, sourceMode: SourceMode = state.source.mode) => {
     const requestId = fileImportIdRef.current + 1;
     fileImportIdRef.current = requestId;
     abortActiveRead();
