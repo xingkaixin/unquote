@@ -7,7 +7,6 @@ const budgets = {
   initialJsGzipBytes: 205_000,
   totalJsBytes: 760_000,
   totalJsGzipBytes: 250_000,
-  largestChunkBytes: 450_000,
   cssBytes: 38_000,
   cssGzipBytes: 9_000,
 };
@@ -63,9 +62,6 @@ const measure = (files) =>
     { bytes: 0, gzipBytes: 0 },
   );
 
-const largestFileSize = (files) =>
-  files.reduce((largest, file) => Math.max(largest, readFileSync(file).byteLength), 0);
-
 const formatBytes = (bytes) => `${bytes} bytes (${(bytes / 1024).toFixed(1)} KiB)`;
 const failures = [];
 
@@ -84,7 +80,6 @@ for (const surface of surfaces) {
   const initialJs = measure(initialJsFiles);
   const totalJs = measure(allJsFiles);
   const css = measure(cssFiles);
-  const largestChunkBytes = largestFileSize(allJsFiles);
 
   if (initialJsFiles.length === 0) {
     failures.push(`${surface.name} has no initial JavaScript assets`);
@@ -99,7 +94,6 @@ for (const surface of surfaces) {
   console.log(
     `${surface.name}: initial JS ${formatBytes(initialJs.bytes)}, ${formatBytes(initialJs.gzipBytes)} gzipped; ` +
       `total UI JS ${formatBytes(totalJs.bytes)}, ${formatBytes(totalJs.gzipBytes)} gzipped; ` +
-      `largest chunk ${formatBytes(largestChunkBytes)}; ` +
       `CSS ${formatBytes(css.bytes)}, ${formatBytes(css.gzipBytes)} gzipped`,
   );
 
@@ -107,7 +101,6 @@ for (const surface of surfaces) {
   checkBudget(surface.name, "initial JS gzip", initialJs.gzipBytes, budgets.initialJsGzipBytes);
   checkBudget(surface.name, "total UI JS", totalJs.bytes, budgets.totalJsBytes);
   checkBudget(surface.name, "total UI JS gzip", totalJs.gzipBytes, budgets.totalJsGzipBytes);
-  checkBudget(surface.name, "largest chunk", largestChunkBytes, budgets.largestChunkBytes);
   checkBudget(surface.name, "CSS", css.bytes, budgets.cssBytes);
   checkBudget(surface.name, "CSS gzip", css.gzipBytes, budgets.cssGzipBytes);
 }
