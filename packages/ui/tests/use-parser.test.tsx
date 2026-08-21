@@ -9,7 +9,6 @@ import { createLocalFileAccess } from "../src/lib/local-file-source";
 import {
   createStreamingFileSourceRevision,
   createTextSourceRevision,
-  projectSourceWork,
 } from "../src/lib/published-source";
 import { mainThreadWorkBudgetBytes } from "../src/lib/main-thread-budget";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
@@ -193,11 +192,9 @@ interface ProbeProps {
 const ParserProbe = ({ input, forcedFormat, sourceFile, revision = 0 }: ProbeProps) => {
   const source = useMemo(
     () =>
-      projectSourceWork(
-        sourceFile
-          ? createStreamingFileSourceRevision(revision, createLocalFileAccess(sourceFile), "jsonl")
-          : createTextSourceRevision(revision, input, forcedFormat ?? "auto"),
-      ),
+      sourceFile
+        ? createStreamingFileSourceRevision(revision, createLocalFileAccess(sourceFile), "jsonl")
+        : createTextSourceRevision(revision, input, forcedFormat ?? "auto"),
     [forcedFormat, input, revision, sourceFile],
   );
   const { result, progress, agentSession } = useParser({ source });

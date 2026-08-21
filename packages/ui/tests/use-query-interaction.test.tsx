@@ -7,19 +7,19 @@ import {
   type QueryNavigationTarget,
   useQueryInteraction,
 } from "../src/hooks/use-query-interaction";
-import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
+import { createTextSourceRevision } from "../src/lib/published-source";
 import type { SourceRevision } from "../src/lib/source-revision";
 
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
 const result = parseInput(source, { forcedFormat: "jsonl" });
 
-const sourceWork = (text: string, sourceRevision = 0) =>
-  projectSourceWork(createTextSourceRevision(sourceRevision, text, "jsonl"));
+const createSource = (text: string, revision = 0) =>
+  createTextSourceRevision(revision, text, "jsonl");
 
 const renderQuery = (onNavigate = vi.fn()) =>
   renderHook(() =>
     useQueryInteraction({
-      source: sourceWork(source),
+      source: createSource(source),
       resultRevision: 0,
       result,
       translateError: (reason) => reason,
@@ -37,7 +37,7 @@ const renderRevisionedQuery = (initialProps: RevisionedQueryProps) =>
   renderHook(
     ({ sourceRevision, parseResult, onNavigate }: RevisionedQueryProps) =>
       useQueryInteraction({
-        source: sourceWork(source, sourceRevision),
+        source: createSource(source, sourceRevision),
         resultRevision: sourceRevision,
         result: parseResult,
         translateError: (reason) => reason,
@@ -112,7 +112,7 @@ describe("useQueryInteraction", () => {
     const { result: query, rerender } = renderHook(
       ({ parseResult }) =>
         useQueryInteraction({
-          source: sourceWork(""),
+          source: createSource(""),
           resultRevision: 0,
           result: parseResult,
           translateError: (reason) => reason,

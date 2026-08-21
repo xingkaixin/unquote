@@ -5,7 +5,7 @@ import type { RecordWorkspaceModel } from "../components/record-workspace";
 import { useTranslation } from "../i18n/context";
 import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
 import { resolveSourceWork } from "../lib/published-source";
-import type { SourceWorkProjection } from "../lib/published-source";
+import type { PublishedSourceRevision } from "../lib/published-source";
 import {
   getExpandedStringifiedPaths,
   mergeExpandedStringifiedPaths,
@@ -30,7 +30,7 @@ import {
 } from "./use-workspace-session";
 
 interface UseRecordWorkspaceParams {
-  source: SourceWorkProjection;
+  source: PublishedSourceRevision;
   resultRevision: SourceRevision;
   result: ParseResult;
   recordAppend: RecordAppend | null;

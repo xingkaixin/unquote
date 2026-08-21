@@ -2,34 +2,19 @@ import type { LocalFileAccess } from "./local-file-source";
 import type { SourceMode } from "./source-candidate";
 import type { SourceRevision } from "./source-revision";
 
-const publishedSourceBrand: unique symbol = Symbol("published-source");
-const sourceWorkBrand: unique symbol = Symbol("source-work");
-
-interface MemorySourceWork {
+interface PublishedMemorySource {
   readonly kind: "memory";
   readonly sourceRevision: SourceRevision;
   readonly text: string;
   readonly mode: SourceMode;
-  readonly [sourceWorkBrand]: true;
+  readonly file: File | null;
 }
 
-interface LocalFileSourceWork {
+interface PublishedLocalFileSource {
   readonly kind: "local-file";
   readonly sourceRevision: SourceRevision;
   readonly access: LocalFileAccess;
   readonly mode: Exclude<SourceMode, "json">;
-  readonly [sourceWorkBrand]: true;
-}
-
-export type SourceWorkProjection = MemorySourceWork | LocalFileSourceWork;
-
-interface PublishedMemorySource extends MemorySourceWork {
-  readonly file: File | null;
-  readonly [publishedSourceBrand]: true;
-}
-
-interface PublishedLocalFileSource extends LocalFileSourceWork {
-  readonly [publishedSourceBrand]: true;
 }
 
 export type PublishedSourceRevision = PublishedMemorySource | PublishedLocalFileSource;
@@ -68,8 +53,6 @@ export const createTextSourceRevision = (
     text,
     mode,
     file: null,
-    [sourceWorkBrand]: true,
-    [publishedSourceBrand]: true,
   });
 
 export const createImportedFileSourceRevision = (
@@ -84,8 +67,6 @@ export const createImportedFileSourceRevision = (
     text,
     mode,
     file,
-    [sourceWorkBrand]: true,
-    [publishedSourceBrand]: true,
   });
 
 export const createStreamingFileSourceRevision = (
@@ -98,13 +79,9 @@ export const createStreamingFileSourceRevision = (
     sourceRevision,
     access,
     mode,
-    [sourceWorkBrand]: true,
-    [publishedSourceBrand]: true,
   });
 
-export const projectSourceWork = (source: PublishedSourceRevision): SourceWorkProjection => source;
-
-export const resolveSourceWork = (source: SourceWorkProjection): ResolvedSourceWork =>
+export const resolveSourceWork = (source: PublishedSourceRevision): ResolvedSourceWork =>
   source.kind === "memory"
     ? {
         sourceRevision: source.sourceRevision,

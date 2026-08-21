@@ -6,7 +6,6 @@ import {
   createTextSourceRevision,
   projectSourceImport,
   projectSourceView,
-  projectSourceWork,
   resolveSourceWork,
 } from "../src/lib/published-source";
 import {
@@ -62,7 +61,7 @@ describe("source revision model", () => {
     const textFile = new File(['{"value":1}'], "small.json");
     const imported = createImportedFileSourceRevision(3, textFile, '{"value":1}', "json");
 
-    expect(resolveSourceWork(projectSourceWork(imported))).toEqual({
+    expect(resolveSourceWork(imported)).toEqual({
       sourceRevision: 3,
       text: '{"value":1}',
       sourceAccess: null,
@@ -79,8 +78,6 @@ describe("source revision model", () => {
       streamedFileName: null,
     });
     expect(Object.isFrozen(imported)).toBe(true);
-    expect(Object.isFrozen(projectSourceWork(imported))).toBe(true);
-    expect(projectSourceWork(imported)).toBe(imported);
   });
 
   it("routes only streaming revisions through Local-file Source Access", () => {
@@ -89,18 +86,18 @@ describe("source revision model", () => {
     const streaming = createStreamingFileSourceRevision(4, access, "auto");
     const text = createTextSourceRevision(5, '{"value":1}', "auto");
 
-    expect(projectSourceWork(streaming)).toMatchObject({
+    expect(streaming).toMatchObject({
       kind: "local-file",
       sourceRevision: 4,
       access,
     });
-    expect(resolveSourceWork(projectSourceWork(streaming))).toMatchObject({
+    expect(resolveSourceWork(streaming)).toMatchObject({
       sourceRevision: 4,
       text: "",
       sourceAccess: access,
       forcedFormat: "jsonl",
     });
-    expect(projectSourceWork(text)).toMatchObject({
+    expect(text).toMatchObject({
       kind: "memory",
       sourceRevision: 5,
       text: '{"value":1}',

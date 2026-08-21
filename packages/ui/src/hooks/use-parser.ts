@@ -7,7 +7,7 @@ import { parseText } from "../lib/parse-text";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
 import { resolveSourceWork } from "../lib/published-source";
-import type { SourceWorkProjection } from "../lib/published-source";
+import type { PublishedSourceRevision } from "../lib/published-source";
 import { belongsToSourceRevision, commitSourceRevisionResult } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
@@ -72,7 +72,7 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
 };
 
 export interface UseParserOptions {
-  source: SourceWorkProjection;
+  source: PublishedSourceRevision;
 }
 
 export const useParser = ({ source }: UseParserOptions) => {

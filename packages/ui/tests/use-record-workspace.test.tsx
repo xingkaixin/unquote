@@ -5,7 +5,7 @@ import type { PropsWithChildren } from "react";
 import { describe, expect, it } from "vitest";
 import { useRecordWorkspace } from "../src/hooks/use-record-workspace";
 import { I18nProvider } from "../src/i18n/context";
-import { createTextSourceRevision, projectSourceWork } from "../src/lib/published-source";
+import { createTextSourceRevision } from "../src/lib/published-source";
 import { copyBytesLimit } from "../src/lib/record-export";
 import type { RecordAppend } from "../src/lib/record-sequence";
 
@@ -32,7 +32,7 @@ interface WorkspaceInput {
 const useTestWorkspace = ({ sourceRevision, sourceText, ...input }: WorkspaceInput) =>
   useRecordWorkspace({
     ...input,
-    source: projectSourceWork(createTextSourceRevision(sourceRevision, sourceText, "jsonl")),
+    source: createTextSourceRevision(sourceRevision, sourceText, "jsonl"),
     agentSession: null,
     translateError: (reason) => reason,
   });

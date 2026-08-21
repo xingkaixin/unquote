@@ -12,7 +12,7 @@ import type {
   SearchOptionKind,
 } from "../lib/query-interaction";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
-import type { SourceWorkProjection } from "../lib/published-source";
+import type { PublishedSourceRevision } from "../lib/published-source";
 import type { SearchOptions } from "../lib/record-search";
 import type { RecordAppend } from "../lib/record-sequence";
 import { shareSourceRevision } from "../lib/source-revision";
@@ -30,7 +30,7 @@ const emptyPathMatches: TreePathMatch[] = [];
 export type { QueryNavigationTarget } from "../lib/query-navigation";
 
 interface UseQueryInteractionOptions {
-  source: SourceWorkProjection;
+  source: PublishedSourceRevision;
   resultRevision: SourceRevision;
   result: ParseResult;
   translateError: (reason: "invalid" | "not-found") => string;
