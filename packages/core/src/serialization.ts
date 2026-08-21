@@ -119,95 +119,195 @@ const normalizedIndent = (indent: number | undefined) => {
   return Math.max(0, Math.min(10, Math.trunc(indent)));
 };
 
-interface SerializationResult {
+export interface JsonSerializationLimits {
+  maxCharacters?: number;
+  maxBytes?: number;
+  maxNodes?: number;
+}
+
+export interface JsonSerializationResult {
   text: string;
-  truncated: boolean;
+  complete: boolean;
+  characterLimitExceeded: boolean;
+  byteLimitExceeded: boolean;
+  nodeLimitExceeded: boolean;
 }
 
 interface SerializationWriter {
   append(value: string): boolean;
   appendJsonString(value: string): boolean;
-  finish(): SerializationResult;
-  readonly truncated: boolean;
+  finish(complete: boolean, nodeLimitExceeded: boolean): JsonSerializationResult;
 }
 
 const normalizedMaxLength = (maxLength: number) =>
   Number.isFinite(maxLength) ? Math.max(0, Math.trunc(maxLength)) : 0;
 
-const createWriter = (maxLength?: number): SerializationWriter => {
+const normalizedOptionalLimit = (limit: number | undefined) =>
+  limit === undefined ? undefined : normalizedMaxLength(limit);
+
+const textEncoder = new TextEncoder();
+const stringChunkSize = 16_384;
+
+const utf8Width = (value: string, index: number) => {
+  const first = value.charCodeAt(index);
+  if (first <= 0x7f) {
+    return { bytes: 1, codeUnits: 1 };
+  }
+  if (first <= 0x7ff) {
+    return { bytes: 2, codeUnits: 1 };
+  }
+  if (first >= 0xd800 && first <= 0xdbff) {
+    const second = value.charCodeAt(index + 1);
+    if (second >= 0xdc00 && second <= 0xdfff) {
+      return { bytes: 4, codeUnits: 2 };
+    }
+  }
+  return { bytes: 3, codeUnits: 1 };
+};
+
+const utf8PrefixWithin = (value: string, byteLimit: number) => {
+  const encodedLength = textEncoder.encode(value).byteLength;
+  if (encodedLength <= byteLimit) {
+    return { bytes: encodedLength, codeUnits: value.length };
+  }
+
+  let bytes = 0;
+  let index = 0;
+  while (index < value.length) {
+    const width = utf8Width(value, index);
+    if (bytes + width.bytes > byteLimit) {
+      break;
+    }
+    bytes += width.bytes;
+    index += width.codeUnits;
+  }
+  return { bytes, codeUnits: index };
+};
+
+const createWriter = (limits: JsonSerializationLimits): SerializationWriter => {
+  const maxCharacters = normalizedOptionalLimit(limits.maxCharacters);
+  const maxBytes = normalizedOptionalLimit(limits.maxBytes);
   const chunks: string[] = [];
-  let length = 0;
-  let truncated = false;
+  let characterLength = 0;
+  let byteLength = 0;
+  let characterLimitExceeded = false;
+  let byteLimitExceeded = false;
+
+  const shouldContinue = () => {
+    if (maxCharacters !== undefined && maxBytes !== undefined) {
+      return !(characterLimitExceeded && byteLimitExceeded);
+    }
+    if (maxCharacters !== undefined) {
+      return !characterLimitExceeded;
+    }
+    if (maxBytes !== undefined) {
+      return !byteLimitExceeded;
+    }
+    return true;
+  };
 
   const append = (value: string) => {
-    if (truncated) {
-      return false;
-    }
-    if (maxLength === undefined || length + value.length <= maxLength) {
-      chunks.push(value);
-      length += value.length;
-      return true;
+    if (!characterLimitExceeded) {
+      if (maxCharacters === undefined || characterLength + value.length <= maxCharacters) {
+        chunks.push(value);
+        characterLength += value.length;
+      } else {
+        const prefix = truncateAtCodePointBoundary(value, maxCharacters - characterLength);
+        if (prefix) {
+          chunks.push(prefix);
+          characterLength += prefix.length;
+        }
+        characterLimitExceeded = true;
+      }
     }
 
-    const prefix = truncateAtCodePointBoundary(value, maxLength - length);
-    if (prefix) {
-      chunks.push(prefix);
-      length += prefix.length;
+    if (!byteLimitExceeded && maxBytes !== undefined) {
+      const prefix = utf8PrefixWithin(value, maxBytes - byteLength);
+      byteLength += prefix.bytes;
+      byteLimitExceeded = prefix.codeUnits < value.length;
     }
-    truncated = true;
-    return false;
+    return shouldContinue();
   };
 
   return {
     append,
     appendJsonString(value) {
-      if (maxLength === undefined) {
+      if (maxCharacters === undefined && maxBytes === undefined) {
         return append(jsonLiteral(value));
       }
       if (!append('"')) {
         return false;
       }
-      for (const character of value) {
-        if (!append(jsonLiteral(character).slice(1, -1))) {
+
+      for (let start = 0; start < value.length;) {
+        let end = Math.min(value.length, start + stringChunkSize);
+        const last = value.charCodeAt(end - 1);
+        const next = value.charCodeAt(end);
+        if (last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+          end += 1;
+        }
+        if (!append(jsonLiteral(value.slice(start, end)).slice(1, -1))) {
           return false;
         }
+        start = end;
       }
       return append('"');
     },
-    finish: () => ({ text: chunks.join(""), truncated }),
-    get truncated() {
-      return truncated;
-    },
+    finish: (complete, nodeLimitExceeded) => ({
+      text: chunks.join(""),
+      complete,
+      characterLimitExceeded,
+      byteLimitExceeded,
+      nodeLimitExceeded,
+    }),
   };
 };
 
 const serializeJsonNode = (
   node: JsonNode,
   options: FormatOptions,
-  maxLength?: number,
-): SerializationResult => {
+  limits: JsonSerializationLimits = {},
+): JsonSerializationResult => {
   const indentation = " ".repeat(normalizedIndent(options.indent));
   const pretty = indentation.length > 0;
-  const writer = createWriter(maxLength);
+  const writer = createWriter(limits);
   const pending: SerializationTask[] = [
     { type: "value", source: { representation: "node", value: node }, depth: 0 },
   ];
 
-  while (pending.length > 0 && !writer.truncated) {
+  const maxNodes = normalizedOptionalLimit(limits.maxNodes);
+  let visited = 0;
+  let complete = true;
+  let nodeLimitExceeded = false;
+
+  while (pending.length > 0) {
     const task = pending.pop()!;
     if (task.type === "value") {
+      if (maxNodes !== undefined && visited >= maxNodes) {
+        complete = false;
+        nodeLimitExceeded = true;
+        break;
+      }
+      visited += 1;
       const resolved = resolveValue(task.source);
       if ("literal" in resolved) {
-        writer.append(resolved.literal);
+        if (!writer.append(resolved.literal)) {
+          complete = false;
+          break;
+        }
         continue;
       }
       if ("string" in resolved) {
-        writer.appendJsonString(resolved.string);
+        if (!writer.appendJsonString(resolved.string)) {
+          complete = false;
+          break;
+        }
         continue;
       }
 
       const { container } = resolved;
       if (!writer.append(container.kind === "array" ? "[" : "{")) {
+        complete = false;
         break;
       }
       if (container.length === 0) {
@@ -215,6 +315,7 @@ const serializeJsonNode = (
         continue;
       }
       if (pretty && !writer.append("\n")) {
+        complete = false;
         break;
       }
       pending.push({ type: "container", view: container, index: 0, depth: task.depth });
@@ -223,16 +324,22 @@ const serializeJsonNode = (
 
     if (task.index >= task.view.length) {
       if (pretty && !writer.append(`\n${indentation.repeat(task.depth)}`)) {
+        complete = false;
         break;
       }
-      writer.append(task.view.kind === "array" ? "]" : "}");
+      if (!writer.append(task.view.kind === "array" ? "]" : "}")) {
+        complete = false;
+        break;
+      }
       continue;
     }
 
     if (task.index > 0 && !writer.append(pretty ? ",\n" : ",")) {
+      complete = false;
       break;
     }
     if (pretty && !writer.append(indentation.repeat(task.depth + 1))) {
+      complete = false;
       break;
     }
     if (task.view.kind === "object") {
@@ -240,8 +347,15 @@ const serializeJsonNode = (
         !writer.appendJsonString(task.view.keyAt(task.index)) ||
         !writer.append(pretty ? ": " : ":")
       ) {
+        complete = false;
         break;
       }
+    }
+
+    if (maxNodes !== undefined && visited >= maxNodes) {
+      complete = false;
+      nodeLimitExceeded = true;
+      break;
     }
 
     pending.push({ ...task, index: task.index + 1 });
@@ -252,17 +366,28 @@ const serializeJsonNode = (
     });
   }
 
-  return writer.finish();
+  return writer.finish(complete, nodeLimitExceeded);
 };
 
 export const stringifyJsonNode = (node: JsonNode, options: FormatOptions = {}) =>
   serializeJsonNode(node, options).text;
 
+export const stringifyJsonNodeWithLimits = (
+  node: JsonNode,
+  limits: JsonSerializationLimits,
+  options: FormatOptions = {},
+) => serializeJsonNode(node, options, limits);
+
 export const stringifyJsonNodeBounded = (
   node: JsonNode,
   maxLength: number,
   options: FormatOptions = {},
-) => serializeJsonNode(node, options, normalizedMaxLength(maxLength));
+) => {
+  const result = serializeJsonNode(node, options, {
+    maxCharacters: normalizedMaxLength(maxLength),
+  });
+  return { text: result.text, truncated: result.characterLimitExceeded };
+};
 
 export const materializeNode = (node: JsonNode, options: MaterializeOptions = {}): unknown => {
   if (node.kind === "object" && node.children) {
