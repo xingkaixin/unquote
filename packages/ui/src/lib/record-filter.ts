@@ -68,7 +68,7 @@ export const filterRecords = (
   }
 
   if (mode === "nested") {
-    return records.filter(recordContainsStringifiedJson);
+    return records.filter((record) => (insights.get(record.id)?.nestedJsonCount ?? 0) > 0);
   }
 
   if (mode === "tool") {
