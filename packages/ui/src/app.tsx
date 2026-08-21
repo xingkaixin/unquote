@@ -53,6 +53,8 @@ const RecordWorkspace = lazy(() =>
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
+type ActiveOverlay = "import" | "command" | null;
+
 export interface UnquoteAppProps {
   initialInput?: string;
   chromeWebStoreUrl?: string;
@@ -76,8 +78,7 @@ export const UnquoteApp = ({
   const sourceImport = projectSourceImport(source);
   const sourceView = projectSourceView(source);
   const { theme, setTheme } = useThemePreference();
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const {
     sourceRevision: resultRevision,
     result,
@@ -162,7 +163,7 @@ export const UnquoteApp = ({
 
   const handleOpenCommandPalette = useCallback(() => {
     queryIntent.prepareCommandInput();
-    setCommandPaletteOpen(true);
+    setActiveOverlay("command");
   }, [queryIntent]);
 
   const commitSourceCandidate = (candidate: SourceCandidate) => {
@@ -171,13 +172,13 @@ export const UnquoteApp = ({
     } else {
       void handleFileDrop(candidate.file, candidate.mode);
     }
-    setImportOpen(false);
+    setActiveOverlay(null);
   };
 
   const handleSampleSelect = (sample: SourceSampleOption) => {
     const nextRevision = handleSourceChange(sample.value, "auto");
     recordWorkspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
-    setImportOpen(false);
+    setActiveOverlay(null);
   };
 
   const handleOpenRecord = useCallback(
@@ -209,7 +210,7 @@ export const UnquoteApp = ({
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
       allowInTextEditing: true,
       handler: () => {
-        if (importOpen) {
+        if (activeOverlay === "import") {
           return false;
         }
 
@@ -221,14 +222,14 @@ export const UnquoteApp = ({
       allowInTextEditing: true,
       // Escape never preventDefault()s: it has no browser default to suppress here.
       handler: () => {
-        setCommandPaletteOpen(false);
+        setActiveOverlay(null);
         return false;
       },
     },
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.hasSelectedPath || commandPaletteOpen) {
+        if (!recordWorkspace.hasSelectedPath || activeOverlay === "command") {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -372,7 +373,7 @@ export const UnquoteApp = ({
         <AppHeader
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
-          onOpenImport={() => setImportOpen(true)}
+          onOpenImport={() => setActiveOverlay("import")}
           outputView={agentSession && agentSessionModel ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
@@ -418,15 +419,15 @@ export const UnquoteApp = ({
           {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
           {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
         />
-        {importOpen || commandPaletteOpen ? (
-          <DeferredLoadBoundary resetKey={`${importOpen}:${commandPaletteOpen}`}>
+        {activeOverlay ? (
+          <DeferredLoadBoundary resetKey={activeOverlay}>
             <Suspense fallback={null}>
-              {importOpen ? (
-                <ImportDialog open dismissible={hasData} onClose={() => setImportOpen(false)}>
+              {activeOverlay === "import" ? (
+                <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
                   {importPanel("h-[220px]")}
                 </ImportDialog>
               ) : null}
-              {commandPaletteOpen ? (
+              {activeOverlay === "command" ? (
                 <CommandPalette
                   open
                   inputValue={commandInput}
@@ -439,7 +440,7 @@ export const UnquoteApp = ({
                   totalCount={result.stats.total}
                   filterMode={recordFilter}
                   nestedFilterScope={recordWorkspace.model.filter.nestedScope}
-                  onClose={() => setCommandPaletteOpen(false)}
+                  onClose={() => setActiveOverlay(null)}
                   onInputChange={queryIntent.changeCommandInput}
                   onSearch={queryIntent.searchFromCommand}
                   onJumpPath={queryIntent.submitToolbarQuery}
