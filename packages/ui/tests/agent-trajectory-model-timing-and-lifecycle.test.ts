@@ -452,6 +452,31 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
     );
   });
 
+  it("accepts an explicit lifecycle boundary when the carrying Event has no timestamp", () => {
+    const model = createAgentTrajectoryModel(
+      session([
+        event("explicit-boundary-start", "record-explicit-boundary-start", 1, {
+          sessionEvidence: [
+            { kind: "turn-lifecycle", turnId: "explicit-boundary", phase: "start", timestamp: 10 },
+          ],
+        }),
+        event("explicit-boundary-complete", "record-explicit-boundary-complete", 2, {
+          sessionEvidence: [
+            {
+              kind: "turn-lifecycle",
+              turnId: "explicit-boundary",
+              phase: "complete",
+              timestamp: 30,
+            },
+          ],
+        }),
+      ]),
+    );
+
+    expect(model.turns[0]).toMatchObject({ startedAt: 10, endedAt: 30, durationMs: 20 });
+    expect(model.warnings.map((warning) => warning.kind)).not.toContain("missing-turn-start");
+  });
+
   it("uses the earliest observed non-terminal timestamp without sorting", () => {
     const lateObserved = conversation("late-observed", "assistant");
     const laterAssistant = conversation("later-assistant", "assistant");
