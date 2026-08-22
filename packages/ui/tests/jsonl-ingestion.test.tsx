@@ -1,8 +1,4 @@
-import {
-  parseJsonlRecordLine,
-  parseJsonlRecordLineForIngestion,
-  parsePreviewJsonlRecordLineForIngestion,
-} from "@unquote/core";
+import { parseJsonlRecordLine } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJsonlIngestion } from "../src/lib/jsonl-ingestion";
 import { parseText } from "../src/lib/parse-text";
@@ -51,12 +47,9 @@ describe("JSONL ingestion", () => {
       payload: { session_id: "canonical-link" },
     });
 
-    for (const parseLine of [
-      parseJsonlRecordLineForIngestion,
-      parsePreviewJsonlRecordLineForIngestion,
-    ]) {
+    for (const ingestLine of ["ingestFullLine", "ingestPreviewLine"] as const) {
       const ingestion = createJsonlIngestion("rollout.jsonl");
-      const record = ingestion.push(parseLine(input, 17));
+      const record = ingestion[ingestLine](input, 17);
       const session = ingestion.finishAgentSession();
 
       expect(session?.events[0]?.recordId).toBe(record.id);

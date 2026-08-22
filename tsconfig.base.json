@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "paths": {
       "@unquote/core": ["./packages/core/src/index.ts"],
+      "@unquote/core/ingestion": ["./packages/core/src/ingestion.ts"],
       "@unquote/ui": ["./packages/ui/src/index.ts"],
       "@unquote/ui/*": ["./packages/ui/src/*"]
     }

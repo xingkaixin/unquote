@@ -1,18 +1,10 @@
-import type {
-  FullJsonlRecord,
-  JsonlRecord,
-  JsonlRecordIngestionLine,
-  JsonlRecordLineResult,
-  ParseResult,
-  PreviewJsonlRecord,
-} from "@unquote/core";
+import type { FullJsonlRecord, JsonlRecord, ParseResult, PreviewJsonlRecord } from "@unquote/core";
+import { isParsed, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
+import type { JsonlRecordIngestionLine, JsonlRecordLineResult } from "@unquote/core/ingestion";
 import {
-  isParsed,
-  parseJsonlRecordLine,
   parseJsonlRecordLineWithValue,
-  parsePreviewJsonlRecordLine,
   parsePreviewJsonlRecordLineWithValue,
-} from "@unquote/core";
+} from "@unquote/core/ingestion";
 import { createAgentSessionTracker } from "./agent-session";
 
 export const createJsonlIngestion = (fileName?: string) => {
