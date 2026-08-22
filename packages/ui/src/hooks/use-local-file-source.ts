@@ -2,7 +2,7 @@ import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
-import { fullRecordCacheLimit, type LocalFileAccess } from "../lib/local-file-source";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
 
@@ -30,6 +30,7 @@ interface FullRecordCache extends SourceRevisionOwned {
 }
 
 const emptyFullRecordsByLine: ReadonlyMap<number, JsonlRecord> = new Map();
+const fullRecordCacheLimit = 500;
 
 const createFullRecordScope = (
   access: LocalFileRecordAccess | null,
