@@ -7,14 +7,16 @@ import {
   materializeNode,
   MAX_SUPPORTED_DEPTH,
   parseInput,
-  parseInputForIngestion,
   parseJsonlRecordLine,
-  parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLine,
-  parsePreviewJsonlRecordLineWithValue,
   probeJsonl,
   restoreNode,
 } from "../src";
+import {
+  parseInputForIngestion,
+  parseJsonlRecordLineWithValue,
+  parsePreviewJsonlRecordLineWithValue,
+} from "../src/ingestion";
 
 afterEach(() => vi.restoreAllMocks());
 

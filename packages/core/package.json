@@ -14,10 +14,15 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./ingestion": {
+      "types": "./dist/ingestion.d.ts",
+      "import": "./dist/ingestion.js",
+      "require": "./dist/ingestion.cjs"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --clean && tsc -p tsconfig.build.json",
+    "build": "tsup src/index.ts src/ingestion.ts --format esm,cjs --clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
     "format": "oxfmt . --write",

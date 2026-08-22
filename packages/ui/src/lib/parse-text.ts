@@ -1,5 +1,6 @@
-import { parseInput, parseInputForIngestion } from "@unquote/core";
+import { parseInput } from "@unquote/core";
 import type { ParseOptions, ParseResult } from "@unquote/core";
+import { parseInputForIngestion } from "@unquote/core/ingestion";
 import type { AgentSession } from "./agent-session";
 import { createJsonlIngestion } from "./jsonl-ingestion";
 

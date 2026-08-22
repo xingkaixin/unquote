@@ -23,6 +23,8 @@
 - `packages/core/package.json` 标记 `private: true`，registry 发布被工具本身阻止。
 - `files` 白名单让 `pnpm pack --dry-run` 的结果可解释：只有 `dist` 与 `LICENSE`，不再默认
   带上 `src`、`tests`、`tsconfig*.json` 与 `vitest.config.ts`。
+- 根入口只提供主要解析与节点契约；为 UI 摄取管线保留的附带值解析能力集中在
+  `@unquote/core/ingestion` 子入口。
 - changelog 顶部说明 `@unquote/core` 的 breaking 条目只对仓库内部有意义。
 - 文档不再暗示外部安装或外部消费者。
 

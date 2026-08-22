@@ -106,15 +106,6 @@ export const parseJsonlRecordLineWithValue = (
     parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)),
   );
 
-export const parseJsonlRecordLineForIngestion = (
-  line: string,
-  lineNumber: number,
-  options: ParseOptions = {},
-): JsonlRecordIngestionLine<FullJsonlRecord> =>
-  withLazyApproximateValue(
-    parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)),
-  );
-
 export const parseJsonlRecordLine = (
   line: string,
   lineNumber: number,
@@ -127,16 +118,6 @@ export const parsePreviewJsonlRecordLineWithValue = (
   lineNumber: number,
 ): JsonlRecordLineResult<PreviewJsonlRecord> =>
   withApproximateValue(
-    parseJsonlRecordLineWith(line, lineNumber, (value) =>
-      createPreviewJsonlRecord(value, lineNumber),
-    ),
-  );
-
-export const parsePreviewJsonlRecordLineForIngestion = (
-  line: string,
-  lineNumber: number,
-): JsonlRecordIngestionLine<PreviewJsonlRecord> =>
-  withLazyApproximateValue(
     parseJsonlRecordLineWith(line, lineNumber, (value) =>
       createPreviewJsonlRecord(value, lineNumber),
     ),
