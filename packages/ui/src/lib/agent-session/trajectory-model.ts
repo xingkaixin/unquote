@@ -6,7 +6,7 @@ import type {
   AgentToolResultEvidence,
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
-  AgentTrajectoryEvidence,
+  AgentSessionEvidence,
   AgentTrajectoryItem,
   AgentTrajectoryItemBase,
   AgentTrajectoryModel,
@@ -21,17 +21,16 @@ import type {
   AgentTimelineEvent,
 } from "./types";
 import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity";
-import { resolveToolLifecycleStatus } from "./tool-lifecycle";
 import {
-  createToolCorrelationGroups,
-  forEachToolCorrelationGroup,
+  createAgentToolLifecycleIndex,
+  resolveToolLifecycleStatus,
+  type AgentToolLifecycleGroup,
+  type AgentToolLifecycleIndex,
+} from "./tool-lifecycle";
+import {
   hasRepeatedToolOccurrences,
-  syntheticTurnScope,
-  toolCorrelationGroupFor,
   toolCorrelationScope,
-  trajectoryTurnId,
   type ToolCorrelationGroup,
-  type TrajectoryTurnScope,
 } from "./tool-correlation";
 
 const tokenKeys = [
@@ -95,6 +94,18 @@ type ToolGroup = ToolCorrelationGroup<
   ToolResultOccurrence,
   ToolCompletionOccurrence
 >;
+
+type TrajectoryTurnScope =
+  | Exclude<ReturnType<typeof toolCorrelationScope>, { source: "anonymous" }>
+  | { readonly source: "synthetic-event"; readonly value: string };
+
+const syntheticTurnScope = (eventId: string): TrajectoryTurnScope => ({
+  source: "synthetic-event",
+  value: eventId,
+});
+
+const trajectoryTurnId = (scope: TrajectoryTurnScope) =>
+  JSON.stringify([scope.source, scope.value]);
 
 const toolOccurrenceFor = <
   TEvidence extends AgentToolCallEvidence | AgentToolResultEvidence | AgentToolCompletionEvidence,
@@ -455,7 +466,7 @@ const finalizeToolGroup = (group: ToolGroup, warnings: AgentTrajectoryWarning[])
   }
 };
 
-const conversationItemIdFor = (evidence: AgentTrajectoryEvidence) => {
+const conversationItemIdFor = (evidence: AgentSessionEvidence) => {
   if (evidence.kind === "model-output") {
     return evidence.conversationItemId;
   }
@@ -464,21 +475,18 @@ const conversationItemIdFor = (evidence: AgentTrajectoryEvidence) => {
     : undefined;
 };
 
-const terminalLifecycle = (evidence: AgentTrajectoryEvidence) =>
+const terminalLifecycle = (evidence: AgentSessionEvidence) =>
   evidence.kind === "turn-lifecycle" && evidence.phase !== "start";
 
 export const createAgentTrajectoryModelFromCanonicalSession = (
   session: CanonicalAgentSession,
+  toolLifecycle: AgentToolLifecycleIndex = createAgentToolLifecycleIndex(session),
 ): AgentTrajectoryModel => {
   const turns: TurnDraft[] = [];
   const explicitTurnById = new Map<string, TurnDraft>();
   const fallbackTurnByIndex = new Map<number, TurnDraft>();
   const syntheticTurnByEventId = new Map<string, TurnDraft>();
-  const toolGroups = createToolCorrelationGroups<
-    ToolCallOccurrence,
-    ToolResultOccurrence,
-    ToolCompletionOccurrence
-  >();
+  const toolGroups = new Map<AgentToolLifecycleGroup, ToolGroup>();
   const itemDrafts: ItemDraft[] = [];
   const warnings: AgentTrajectoryWarning[] = [];
   const lastModelItemByTurn = new Map<TurnDraft, ItemDraft>();
@@ -507,7 +515,7 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
 
   const resolveTurn = (
     event: AgentTimelineEvent,
-    evidence: AgentTrajectoryEvidence,
+    evidence: AgentSessionEvidence,
     selection: AgentCanonicalSelection,
   ) => {
     const turnIndex = finiteTurnIndex(event.turnIndex);
@@ -556,157 +564,157 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     }
   };
 
-  for (const { event, conversationItemIds } of session.events) {
-    const evidenceList = event.trajectoryEvidence;
-    if (!evidenceList) {
-      continue;
+  for (const {
+    evidence,
+    evidenceIndex,
+    canonicalEvent: { event, conversationItemIds },
+  } of toolLifecycle.evidenceOccurrences) {
+    const conversationItemId = conversationItemIdFor(evidence);
+    const selection = selectionFor(event, conversationItemId, conversationItemIds);
+    const source = warningSourceFor(event, selection);
+    const turn = resolveTurn(event, evidence, selection);
+    if (turn && !terminalLifecycle(evidence)) {
+      observeEarliestNonTerminalTimestamp(turn, event);
     }
+    const itemId = itemIdFor(event, evidenceIndex);
 
-    let evidenceIndex = 0;
-    for (const evidence of evidenceList) {
-      const conversationItemId = conversationItemIdFor(evidence);
-      const selection = selectionFor(event, conversationItemId, conversationItemIds);
-      const source = warningSourceFor(event, selection);
-      const turn = resolveTurn(event, evidence, selection);
-      if (turn && !terminalLifecycle(evidence)) {
-        observeEarliestNonTerminalTimestamp(turn, event);
+    if (evidence.kind === "turn-lifecycle") {
+      if (turn) {
+        const timestamp = finiteNumber(evidence.timestamp) ?? finiteNumber(event.timestamp);
+        if (evidence.phase === "start") {
+          turn.lifecycleStartSource = source;
+          if (timestamp !== undefined) {
+            turn.lifecycleStartTimestamp = timestamp;
+          }
+        } else {
+          turn.hasTerminalLifecycle = true;
+          turn.terminalLifecycleSource = source;
+          turn.status = evidence.phase === "complete" ? "completed" : evidence.phase;
+          if (timestamp !== undefined) {
+            turn.terminalLifecycleTimestamp = timestamp;
+          }
+          const explicitDuration = nonNegativeDuration(evidence.durationMs);
+          if (explicitDuration !== undefined) {
+            turn.explicitDurationMs = explicitDuration;
+          }
+        }
       }
-      const itemId = itemIdFor(event, evidenceIndex);
-
-      if (evidence.kind === "turn-lifecycle") {
-        if (turn) {
-          const timestamp = finiteNumber(evidence.timestamp) ?? finiteNumber(event.timestamp);
-          if (evidence.phase === "start") {
-            turn.lifecycleStartSource = source;
-            if (timestamp !== undefined) {
-              turn.lifecycleStartTimestamp = timestamp;
-            }
-          } else {
-            turn.hasTerminalLifecycle = true;
-            turn.terminalLifecycleSource = source;
-            turn.status = evidence.phase === "complete" ? "completed" : evidence.phase;
-            if (timestamp !== undefined) {
-              turn.terminalLifecycleTimestamp = timestamp;
-            }
-            const explicitDuration = nonNegativeDuration(evidence.durationMs);
-            if (explicitDuration !== undefined) {
-              turn.explicitDurationMs = explicitDuration;
-            }
-          }
-        }
-      } else if (evidence.kind === "model-output") {
-        if (evidence.role === "user") {
-          const item: AgentTrajectoryUserItem = {
-            ...baseItem(itemId, "user", "completed", event, selection),
-          };
-          itemDrafts.push({ turn, item });
-        } else if (evidence.role === "system") {
-          const item: AgentTrajectorySystemItem = {
-            ...baseItem(itemId, "system", "completed", event, selection),
-          };
-          itemDrafts.push({ turn, item });
-        } else {
-          const step =
-            turn && turn.pendingToolRecovery
-              ? { index: turn.nextStepIndex, source: "derived" as const }
-              : undefined;
-          if (step && turn) {
-            turn.nextStepIndex += 1;
-            turn.pendingToolRecovery = false;
-          }
-          const item: AgentTrajectoryAssistantReasoningItem = {
-            ...baseItem(itemId, evidence.role, "completed", event, selection),
-            ...(step === undefined ? {} : { step }),
-          };
-          const draft = { turn, item };
-          itemDrafts.push(draft);
-          if (turn) {
-            lastModelItemByTurn.set(turn, draft);
-          }
-        }
-      } else if (evidence.kind === "tool-lifecycle") {
-        const draft: ItemDraft = { turn, item: null };
-        itemDrafts.push(draft);
-        const callId = nonEmptyString(evidence.callId);
-        if (!callId) {
-          if (evidence.phase === "call") {
-            const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
-            draft.item = toolItemFor(occurrence, undefined, undefined, warnings);
-            addUnpairedCallWarning(warnings, occurrence);
-          } else if (evidence.phase === "result") {
-            const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
-            draft.item = toolItemFor(undefined, occurrence, undefined, warnings);
-            addUnpairedResultWarning(warnings, occurrence);
-            if (turn) {
-              turn.pendingToolRecovery = true;
-            }
-          } else {
-            const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
-            draft.item = toolItemFor(undefined, undefined, occurrence, warnings);
-            addUnpairedCompletionWarning(warnings, occurrence);
-            if (turn) {
-              turn.pendingToolRecovery = true;
-            }
-          }
-        } else {
-          const scope = toolCorrelationScope(evidence.turnId, finiteTurnIndex(event.turnIndex));
-          const group = toolCorrelationGroupFor(toolGroups, scope, callId);
-          if (evidence.phase === "call") {
-            group.calls.push(toolOccurrenceFor(evidence, itemId, selection, source, event, draft));
-          } else if (evidence.phase === "result") {
-            group.results.push(
-              toolOccurrenceFor(evidence, itemId, selection, source, event, draft),
-            );
-            if (turn) {
-              turn.pendingToolRecovery = true;
-            }
-          } else {
-            group.completions.push(
-              toolOccurrenceFor(evidence, itemId, selection, source, event, draft),
-            );
-            if (turn) {
-              turn.pendingToolRecovery = true;
-            }
-          }
-        }
-      } else if (evidence.kind === "token-usage") {
-        const usage = validTokenUsage(evidence.usage);
-        const cumulativeUsage = validTokenUsage(evidence.cumulativeUsage);
-        mergeTotalTokenUsage(totalTokenUsage, usage, cumulativeUsage);
-
-        if (evidence.usage !== undefined) {
-          const previousDraft = turn ? lastModelItemByTurn.get(turn) : undefined;
-          const previous = previousDraft?.item;
-          if (
-            !previousDraft ||
-            !previous ||
-            (previous.kind !== "assistant" && previous.kind !== "reasoning")
-          ) {
-            warnings.push({ ...source, kind: "unattached-token-usage" });
-          } else if (usage) {
-            const mergedUsage = mergeTokenUsage(previous.tokenUsage, usage);
-            if (mergedUsage) {
-              previousDraft.item = { ...previous, tokenUsage: mergedUsage };
-            }
-          }
-        }
-      } else if (evidence.kind === "subagent-activity") {
-        const item: AgentTrajectorySubagentItem = {
-          ...baseItem(itemId, "subagent", evidence.status, event, selection),
+    } else if (evidence.kind === "model-output") {
+      if (evidence.role === "user") {
+        const item: AgentTrajectoryUserItem = {
+          ...baseItem(itemId, "user", "completed", event, selection),
+        };
+        itemDrafts.push({ turn, item });
+      } else if (evidence.role === "system") {
+        const item: AgentTrajectorySystemItem = {
+          ...baseItem(itemId, "system", "completed", event, selection),
         };
         itemDrafts.push({ turn, item });
       } else {
-        const item: AgentTrajectoryCompactionItem = {
-          ...baseItem(itemId, "compaction", "completed", event, selection),
+        const step =
+          turn && turn.pendingToolRecovery
+            ? { index: turn.nextStepIndex, source: "derived" as const }
+            : undefined;
+        if (step && turn) {
+          turn.nextStepIndex += 1;
+          turn.pendingToolRecovery = false;
+        }
+        const item: AgentTrajectoryAssistantReasoningItem = {
+          ...baseItem(itemId, evidence.role, "completed", event, selection),
+          ...(step === undefined ? {} : { step }),
         };
-        itemDrafts.push({ turn, item });
+        const draft = { turn, item };
+        itemDrafts.push(draft);
+        if (turn) {
+          lastModelItemByTurn.set(turn, draft);
+        }
       }
+    } else if (evidence.kind === "tool-lifecycle") {
+      const draft: ItemDraft = { turn, item: null };
+      itemDrafts.push(draft);
+      const lifecycleGroup = toolLifecycle.groupByEvidence.get(evidence);
+      if (!lifecycleGroup) {
+        if (evidence.phase === "call") {
+          const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
+          draft.item = toolItemFor(occurrence, undefined, undefined, warnings);
+          addUnpairedCallWarning(warnings, occurrence);
+        } else if (evidence.phase === "result") {
+          const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
+          draft.item = toolItemFor(undefined, occurrence, undefined, warnings);
+          addUnpairedResultWarning(warnings, occurrence);
+          if (turn) {
+            turn.pendingToolRecovery = true;
+          }
+        } else {
+          const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
+          draft.item = toolItemFor(undefined, undefined, occurrence, warnings);
+          addUnpairedCompletionWarning(warnings, occurrence);
+          if (turn) {
+            turn.pendingToolRecovery = true;
+          }
+        }
+      } else {
+        let group = toolGroups.get(lifecycleGroup);
+        if (!group) {
+          group = { calls: [], results: [], completions: [] };
+          toolGroups.set(lifecycleGroup, group);
+        }
+        if (evidence.phase === "call") {
+          group.calls.push(toolOccurrenceFor(evidence, itemId, selection, source, event, draft));
+        } else if (evidence.phase === "result") {
+          group.results.push(toolOccurrenceFor(evidence, itemId, selection, source, event, draft));
+          if (turn) {
+            turn.pendingToolRecovery = true;
+          }
+        } else {
+          group.completions.push(
+            toolOccurrenceFor(evidence, itemId, selection, source, event, draft),
+          );
+          if (turn) {
+            turn.pendingToolRecovery = true;
+          }
+        }
+      }
+    } else if (evidence.kind === "token-usage") {
+      const usage = validTokenUsage(evidence.usage);
+      const cumulativeUsage = validTokenUsage(evidence.cumulativeUsage);
+      mergeTotalTokenUsage(totalTokenUsage, usage, cumulativeUsage);
 
-      evidenceIndex += 1;
+      if (evidence.usage !== undefined) {
+        const previousDraft = turn ? lastModelItemByTurn.get(turn) : undefined;
+        const previous = previousDraft?.item;
+        if (
+          !previousDraft ||
+          !previous ||
+          (previous.kind !== "assistant" && previous.kind !== "reasoning")
+        ) {
+          warnings.push({ ...source, kind: "unattached-token-usage" });
+        } else if (usage) {
+          const mergedUsage = mergeTokenUsage(previous.tokenUsage, usage);
+          if (mergedUsage) {
+            previousDraft.item = { ...previous, tokenUsage: mergedUsage };
+          }
+        }
+      }
+    } else if (evidence.kind === "subagent-activity") {
+      const item: AgentTrajectorySubagentItem = {
+        ...baseItem(itemId, "subagent", evidence.status, event, selection),
+      };
+      itemDrafts.push({ turn, item });
+    } else {
+      const item: AgentTrajectoryCompactionItem = {
+        ...baseItem(itemId, "compaction", "completed", event, selection),
+      };
+      itemDrafts.push({ turn, item });
     }
   }
 
-  forEachToolCorrelationGroup(toolGroups, (group) => finalizeToolGroup(group, warnings));
+  for (const lifecycleGroup of toolLifecycle.groups) {
+    const group = toolGroups.get(lifecycleGroup);
+    if (group) {
+      finalizeToolGroup(group, warnings);
+    }
+  }
 
   const items: AgentTrajectoryItem[] = [];
   for (const draft of itemDrafts) {

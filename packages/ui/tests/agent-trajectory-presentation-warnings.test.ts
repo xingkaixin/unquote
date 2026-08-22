@@ -435,17 +435,17 @@ describe("agent trajectory presentation: warnings", () => {
         {
           ...eventFor("lifecycle-start", "Start", ""),
           timestamp: 20,
-          trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "start", turnId: "turn-1" }],
+          sessionEvidence: [{ kind: "turn-lifecycle", phase: "start", turnId: "turn-1" }],
         },
         {
           ...eventFor("lifecycle-item", "Item", ""),
           timestamp: 30,
-          trajectoryEvidence: [{ kind: "model-output", role: "assistant", turnId: "turn-1" }],
+          sessionEvidence: [{ kind: "model-output", role: "assistant", turnId: "turn-1" }],
         },
         {
           ...eventFor("lifecycle-terminal", "Terminal", ""),
           timestamp: 10,
-          trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-1" }],
+          sessionEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-1" }],
         },
       ],
     } satisfies AgentSession;

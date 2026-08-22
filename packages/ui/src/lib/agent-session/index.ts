@@ -33,7 +33,7 @@ export type {
   AgentToolResultEvidence,
   AgentTimelineEvent,
   AgentToolStatus,
-  AgentTrajectoryEvidence,
+  AgentSessionEvidence,
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
   AgentTrajectoryItem,

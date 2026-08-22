@@ -25,7 +25,7 @@ describe("createAgentTrajectoryModel: projection", () => {
     const source = session([
       event("event-1", "record-1", 1, {
         conversationItems: [output],
-        trajectoryEvidence: [modelOutput("assistant", output.id)],
+        sessionEvidence: [modelOutput("assistant", output.id)],
       }),
     ]);
     const projected = createAgentTrajectoryModel(source);
@@ -62,7 +62,7 @@ describe("createAgentTrajectoryModel: projection", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("user-output", "record-user-output", 1, {
-          trajectoryEvidence: [modelOutput("user")],
+          sessionEvidence: [modelOutput("user")],
         }),
       ]),
     );
@@ -84,19 +84,19 @@ describe("createAgentTrajectoryModel: projection", () => {
       event("initial-assistant", "record-initial-assistant", 1, {
         turnIndex: 1,
         conversationItems: [initialAssistant],
-        trajectoryEvidence: [
+        sessionEvidence: [
           { ...modelOutput("assistant", initialAssistant.id), turnId: "turn-system-output" },
         ],
       }),
       event("tool-call", "record-tool-call", 2, {
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           { ...toolCall("read_file", "call-system-output"), turnId: "turn-system-output" },
         ],
       }),
       event("tool-result", "record-tool-result", 3, {
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             ...toolResult("completed", "call-system-output"),
             turnId: "turn-system-output",
@@ -106,18 +106,18 @@ describe("createAgentTrajectoryModel: projection", () => {
       event("system-output", "record-system-output", 4, {
         turnIndex: 1,
         conversationItems: [systemOutput],
-        trajectoryEvidence: [
+        sessionEvidence: [
           { ...modelOutput("system", systemOutput.id), turnId: "turn-system-output" },
         ],
       }),
       event("token-usage", "record-token-usage", 5, {
         turnIndex: 1,
-        trajectoryEvidence: [tokenUsage({ inputTokens: 3 }, "turn-system-output")],
+        sessionEvidence: [tokenUsage({ inputTokens: 3 }, "turn-system-output")],
       }),
       event("recovered-assistant", "record-recovered-assistant", 6, {
         turnIndex: 1,
         conversationItems: [recoveredAssistant],
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             ...modelOutput("assistant", recoveredAssistant.id),
             turnId: "turn-system-output",
@@ -173,44 +173,42 @@ describe("createAgentTrajectoryModel: projection", () => {
         event("start-one", "opaque/one/start", 11, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn-one", "start")],
+          sessionEvidence: [lifecycle("turn-one", "start")],
         }),
         event("user-one", "opaque/one/user", 12, {
           timestamp: 12,
           turnIndex: 1,
           conversationItems: [firstUser],
-          trajectoryEvidence: [{ ...modelOutput("user", firstUser.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("user", firstUser.id), turnId: "turn-one" }],
         }),
         event("assistant-one", "opaque/one/assistant", 13, {
           timestamp: 20,
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          trajectoryEvidence: [
-            { ...modelOutput("assistant", firstAssistant.id), turnId: "turn-one" },
-          ],
+          sessionEvidence: [{ ...modelOutput("assistant", firstAssistant.id), turnId: "turn-one" }],
         }),
         event("complete-one", "opaque/one/complete", 14, {
           timestamp: 30,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn-one", "complete")],
+          sessionEvidence: [lifecycle("turn-one", "complete")],
         }),
         event("start-two", "opaque/two/start", 21, {
           timestamp: 40,
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("turn-two", "start")],
+          sessionEvidence: [lifecycle("turn-two", "start")],
         }),
         event("reasoning-two", "opaque/two/reasoning", 22, {
           timestamp: 50,
           turnIndex: 2,
           conversationItems: [secondReasoning],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("reasoning", secondReasoning.id), turnId: "turn-two" },
           ],
         }),
         event("failed-two", "opaque/two/failed", 23, {
           timestamp: 70,
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("turn-two", "failed")],
+          sessionEvidence: [lifecycle("turn-two", "failed")],
         }),
       ]),
     );
@@ -255,19 +253,19 @@ describe("createAgentTrajectoryModel: projection", () => {
       session([
         event("first-start", "record-first-start", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("first-turn", "start")],
+          sessionEvidence: [lifecycle("first-turn", "start")],
         }),
         event("second-start", "record-second-start", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("second-turn", "start")],
+          sessionEvidence: [lifecycle("second-turn", "start")],
         }),
         event("first-complete", "record-first-complete", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("first-turn", "complete")],
+          sessionEvidence: [lifecycle("first-turn", "complete")],
         }),
         event("second-failed", "record-second-failed", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("second-turn", "failed")],
+          sessionEvidence: [lifecycle("second-turn", "failed")],
         }),
       ]),
     );
@@ -283,11 +281,11 @@ describe("createAgentTrajectoryModel: projection", () => {
       session([
         event("fallback-index", "record-fallback-index", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [modelOutput("assistant")],
+          sessionEvidence: [modelOutput("assistant")],
         }),
         event("explicit-id", "record-explicit-id", 2, {
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("turn-1", "start")],
+          sessionEvidence: [lifecycle("turn-1", "start")],
         }),
       ]),
     );
@@ -302,10 +300,10 @@ describe("createAgentTrajectoryModel: projection", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("synthetic-start", "record-synthetic-start", 1, {
-          trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "start" }],
+          sessionEvidence: [{ kind: "turn-lifecycle", phase: "start" }],
         }),
         event("explicit-id", "record-explicit-id", 2, {
-          trajectoryEvidence: [lifecycle("event:synthetic-start", "start")],
+          sessionEvidence: [lifecycle("event:synthetic-start", "start")],
         }),
       ]),
     );

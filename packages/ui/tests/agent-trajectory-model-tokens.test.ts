@@ -24,52 +24,48 @@ describe("createAgentTrajectoryModel: tokens", () => {
       session([
         event("early-first-token", "record-early-first-token", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [tokenUsage({ inputTokens: 99 }, "turn-one")],
+          sessionEvidence: [tokenUsage({ inputTokens: 99 }, "turn-one")],
         }),
         event("first-assistant", "record-first-assistant", 2, {
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          trajectoryEvidence: [
-            { ...modelOutput("assistant", firstAssistant.id), turnId: "turn-one" },
-          ],
+          sessionEvidence: [{ ...modelOutput("assistant", firstAssistant.id), turnId: "turn-one" }],
         }),
         event("first-reasoning", "record-first-reasoning", 3, {
           turnIndex: 1,
           conversationItems: [firstReasoning],
-          trajectoryEvidence: [
-            { ...modelOutput("reasoning", firstReasoning.id), turnId: "turn-one" },
-          ],
+          sessionEvidence: [{ ...modelOutput("reasoning", firstReasoning.id), turnId: "turn-one" }],
         }),
         event("first-token", "record-first-token", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsage({ inputTokens: 3, cacheCreationInputTokens: 2 }, "turn-one"),
           ],
         }),
         event("second-first-token", "record-second-first-token", 5, {
           turnIndex: 1,
-          trajectoryEvidence: [tokenUsage({ outputTokens: 4 }, "turn-one")],
+          sessionEvidence: [tokenUsage({ outputTokens: 4 }, "turn-one")],
         }),
         event("early-second-token", "record-early-second-token", 6, {
           turnIndex: 2,
-          trajectoryEvidence: [tokenUsage({ outputTokens: 50 }, "turn-two")],
+          sessionEvidence: [tokenUsage({ outputTokens: 50 }, "turn-two")],
         }),
         event("second-assistant", "record-second-assistant", 7, {
           turnIndex: 2,
           conversationItems: [secondAssistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", secondAssistant.id), turnId: "turn-two" },
           ],
         }),
         event("second-token", "record-second-token", 8, {
           turnIndex: 2,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsage({ inputTokens: 5, cacheReadInputTokens: 7, outputTokens: 1 }, "turn-two"),
           ],
         }),
         event("invalid-token", "record-invalid-token", 9, {
           turnIndex: 2,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsage(
               {
                 inputTokens: -1,
@@ -81,7 +77,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
           ],
         }),
         event("unscoped-token", "record-unscoped-token", 10, {
-          trajectoryEvidence: [tokenUsage({ outputTokens: 30 })],
+          sessionEvidence: [tokenUsage({ outputTokens: 30 })],
         }),
       ]),
     );
@@ -114,13 +110,13 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("snapshot-first", "record-snapshot-first", 1, {
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", firstAssistant.id), turnId: "snapshot-turn" },
           ],
         }),
         event("snapshot-first-token", "record-snapshot-first-token", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsageWithCumulative(
               { inputTokens: 100, outputTokens: 10 },
               { inputTokens: 100, outputTokens: 10 },
@@ -131,13 +127,13 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("snapshot-second", "record-snapshot-second", 3, {
           turnIndex: 1,
           conversationItems: [secondAssistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", secondAssistant.id), turnId: "snapshot-turn" },
           ],
         }),
         event("snapshot-second-token", "record-snapshot-second-token", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsageWithCumulative(
               { inputTokens: 20, outputTokens: 5 },
               { inputTokens: 120, outputTokens: 15 },
@@ -163,12 +159,12 @@ describe("createAgentTrajectoryModel: tokens", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("initial-snapshot", "record-initial-snapshot", 1, {
-          trajectoryEvidence: [
+          sessionEvidence: [
             cumulativeTokenUsage({ inputTokens: 100, outputTokens: 10 }, "partial-snapshot-turn"),
           ],
         }),
         event("partial-snapshot", "record-partial-snapshot", 2, {
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsageWithCumulative(
               { inputTokens: 999, outputTokens: 3, reasoningOutputTokens: 7 },
               { inputTokens: 120, cacheReadInputTokens: 5 },
@@ -191,10 +187,10 @@ describe("createAgentTrajectoryModel: tokens", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("snapshot-one", "record-snapshot-one", 1, {
-          trajectoryEvidence: [cumulativeTokenUsage({ inputTokens: 100, outputTokens: 10 })],
+          sessionEvidence: [cumulativeTokenUsage({ inputTokens: 100, outputTokens: 10 })],
         }),
         event("snapshot-two", "record-snapshot-two", 2, {
-          trajectoryEvidence: [cumulativeTokenUsage({ inputTokens: 120 })],
+          sessionEvidence: [cumulativeTokenUsage({ inputTokens: 120 })],
         }),
       ]),
     );
@@ -207,7 +203,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
       session([
         event("cumulative-only", "record-cumulative-only", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             cumulativeTokenUsage({ inputTokens: 50, outputTokens: 8 }, "cumulative-turn"),
           ],
         }),
@@ -225,15 +221,15 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("flat-incremental", "record-flat-incremental", 1, {
           turnIndex: 1,
           conversationItems: [assistant],
-          trajectoryEvidence: [{ ...modelOutput("assistant", assistant.id), turnId: "flat-turn" }],
+          sessionEvidence: [{ ...modelOutput("assistant", assistant.id), turnId: "flat-turn" }],
         }),
         event("flat-first", "record-flat-first", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [tokenUsage({ inputTokens: 2 }, "flat-turn")],
+          sessionEvidence: [tokenUsage({ inputTokens: 2 }, "flat-turn")],
         }),
         event("flat-second", "record-flat-second", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [tokenUsage({ inputTokens: 3, outputTokens: 1 }, "flat-turn")],
+          sessionEvidence: [tokenUsage({ inputTokens: 3, outputTokens: 1 }, "flat-turn")],
         }),
       ]),
     );
@@ -252,13 +248,13 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("snapshot-increment", "record-snapshot-increment", 1, {
           turnIndex: 1,
           conversationItems: [assistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", assistant.id), turnId: "snapshot-increment-turn" },
           ],
         }),
         event("snapshot", "record-snapshot", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             cumulativeTokenUsage(
               {
                 inputTokens: 100,
@@ -271,7 +267,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
         }),
         event("snapshot-after-increment", "record-snapshot-increment-after", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsage(
               {
                 inputTokens: 20,
@@ -284,7 +280,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
         }),
         event("overflow", "record-overflow", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             tokenUsage(
               {
                 inputTokens: Number.MAX_SAFE_INTEGER,
@@ -309,23 +305,23 @@ describe("createAgentTrajectoryModel: tokens", () => {
       session([
         event("idless-call", "record-idless-call", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("idless"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("idless"), turnId: "turn" }],
         }),
         event("idless-result", "record-idless-result", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed"), turnId: "turn" }],
         }),
         event("first-duplicate-call", "record-first-duplicate-call", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("first", "duplicate"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("first", "duplicate"), turnId: "turn" }],
         }),
         event("second-duplicate-call", "record-second-duplicate-call", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("second", "duplicate"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("second", "duplicate"), turnId: "turn" }],
         }),
         event("duplicate-result", "record-duplicate-result", 5, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "duplicate"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "duplicate"), turnId: "turn" }],
         }),
       ]),
     );

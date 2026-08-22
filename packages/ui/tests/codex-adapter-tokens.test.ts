@@ -63,7 +63,7 @@ describe("codexRolloutAdapter: tokens", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events.slice(1).map((event) => event.trajectoryEvidence)).toEqual([
+    expect(session.events.slice(1).map((event) => event.sessionEvidence)).toEqual([
       [
         {
           kind: "token-usage",
@@ -165,7 +165,7 @@ describe("codexRolloutAdapter: tokens", () => {
     );
 
     const source = builder.finish([]);
-    expect(source.events[2]?.trajectoryEvidence).toEqual([
+    expect(source.events[2]?.sessionEvidence).toEqual([
       {
         kind: "token-usage",
         turnId: "turn-nested-tokens",
@@ -173,7 +173,7 @@ describe("codexRolloutAdapter: tokens", () => {
         cumulativeUsage: { inputTokens: 100, outputTokens: 10 },
       },
     ]);
-    expect(source.events[4]?.trajectoryEvidence).toEqual([
+    expect(source.events[4]?.sessionEvidence).toEqual([
       {
         kind: "token-usage",
         turnId: "turn-nested-tokens",
@@ -261,7 +261,7 @@ describe("codexRolloutAdapter: tokens", () => {
     const source = builder.finish([]);
     const trajectory = createAgentTrajectoryModel(source);
 
-    expect(source.events[2]?.trajectoryEvidence).toEqual([
+    expect(source.events[2]?.sessionEvidence).toEqual([
       {
         kind: "token-usage",
         turnId: "turn-current-tokens",
@@ -343,7 +343,7 @@ describe("codexRolloutAdapter: tokens", () => {
     const source = builder.finish([]);
     const trajectory = createAgentTrajectoryModel(source);
 
-    expect(source.events[1]?.trajectoryEvidence).toEqual([
+    expect(source.events[1]?.sessionEvidence).toEqual([
       {
         kind: "token-usage",
         turnId: "turn-invalid-tokens",

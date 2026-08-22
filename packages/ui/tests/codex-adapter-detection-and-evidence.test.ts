@@ -88,7 +88,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
     expect(session.parseWarnings).toEqual([warning]);
   });
 
-  it("projects verified Codex facts as trajectory evidence", () => {
+  it("projects verified Codex facts as session evidence", () => {
     const builder = codexRolloutAdapter.createBuilder();
     builder.push(
       parsedLine(
@@ -207,12 +207,12 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
     const session = builder.finish([]);
 
     expect(
-      session.events.map(({ lineNumber, recordId, timestamp, turnIndex, trajectoryEvidence }) => ({
+      session.events.map(({ lineNumber, recordId, timestamp, turnIndex, sessionEvidence }) => ({
         lineNumber,
         recordId,
         timestamp,
         turnIndex,
-        trajectoryEvidence,
+        sessionEvidence,
       })),
     ).toEqual([
       {
@@ -220,21 +220,21 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-1",
         timestamp: 100,
         turnIndex: 1,
-        trajectoryEvidence: undefined,
+        sessionEvidence: undefined,
       },
       {
         lineNumber: 2,
         recordId: "record-2",
         timestamp: 110,
         turnIndex: 1,
-        trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "start", turnId: "turn-alpha" }],
+        sessionEvidence: [{ kind: "turn-lifecycle", phase: "start", turnId: "turn-alpha" }],
       },
       {
         lineNumber: 3,
         recordId: "record-3",
         timestamp: 120,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "model-output",
             role: "user",
@@ -248,7 +248,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-4",
         timestamp: 130,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "model-output",
             role: "reasoning",
@@ -262,7 +262,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-5",
         timestamp: 140,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "model-output",
             role: "assistant",
@@ -276,7 +276,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-6",
         timestamp: 150,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -292,7 +292,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-7",
         timestamp: 170,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "result",
@@ -308,7 +308,7 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-8",
         timestamp: 180,
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "token-usage",
             turnId: "turn-alpha",
@@ -321,12 +321,12 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
         recordId: "record-9",
         timestamp: 190,
         turnIndex: 1,
-        trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-alpha" }],
+        sessionEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-alpha" }],
       },
     ]);
 
     for (const event of session.events) {
-      for (const evidence of event.trajectoryEvidence ?? []) {
+      for (const evidence of event.sessionEvidence ?? []) {
         expect(evidence).not.toHaveProperty("recordId");
         expect(evidence).not.toHaveProperty("lineNumber");
         expect(evidence).not.toHaveProperty("timestamp");
@@ -455,11 +455,11 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
 
     expect(session.events[4]).toMatchObject({
       turnIndex: 1,
-      trajectoryEvidence: [{ kind: "token-usage", turnId: "turn-old", usage: { inputTokens: 3 } }],
+      sessionEvidence: [{ kind: "token-usage", turnId: "turn-old", usage: { inputTokens: 3 } }],
     });
     expect(session.events[5]).toMatchObject({
       turnIndex: 1,
-      trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-old" }],
+      sessionEvidence: [{ kind: "turn-lifecycle", phase: "complete", turnId: "turn-old" }],
     });
 
     const model = createAgentTrajectoryModel(session);

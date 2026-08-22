@@ -43,7 +43,7 @@ describe("createAgentSessionModel", () => {
     const source = session([
       {
         ...event("event-1", "record-1"),
-        trajectoryEvidence: [
+        sessionEvidence: [
           { kind: "turn-lifecycle", phase: "start", turnId: "turn-1" },
           { kind: "turn-lifecycle", phase: "complete", turnId: "turn-1" },
         ],
@@ -153,7 +153,7 @@ describe("createAgentSessionModel", () => {
     const second = { id: "conversation-2", role: "thinking" } as const;
     const sourceEvent = {
       ...event("event-1", "record-1", [first, second]),
-      trajectoryEvidence: [
+      sessionEvidence: [
         { kind: "model-output", role: "assistant", conversationItemId: first.id },
         { kind: "model-output", role: "reasoning", conversationItemId: second.id },
       ],
@@ -412,7 +412,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("same-turn-call-event", "record-10", [sameTurnCall]),
         turnIndex: 1,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -426,7 +426,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("same-turn-result-event", "record-11", [sameTurnResult]),
         turnIndex: 2,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "result",
@@ -440,7 +440,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("different-turn-call-event", "record-12", [differentTurnCall]),
         turnIndex: 3,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -454,7 +454,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("different-turn-result-event", "record-13", [differentTurnResult]),
         turnIndex: 3,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "result",
@@ -467,7 +467,7 @@ describe("tool call and result pairing", () => {
       },
       {
         ...event("anonymous-call-event", "record-14", [anonymousCall]),
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -479,7 +479,7 @@ describe("tool call and result pairing", () => {
       },
       {
         ...event("anonymous-result-event", "record-15", [anonymousResult]),
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "result",
@@ -492,7 +492,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("duplicate-call-one-event", "record-16", [duplicateCallOne]),
         turnIndex: 4,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -506,7 +506,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("duplicate-call-two-event", "record-17", [duplicateCallTwo]),
         turnIndex: 4,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "call",
@@ -520,7 +520,7 @@ describe("tool call and result pairing", () => {
       {
         ...event("duplicate-result-event", "record-18", [duplicateResult]),
         turnIndex: 4,
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "result",
@@ -592,7 +592,7 @@ describe("tool call and result pairing", () => {
       session([
         {
           ...event("projected-output", "record-1", [{ id: "output", role: "assistant" }]),
-          trajectoryEvidence: [
+          sessionEvidence: [
             { kind: "model-output", role: "assistant", conversationItemId: "output" },
           ],
         },
@@ -613,7 +613,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-call-event", "record-1", [projectedCall]),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "call",
@@ -627,7 +627,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-completion-event", "record-2"),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "completion",
@@ -640,7 +640,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-result-event", "record-3", [projectedResult]),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "result",
@@ -668,7 +668,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-call-event", "record-1", [projectedCall]),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "call",
@@ -682,7 +682,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-result-event", "record-2", [projectedResult]),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "result",
@@ -696,7 +696,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-completion-event-1", "record-3"),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "completion",
@@ -709,7 +709,7 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-completion-event-2", "record-4"),
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               kind: "tool-lifecycle",
               phase: "completion",

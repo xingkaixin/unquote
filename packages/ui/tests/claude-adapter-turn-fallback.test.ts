@@ -42,7 +42,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     expect(session.meta.turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
-    expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+    expect(session.events.flatMap((event) => event.sessionEvidence ?? [])).toMatchObject([
       { kind: "turn-lifecycle", phase: "start", turnId: "prompt-stable" },
       { turnId: "prompt-stable" },
       { turnId: "prompt-stable" },
@@ -78,7 +78,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     expect(session.meta.turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1]);
-    expect(session.events.flatMap((event) => event.trajectoryEvidence ?? [])).toEqual([
+    expect(session.events.flatMap((event) => event.sessionEvidence ?? [])).toEqual([
       {
         kind: "turn-lifecycle",
         phase: "start",
@@ -138,7 +138,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
     const turnId = trajectoryTurnId("fallback-index", 1);
 
     expect(session.meta.turnCount).toBe(1);
-    expect(session.events[0]?.trajectoryEvidence).toEqual([
+    expect(session.events[0]?.sessionEvidence).toEqual([
       {
         kind: "turn-lifecycle",
         phase: "start",
@@ -149,7 +149,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
         conversationItemId: "conv-1-user",
       },
     ]);
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "model-output",
         role: "assistant",
@@ -204,7 +204,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     expect(activeSession.meta.turnCount).toBe(1);
     expect(activeSession.events.map((event) => event.turnIndex)).toEqual([1, 1]);
-    expect(activeSession.events.flatMap((event) => event.trajectoryEvidence ?? [])).toMatchObject([
+    expect(activeSession.events.flatMap((event) => event.sessionEvidence ?? [])).toMatchObject([
       { kind: "turn-lifecycle", phase: "start", turnId: "prompt-existing" },
       { turnId: "prompt-existing" },
       { turnId: "prompt-existing" },
@@ -233,7 +233,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     expect(unscopedSession.meta.turnCount).toBe(0);
     expect(unscopedSession.events.map((event) => event.turnIndex)).toEqual([undefined, undefined]);
-    expect(unscopedSession.events.flatMap((event) => event.trajectoryEvidence ?? [])).toEqual([
+    expect(unscopedSession.events.flatMap((event) => event.sessionEvidence ?? [])).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",
@@ -286,9 +286,9 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
     );
 
     const session = builder.finish([]);
-    const evidence = session.events.flatMap((event) => event.trajectoryEvidence ?? []);
+    const evidence = session.events.flatMap((event) => event.sessionEvidence ?? []);
 
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "model-output",
         role: "assistant",
@@ -306,7 +306,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
         turnId: "prompt-open",
       },
     ]);
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",

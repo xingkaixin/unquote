@@ -41,7 +41,7 @@ describe("claudeTranscriptAdapter: turn-closure", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "turn-lifecycle",
         phase: "complete",
@@ -89,7 +89,7 @@ describe("claudeTranscriptAdapter: turn-closure", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       { kind: "compaction", turnId: "prompt-compact" },
     ]);
     const trajectory = createAgentTrajectoryModel(session);
@@ -136,7 +136,7 @@ describe("claudeTranscriptAdapter: turn-closure", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "turn-lifecycle",
         phase: "complete",
