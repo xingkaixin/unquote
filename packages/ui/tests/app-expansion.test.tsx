@@ -23,10 +23,13 @@ describe("UnquoteApp", () => {
       // Both controls are always present; Collapse All stays disabled until
       // something is actually expanded.
       expect(screen.getByRole("button", { name: "Collapse All" })).toBeDisabled();
-      await user.click(screen.getByRole("button", { name: "Expand All" }));
+      const expandAll = screen.getByRole("button", { name: "Expand All" });
+      expect(expandAll).toHaveAttribute("data-benchmark-action", "expand-all");
+      await user.click(expandAll);
       await waitFor(() => expect(screen.getAllByText("nested").length).toBeGreaterThan(0));
 
       const collapseAll = screen.getByRole("button", { name: "Collapse All" });
+      expect(collapseAll).toHaveAttribute("data-benchmark-action", "collapse-all");
       expect(collapseAll).toBeEnabled();
       await user.click(collapseAll);
       await waitFor(() => expect(screen.queryAllByText("nested")).toHaveLength(0));

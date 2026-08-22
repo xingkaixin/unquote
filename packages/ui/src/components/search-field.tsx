@@ -42,6 +42,7 @@ export const SearchField = ({
       <Search className="size-3.5 shrink-0 text-text-tertiary" />
       <input
         aria-label={t("search.inputLabel")}
+        data-benchmark-action="search-input"
         ref={inputRef}
         type="text"
         value={query}
