@@ -151,7 +151,6 @@ interface PresentationItemDraft {
   interval: AgentTrajectoryTimeRange | null;
   warningGroups: WarningGroupCollector;
   turn: AgentTrajectoryTurn | null;
-  groupId: string | null;
 }
 
 interface WarningCandidate {
@@ -460,18 +459,9 @@ export const createAgentTrajectoryPresentation = (
   model: AgentSessionModel,
 ): AgentTrajectoryPresentation => {
   const trajectory = model.trajectory;
-  const turnByItemId = new Map<string, AgentTrajectoryTurn>();
-  for (const turn of trajectory.turns) {
-    for (const item of turn.items) {
-      if (!turnByItemId.has(item.id)) {
-        turnByItemId.set(item.id, turn);
-      }
-    }
-  }
+  const turnById = new Map(trajectory.turns.map((turn) => [turn.id, turn]));
 
   const drafts: PresentationItemDraft[] = [];
-  const draftByItemId = new Map<string, PresentationItemDraft>();
-  const draftBySourceItem = new Map<AgentTrajectoryItem, PresentationItemDraft>();
   const candidatesBySelection = new Map<string, WarningCandidateGroup>();
   let toolCount = 0;
   let failedToolCount = 0;
@@ -483,7 +473,7 @@ export const createAgentTrajectoryPresentation = (
       }
     }
     const detail = model.resolveDetail(item.selection);
-    const turn = turnByItemId.get(item.id) ?? null;
+    const turn = item.turnId ? (turnById.get(item.turnId) ?? null) : null;
     const draft: PresentationItemDraft = {
       item,
       detail,
@@ -492,13 +482,8 @@ export const createAgentTrajectoryPresentation = (
       interval: intervalFor(item),
       warningGroups: createWarningGroupCollector(),
       turn,
-      groupId: null,
     };
     drafts.push(draft);
-    draftBySourceItem.set(item, draft);
-    if (!draftByItemId.has(item.id)) {
-      draftByItemId.set(item.id, draft);
-    }
     const callId = item.kind === "tool" ? nonEmptyCallId(item.callId) : undefined;
     const candidate: WarningCandidate = {
       draft,
@@ -514,34 +499,24 @@ export const createAgentTrajectoryPresentation = (
   associateWarnings(trajectory.warnings, candidatesBySelection, unattachedWarningGroups);
 
   const groupDrafts: PresentationGroupDraft[] = [];
-  const assignedDrafts = new Set<PresentationItemDraft>();
+  const groupDraftById = new Map<string, PresentationGroupDraft>();
   for (const turn of trajectory.turns) {
-    const items: PresentationItemDraft[] = [];
-    for (const turnItem of turn.items) {
-      const draft = draftBySourceItem.get(turnItem) ?? draftByItemId.get(turnItem.id);
-      if (!draft || assignedDrafts.has(draft)) {
-        continue;
-      }
-      assignedDrafts.add(draft);
-      draft.turn = turn;
-      draft.groupId = turn.id;
-      items.push(draft);
-    }
-    groupDrafts.push({ id: turn.id, turn, items });
+    const group = { id: turn.id, turn, items: [] };
+    groupDrafts.push(group);
+    groupDraftById.set(turn.id, group);
   }
 
-  const unassignedItems: PresentationItemDraft[] = [];
+  const unassignedGroup: PresentationGroupDraft = {
+    id: UNASSIGNED_GROUP_ID,
+    turn: null,
+    items: [],
+  };
   for (const draft of drafts) {
-    if (assignedDrafts.has(draft)) {
-      continue;
-    }
-    assignedDrafts.add(draft);
-    draft.turn = null;
-    draft.groupId = UNASSIGNED_GROUP_ID;
-    unassignedItems.push(draft);
+    const group = draft.item.turnId ? groupDraftById.get(draft.item.turnId) : undefined;
+    (group ?? unassignedGroup).items.push(draft);
   }
-  if (unassignedItems.length > 0) {
-    groupDrafts.push({ id: UNASSIGNED_GROUP_ID, turn: null, items: unassignedItems });
+  if (unassignedGroup.items.length > 0) {
+    groupDrafts.push(unassignedGroup);
   }
 
   const presentationItems: AgentTrajectoryPresentationItem[] = [];
@@ -557,7 +532,7 @@ export const createAgentTrajectoryPresentation = (
       interval: draft.interval,
       warningGroups: draft.warningGroups.groups,
       turn: draft.turn,
-      groupId: draft.groupId ?? UNASSIGNED_GROUP_ID,
+      groupId: draft.turn?.id ?? UNASSIGNED_GROUP_ID,
     };
     presentationItems.push(item);
     presentationItemByDraft.set(draft, item);

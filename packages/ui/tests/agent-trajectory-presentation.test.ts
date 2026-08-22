@@ -108,6 +108,10 @@ const toolItemFor = (
     : { completionSelection: options.completionSelection }),
 });
 
+type TrajectoryTurnInput = AgentTrajectoryTurn & {
+  readonly sourceItems?: readonly AgentTrajectoryItem[];
+};
+
 const turnFor = (
   id: string,
   items: readonly AgentTrajectoryItem[],
@@ -118,10 +122,10 @@ const turnFor = (
     durationMs?: number;
     turnIndex?: number;
   } = {},
-): AgentTrajectoryTurn => ({
+): TrajectoryTurnInput => ({
   id,
   status: options.status ?? "completed",
-  items,
+  sourceItems: items,
   ...(options.startedAt === undefined ? {} : { startedAt: options.startedAt }),
   ...(options.endedAt === undefined ? {} : { endedAt: options.endedAt }),
   ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
@@ -131,15 +135,26 @@ const turnFor = (
 const modelFor = (
   events: readonly AgentTimelineEvent[],
   items: readonly AgentTrajectoryItem[],
-  turns: readonly AgentTrajectoryTurn[] = [],
+  turns: readonly TrajectoryTurnInput[] = [],
   warnings: readonly AgentTrajectoryWarning[] = [],
   tokenUsage: AgentTrajectoryModel["stats"]["tokenUsage"] = {},
 ): AgentSessionModel => {
   const eventById = new Map(events.map((event) => [event.id, event]));
   const eventByRecordId = new Map(events.map((event) => [event.recordId, event]));
+  const turnIdByItem = new Map<AgentTrajectoryItem, string>();
+  const canonicalTurns = turns.map(({ sourceItems, ...turn }) => {
+    for (const item of sourceItems ?? []) {
+      turnIdByItem.set(item, turn.id);
+    }
+    return turn;
+  });
+  const canonicalItems = items.map((item) => {
+    const turnId = turnIdByItem.get(item);
+    return turnId === undefined ? item : { ...item, turnId };
+  });
   const trajectory: AgentTrajectoryModel = {
-    turns,
-    items,
+    turns: canonicalTurns,
+    items: canonicalItems,
     warnings,
     stats: {
       tokenUsage,
@@ -1445,6 +1460,8 @@ describe("presentation input ownership", () => {
     const item = modelOutputItemFor("event-40", "assistant", 10);
     const turn = turnFor("turn-readonly", [item], { startedAt: 0, endedAt: 20, durationMs: 20 });
     const base = modelFor([eventFor("event-40", "Readonly", "")], [item], [turn]);
+    const canonicalItem = base.trajectory.items[0]!;
+    const canonicalTurn = base.trajectory.turns[0]!;
     const guardedItems = new Proxy(base.trajectory.items, {
       get(target, property, receiver) {
         if (property === "find" || property === "filter") {
@@ -1461,10 +1478,9 @@ describe("presentation input ownership", () => {
         return Reflect.get(target, property, receiver);
       },
     });
-    Object.freeze(item.selection);
-    Object.freeze(item);
-    Object.freeze(turn.items);
-    Object.freeze(turn);
+    Object.freeze(canonicalItem.selection);
+    Object.freeze(canonicalItem);
+    Object.freeze(canonicalTurn);
     Object.freeze(base.trajectory.warnings);
     Object.freeze(base.trajectory);
     const model = {
@@ -1478,8 +1494,8 @@ describe("presentation input ownership", () => {
 
     const presentation = createAgentTrajectoryPresentation(model);
 
-    expect(presentation.items[0]?.item).toBe(item);
-    expect(base.trajectory.items).toEqual([item]);
-    expect(base.trajectory.turns).toEqual([turn]);
+    expect(presentation.items[0]?.item).toBe(canonicalItem);
+    expect(base.trajectory.items).toEqual([canonicalItem]);
+    expect(base.trajectory.turns).toEqual([canonicalTurn]);
   });
 });

@@ -495,7 +495,9 @@ describe("codexRolloutAdapter", () => {
       { id: trajectoryTurnId("turn-old"), status: "completed", turnIndex: 1, durationMs: 50 },
       { id: trajectoryTurnId("turn-new"), status: "running", turnIndex: 2 },
     ]);
-    expect(model.turns[0]?.items).toMatchObject([{ tokenUsage: { inputTokens: 3 } }]);
+    expect(model.items.filter((item) => item.turnId === model.turns[0]?.id)).toMatchObject([
+      { tokenUsage: { inputTokens: 3 } },
+    ]);
   });
 
   it("maps nested token sources independently before falling back to direct fields", () => {
