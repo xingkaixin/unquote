@@ -35,22 +35,6 @@ const codexEnvelopeTypes = new Set([
   "compacted",
 ]);
 
-const codexToolCompletionEventTypes = new Set([
-  "exec_command_end",
-  "mcp_tool_call_end",
-  "patch_apply_end",
-  "web_search_end",
-]);
-
-const codexPayloadTurnEventTypes = new Set([
-  "task_started",
-  "task_complete",
-  "turn_aborted",
-  "token_count",
-  "sub_agent_activity",
-  ...codexToolCompletionEventTypes,
-]);
-
 const extractCodexMessageText = (content: unknown) => {
   if (!Array.isArray(content)) {
     return "";
@@ -415,36 +399,95 @@ const codexToolCompletionEvidence = (
   };
 };
 
-const codexEventEvidence = (
-  eventType: string | undefined,
+type CodexEvidenceProjector = (
   payload: Record<string, unknown>,
   turnId: string | undefined,
-): AgentTrajectoryEvidence | undefined => {
-  if (eventType === "task_started") {
-    return { kind: "turn-lifecycle", phase: "start", ...withTurnId(turnId) };
+) => AgentTrajectoryEvidence | undefined;
+
+interface CodexEventRule {
+  category: AgentEventCategory;
+  turnIdSource: "current" | "payload";
+  startsTurn?: true;
+  projectEvidence?: CodexEvidenceProjector;
+}
+
+const codexToolCompletionRule = (eventType: string): CodexEventRule => ({
+  category: "tool",
+  turnIdSource: "payload",
+  projectEvidence: (payload, turnId) => codexToolCompletionEvidence(eventType, payload, turnId),
+});
+
+const codexEventRules = {
+  user_message: { category: "user", turnIdSource: "current" },
+  agent_message: {
+    category: "assistant",
+    turnIdSource: "current",
+    projectEvidence: (_payload, turnId) => ({
+      kind: "model-output",
+      role: "assistant",
+      ...withTurnId(turnId),
+    }),
+  },
+  task_started: {
+    category: "meta",
+    turnIdSource: "payload",
+    startsTurn: true,
+    projectEvidence: (_payload, turnId) => ({
+      kind: "turn-lifecycle",
+      phase: "start",
+      ...withTurnId(turnId),
+    }),
+  },
+  task_complete: {
+    category: "meta",
+    turnIdSource: "payload",
+    projectEvidence: (_payload, turnId) => ({
+      kind: "turn-lifecycle",
+      phase: "complete",
+      ...withTurnId(turnId),
+    }),
+  },
+  turn_aborted: {
+    category: "meta",
+    turnIdSource: "payload",
+    projectEvidence: (_payload, turnId) => ({
+      kind: "turn-lifecycle",
+      phase: "aborted",
+      ...withTurnId(turnId),
+    }),
+  },
+  token_count: {
+    category: "meta",
+    turnIdSource: "payload",
+    projectEvidence: codexTokenUsageEvidence,
+  },
+  sub_agent_activity: {
+    category: "unknown",
+    turnIdSource: "payload",
+    projectEvidence: (payload, turnId) =>
+      payload.kind === "started"
+        ? { kind: "subagent-activity", status: "running", ...withTurnId(turnId) }
+        : undefined,
+  },
+  context_compacted: {
+    category: "unknown",
+    turnIdSource: "current",
+    projectEvidence: (_payload, turnId) => ({
+      kind: "compaction",
+      ...withTurnId(turnId),
+    }),
+  },
+  exec_command_end: codexToolCompletionRule("exec_command_end"),
+  mcp_tool_call_end: codexToolCompletionRule("mcp_tool_call_end"),
+  patch_apply_end: codexToolCompletionRule("patch_apply_end"),
+  web_search_end: codexToolCompletionRule("web_search_end"),
+} satisfies Record<string, CodexEventRule>;
+
+const codexEventRuleFor = (eventType: string | undefined): CodexEventRule | undefined => {
+  if (!eventType || !hasOwn(codexEventRules, eventType)) {
+    return undefined;
   }
-  if (eventType === "task_complete") {
-    return { kind: "turn-lifecycle", phase: "complete", ...withTurnId(turnId) };
-  }
-  if (eventType === "turn_aborted") {
-    return { kind: "turn-lifecycle", phase: "aborted", ...withTurnId(turnId) };
-  }
-  if (eventType === "token_count") {
-    return codexTokenUsageEvidence(payload, turnId);
-  }
-  if (eventType === "sub_agent_activity" && payload.kind === "started") {
-    return { kind: "subagent-activity", status: "running", ...withTurnId(turnId) };
-  }
-  if (eventType === "context_compacted") {
-    return { kind: "compaction", ...withTurnId(turnId) };
-  }
-  if (eventType && codexToolCompletionEventTypes.has(eventType)) {
-    return codexToolCompletionEvidence(eventType, payload, turnId);
-  }
-  if (eventType === "agent_message") {
-    return { kind: "model-output", role: "assistant", ...withTurnId(turnId) };
-  }
-  return undefined;
+  return codexEventRules[eventType as keyof typeof codexEventRules];
 };
 
 interface CodexConversationProjection {
@@ -599,30 +642,13 @@ const projectCodexResponseItem = (
   }
 };
 
-const codexEventCategory = (eventType: string): AgentEventCategory => {
-  if (eventType === "user_message") {
-    return "user";
-  }
-  if (eventType === "agent_message") {
-    return "assistant";
-  }
-  if (
-    eventType === "task_started" ||
-    eventType === "task_complete" ||
-    eventType === "turn_aborted" ||
-    eventType === "token_count"
-  ) {
-    return "meta";
-  }
-  return codexToolCompletionEventTypes.has(eventType) ? "tool" : "unknown";
-};
-
 interface CodexEventProjectionContext {
   lineNumber: number;
   sessionId: string | undefined;
   cwd: string | undefined;
   turnId: string | undefined;
   eventType: string | undefined;
+  eventRule: CodexEventRule | undefined;
 }
 
 const projectCodexEvent = (
@@ -639,9 +665,9 @@ const projectCodexEvent = (
   }
   if (envelopeType === "event_msg") {
     const kind = context.eventType ?? "event_msg";
-    const trajectoryEvidence = codexEventEvidence(context.eventType, payload, context.turnId);
+    const trajectoryEvidence = context.eventRule?.projectEvidence?.(payload, context.turnId);
     return {
-      category: codexEventCategory(kind),
+      category: context.eventRule?.category ?? "unknown",
       kind,
       label: kind,
       preview: truncatePreview(
@@ -715,6 +741,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         return;
       }
       const eventType = envelopeType === "event_msg" ? getString(payload, "type") : undefined;
+      const eventRule = codexEventRuleFor(eventType);
       const payloadTurnId = getString(payload, "turn_id");
 
       if (envelopeType === "session_meta") {
@@ -731,14 +758,12 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         model = getString(payload, "model") ?? model;
       }
 
-      if (eventType === "task_started" && payloadTurnId) {
+      if (eventRule?.startsTurn && payloadTurnId) {
         currentTurnId = payloadTurnId;
       }
 
       const eventTurnId =
-        eventType && codexPayloadTurnEventTypes.has(eventType)
-          ? (payloadTurnId ?? currentTurnId)
-          : currentTurnId;
+        eventRule?.turnIdSource === "payload" ? (payloadTurnId ?? currentTurnId) : currentTurnId;
       const turnIndex = turnIndexFor(eventTurnId);
       const projection = projectCodexEvent(envelopeType, payload, {
         lineNumber: line.lineNumber,
@@ -746,6 +771,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         cwd,
         turnId: eventTurnId,
         eventType,
+        eventRule,
       });
       const event = createBaseEvent(
         line,
