@@ -308,6 +308,7 @@ export const SourceImportPanel = ({
           <input
             ref={fileInputRef}
             type="file"
+            data-benchmark-action="source-file-input"
             accept=".json,.jsonl,application/json,text/plain"
             className="sr-only"
             tabIndex={-1}

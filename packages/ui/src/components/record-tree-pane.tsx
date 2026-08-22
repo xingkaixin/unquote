@@ -65,6 +65,7 @@ export const RecordTreePane = ({
         </span>
         <span className="flex-1" />
         <Button
+          data-benchmark-action="expand-all"
           variant="outline"
           size="sm"
           className="h-6 gap-1.5 rounded-sm px-2.5"
@@ -74,6 +75,7 @@ export const RecordTreePane = ({
           {t("toolbar.expandAll")}
         </Button>
         <Button
+          data-benchmark-action="collapse-all"
           variant="outline"
           size="sm"
           className="h-6 gap-1.5 rounded-sm px-2.5"
