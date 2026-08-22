@@ -16,7 +16,7 @@ export const parseTimestamp = (value: unknown): number | undefined => {
 };
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const getString = (record: Record<string, unknown>, key: string): string | undefined => {
   const value = record[key];
@@ -26,26 +26,6 @@ export const getString = (record: Record<string, unknown>, key: string): string 
 export const getBoolean = (record: Record<string, unknown>, key: string, defaultValue = false) => {
   const value = record[key];
   return typeof value === "boolean" ? value : defaultValue;
-};
-
-export const addOptionalString = <T extends object, K extends keyof T>(
-  target: T,
-  key: K,
-  value: string | undefined,
-) => {
-  if (value) {
-    target[key] = value as T[K];
-  }
-};
-
-export const addOptionalNumber = <T extends object, K extends keyof T>(
-  target: T,
-  key: K,
-  value: number | undefined,
-) => {
-  if (typeof value === "number") {
-    target[key] = value as T[K];
-  }
 };
 
 export const readTokenCount = (usage: Record<string, unknown>, key: string): number | undefined => {
@@ -59,6 +39,11 @@ export const createBaseEvent = (
   kind: string,
   label: string,
   preview: string,
+  metadata: {
+    timestamp: number | undefined;
+    timestampLabel: string | undefined;
+    turnIndex: number | undefined;
+  },
 ): AgentTimelineEvent => ({
   id: `line-${line.lineNumber}`,
   recordId: line.recordId,
@@ -68,6 +53,9 @@ export const createBaseEvent = (
   label,
   preview,
   conversationItems: [],
+  ...(metadata.timestamp === undefined ? {} : { timestamp: metadata.timestamp }),
+  ...(metadata.timestampLabel ? { timestampLabel: metadata.timestampLabel } : {}),
+  ...(metadata.turnIndex === undefined ? {} : { turnIndex: metadata.turnIndex }),
 });
 
 export const attachConversationItem = (event: AgentTimelineEvent, item: AgentConversationItem) => {

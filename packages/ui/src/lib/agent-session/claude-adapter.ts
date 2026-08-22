@@ -12,8 +12,6 @@ import type {
 } from "./types";
 import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
 import {
-  addOptionalNumber,
-  addOptionalString,
   attachConversationItem,
   buildSession,
   createBaseEvent,
@@ -68,10 +66,9 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
       typeof part.name === "string" &&
       typeof part.id === "string"
     ) {
-      const input = isRecord(part.input) ? part.input : {};
       blocks.push({
         type: "tool_use",
-        text: formatAgentBlockValue(input),
+        text: formatAgentBlockValue(part.input ?? {}),
         toolName: part.name,
         toolCallId: part.id,
       });
@@ -243,21 +240,12 @@ const parseClaudeUsage = (
     return undefined;
   }
 
-  const trajectory: AgentTrajectoryTokenUsage = {};
-  if (inputTokens !== undefined) {
-    trajectory.inputTokens = inputTokens;
-  }
-  if (cacheCreationInputTokens !== undefined) {
-    trajectory.cacheCreationInputTokens = cacheCreationInputTokens;
-  }
-  if (cacheReadInputTokens !== undefined) {
-    trajectory.cacheReadInputTokens = cacheReadInputTokens;
-  }
-  if (outputTokens !== undefined) {
-    trajectory.outputTokens = outputTokens;
-  }
-
-  return trajectory;
+  return {
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(cacheCreationInputTokens === undefined ? {} : { cacheCreationInputTokens }),
+    ...(cacheReadInputTokens === undefined ? {} : { cacheReadInputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+  };
 };
 
 const claudeBlockEvidence = (
@@ -446,10 +434,12 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         type,
         claudeLabel(type, blocks, isToolResultTurn),
         claudePreview(type, record, blocks),
+        {
+          timestamp,
+          timestampLabel: getString(record, "timestamp"),
+          turnIndex,
+        },
       );
-      addOptionalNumber(event, "timestamp", timestamp);
-      addOptionalNumber(event, "turnIndex", turnIndex);
-      addOptionalString(event, "timestampLabel", getString(record, "timestamp"));
 
       const usage = parseClaudeUsage(record);
 

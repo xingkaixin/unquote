@@ -16,8 +16,6 @@ import {
   truncatePreview,
 } from "./agent-value-format";
 import {
-  addOptionalNumber,
-  addOptionalString,
   attachConversationItem,
   buildSession,
   createBaseEvent,
@@ -142,11 +140,8 @@ type NormalizedCodexResponseItem =
     }
   | { type: "unknown"; itemType: string };
 
-const isObjectOutput = (value: unknown): value is Record<string, unknown> =>
-  isRecord(value) && !Array.isArray(value);
-
 const parseObjectOutput = (output: unknown): Record<string, unknown> | undefined => {
-  if (isObjectOutput(output)) {
+  if (isRecord(output)) {
     return output;
   }
   if (typeof output !== "string") {
@@ -155,7 +150,7 @@ const parseObjectOutput = (output: unknown): Record<string, unknown> | undefined
 
   try {
     const parsed = JSON.parse(output) as unknown;
-    return isObjectOutput(parsed) ? parsed : undefined;
+    return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -169,7 +164,7 @@ const isFailedStructuredToolOutput = (output: Record<string, unknown>) => {
     return true;
   }
 
-  return isObjectOutput(output.metadata) && isNonZeroExitCode(output.metadata.exit_code);
+  return isRecord(output.metadata) && isNonZeroExitCode(output.metadata.exit_code);
 };
 
 const isFailedCodexToolOutput = (payload: Record<string, unknown>) => {
@@ -276,11 +271,11 @@ const codexTokenUsageEvidence = (
   payload: Record<string, unknown>,
   turnId: string | undefined,
 ): AgentTrajectoryEvidence | undefined => {
-  const info = isObjectOutput(payload.info) ? payload.info : undefined;
+  const info = isRecord(payload.info) ? payload.info : undefined;
   const lastTokenUsage =
-    info && isObjectOutput(info.last_token_usage) ? info.last_token_usage : undefined;
+    info && isRecord(info.last_token_usage) ? info.last_token_usage : undefined;
   const totalTokenUsage =
-    info && isObjectOutput(info.total_token_usage) ? info.total_token_usage : undefined;
+    info && isRecord(info.total_token_usage) ? info.total_token_usage : undefined;
   const nestedUsage = lastTokenUsage ? codexTokenUsage(lastTokenUsage) : undefined;
   const cumulativeUsage = totalTokenUsage ? codexTokenUsage(totalTokenUsage) : undefined;
   const usage =
@@ -322,7 +317,7 @@ const codexDurationSeconds = (duration: unknown) => {
   if (typeof duration === "number") {
     return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
   }
-  if (!isObjectOutput(duration)) {
+  if (!isRecord(duration)) {
     return undefined;
   }
 
@@ -350,11 +345,11 @@ const codexToolCompletionStatus = (eventType: string, payload: Record<string, un
   const success = ownValue(payload, "success");
   const status = ownValue(payload, "status");
   const result = ownValue(payload, "result");
-  const resultRecord = isObjectOutput(result) ? result : undefined;
+  const resultRecord = isRecord(result) ? result : undefined;
   const hasResultError = resultRecord ? hasOwn(resultRecord, "Err") : false;
   const hasResultOk = resultRecord ? hasOwn(resultRecord, "Ok") : false;
   const okResult = resultRecord ? ownValue(resultRecord, "Ok") : undefined;
-  const failedOkResult = isObjectOutput(okResult) && ownValue(okResult, "isError") === true;
+  const failedOkResult = isRecord(okResult) && ownValue(okResult, "isError") === true;
   const failedStatus = status === "failed" || status === "error" || status === "declined";
   const exitCode = ownValue(payload, "exit_code");
 
@@ -779,10 +774,12 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         projection.kind,
         projection.label,
         projection.preview,
+        {
+          timestamp: parseTimestamp(envelope.timestamp),
+          timestampLabel: getString(envelope, "timestamp"),
+          turnIndex,
+        },
       );
-      addOptionalNumber(event, "timestamp", parseTimestamp(envelope.timestamp));
-      addOptionalNumber(event, "turnIndex", turnIndex);
-      addOptionalString(event, "timestampLabel", getString(envelope, "timestamp"));
 
       if (projection.conversation) {
         attachConversationItem(event, {
