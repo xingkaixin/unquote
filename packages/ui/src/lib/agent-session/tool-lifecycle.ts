@@ -40,15 +40,14 @@ export type AgentToolLifecycleGroup = ToolCorrelationGroup<
 >;
 
 export interface AgentToolLifecycleIndex {
-  evidenceOccurrences: readonly AgentSessionEvidenceOccurrence[];
+  evidenceEvents: readonly AgentSessionEvidenceEvent[];
   groups: readonly AgentToolLifecycleGroup[];
   groupByEvidence: ReadonlyMap<AgentToolLifecycleEvidence, AgentToolLifecycleGroup>;
   stateByConversationItem: ReadonlyMap<AgentConversationItem, AgentToolLifecycleState>;
 }
 
-export interface AgentSessionEvidenceOccurrence {
-  evidence: AgentSessionEvidence;
-  evidenceIndex: number;
+export interface AgentSessionEvidenceEvent {
+  evidence: readonly AgentSessionEvidence[];
   canonicalEvent: CanonicalAgentEvent;
 }
 
@@ -132,7 +131,7 @@ const finalizeEvidenceGroup = (
 export const createAgentToolLifecycleIndex = (
   session: CanonicalAgentSession,
 ): AgentToolLifecycleIndex => {
-  const evidenceOccurrences: AgentSessionEvidenceOccurrence[] = [];
+  const evidenceEvents: AgentSessionEvidenceEvent[] = [];
   const stateByConversationItem = new Map<AgentConversationItem, AgentToolLifecycleState>();
   const evidenceStates = new Map<AgentConversationItem, AgentToolLifecycleState>();
   const groupByEvidence = new Map<AgentToolLifecycleEvidence, AgentToolLifecycleGroup>();
@@ -149,11 +148,10 @@ export const createAgentToolLifecycleIndex = (
   for (const canonicalEvent of session.events) {
     const { event, conversationItems } = canonicalEvent;
     const evidenceTurnIds = new Map<string, string>();
+    const indexedEvidence: AgentSessionEvidence[] = [];
     let conversationById: ReadonlyMap<string, AgentConversationItem> | undefined;
-    let evidenceIndex = 0;
     for (const evidence of event.sessionEvidence ?? []) {
-      evidenceOccurrences.push({ evidence, evidenceIndex, canonicalEvent });
-      evidenceIndex += 1;
+      indexedEvidence.push(evidence);
       if (
         (evidence.kind === "model-output" ||
           (evidence.kind === "tool-lifecycle" && evidence.phase !== "completion")) &&
@@ -205,6 +203,9 @@ export const createAgentToolLifecycleIndex = (
       } else {
         group.completions.push(lifecycleOccurrence(evidence, event, conversationItem));
       }
+    }
+    if (indexedEvidence.length > 0) {
+      evidenceEvents.push({ evidence: indexedEvidence, canonicalEvent });
     }
 
     for (const item of conversationItems) {
@@ -266,7 +267,7 @@ export const createAgentToolLifecycleIndex = (
   }
 
   return {
-    evidenceOccurrences,
+    evidenceEvents,
     groups: orderedGroups,
     groupByEvidence,
     stateByConversationItem,
