@@ -62,7 +62,6 @@ interface TurnDraft {
   id: string;
   warningTurnId: string;
   status: AgentTrajectoryStatus;
-  items: AgentTrajectoryItem[];
   firstSource: WarningSource;
   hasTerminalLifecycle: boolean;
   pendingToolRecovery: boolean;
@@ -503,7 +502,6 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
       id,
       warningTurnId: scope.source === "evidence" ? scope.value : id,
       status: "running",
-      items: [],
       firstSource: warningSourceFor(event, selection),
       hasTerminalLifecycle: false,
       pendingToolRecovery: false,
@@ -722,10 +720,7 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     if (!draft.item) {
       continue;
     }
-    items.push(draft.item);
-    if (draft.turn) {
-      draft.turn.items.push(draft.item);
-    }
+    items.push(draft.turn ? { ...draft.item, turnId: draft.turn.id } : draft.item);
   }
 
   const trajectoryTurns: AgentTrajectoryTurn[] = [];
@@ -785,7 +780,6 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     trajectoryTurns.push({
       id: turn.id,
       status: turn.status,
-      items: turn.items,
       ...(turn.turnIndex === undefined ? {} : { turnIndex: turn.turnIndex }),
       ...(startedAt === undefined ? {} : { startedAt }),
       ...(endedAt === undefined ? {} : { endedAt }),

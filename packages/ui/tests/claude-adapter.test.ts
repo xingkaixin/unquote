@@ -855,16 +855,18 @@ describe("claudeTranscriptAdapter", () => {
         conversationItemId: "conv-2-block-0",
       },
     ]);
-    expect(expectTrajectorySelectionsToResolve(session).turns).toMatchObject([
+    const trajectory = expectTrajectorySelectionsToResolve(session);
+    const turnId = trajectoryTurnId("fallback-index", 1);
+    expect(trajectory.turns).toMatchObject([
       {
-        id: trajectoryTurnId("fallback-index", 1),
+        id: turnId,
         status: "running",
         turnIndex: 1,
-        items: [
-          { kind: "user", recordId: "record-1" },
-          { kind: "assistant", recordId: "record-2" },
-        ],
       },
+    ]);
+    expect(trajectory.items).toMatchObject([
+      { kind: "user", recordId: "record-1", turnId },
+      { kind: "assistant", recordId: "record-2", turnId },
     ]);
   });
 
@@ -894,6 +896,7 @@ describe("claudeTranscriptAdapter", () => {
 
     const session = builder.finish([]);
     const trajectory = expectTrajectorySelectionsToResolve(session);
+    const turnId = trajectoryTurnId("fallback-index", 1);
 
     expect(session.meta.turnCount).toBe(1);
     expect(session.events[0]?.trajectoryEvidence).toEqual([
@@ -920,15 +923,16 @@ describe("claudeTranscriptAdapter", () => {
     ]);
     expect(trajectory.turns).toMatchObject([
       {
-        id: trajectoryTurnId("fallback-index", 1),
-        items: [
-          { kind: "user", recordId: "record-1" },
-          {
-            kind: "assistant",
-            recordId: "record-2",
-            tokenUsage: { inputTokens: 7, outputTokens: 3 },
-          },
-        ],
+        id: turnId,
+      },
+    ]);
+    expect(trajectory.items).toMatchObject([
+      { kind: "user", recordId: "record-1", turnId },
+      {
+        kind: "assistant",
+        recordId: "record-2",
+        turnId,
+        tokenUsage: { inputTokens: 7, outputTokens: 3 },
       },
     ]);
     expect(trajectory.warnings).not.toEqual(

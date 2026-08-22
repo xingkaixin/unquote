@@ -78,6 +78,10 @@ const eventFor = (item: AgentTrajectoryItem, preview = item.id): AgentTimelineEv
   ...(item.timestamp === undefined ? {} : { timestamp: item.timestamp }),
 });
 
+type TrajectoryTurnInput = AgentTrajectoryTurn & {
+  readonly sourceItems?: readonly AgentTrajectoryItem[];
+};
+
 const turnFor = (
   id: string,
   items: readonly AgentTrajectoryItem[],
@@ -87,10 +91,10 @@ const turnFor = (
     readonly endedAt?: number;
     readonly turnIndex?: number;
   } = {},
-): AgentTrajectoryTurn => ({
+): TrajectoryTurnInput => ({
   id,
   status: "completed",
-  items,
+  sourceItems: items,
   ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
   ...(options.startedAt === undefined ? {} : { startedAt: options.startedAt }),
   ...(options.endedAt === undefined ? {} : { endedAt: options.endedAt }),
@@ -101,7 +105,7 @@ const modelFor = (
   items: readonly AgentTrajectoryItem[],
   options: {
     readonly events?: readonly AgentTimelineEvent[];
-    readonly turns?: readonly AgentTrajectoryTurn[];
+    readonly turns?: readonly TrajectoryTurnInput[];
     readonly warnings?: readonly AgentTrajectoryWarning[];
     readonly tokenUsage?: AgentTrajectoryModel["stats"]["tokenUsage"];
   } = {},
@@ -109,10 +113,21 @@ const modelFor = (
   const events = options.events ?? items.map((item) => eventFor(item));
   const eventsById = new Map(events.map((event) => [event.id, event]));
   const eventsByRecordId = new Map(events.map((event) => [event.recordId, event]));
-  const itemsById = new Map(items.map((item) => [item.id, item]));
-  const turns = options.turns ?? [turnFor("turn-1", items, { turnIndex: 1 })];
+  const turnInputs = options.turns ?? [turnFor("turn-1", items, { turnIndex: 1 })];
+  const turnIdByItem = new Map<AgentTrajectoryItem, string>();
+  const turns = turnInputs.map(({ sourceItems, ...turn }) => {
+    for (const item of sourceItems ?? []) {
+      turnIdByItem.set(item, turn.id);
+    }
+    return turn;
+  });
+  const canonicalItems = items.map((item) => {
+    const turnId = turnIdByItem.get(item);
+    return turnId === undefined ? item : { ...item, turnId };
+  });
+  const itemsById = new Map(canonicalItems.map((item) => [item.id, item]));
   const trajectory: AgentTrajectoryModel = {
-    items,
+    items: canonicalItems,
     turns,
     warnings: options.warnings ?? [],
     stats: {

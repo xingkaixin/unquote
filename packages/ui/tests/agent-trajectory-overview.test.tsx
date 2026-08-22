@@ -64,13 +64,12 @@ const itemFor = (
 
 const turnFor = (
   id: string,
-  items: readonly AgentTrajectoryItem[],
+  _items: readonly AgentTrajectoryItem[],
   startedAt: number,
   endedAt: number,
 ): AgentTrajectoryTurn => ({
   id,
   status: "completed",
-  items,
   startedAt,
   endedAt,
 });

@@ -117,7 +117,6 @@ const groupFor = (
     : {
         id: `turn-${id}`,
         status: options.turnStatus ?? "completed",
-        items: sourceItems,
         ...(options.turnIndex === undefined ? {} : { turnIndex: options.turnIndex }),
         ...(options.turnDurationMs === undefined ? {} : { durationMs: options.turnDurationMs }),
       };

@@ -514,11 +514,12 @@ describe("createAgentTrajectoryModel", () => {
         durationMs: 30,
       },
     ]);
-    expect(model.turns[0]?.items.map((item) => item.id)).toEqual([
-      "user-one:evidence-0",
-      "assistant-one:evidence-0",
-    ]);
-    expect(model.turns[1]?.items.map((item) => item.id)).toEqual(["reasoning-two:evidence-0"]);
+    expect(
+      model.items.filter((item) => item.turnId === model.turns[0]?.id).map((item) => item.id),
+    ).toEqual(["user-one:evidence-0", "assistant-one:evidence-0"]);
+    expect(
+      model.items.filter((item) => item.turnId === model.turns[1]?.id).map((item) => item.id),
+    ).toEqual(["reasoning-two:evidence-0"]);
   });
 
   it("uses explicit turn ids before a shared display turn index", () => {
@@ -617,10 +618,9 @@ describe("createAgentTrajectoryModel", () => {
       { id: trajectoryTurnId("fallback-index", 1), status: "running" },
       { id: trajectoryTurnId("evidence", "actual"), status: "completed" },
     ]);
-    expect(model.turns[0]?.items.map((item) => item.id)).toEqual([
-      "fallback-first:evidence-0",
-      "fallback-second:evidence-0",
-    ]);
+    expect(
+      model.items.filter((item) => item.turnId === model.turns[0]?.id).map((item) => item.id),
+    ).toEqual(["fallback-first:evidence-0", "fallback-second:evidence-0"]);
   });
 
   it("keeps token, tool, and recovery state across explicit evidence", () => {
@@ -707,7 +707,12 @@ describe("createAgentTrajectoryModel", () => {
       ]),
     );
 
-    expect(model.turns.map((turn) => ({ id: turn.id, itemCount: turn.items.length }))).toEqual([
+    expect(
+      model.turns.map((turn) => ({
+        id: turn.id,
+        itemCount: model.items.filter((item) => item.turnId === turn.id).length,
+      })),
+    ).toEqual([
       { id: trajectoryTurnId("evidence", "first"), itemCount: 0 },
       { id: trajectoryTurnId("evidence", "second"), itemCount: 0 },
       { id: trajectoryTurnId("fallback-index", 1), itemCount: 1 },

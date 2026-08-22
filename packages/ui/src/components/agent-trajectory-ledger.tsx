@@ -65,7 +65,7 @@ const LedgerTurnHeader = ({
         : t("trajectory.turn", { turn: turnIndex });
   const duration = turn ? formatTrajectoryDuration(turn.durationMs, locale) : "";
   const facts = turn
-    ? [duration, t("trajectory.itemCount", { count: turn.items.length })].filter(Boolean)
+    ? [duration, t("trajectory.itemCount", { count: row.group.items.length })].filter(Boolean)
     : [];
 
   return (

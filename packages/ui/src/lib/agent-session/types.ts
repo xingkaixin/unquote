@@ -210,6 +210,7 @@ export interface AgentTrajectoryItemBase<
   readonly recordId: string;
   readonly lineNumber: number;
   readonly selection: AgentCanonicalSelection;
+  readonly turnId?: string;
   readonly timestamp?: number;
   readonly turnIndex?: number;
 }
@@ -261,7 +262,6 @@ export type AgentTrajectoryItem =
 export interface AgentTrajectoryTurn {
   readonly id: string;
   readonly status: AgentTrajectoryStatus;
-  readonly items: readonly AgentTrajectoryItem[];
   readonly turnIndex?: number;
   readonly startedAt?: number;
   readonly endedAt?: number;
