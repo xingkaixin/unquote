@@ -14,7 +14,6 @@ import type {
   AgentTrajectoryStatus,
   AgentTrajectorySubagentItem,
   AgentTrajectoryTokenUsage,
-  AgentTrajectoryTokenUsageSnapshot,
   AgentTrajectoryToolItem,
   AgentTrajectoryTurn,
   AgentTrajectoryUserItem,
@@ -43,13 +42,7 @@ const tokenKeys = [
   "reasoningOutputTokens",
 ] as const;
 
-interface AgentTrajectoryTokenUsageDraft {
-  inputTokens?: number;
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  outputTokens?: number;
-  reasoningOutputTokens?: number;
-}
+type AgentTrajectoryTokenUsageDraft = Partial<Record<(typeof tokenKeys)[number], number>>;
 
 interface WarningSource {
   recordId: string;
@@ -213,7 +206,7 @@ const validTokenUsage = (
 };
 
 const mergeTokenUsage = (
-  current: AgentTrajectoryTokenUsageSnapshot | undefined,
+  current: AgentTrajectoryTokenUsage | undefined,
   next: AgentTrajectoryTokenUsage,
 ): AgentTrajectoryTokenUsageDraft | undefined => {
   const merged: AgentTrajectoryTokenUsageDraft = current ? { ...current } : {};

@@ -5,6 +5,7 @@ import type {
   AgentSessionModel,
   AgentTrajectoryItem,
   AgentTrajectoryItemKind,
+  AgentTrajectoryTokenUsage,
   AgentTrajectoryTurn,
   AgentTrajectoryWarning,
 } from "./types";
@@ -70,13 +71,7 @@ export interface AgentTrajectoryPresentationSummary {
   readonly tools: number;
   readonly failures: number;
   readonly durationMs?: number;
-  readonly tokens: {
-    readonly inputTokens?: number;
-    readonly outputTokens?: number;
-    readonly cacheCreationInputTokens?: number;
-    readonly cacheReadInputTokens?: number;
-    readonly reasoningOutputTokens?: number;
-  };
+  readonly tokens: AgentTrajectoryTokenUsage;
   readonly warningCount: number;
 }
 

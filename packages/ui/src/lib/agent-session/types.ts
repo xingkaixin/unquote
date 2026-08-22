@@ -32,14 +32,6 @@ export interface AgentParseWarning {
 }
 
 export interface AgentTrajectoryTokenUsage {
-  inputTokens?: number;
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  outputTokens?: number;
-  reasoningOutputTokens?: number;
-}
-
-export interface AgentTrajectoryTokenUsageSnapshot {
   readonly inputTokens?: number;
   readonly cacheCreationInputTokens?: number;
   readonly cacheReadInputTokens?: number;
@@ -238,7 +230,7 @@ export type AgentTrajectoryAssistantReasoningItem = AgentTrajectoryItemBase<
   "completed"
 > & {
   readonly step?: AgentTrajectoryStep;
-  readonly tokenUsage?: AgentTrajectoryTokenUsageSnapshot;
+  readonly tokenUsage?: AgentTrajectoryTokenUsage;
 };
 
 export type AgentTrajectoryModelOutputItem =
@@ -335,7 +327,7 @@ export type AgentTrajectoryWarning =
     });
 
 export interface AgentTrajectoryStats {
-  readonly tokenUsage: AgentTrajectoryTokenUsageSnapshot;
+  readonly tokenUsage: AgentTrajectoryTokenUsage;
 }
 
 export interface AgentTrajectoryModel {
