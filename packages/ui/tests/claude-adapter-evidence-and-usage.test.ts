@@ -64,7 +64,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
 
     expect(session.meta.turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
-    expect(session.events[0]?.trajectoryEvidence).toEqual([
+    expect(session.events[0]?.sessionEvidence).toEqual([
       {
         kind: "turn-lifecycle",
         phase: "start",
@@ -77,7 +77,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         turnId: "prompt-1",
       },
     ]);
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "model-output",
         role: "reasoning",
@@ -109,7 +109,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         turnId: "prompt-1",
       },
     ]);
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "model-output",
         role: "user",
@@ -212,8 +212,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
     expect(
       session.events.map(
         (event) =>
-          event.trajectoryEvidence?.filter((evidence) => evidence.kind === "token-usage").length ??
-          0,
+          event.sessionEvidence?.filter((evidence) => evidence.kind === "token-usage").length ?? 0,
       ),
     ).toEqual([0, 1, 0, 1]);
 
@@ -301,8 +300,8 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
     );
 
     const session = builder.finish([]);
-    const assistantEvidence = session.events[1]?.trajectoryEvidence ?? [];
-    const resultEvidence = session.events[2]?.trajectoryEvidence ?? [];
+    const assistantEvidence = session.events[1]?.sessionEvidence ?? [];
+    const resultEvidence = session.events[2]?.sessionEvidence ?? [];
 
     expect(assistantEvidence).toHaveLength(6);
     expect(

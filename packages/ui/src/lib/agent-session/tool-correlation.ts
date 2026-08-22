@@ -1,15 +1,8 @@
 type ExplicitTurnScope = { readonly source: "evidence"; readonly value: string };
 type FallbackTurnScope = { readonly source: "fallback-index"; readonly value: number };
-type SyntheticTurnScope = { readonly source: "synthetic-event"; readonly value: string };
 type AnonymousTurnScope = { readonly source: "anonymous" };
 
-export type ToolCorrelationScope =
-  | ExplicitTurnScope
-  | FallbackTurnScope
-  | SyntheticTurnScope
-  | AnonymousTurnScope;
-
-export type TrajectoryTurnScope = Exclude<ToolCorrelationScope, AnonymousTurnScope>;
+export type ToolCorrelationScope = ExplicitTurnScope | FallbackTurnScope | AnonymousTurnScope;
 
 export interface ToolCorrelationGroup<TCall, TResult, TCompletion = never> {
   calls: TCall[];
@@ -21,10 +14,6 @@ export interface ToolCorrelationGroups<TCall, TResult, TCompletion = never> {
   readonly evidence: Map<string, Map<string, ToolCorrelationGroup<TCall, TResult, TCompletion>>>;
   readonly fallbackIndex: Map<
     number,
-    Map<string, ToolCorrelationGroup<TCall, TResult, TCompletion>>
-  >;
-  readonly syntheticEvent: Map<
-    string,
     Map<string, ToolCorrelationGroup<TCall, TResult, TCompletion>>
   >;
   readonly anonymous: Map<string, ToolCorrelationGroup<TCall, TResult, TCompletion>>;
@@ -46,14 +35,6 @@ export const toolCorrelationScope = (
   return { source: "anonymous" };
 };
 
-export const syntheticTurnScope = (eventId: string): SyntheticTurnScope => ({
-  source: "synthetic-event",
-  value: eventId,
-});
-
-export const trajectoryTurnId = (scope: TrajectoryTurnScope) =>
-  JSON.stringify([scope.source, scope.value]);
-
 export const createToolCorrelationGroups = <
   TCall,
   TResult,
@@ -61,7 +42,6 @@ export const createToolCorrelationGroups = <
 >(): ToolCorrelationGroups<TCall, TResult, TCompletion> => ({
   evidence: new Map(),
   fallbackIndex: new Map(),
-  syntheticEvent: new Map(),
   anonymous: new Map(),
 });
 
@@ -82,14 +62,6 @@ const groupsByCallIdFor = <TCall, TResult, TCompletion>(
     if (!scopedGroups) {
       scopedGroups = new Map();
       groups.fallbackIndex.set(scope.value, scopedGroups);
-    }
-    return scopedGroups;
-  }
-  if (scope.source === "synthetic-event") {
-    let scopedGroups = groups.syntheticEvent.get(scope.value);
-    if (!scopedGroups) {
-      scopedGroups = new Map();
-      groups.syntheticEvent.set(scope.value, scopedGroups);
     }
     return scopedGroups;
   }
@@ -128,18 +100,8 @@ export const forEachToolCorrelationGroup = <TCall, TResult, TCompletion>(
   for (const groupsByCallId of groups.fallbackIndex.values()) {
     visitCallIdGroups(groupsByCallId);
   }
-  for (const groupsByCallId of groups.syntheticEvent.values()) {
-    visitCallIdGroups(groupsByCallId);
-  }
   visitCallIdGroups(groups.anonymous);
 };
-
-export const uniqueToolPair = <TCall, TResult, TCompletion>(
-  group: ToolCorrelationGroup<TCall, TResult, TCompletion>,
-) =>
-  group.calls.length === 1 && group.results.length === 1
-    ? ([group.calls[0]!, group.results[0]!] as const)
-    : null;
 
 export const hasRepeatedToolOccurrences = <TCall, TResult, TCompletion>(
   group: ToolCorrelationGroup<TCall, TResult, TCompletion>,

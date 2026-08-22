@@ -187,7 +187,7 @@ describe("codexRolloutAdapter: response-items", () => {
     const session = builder.finish([]);
     const model = createAgentSessionModel(session);
     const [call, result] = model.conversation.map(({ item }) => item);
-    const evidence = session.events[1]?.trajectoryEvidence?.[0];
+    const evidence = session.events[1]?.sessionEvidence?.[0];
 
     expect(call).toBeDefined();
     expect(result).toBeDefined();
@@ -212,7 +212,7 @@ describe("codexRolloutAdapter: response-items", () => {
     }
   });
 
-  it("keeps an explicitly completed empty tool result in trajectory evidence", () => {
+  it("keeps an explicitly completed empty tool result in session evidence", () => {
     const builder = codexRolloutAdapter.createBuilder();
     builder.push(
       parsedLine(
@@ -254,7 +254,7 @@ describe("codexRolloutAdapter: response-items", () => {
     const session = builder.finish([]);
 
     expect(session.events[2]?.conversationItems[0]?.block).toBeUndefined();
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",
@@ -295,7 +295,7 @@ describe("codexRolloutAdapter: response-items", () => {
     const session = builder.finish([]);
 
     expect(parse).toHaveBeenCalledTimes(1);
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",
@@ -411,7 +411,7 @@ describe("codexRolloutAdapter: response-items", () => {
       "system",
       "system",
     ]);
-    expect(session.events.slice(1, 3).map((event) => event.trajectoryEvidence)).toEqual([
+    expect(session.events.slice(1, 3).map((event) => event.sessionEvidence)).toEqual([
       [
         {
           kind: "model-output",
@@ -429,7 +429,7 @@ describe("codexRolloutAdapter: response-items", () => {
         },
       ],
     ]);
-    expect(session.events[3]?.trajectoryEvidence).toBeUndefined();
+    expect(session.events[3]?.sessionEvidence).toBeUndefined();
     expect(model.trajectory.items).toMatchObject([
       {
         kind: "system",

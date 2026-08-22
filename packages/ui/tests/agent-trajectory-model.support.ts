@@ -2,7 +2,7 @@ import {
   type AgentConversationItem,
   type AgentDetailSelection,
   type AgentTokenUsageEvidence,
-  type AgentTrajectoryEvidence,
+  type AgentSessionEvidence,
   type AgentTrajectoryAssistantReasoningItem,
   type AgentTrajectoryItem,
   type AgentTrajectoryModel,
@@ -16,7 +16,7 @@ import {
 export interface EventOptions {
   timestamp?: number;
   turnIndex?: number;
-  trajectoryEvidence?: readonly AgentTrajectoryEvidence[];
+  sessionEvidence?: readonly AgentSessionEvidence[];
   conversationItems?: AgentConversationItem[];
 }
 
@@ -36,9 +36,7 @@ export const event = (
   conversationItems: options.conversationItems ?? [],
   ...(options.timestamp === undefined ? {} : { timestamp: options.timestamp }),
   ...(options.turnIndex === undefined ? {} : { turnIndex: options.turnIndex }),
-  ...(options.trajectoryEvidence === undefined
-    ? {}
-    : { trajectoryEvidence: options.trajectoryEvidence }),
+  ...(options.sessionEvidence === undefined ? {} : { sessionEvidence: options.sessionEvidence }),
 });
 
 export const session = (events: AgentTimelineEvent[]): AgentSession => ({
@@ -60,12 +58,12 @@ export const conversation = (
 export const lifecycle = (
   turnId: string,
   phase: "start" | "complete" | "failed" | "aborted",
-): AgentTrajectoryEvidence => ({ kind: "turn-lifecycle", turnId, phase });
+): AgentSessionEvidence => ({ kind: "turn-lifecycle", turnId, phase });
 
 export const modelOutput = (
   role: "user" | "assistant" | "reasoning" | "system",
   conversationItemId?: string,
-): AgentTrajectoryEvidence => ({
+): AgentSessionEvidence => ({
   kind: "model-output",
   role,
   ...(conversationItemId === undefined ? {} : { conversationItemId }),
@@ -75,7 +73,7 @@ export const toolCall = (
   toolName: string,
   callId?: string,
   conversationItemId?: string,
-): AgentTrajectoryEvidence => ({
+): AgentSessionEvidence => ({
   kind: "tool-lifecycle",
   phase: "call",
   toolName,
@@ -88,7 +86,7 @@ export const toolResult = (
   callId?: string,
   durationMs?: number,
   conversationItemId?: string,
-): AgentTrajectoryEvidence => ({
+): AgentSessionEvidence => ({
   kind: "tool-lifecycle",
   phase: "result",
   status,
@@ -97,30 +95,30 @@ export const toolResult = (
   ...(conversationItemId === undefined ? {} : { conversationItemId }),
 });
 
-export const unknownToolResult = (callId?: string): AgentTrajectoryEvidence =>
+export const unknownToolResult = (callId?: string): AgentSessionEvidence =>
   ({
     kind: "tool-lifecycle",
     phase: "result",
     ...(callId === undefined ? {} : { callId }),
-  }) satisfies AgentTrajectoryEvidence;
+  }) satisfies AgentSessionEvidence;
 
 export const toolCompletion = (
   status: "completed" | "failed",
   callId?: string,
   durationMs?: number,
-): AgentTrajectoryEvidence =>
+): AgentSessionEvidence =>
   ({
     kind: "tool-lifecycle",
     phase: "completion",
     status,
     ...(callId === undefined ? {} : { callId }),
     ...(durationMs === undefined ? {} : { durationMs }),
-  }) satisfies AgentTrajectoryEvidence;
+  }) satisfies AgentSessionEvidence;
 
 export const tokenUsage = (
   usage: Record<string, number>,
   turnId?: string,
-): AgentTrajectoryEvidence => ({
+): AgentSessionEvidence => ({
   kind: "token-usage",
   usage,
   ...(turnId === undefined ? {} : { turnId }),

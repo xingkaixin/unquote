@@ -26,20 +26,20 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("fallback-first", "record-fallback-first", 1, {
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          trajectoryEvidence: [modelOutput("assistant", firstAssistant.id)],
+          sessionEvidence: [modelOutput("assistant", firstAssistant.id)],
         }),
         event("actual-start", "record-actual-start", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("actual", "start")],
+          sessionEvidence: [lifecycle("actual", "start")],
         }),
         event("fallback-second", "record-fallback-second", 3, {
           turnIndex: 1,
           conversationItems: [secondAssistant],
-          trajectoryEvidence: [modelOutput("assistant", secondAssistant.id)],
+          sessionEvidence: [modelOutput("assistant", secondAssistant.id)],
         }),
         event("actual-complete", "record-actual-complete", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("actual", "complete")],
+          sessionEvidence: [lifecycle("actual", "complete")],
         }),
       ]),
     );
@@ -62,37 +62,37 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
           timestamp: 10,
           turnIndex: 1,
           conversationItems: [initial],
-          trajectoryEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "promoted" }],
+          sessionEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "promoted" }],
         }),
         event("promoted-token", "record-promoted-token", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [tokenUsage({ inputTokens: 4 }, "promoted")],
+          sessionEvidence: [tokenUsage({ inputTokens: 4 }, "promoted")],
         }),
         event("promoted-call", "record-promoted-call", 3, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("shell", "promoted-call"), turnId: "promoted" }],
+          sessionEvidence: [{ ...toolCall("shell", "promoted-call"), turnId: "promoted" }],
         }),
         event("promoted-start", "record-promoted-start", 4, {
           timestamp: 25,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("promoted", "start")],
+          sessionEvidence: [lifecycle("promoted", "start")],
         }),
         event("promoted-result", "record-promoted-result", 5, {
           timestamp: 30,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "promoted-call"), turnId: "promoted" }],
+          sessionEvidence: [{ ...toolResult("completed", "promoted-call"), turnId: "promoted" }],
         }),
         event("promoted-recovered", "record-promoted-recovered", 6, {
           timestamp: 35,
           turnIndex: 1,
           conversationItems: [recovered],
-          trajectoryEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "promoted" }],
+          sessionEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "promoted" }],
         }),
         event("promoted-complete", "record-promoted-complete", 7, {
           timestamp: 40,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("promoted", "complete")],
+          sessionEvidence: [lifecycle("promoted", "complete")],
         }),
       ]),
     );
@@ -123,16 +123,16 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
       session([
         event("first-explicit", "record-first-explicit", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("first", "start")],
+          sessionEvidence: [lifecycle("first", "start")],
         }),
         event("second-explicit", "record-second-explicit", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("second", "start")],
+          sessionEvidence: [lifecycle("second", "start")],
         }),
         event("ambiguous-index-output", "record-ambiguous-index-output", 3, {
           turnIndex: 1,
           conversationItems: [unscoped],
-          trajectoryEvidence: [modelOutput("assistant", unscoped.id)],
+          sessionEvidence: [modelOutput("assistant", unscoped.id)],
         }),
       ]),
     );
@@ -155,7 +155,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("open-start", "record-open-start", 1, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("open-turn", "start")],
+          sessionEvidence: [lifecycle("open-turn", "start")],
         }),
       ]),
     );
@@ -183,22 +183,22 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("one-call", "record-one-call", 1, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("first-tool", "same-call"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolCall("first-tool", "same-call"), turnId: "turn-one" }],
         }),
         event("two-call", "record-two-call", 2, {
           timestamp: 20,
           turnIndex: 2,
-          trajectoryEvidence: [{ ...toolCall("second-tool", "same-call"), turnId: "turn-two" }],
+          sessionEvidence: [{ ...toolCall("second-tool", "same-call"), turnId: "turn-two" }],
         }),
         event("two-result", "record-two-result", 3, {
           timestamp: 25,
           turnIndex: 2,
-          trajectoryEvidence: [{ ...toolResult("failed", "same-call"), turnId: "turn-two" }],
+          sessionEvidence: [{ ...toolResult("failed", "same-call"), turnId: "turn-two" }],
         }),
         event("one-result", "record-one-result", 4, {
           timestamp: 35,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "same-call"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolResult("completed", "same-call"), turnId: "turn-one" }],
         }),
       ]),
     );
@@ -222,14 +222,14 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("identity-call", "record-identity-call", 1, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("identity-tool", "identity-call"), turnId: "identity-turn" },
           ],
         }),
         event("identity-result", "record-identity-result", 2, {
           timestamp: 25,
           turnIndex: 2,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolResult("completed", "identity-call"), turnId: "identity-turn" },
           ],
         }),
@@ -255,13 +255,13 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
       session([
         event("first-identity-call", "record-first-identity-call", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("first-identity", "identity-conflict"), turnId: "first-identity" },
           ],
         }),
         event("second-identity-result", "record-second-identity-result", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             {
               ...toolResult("completed", "identity-conflict"),
               turnId: "second-identity",
@@ -286,37 +286,37 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("turn-start", "record-start", 1, {
           timestamp: 1,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn", "start")],
+          sessionEvidence: [lifecycle("turn", "start")],
         }),
         event("done-call", "record-done-call", 2, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("done", "done"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("done", "done"), turnId: "turn" }],
         }),
         event("done-result", "record-done-result", 3, {
           timestamp: 15,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "done"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "done"), turnId: "turn" }],
         }),
         event("failed-call", "record-failed-call", 4, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("failed", "failed"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("failed", "failed"), turnId: "turn" }],
         }),
         event("failed-result", "record-failed-result", 5, {
           timestamp: 25,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("failed", "failed"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("failed", "failed"), turnId: "turn" }],
         }),
         event("open-call", "record-open-call", 6, {
           timestamp: 30,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("open", "open"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("open", "open"), turnId: "turn" }],
         }),
         event("turn-complete", "record-complete", 7, {
           timestamp: 40,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn", "complete")],
+          sessionEvidence: [lifecycle("turn", "complete")],
         }),
       ]),
     );
@@ -333,17 +333,17 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("unknown-call", "record-unknown-call", 1, {
           timestamp: 10,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("shell", "unknown"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("shell", "unknown"), turnId: "turn" }],
         }),
         event("unknown-result", "record-unknown-result", 2, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...unknownToolResult("unknown"), turnId: "turn" }],
+          sessionEvidence: [{ ...unknownToolResult("unknown"), turnId: "turn" }],
         }),
         event("orphan-unknown-result", "record-orphan-unknown-result", 3, {
           timestamp: 30,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...unknownToolResult("orphan"), turnId: "turn" }],
+          sessionEvidence: [{ ...unknownToolResult("orphan"), turnId: "turn" }],
         }),
       ]),
     );
@@ -390,17 +390,17 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("triple-call", "record-triple-call", 1, {
           timestamp: 100,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("inspect", "triple"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("inspect", "triple"), turnId: "turn" }],
         }),
         event("triple-result", "record-triple-result", 2, {
           timestamp: 200,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "triple"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "triple"), turnId: "turn" }],
         }),
         event("triple-completion", "record-triple-completion", 3, {
           timestamp: 300,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCompletion("failed", "triple", 17), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCompletion("failed", "triple", 17), turnId: "turn" }],
         }),
       ]),
     );
@@ -429,12 +429,12 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("orphan-result", "record-orphan-result", 1, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "orphan"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "orphan"), turnId: "turn" }],
         }),
         event("orphan-completion", "record-orphan-completion", 2, {
           timestamp: 30,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCompletion("failed", "orphan", 7), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCompletion("failed", "orphan", 7), turnId: "turn" }],
         }),
       ]),
     );

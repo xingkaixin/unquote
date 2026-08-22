@@ -50,7 +50,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",
@@ -124,7 +124,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "call",
@@ -134,7 +134,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
         conversationItemId: "conv-2-tool-call",
       },
     ]);
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "result",
@@ -198,7 +198,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
     );
 
     const session = builder.finish([]);
-    const evidence = session.events[2]?.trajectoryEvidence?.[0];
+    const evidence = session.events[2]?.sessionEvidence?.[0];
 
     expect(session.events[2]?.category).toBe("tool");
     expect(evidence).toEqual({
@@ -295,7 +295,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
     const model = createAgentSessionModel(source);
     const [call, output] = model.conversation.map(({ item }) => item);
 
-    expect(source.events[2]?.trajectoryEvidence).toEqual([
+    expect(source.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "completion",
@@ -373,7 +373,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
 
       expect(session.events[1]).toMatchObject({
         category: "tool",
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             kind: "tool-lifecycle",
             phase: "completion",
@@ -428,7 +428,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
     const session = builder.finish([]);
 
     expect(session.events[2]?.category).toBe("tool");
-    expect(session.events[2]?.trajectoryEvidence).toEqual([
+    expect(session.events[2]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "completion",
@@ -474,7 +474,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "completion",
@@ -500,7 +500,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[0]?.trajectoryEvidence?.[0]).toMatchObject({
+    expect(session.events[0]?.sessionEvidence?.[0]).toMatchObject({
       kind: "tool-lifecycle",
       phase: "completion",
       callId: "call-exec-exit",
@@ -543,7 +543,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
       ),
     );
 
-    const evidence = builder.finish([]).events[1]?.trajectoryEvidence?.[0];
+    const evidence = builder.finish([]).events[1]?.sessionEvidence?.[0];
 
     expect(evidence).toMatchObject({
       kind: "tool-lifecycle",
@@ -590,7 +590,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
       ),
     );
 
-    const evidence = builder.finish([]).events[1]?.trajectoryEvidence?.[0];
+    const evidence = builder.finish([]).events[1]?.sessionEvidence?.[0];
 
     expect(evidence).toEqual({
       kind: "tool-lifecycle",
@@ -621,7 +621,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
     );
     builder.push(parsedLine({ type: "event_msg", payload: inheritedPayload }, 2));
 
-    expect(builder.finish([]).events[1]?.trajectoryEvidence).toEqual([
+    expect(builder.finish([]).events[1]?.sessionEvidence).toEqual([
       {
         kind: "tool-lifecycle",
         phase: "completion",

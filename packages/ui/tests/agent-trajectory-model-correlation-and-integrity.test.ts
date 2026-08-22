@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createAgentSessionModel,
   createAgentTrajectoryModel,
-  type AgentTrajectoryEvidence,
+  type AgentSessionEvidence,
   type AgentTimelineEvent,
 } from "../src/lib/agent-session";
 import {
@@ -24,15 +24,15 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       session([
         event("duplicate-result-call", "record-duplicate-result-call", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("shell", "duplicate-result"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("shell", "duplicate-result"), turnId: "turn" }],
         }),
         event("first-duplicate-result", "record-first-duplicate-result", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "duplicate-result"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "duplicate-result"), turnId: "turn" }],
         }),
         event("second-duplicate-result", "record-second-duplicate-result", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("failed", "duplicate-result"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("failed", "duplicate-result"), turnId: "turn" }],
         }),
       ]),
     );
@@ -54,10 +54,10 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("unscoped-event", "record-unscoped-call", 1, {
-          trajectoryEvidence: [toolCall("shell", "unscoped")],
+          sessionEvidence: [toolCall("shell", "unscoped")],
         }),
         event("unscoped-event", "record-unscoped-result", 2, {
-          trajectoryEvidence: [toolResult("completed", "unscoped")],
+          sessionEvidence: [toolResult("completed", "unscoped")],
         }),
       ]),
     );
@@ -74,12 +74,12 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("anonymous-call-event", "record-anonymous-call", 1, {
         timestamp: 10,
         conversationItems: [call],
-        trajectoryEvidence: [toolCall("shell", "anonymous", call.id)],
+        sessionEvidence: [toolCall("shell", "anonymous", call.id)],
       }),
       event("anonymous-result-event", "record-anonymous-result", 2, {
         timestamp: 25,
         conversationItems: [result],
-        trajectoryEvidence: [toolResult("completed", "anonymous", undefined, result.id)],
+        sessionEvidence: [toolResult("completed", "anonymous", undefined, result.id)],
       }),
     ]);
     const model = createAgentTrajectoryModel(source);
@@ -120,13 +120,13 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const model = createAgentTrajectoryModel(
       session([
         event("anonymous-call-one", "record-anonymous-call-one", 1, {
-          trajectoryEvidence: [toolCall("shell", "anonymous-duplicate")],
+          sessionEvidence: [toolCall("shell", "anonymous-duplicate")],
         }),
         event("anonymous-call-two", "record-anonymous-call-two", 2, {
-          trajectoryEvidence: [toolCall("read_file", "anonymous-duplicate")],
+          sessionEvidence: [toolCall("read_file", "anonymous-duplicate")],
         }),
         event("anonymous-result", "record-anonymous-result", 3, {
-          trajectoryEvidence: [toolResult("completed", "anonymous-duplicate")],
+          sessionEvidence: [toolResult("completed", "anonymous-duplicate")],
         }),
       ]),
     );
@@ -153,25 +153,25 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       session([
         event("turn-a-call", "record-turn-a-call", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("turn-a", "shared"), turnId: "turn-a" }],
+          sessionEvidence: [{ ...toolCall("turn-a", "shared"), turnId: "turn-a" }],
         }),
         event("turn-b-call", "record-turn-b-call", 2, {
           turnIndex: 2,
-          trajectoryEvidence: [{ ...toolCall("turn-b", "shared"), turnId: "turn-b" }],
+          sessionEvidence: [{ ...toolCall("turn-b", "shared"), turnId: "turn-b" }],
         }),
         event("anonymous-call", "record-anonymous-call", 3, {
-          trajectoryEvidence: [toolCall("anonymous", "shared")],
+          sessionEvidence: [toolCall("anonymous", "shared")],
         }),
         event("turn-a-result", "record-turn-a-result", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "shared"), turnId: "turn-a" }],
+          sessionEvidence: [{ ...toolResult("completed", "shared"), turnId: "turn-a" }],
         }),
         event("turn-b-result", "record-turn-b-result", 5, {
           turnIndex: 2,
-          trajectoryEvidence: [{ ...toolResult("failed", "shared"), turnId: "turn-b" }],
+          sessionEvidence: [{ ...toolResult("failed", "shared"), turnId: "turn-b" }],
         }),
         event("anonymous-result", "record-anonymous-result", 6, {
-          trajectoryEvidence: [toolResult("completed", "shared")],
+          sessionEvidence: [toolResult("completed", "shared")],
         }),
       ]),
     );
@@ -190,15 +190,15 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       session([
         event("start", "record-start", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("aborted-turn", "start")],
+          sessionEvidence: [lifecycle("aborted-turn", "start")],
         }),
         event("call", "record-call", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("shell", "open"), turnId: "aborted-turn" }],
+          sessionEvidence: [{ ...toolCall("shell", "open"), turnId: "aborted-turn" }],
         }),
         event("abort", "record-abort", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("aborted-turn", "aborted")],
+          sessionEvidence: [lifecycle("aborted-turn", "aborted")],
         }),
       ]),
     );
@@ -211,13 +211,13 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
   it("projects observed subagent states and compaction facts only when their evidence exists", () => {
     const source = session([
       event("subagent", "opaque:subagent", 7, {
-        trajectoryEvidence: [{ kind: "subagent-activity", status: "running" }],
+        sessionEvidence: [{ kind: "subagent-activity", status: "running" }],
       }),
       event("failed-subagent", "opaque:failed-subagent", 8, {
-        trajectoryEvidence: [{ kind: "subagent-activity", status: "failed" }],
+        sessionEvidence: [{ kind: "subagent-activity", status: "failed" }],
       }),
       event("compaction", "opaque:compaction", 9, {
-        trajectoryEvidence: [{ kind: "compaction" }],
+        sessionEvidence: [{ kind: "compaction" }],
       }),
     ]);
     const model = createAgentTrajectoryModel(source);
@@ -269,11 +269,11 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const source = session([
       event("first-event", "record-first", 1, {
         conversationItems: [first],
-        trajectoryEvidence: [modelOutput("assistant", first.id)],
+        sessionEvidence: [modelOutput("assistant", first.id)],
       }),
       event("second-event", "record-second", 2, {
         conversationItems: [second],
-        trajectoryEvidence: [modelOutput("assistant", second.id)],
+        sessionEvidence: [modelOutput("assistant", second.id)],
       }),
     ]);
     const trajectory = createAgentTrajectoryModel(source);
@@ -302,13 +302,13 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
   it("excludes duplicate event and Record facts before trajectory projection", () => {
     const source = session([
       event("canonical-event", "canonical-record", 1, {
-        trajectoryEvidence: [modelOutput("assistant")],
+        sessionEvidence: [modelOutput("assistant")],
       }),
       event("canonical-event", "other-record", 2, {
-        trajectoryEvidence: [modelOutput("assistant")],
+        sessionEvidence: [modelOutput("assistant")],
       }),
       event("other-event", "canonical-record", 3, {
-        trajectoryEvidence: [modelOutput("assistant")],
+        sessionEvidence: [modelOutput("assistant")],
       }),
     ]);
     const trajectory = createAgentTrajectoryModel(source);
@@ -327,10 +327,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const source = session([
       event("same-event", "same-event-record", 1, {
         conversationItems: [shared],
-        trajectoryEvidence: [
-          modelOutput("assistant", shared.id),
-          modelOutput("reasoning", shared.id),
-        ],
+        sessionEvidence: [modelOutput("assistant", shared.id), modelOutput("reasoning", shared.id)],
       }),
     ]);
     const trajectory = createAgentTrajectoryModel(source);
@@ -353,19 +350,19 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("opaque-output-event", "source-revision:9/record:opaque-output", 101, {
         turnIndex: 1,
         conversationItems: [output],
-        trajectoryEvidence: [{ ...modelOutput("assistant", output.id), turnId: "opaque-turn" }],
+        sessionEvidence: [{ ...modelOutput("assistant", output.id), turnId: "opaque-turn" }],
       }),
       event("opaque-call-event", "source-revision:9/record:opaque-call", 102, {
         turnIndex: 1,
         conversationItems: [call],
-        trajectoryEvidence: [
+        sessionEvidence: [
           { ...toolCall("shell", "opaque-call-id", call.id), turnId: "opaque-turn" },
         ],
       }),
       event("opaque-result-event", "source-revision:9/record:opaque-result", 103, {
         turnIndex: 1,
         conversationItems: [result],
-        trajectoryEvidence: [
+        sessionEvidence: [
           {
             ...toolResult("completed", "opaque-call-id", undefined, result.id),
             turnId: "opaque-turn",
@@ -403,11 +400,11 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("large-start", "opaque:large:start", 1, {
         timestamp: 0,
         turnIndex: 1,
-        trajectoryEvidence: [lifecycle("large-turn", "start")],
+        sessionEvidence: [lifecycle("large-turn", "start")],
       }),
     ];
     for (let eventIndex = 0; eventIndex < 38; eventIndex += 1) {
-      const evidence: AgentTrajectoryEvidence[] = [];
+      const evidence: AgentSessionEvidence[] = [];
       for (let evidenceIndex = 0; evidenceIndex < 100; evidenceIndex += 1) {
         evidence.push({ ...modelOutput("assistant"), turnId: "large-turn" });
       }
@@ -415,11 +412,11 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
         event(`large-output-${eventIndex}`, `opaque:large:${eventIndex}`, eventIndex + 2, {
           timestamp: eventIndex + 1,
           turnIndex: 1,
-          trajectoryEvidence: evidence,
+          sessionEvidence: evidence,
         }),
       );
     }
-    const tailEvidence: AgentTrajectoryEvidence[] = [];
+    const tailEvidence: AgentSessionEvidence[] = [];
     for (let evidenceIndex = 0; evidenceIndex < 196; evidenceIndex += 1) {
       tailEvidence.push({ ...modelOutput("assistant"), turnId: "large-turn" });
     }
@@ -432,7 +429,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("large-tail", "opaque:large:tail", 40, {
         timestamp: 100,
         turnIndex: 1,
-        trajectoryEvidence: tailEvidence,
+        sessionEvidence: tailEvidence,
       }),
     );
 
@@ -440,7 +437,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     let evidenceIteratorReads = 0;
     const guardedEventFacts: AgentTimelineEvent[] = [];
     for (const current of events) {
-      const currentEvidence = current.trajectoryEvidence ?? [];
+      const currentEvidence = current.sessionEvidence ?? [];
       const guardedEvidence = new Proxy(currentEvidence, {
         get(target, property, receiver) {
           if (property === "find" || property === "filter") {
@@ -452,7 +449,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
           return Reflect.get(target, property, receiver);
         },
       });
-      guardedEventFacts.push({ ...current, trajectoryEvidence: guardedEvidence });
+      guardedEventFacts.push({ ...current, sessionEvidence: guardedEvidence });
     }
     const guardedEvents = new Proxy(guardedEventFacts, {
       get(target, property, receiver) {
@@ -466,7 +463,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       },
     });
 
-    const model = createAgentTrajectoryModel(session(guardedEvents));
+    const model = createAgentSessionModel(session(guardedEvents)).trajectory;
 
     expect(model.items).toHaveLength(3_997);
     expect(toolItems(model)).toHaveLength(1);

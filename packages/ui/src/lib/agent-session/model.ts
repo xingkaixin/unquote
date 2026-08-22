@@ -12,14 +12,7 @@ import type {
 } from "./types";
 import { measurePerfFn } from "../perf";
 import { canonicalizeAgentSession } from "./identity";
-import {
-  createToolCorrelationGroups,
-  toolCorrelationGroupFor,
-  toolCorrelationScope,
-  uniqueToolPair,
-  type ToolCorrelationGroup,
-} from "./tool-correlation";
-import { createAgentToolLifecycleStates } from "./tool-lifecycle";
+import { createAgentToolLifecycleIndex } from "./tool-lifecycle";
 import { createAgentTrajectoryModelFromCanonicalSession } from "./trajectory-model";
 
 const detailForEvent = (
@@ -31,50 +24,20 @@ const detailForEvent = (
   recordId: event.recordId,
 });
 
-const toolUseBlock = (item: AgentConversationItem | undefined) =>
-  item?.block?.type === "tool_use" ? item.block : undefined;
-
-const toolResultBlock = (item: AgentConversationItem | undefined) =>
-  item?.block?.type === "tool_result" ? item.block : undefined;
-
-type ToolGroup = ToolCorrelationGroup<AgentConversationItem, AgentConversationItem>;
-
-const finiteTurnIndex = (value: number | undefined) =>
-  typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
-
-const explicitTurnIdsByConversationItem = (event: AgentTimelineEvent) => {
-  const turnIds = new Map<string, string>();
-  for (const evidence of event.trajectoryEvidence ?? []) {
-    if (
-      evidence.kind !== "model-output" &&
-      (evidence.kind !== "tool-lifecycle" || evidence.phase === "completion")
-    ) {
-      continue;
-    }
-    if (evidence.conversationItemId && evidence.turnId) {
-      turnIds.set(evidence.conversationItemId, evidence.turnId);
-    }
-  }
-  return turnIds;
-};
-
 export const createAgentSessionModel = (session: AgentSession): AgentSessionModel => {
   const canonicalSession = canonicalizeAgentSession(session);
+  const toolLifecycle = createAgentToolLifecycleIndex(canonicalSession);
   const events: AgentTimelineEvent[] = [];
   const conversation: AgentConversationEntry[] = [];
   const eventById = new Map<string, AgentTimelineEvent>();
   const eventByRecordId = new Map<string, AgentTimelineEvent>();
   const conversationById = new Map<string, AgentConversationEntry>();
   const firstConversationByEventId = new Map<string, AgentConversationEntry>();
-  const toolGroups = createToolCorrelationGroups<AgentConversationItem, AgentConversationItem>();
-  const toolGroupByItem = new Map<AgentConversationItem, ToolGroup>();
 
   for (const { event, conversationItems } of canonicalSession.events) {
     events.push(event);
     eventById.set(event.id, event);
     eventByRecordId.set(event.recordId, event);
-    const evidenceTurnIds = explicitTurnIdsByConversationItem(event);
-
     for (const item of conversationItems) {
       const entry = { item, event };
       conversation.push(entry);
@@ -82,29 +45,9 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
       if (!firstConversationByEventId.has(event.id)) {
         firstConversationByEventId.set(event.id, entry);
       }
-
-      const call = toolUseBlock(item);
-      const result = toolResultBlock(item);
-      const callId = call?.toolCallId ?? result?.toolCallId;
-      if (!callId) {
-        continue;
-      }
-
-      const scope = toolCorrelationScope(
-        evidenceTurnIds.get(item.id),
-        finiteTurnIndex(item.turnIndex) ?? finiteTurnIndex(event.turnIndex),
-      );
-      const group = toolCorrelationGroupFor(toolGroups, scope, callId);
-      if (call) {
-        group.calls.push(item);
-      } else if (result) {
-        group.results.push(item);
-      }
-      toolGroupByItem.set(item, group);
     }
   }
 
-  const toolLifecycleStates = createAgentToolLifecycleStates(canonicalSession);
   let trajectoryProjection:
     | {
         model: AgentTrajectoryModel;
@@ -115,7 +58,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const getTrajectoryProjection = () => {
     if (!trajectoryProjection) {
       const model = measurePerfFn("agentTrajectory:build", () =>
-        createAgentTrajectoryModelFromCanonicalSession(canonicalSession),
+        createAgentTrajectoryModelFromCanonicalSession(canonicalSession, toolLifecycle),
       );
       trajectoryProjection = {
         model,
@@ -174,40 +117,12 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     return item ? { kind: "trajectory", id: item.id, recordId: item.recordId } : null;
   };
 
-  const uniqueToolPairFor = (item: AgentConversationItem) => {
-    const group = toolGroupByItem.get(item);
-    return group ? uniqueToolPair(group) : null;
-  };
-
   const resolveToolStatus = (item: AgentConversationItem): AgentToolStatus => {
-    const lifecycleState = toolLifecycleStates.get(item);
-    if (lifecycleState) {
-      return lifecycleState.status;
-    }
-
-    const result = toolResultBlock(item);
-    if (result) {
-      return result.status;
-    }
-
-    const pair = uniqueToolPairFor(item);
-    return pair ? (toolResultBlock(pair[1])?.status ?? "pending") : "pending";
+    return toolLifecycle.stateByConversationItem.get(item)?.status ?? "pending";
   };
 
-  const resolveToolName = (item: AgentConversationItem): string | undefined => {
-    const lifecycleState = toolLifecycleStates.get(item);
-    if (lifecycleState) {
-      return lifecycleState.toolName;
-    }
-
-    const call = toolUseBlock(item);
-    if (call) {
-      return call.toolName;
-    }
-
-    const pair = uniqueToolPairFor(item);
-    return pair ? toolUseBlock(pair[0])?.toolName : undefined;
-  };
+  const resolveToolName = (item: AgentConversationItem): string | undefined =>
+    toolLifecycle.stateByConversationItem.get(item)?.toolName;
 
   return {
     events,

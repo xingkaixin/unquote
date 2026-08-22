@@ -7,7 +7,7 @@ import type {
   AgentEventCategory,
   AgentSessionAdapter,
   AgentTimelineEvent,
-  AgentTrajectoryEvidence,
+  AgentSessionEvidence,
   AgentTrajectoryTokenUsage,
 } from "./types";
 import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
@@ -252,8 +252,8 @@ const claudeBlockEvidence = (
   items: AgentConversationItem[],
   turnId: string | undefined,
   usage: AgentTrajectoryTokenUsage | undefined,
-): AgentTrajectoryEvidence[] => {
-  const evidence: AgentTrajectoryEvidence[] = [];
+): AgentSessionEvidence[] => {
+  const evidence: AgentSessionEvidence[] = [];
   const turn = turnId ? { turnId } : {};
 
   for (const item of items) {
@@ -353,14 +353,14 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
   // A new prompt proves the previous turn ended; close it at its own last
   // known moment rather than the idle gap before this prompt.
-  const promptTurnLifecycle = (promptId: string | undefined): AgentTrajectoryEvidence[] => {
+  const promptTurnLifecycle = (promptId: string | undefined): AgentSessionEvidence[] => {
     const previous = currentTurn;
     startPromptTurn(promptId);
     if (currentTurn === previous) {
       return [];
     }
 
-    const lifecycle: AgentTrajectoryEvidence[] = [];
+    const lifecycle: AgentSessionEvidence[] = [];
     if (
       previous &&
       !previous.closed &&
@@ -382,7 +382,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
     return lifecycle;
   };
 
-  const closeCurrentTurn = (durationMs?: number): AgentTrajectoryEvidence[] => {
+  const closeCurrentTurn = (durationMs?: number): AgentSessionEvidence[] => {
     if (!currentTurn) {
       return [];
     }
@@ -414,7 +414,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         type === "user" && blocks.some((block) => block.type === "tool_result");
       const timestamp = parseTimestamp(record.timestamp);
 
-      let leadingLifecycle: AgentTrajectoryEvidence[] = [];
+      let leadingLifecycle: AgentSessionEvidence[] = [];
       if (type === "user" && !isToolResultTurn) {
         leadingLifecycle = promptTurnLifecycle(getString(record, "promptId"));
       }
@@ -477,14 +477,14 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           ...trailingLifecycle,
         ];
         if (evidence.length > 0) {
-          event.trajectoryEvidence = evidence;
+          event.sessionEvidence = evidence;
         }
       } else if (type === "system") {
         const subtype = getString(record, "subtype");
         if (subtype === "turn_duration" && currentTurn) {
-          event.trajectoryEvidence = closeCurrentTurn(claudeTurnDurationMs(record));
+          event.sessionEvidence = closeCurrentTurn(claudeTurnDurationMs(record));
         } else if (subtype === "compact_boundary") {
-          event.trajectoryEvidence = [
+          event.sessionEvidence = [
             { kind: "compaction", ...(turnId === undefined ? {} : { turnId }) },
           ];
         }

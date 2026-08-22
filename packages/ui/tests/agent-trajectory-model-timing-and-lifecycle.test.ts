@@ -22,23 +22,21 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
       session([
         event("duplicate-completion-call", "record-duplicate-completion-call", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("shell", "duplicate-completion"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("shell", "duplicate-completion"), turnId: "turn" }],
         }),
         event("duplicate-completion-result", "record-duplicate-completion-result", 2, {
           turnIndex: 1,
-          trajectoryEvidence: [
-            { ...toolResult("completed", "duplicate-completion"), turnId: "turn" },
-          ],
+          sessionEvidence: [{ ...toolResult("completed", "duplicate-completion"), turnId: "turn" }],
         }),
         event("duplicate-completion-one", "record-duplicate-completion-one", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCompletion("completed", "duplicate-completion"), turnId: "turn" },
           ],
         }),
         event("duplicate-completion-two", "record-duplicate-completion-two", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCompletion("failed", "duplicate-completion"), turnId: "turn" },
           ],
         }),
@@ -70,58 +68,54 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("explicit-call", "record-explicit-call", 1, {
           timestamp: 100,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("explicit", "explicit"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("explicit", "explicit"), turnId: "turn" }],
         }),
         event("explicit-result", "record-explicit-result", 2, {
           timestamp: 300,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "explicit", 37), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "explicit", 37), turnId: "turn" }],
         }),
         event("missing-call", "record-missing-call", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("missing", "missing"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("missing", "missing"), turnId: "turn" }],
         }),
         event("missing-result", "record-missing-result", 4, {
           timestamp: 450,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "missing"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "missing"), turnId: "turn" }],
         }),
         event("reversed-call", "record-reversed-call", 5, {
           timestamp: 600,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("reversed", "reversed"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("reversed", "reversed"), turnId: "turn" }],
         }),
         event("reversed-result", "record-reversed-result", 6, {
           timestamp: 500,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "reversed"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "reversed"), turnId: "turn" }],
         }),
         event("explicit-reversed-call", "record-explicit-reversed-call", 7, {
           timestamp: 700,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("explicit reversed", "explicit-reversed"), turnId: "turn" },
           ],
         }),
         event("explicit-reversed-result", "record-explicit-reversed-result", 8, {
           timestamp: 650,
           turnIndex: 1,
-          trajectoryEvidence: [
-            { ...toolResult("completed", "explicit-reversed", 7), turnId: "turn" },
-          ],
+          sessionEvidence: [{ ...toolResult("completed", "explicit-reversed", 7), turnId: "turn" }],
         }),
         event("explicit-missing-call", "record-explicit-missing-call", 9, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("explicit missing", "explicit-missing"), turnId: "turn" },
           ],
         }),
         event("explicit-missing-result", "record-explicit-missing-result", 10, {
           timestamp: 720,
           turnIndex: 1,
-          trajectoryEvidence: [
-            { ...toolResult("completed", "explicit-missing", 7), turnId: "turn" },
-          ],
+          sessionEvidence: [{ ...toolResult("completed", "explicit-missing", 7), turnId: "turn" }],
         }),
       ]),
     );
@@ -176,56 +170,54 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("priority-call", "record-priority-call", 1, {
           timestamp: 100,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("priority", "priority"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCall("priority", "priority"), turnId: "turn" }],
         }),
         event("priority-result", "record-priority-result", 2, {
           timestamp: 200,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "priority", 11), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "priority", 11), turnId: "turn" }],
         }),
         event("priority-completion", "record-priority-completion", 3, {
           timestamp: 300,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCompletion("completed", "priority", 17), turnId: "turn" }],
+          sessionEvidence: [{ ...toolCompletion("completed", "priority", 17), turnId: "turn" }],
         }),
         event("missing-completion-call", "record-missing-completion-call", 4, {
           timestamp: 400,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("missing completion", "missing-completion"), turnId: "turn" },
           ],
         }),
         event("missing-completion-result", "record-missing-completion-result", 5, {
           timestamp: 500,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolResult("completed", "missing-completion", 13), turnId: "turn" },
           ],
         }),
         event("missing-completion", "record-missing-completion", 6, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCompletion("completed", "missing-completion"), turnId: "turn" },
           ],
         }),
         event("reversed-completion-call", "record-reversed-completion-call", 7, {
           timestamp: 700,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("reversed completion", "reversed-completion"), turnId: "turn" },
           ],
         }),
         event("reversed-completion-result", "record-reversed-completion-result", 8, {
           timestamp: 800,
           turnIndex: 1,
-          trajectoryEvidence: [
-            { ...toolResult("completed", "reversed-completion"), turnId: "turn" },
-          ],
+          sessionEvidence: [{ ...toolResult("completed", "reversed-completion"), turnId: "turn" }],
         }),
         event("reversed-completion", "record-reversed-completion", 9, {
           timestamp: 600,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCompletion("completed", "reversed-completion", 19), turnId: "turn" },
           ],
         }),
@@ -271,18 +263,18 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("fallback-duration-call", "record-fallback-duration-call", 1, {
           timestamp: 100,
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCall("fallback duration", "fallback-duration"), turnId: "turn" },
           ],
         }),
         event("fallback-duration-result", "record-fallback-duration-result", 2, {
           timestamp: 250,
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "fallback-duration"), turnId: "turn" }],
+          sessionEvidence: [{ ...toolResult("completed", "fallback-duration"), turnId: "turn" }],
         }),
         event("fallback-duration-completion", "record-fallback-duration-completion", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...toolCompletion("completed", "fallback-duration"), turnId: "turn" },
           ],
         }),
@@ -309,30 +301,30 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("reversed-start", "record-reversed-start", 1, {
           timestamp: 100,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("reversed-turn", "start")],
+          sessionEvidence: [lifecycle("reversed-turn", "start")],
         }),
         event("reversed-complete", "record-reversed-complete", 2, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("reversed-turn", "complete")],
+          sessionEvidence: [lifecycle("reversed-turn", "complete")],
         }),
         event("missing-start", "record-missing-start", 3, {
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("missing-turn", "start")],
+          sessionEvidence: [lifecycle("missing-turn", "start")],
         }),
         event("missing-complete", "record-missing-complete", 4, {
           timestamp: 40,
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("missing-turn", "complete")],
+          sessionEvidence: [lifecycle("missing-turn", "complete")],
         }),
         event("terminal-missing-start", "record-terminal-missing-start", 5, {
           timestamp: 50,
           turnIndex: 3,
-          trajectoryEvidence: [lifecycle("terminal-missing-turn", "start")],
+          sessionEvidence: [lifecycle("terminal-missing-turn", "start")],
         }),
         event("terminal-missing-complete", "record-terminal-missing-complete", 6, {
           turnIndex: 3,
-          trajectoryEvidence: [lifecycle("terminal-missing-turn", "complete")],
+          sessionEvidence: [lifecycle("terminal-missing-turn", "complete")],
         }),
       ]),
     );
@@ -400,31 +392,31 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("terminal-only", "record-terminal-only", 1, {
           timestamp: 50,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("terminal-only", "complete")],
+          sessionEvidence: [lifecycle("terminal-only", "complete")],
         }),
         event("observed-output", "record-observed-output", 2, {
           timestamp: 10,
           turnIndex: 2,
           conversationItems: [observed],
-          trajectoryEvidence: [{ ...modelOutput("assistant", observed.id), turnId: "observed" }],
+          sessionEvidence: [{ ...modelOutput("assistant", observed.id), turnId: "observed" }],
         }),
         event("observed-complete", "record-observed-complete", 3, {
           timestamp: 50,
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("observed", "complete")],
+          sessionEvidence: [lifecycle("observed", "complete")],
         }),
         event("reversed-observed-output", "record-reversed-observed-output", 4, {
           timestamp: 100,
           turnIndex: 3,
           conversationItems: [reversedObserved],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", reversedObserved.id), turnId: "reversed-observed" },
           ],
         }),
         event("reversed-observed-complete", "record-reversed-observed-complete", 5, {
           timestamp: 20,
           turnIndex: 3,
-          trajectoryEvidence: [lifecycle("reversed-observed", "complete")],
+          sessionEvidence: [lifecycle("reversed-observed", "complete")],
         }),
       ]),
     );
@@ -469,13 +461,13 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("late-observed-complete", "record-late-observed-complete", 1, {
           timestamp: 20,
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("late-observed-turn", "complete")],
+          sessionEvidence: [lifecycle("late-observed-turn", "complete")],
         }),
         event("late-observed", "record-late-observed", 2, {
           timestamp: 10,
           turnIndex: 1,
           conversationItems: [lateObserved],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", lateObserved.id), turnId: "late-observed-turn" },
           ],
         }),
@@ -483,7 +475,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           timestamp: 100,
           turnIndex: 2,
           conversationItems: [laterAssistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", laterAssistant.id), turnId: "earliest-turn" },
           ],
         }),
@@ -491,14 +483,14 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           timestamp: 10,
           turnIndex: 2,
           conversationItems: [earlierReasoning],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("reasoning", earlierReasoning.id), turnId: "earliest-turn" },
           ],
         }),
         event("earliest-complete", "record-earliest-complete", 5, {
           timestamp: 200,
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("earliest-turn", "complete")],
+          sessionEvidence: [lifecycle("earliest-turn", "complete")],
         }),
       ]),
     );
@@ -534,64 +526,64 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
       session([
         event("turn-start", "record-start", 1, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn-one", "start")],
+          sessionEvidence: [lifecycle("turn-one", "start")],
         }),
         event("initial", "record-initial", 2, {
           turnIndex: 1,
           conversationItems: [initial],
-          trajectoryEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "turn-one" }],
         }),
         event("first-call", "record-first-call", 3, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("first", "first"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolCall("first", "first"), turnId: "turn-one" }],
         }),
         event("first-result", "record-first-result", 4, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("failed", "first"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolResult("failed", "first"), turnId: "turn-one" }],
         }),
         event("second-call", "record-second-call", 5, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("second", "second"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolCall("second", "second"), turnId: "turn-one" }],
         }),
         event("second-result", "record-second-result", 6, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "second"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolResult("completed", "second"), turnId: "turn-one" }],
         }),
         event("user-after-result", "record-user-after-result", 7, {
           turnIndex: 1,
           conversationItems: [userAfterResult],
-          trajectoryEvidence: [{ ...modelOutput("user", userAfterResult.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("user", userAfterResult.id), turnId: "turn-one" }],
         }),
         event("recovered", "record-recovered", 8, {
           turnIndex: 1,
           conversationItems: [recovered],
-          trajectoryEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "turn-one" }],
         }),
         event("continued", "record-continued", 9, {
           turnIndex: 1,
           conversationItems: [continued],
-          trajectoryEvidence: [{ ...modelOutput("reasoning", continued.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("reasoning", continued.id), turnId: "turn-one" }],
         }),
         event("third-call", "record-third-call", 10, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolCall("third", "third"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolCall("third", "third"), turnId: "turn-one" }],
         }),
         event("third-result", "record-third-result", 11, {
           turnIndex: 1,
-          trajectoryEvidence: [{ ...toolResult("completed", "third"), turnId: "turn-one" }],
+          sessionEvidence: [{ ...toolResult("completed", "third"), turnId: "turn-one" }],
         }),
         event("turn-complete", "record-complete", 12, {
           turnIndex: 1,
-          trajectoryEvidence: [lifecycle("turn-one", "complete")],
+          sessionEvidence: [lifecycle("turn-one", "complete")],
         }),
         event("next-turn-start", "record-next-start", 13, {
           turnIndex: 2,
-          trajectoryEvidence: [lifecycle("turn-two", "start")],
+          sessionEvidence: [lifecycle("turn-two", "start")],
         }),
         event("next-turn-assistant", "record-next-assistant", 14, {
           turnIndex: 2,
           conversationItems: [nextTurnAssistant],
-          trajectoryEvidence: [
+          sessionEvidence: [
             { ...modelOutput("assistant", nextTurnAssistant.id), turnId: "turn-two" },
           ],
         }),

@@ -6,7 +6,7 @@ import type {
   AgentToolResultEvidence,
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
-  AgentTrajectoryEvidence,
+  AgentSessionEvidence,
   AgentTrajectoryItem,
   AgentTrajectoryItemBase,
   AgentTrajectoryModel,
@@ -21,17 +21,16 @@ import type {
   AgentTimelineEvent,
 } from "./types";
 import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity";
-import { resolveToolLifecycleStatus } from "./tool-lifecycle";
 import {
-  createToolCorrelationGroups,
-  forEachToolCorrelationGroup,
+  createAgentToolLifecycleIndex,
+  resolveToolLifecycleStatus,
+  type AgentToolLifecycleGroup,
+  type AgentToolLifecycleIndex,
+} from "./tool-lifecycle";
+import {
   hasRepeatedToolOccurrences,
-  syntheticTurnScope,
-  toolCorrelationGroupFor,
   toolCorrelationScope,
-  trajectoryTurnId,
   type ToolCorrelationGroup,
-  type TrajectoryTurnScope,
 } from "./tool-correlation";
 
 const tokenKeys = [
@@ -95,6 +94,18 @@ type ToolGroup = ToolCorrelationGroup<
   ToolResultOccurrence,
   ToolCompletionOccurrence
 >;
+
+type TrajectoryTurnScope =
+  | Exclude<ReturnType<typeof toolCorrelationScope>, { source: "anonymous" }>
+  | { readonly source: "synthetic-event"; readonly value: string };
+
+const syntheticTurnScope = (eventId: string): TrajectoryTurnScope => ({
+  source: "synthetic-event",
+  value: eventId,
+});
+
+const trajectoryTurnId = (scope: TrajectoryTurnScope) =>
+  JSON.stringify([scope.source, scope.value]);
 
 const toolOccurrenceFor = <
   TEvidence extends AgentToolCallEvidence | AgentToolResultEvidence | AgentToolCompletionEvidence,
@@ -455,7 +466,7 @@ const finalizeToolGroup = (group: ToolGroup, warnings: AgentTrajectoryWarning[])
   }
 };
 
-const conversationItemIdFor = (evidence: AgentTrajectoryEvidence) => {
+const conversationItemIdFor = (evidence: AgentSessionEvidence) => {
   if (evidence.kind === "model-output") {
     return evidence.conversationItemId;
   }
@@ -464,21 +475,18 @@ const conversationItemIdFor = (evidence: AgentTrajectoryEvidence) => {
     : undefined;
 };
 
-const terminalLifecycle = (evidence: AgentTrajectoryEvidence) =>
+const terminalLifecycle = (evidence: AgentSessionEvidence) =>
   evidence.kind === "turn-lifecycle" && evidence.phase !== "start";
 
 export const createAgentTrajectoryModelFromCanonicalSession = (
   session: CanonicalAgentSession,
+  toolLifecycle: AgentToolLifecycleIndex = createAgentToolLifecycleIndex(session),
 ): AgentTrajectoryModel => {
   const turns: TurnDraft[] = [];
   const explicitTurnById = new Map<string, TurnDraft>();
   const fallbackTurnByIndex = new Map<number, TurnDraft>();
   const syntheticTurnByEventId = new Map<string, TurnDraft>();
-  const toolGroups = createToolCorrelationGroups<
-    ToolCallOccurrence,
-    ToolResultOccurrence,
-    ToolCompletionOccurrence
-  >();
+  const toolGroups = new Map<AgentToolLifecycleGroup, ToolGroup>();
   const itemDrafts: ItemDraft[] = [];
   const warnings: AgentTrajectoryWarning[] = [];
   const lastModelItemByTurn = new Map<TurnDraft, ItemDraft>();
@@ -507,7 +515,7 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
 
   const resolveTurn = (
     event: AgentTimelineEvent,
-    evidence: AgentTrajectoryEvidence,
+    evidence: AgentSessionEvidence,
     selection: AgentCanonicalSelection,
   ) => {
     const turnIndex = finiteTurnIndex(event.turnIndex);
@@ -556,12 +564,10 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
     }
   };
 
-  for (const { event, conversationItemIds } of session.events) {
-    const evidenceList = event.trajectoryEvidence;
-    if (!evidenceList) {
-      continue;
-    }
-
+  for (const {
+    evidence: evidenceList,
+    canonicalEvent: { event, conversationItemIds },
+  } of toolLifecycle.evidenceEvents) {
     let evidenceIndex = 0;
     for (const evidence of evidenceList) {
       const conversationItemId = conversationItemIdFor(evidence);
@@ -627,8 +633,8 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
       } else if (evidence.kind === "tool-lifecycle") {
         const draft: ItemDraft = { turn, item: null };
         itemDrafts.push(draft);
-        const callId = nonEmptyString(evidence.callId);
-        if (!callId) {
+        const lifecycleGroup = toolLifecycle.groupByEvidence.get(evidence);
+        if (!lifecycleGroup) {
           if (evidence.phase === "call") {
             const occurrence = toolOccurrenceFor(evidence, itemId, selection, source, event, draft);
             draft.item = toolItemFor(occurrence, undefined, undefined, warnings);
@@ -649,8 +655,11 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
             }
           }
         } else {
-          const scope = toolCorrelationScope(evidence.turnId, finiteTurnIndex(event.turnIndex));
-          const group = toolCorrelationGroupFor(toolGroups, scope, callId);
+          let group = toolGroups.get(lifecycleGroup);
+          if (!group) {
+            group = { calls: [], results: [], completions: [] };
+            toolGroups.set(lifecycleGroup, group);
+          }
           if (evidence.phase === "call") {
             group.calls.push(toolOccurrenceFor(evidence, itemId, selection, source, event, draft));
           } else if (evidence.phase === "result") {
@@ -701,12 +710,16 @@ export const createAgentTrajectoryModelFromCanonicalSession = (
         };
         itemDrafts.push({ turn, item });
       }
-
       evidenceIndex += 1;
     }
   }
 
-  forEachToolCorrelationGroup(toolGroups, (group) => finalizeToolGroup(group, warnings));
+  for (const lifecycleGroup of toolLifecycle.groups) {
+    const group = toolGroups.get(lifecycleGroup);
+    if (group) {
+      finalizeToolGroup(group, warnings);
+    }
+  }
 
   const items: AgentTrajectoryItem[] = [];
   for (const draft of itemDrafts) {

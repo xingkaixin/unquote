@@ -41,11 +41,11 @@ export interface AgentTrajectoryTokenUsage {
 
 export type AgentTrajectoryStatus = "running" | "completed" | "failed" | "aborted";
 
-interface AgentTrajectoryEvidenceBase {
+interface AgentSessionEvidenceBase {
   turnId?: string;
 }
 
-export interface AgentTurnLifecycleEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentTurnLifecycleEvidence extends AgentSessionEvidenceBase {
   kind: "turn-lifecycle";
   phase: "start" | "complete" | "failed" | "aborted";
   // Boundary moment stated by the adapter when it differs from the carrying
@@ -55,13 +55,13 @@ export interface AgentTurnLifecycleEvidence extends AgentTrajectoryEvidenceBase 
   durationMs?: number;
 }
 
-export interface AgentModelOutputEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentModelOutputEvidence extends AgentSessionEvidenceBase {
   kind: "model-output";
   role: "user" | "assistant" | "reasoning" | "system";
   conversationItemId?: string;
 }
 
-export interface AgentToolCallEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentToolCallEvidence extends AgentSessionEvidenceBase {
   kind: "tool-lifecycle";
   phase: "call";
   toolName: string;
@@ -69,7 +69,7 @@ export interface AgentToolCallEvidence extends AgentTrajectoryEvidenceBase {
   conversationItemId?: string;
 }
 
-export interface AgentToolResultEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentToolResultEvidence extends AgentSessionEvidenceBase {
   kind: "tool-lifecycle";
   phase: "result";
   status?: "completed" | "failed";
@@ -78,7 +78,7 @@ export interface AgentToolResultEvidence extends AgentTrajectoryEvidenceBase {
   conversationItemId?: string;
 }
 
-export interface AgentToolCompletionEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentToolCompletionEvidence extends AgentSessionEvidenceBase {
   kind: "tool-lifecycle";
   phase: "completion";
   status?: "completed" | "failed";
@@ -91,7 +91,7 @@ export type AgentToolLifecycleEvidence =
   | AgentToolResultEvidence
   | AgentToolCompletionEvidence;
 
-interface AgentTokenUsageEvidenceBase extends AgentTrajectoryEvidenceBase {
+interface AgentTokenUsageEvidenceBase extends AgentSessionEvidenceBase {
   kind: "token-usage";
 }
 
@@ -105,16 +105,16 @@ export type AgentTokenUsageEvidence =
       cumulativeUsage: AgentTrajectoryTokenUsage;
     });
 
-export interface AgentSubagentActivityEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentSubagentActivityEvidence extends AgentSessionEvidenceBase {
   kind: "subagent-activity";
   status: AgentTrajectoryStatus;
 }
 
-export interface AgentCompactionEvidence extends AgentTrajectoryEvidenceBase {
+export interface AgentCompactionEvidence extends AgentSessionEvidenceBase {
   kind: "compaction";
 }
 
-export type AgentTrajectoryEvidence =
+export type AgentSessionEvidence =
   | AgentTurnLifecycleEvidence
   | AgentModelOutputEvidence
   | AgentToolLifecycleEvidence
@@ -150,7 +150,7 @@ export interface AgentTimelineEvent {
   timestamp?: number;
   turnIndex?: number;
   timestampLabel?: string;
-  trajectoryEvidence?: readonly AgentTrajectoryEvidence[];
+  sessionEvidence?: readonly AgentSessionEvidence[];
 }
 
 export interface AgentConversationItem {

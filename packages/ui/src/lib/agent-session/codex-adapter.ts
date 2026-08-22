@@ -7,7 +7,7 @@ import type {
   AgentModelOutputEvidence,
   AgentSessionAdapter,
   AgentTimelineEvent,
-  AgentTrajectoryEvidence,
+  AgentSessionEvidence,
 } from "./types";
 import {
   formatAgentBlockValue,
@@ -270,7 +270,7 @@ const codexTokenUsage = (usage: Record<string, unknown>) => {
 const codexTokenUsageEvidence = (
   payload: Record<string, unknown>,
   turnId: string | undefined,
-): AgentTrajectoryEvidence | undefined => {
+): AgentSessionEvidence | undefined => {
   const info = isRecord(payload.info) ? payload.info : undefined;
   const lastTokenUsage =
     info && isRecord(info.last_token_usage) ? info.last_token_usage : undefined;
@@ -376,7 +376,7 @@ const codexToolCompletionEvidence = (
   eventType: string,
   payload: Record<string, unknown>,
   turnId: string | undefined,
-): AgentTrajectoryEvidence | undefined => {
+): AgentSessionEvidence | undefined => {
   const callId = ownString(payload, "call_id");
   if (!callId) {
     return undefined;
@@ -397,7 +397,7 @@ const codexToolCompletionEvidence = (
 type CodexEvidenceProjector = (
   payload: Record<string, unknown>,
   turnId: string | undefined,
-) => AgentTrajectoryEvidence | undefined;
+) => AgentSessionEvidence | undefined;
 
 interface CodexEventRule {
   category: AgentEventCategory;
@@ -497,7 +497,7 @@ interface CodexEventProjection {
   label: string;
   preview: string;
   conversation?: CodexConversationProjection;
-  trajectoryEvidence?: AgentTrajectoryEvidence;
+  sessionEvidence?: AgentSessionEvidence;
 }
 
 const projectCodexResponseItem = (
@@ -511,13 +511,13 @@ const projectCodexResponseItem = (
       const block = item.text
         ? ({ type: "text", text: truncateBlockText(item.text) } satisfies AgentContentBlock)
         : undefined;
-      const trajectoryEvidence = item.evidenceRole
+      const sessionEvidence = item.evidenceRole
         ? ({
             kind: "model-output",
             role: item.evidenceRole,
             ...withTurnId(turnId),
             conversationItemId,
-          } satisfies AgentTrajectoryEvidence)
+          } satisfies AgentSessionEvidence)
         : undefined;
       return {
         category: codexMessageCategory(item.messageRole),
@@ -529,7 +529,7 @@ const projectCodexResponseItem = (
           role: item.conversationRole,
           ...(block === undefined ? {} : { block }),
         },
-        ...(trajectoryEvidence === undefined ? {} : { trajectoryEvidence }),
+        ...(sessionEvidence === undefined ? {} : { sessionEvidence }),
       };
     }
     case "reasoning": {
@@ -544,7 +544,7 @@ const projectCodexResponseItem = (
           role: "thinking",
           block: { type: "thinking", text: truncateBlockText(item.text) },
         },
-        trajectoryEvidence: {
+        sessionEvidence: {
           kind: "model-output",
           role: "reasoning",
           ...withTurnId(turnId),
@@ -562,7 +562,7 @@ const projectCodexResponseItem = (
           id: `conv-${lineNumber}-response-item`,
           role: "system",
         },
-        trajectoryEvidence: {
+        sessionEvidence: {
           kind: "subagent-activity",
           status: "completed",
           ...withTurnId(turnId),
@@ -582,7 +582,7 @@ const projectCodexResponseItem = (
         label: `tool_use ${item.toolName}`,
         preview: truncatePreview(item.text ?? ""),
         conversation: { id: conversationItemId, role: "tool_call", block },
-        trajectoryEvidence: {
+        sessionEvidence: {
           kind: "tool-lifecycle",
           phase: "call",
           toolName: item.toolName,
@@ -613,7 +613,7 @@ const projectCodexResponseItem = (
           role: "tool_result",
           ...(block === undefined ? {} : { block }),
         },
-        trajectoryEvidence: {
+        sessionEvidence: {
           kind: "tool-lifecycle",
           phase: "result",
           ...withTurnId(turnId),
@@ -660,7 +660,7 @@ const projectCodexEvent = (
   }
   if (envelopeType === "event_msg") {
     const kind = context.eventType ?? "event_msg";
-    const trajectoryEvidence = context.eventRule?.projectEvidence?.(payload, context.turnId);
+    const sessionEvidence = context.eventRule?.projectEvidence?.(payload, context.turnId);
     return {
       category: context.eventRule?.category ?? "unknown",
       kind,
@@ -668,7 +668,7 @@ const projectCodexEvent = (
       preview: truncatePreview(
         getString(payload, "message") ?? getString(payload, "turn_id") ?? "",
       ),
-      ...(trajectoryEvidence === undefined ? {} : { trajectoryEvidence }),
+      ...(sessionEvidence === undefined ? {} : { sessionEvidence }),
     };
   }
   if (envelopeType === "session_meta") {
@@ -695,7 +695,7 @@ const projectCodexEvent = (
     label: envelopeType,
     preview: "",
     ...(envelopeType === "compacted"
-      ? { trajectoryEvidence: { kind: "compaction", ...withTurnId(context.turnId) } }
+      ? { sessionEvidence: { kind: "compaction", ...withTurnId(context.turnId) } }
       : {}),
   };
 };
@@ -790,8 +790,8 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         });
       }
 
-      if (projection.trajectoryEvidence) {
-        event.trajectoryEvidence = [projection.trajectoryEvidence];
+      if (projection.sessionEvidence) {
+        event.sessionEvidence = [projection.sessionEvidence];
       }
 
       events.push(event);

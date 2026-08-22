@@ -81,12 +81,12 @@ describe("codexRolloutAdapter: supplemental-events", () => {
 
     const session = builder.finish([]);
 
-    expect(session.events[0]?.trajectoryEvidence).toBeUndefined();
+    expect(session.events[0]?.sessionEvidence).toBeUndefined();
     expect(session.events[1]?.conversationItems).toEqual([]);
-    expect(session.events[1]?.trajectoryEvidence).toEqual([
+    expect(session.events[1]?.sessionEvidence).toEqual([
       { kind: "model-output", role: "assistant", turnId: "turn-marker" },
     ]);
-    expect(session.events.slice(2).map((event) => event.trajectoryEvidence)).toEqual([
+    expect(session.events.slice(2).map((event) => event.sessionEvidence)).toEqual([
       undefined,
       [{ kind: "turn-lifecycle", phase: "aborted", turnId: "turn-marker" }],
       undefined,
@@ -102,7 +102,7 @@ describe("codexRolloutAdapter: supplemental-events", () => {
     expect(session.events[10]?.category).toBe("tool");
     expect(session.events[9]?.conversationItems[0]).not.toHaveProperty("block");
     for (const event of session.events) {
-      for (const evidence of event.trajectoryEvidence ?? []) {
+      for (const evidence of event.sessionEvidence ?? []) {
         for (const field of [
           "recordId",
           "lineNumber",
@@ -203,7 +203,7 @@ describe("codexRolloutAdapter: supplemental-events", () => {
 
     expect(session.events[4]).toMatchObject({
       turnIndex: 1,
-      trajectoryEvidence: [
+      sessionEvidence: [
         {
           kind: "token-usage",
           turnId: "turn-old",
@@ -214,11 +214,11 @@ describe("codexRolloutAdapter: supplemental-events", () => {
     });
     expect(session.events[5]).toMatchObject({
       turnIndex: 1,
-      trajectoryEvidence: [{ kind: "subagent-activity", status: "running", turnId: "turn-old" }],
+      sessionEvidence: [{ kind: "subagent-activity", status: "running", turnId: "turn-old" }],
     });
     expect(session.events[9]).toMatchObject({
       turnIndex: 1,
-      trajectoryEvidence: [{ kind: "turn-lifecycle", phase: "aborted", turnId: "turn-old" }],
+      sessionEvidence: [{ kind: "turn-lifecycle", phase: "aborted", turnId: "turn-old" }],
     });
 
     const trajectory = createAgentTrajectoryModel(session);
@@ -279,7 +279,7 @@ describe("codexRolloutAdapter: supplemental-events", () => {
       expect(model.resolveDetail(item.selection)).toMatchObject({ recordId: item.recordId });
     }
     for (const event of session.events) {
-      for (const evidence of event.trajectoryEvidence ?? []) {
+      for (const evidence of event.sessionEvidence ?? []) {
         for (const field of ["recordId", "lineNumber", "timestamp", "turnIndex", "body"]) {
           expect(evidence).not.toHaveProperty(field);
         }
