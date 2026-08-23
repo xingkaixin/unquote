@@ -5,6 +5,7 @@ import type {
   AgentCanonicalSelection,
   AgentTrajectoryStatus,
 } from "../lib/agent-session/session-types";
+import { agentSelectionKey } from "../lib/agent-session/identity";
 import type {
   AgentTrajectoryItem,
   AgentTrajectoryToolItem,
@@ -43,13 +44,6 @@ interface TokenUsageFact {
   readonly labelKey: MessageKey;
   readonly value: number;
 }
-
-const selectionIdentity = (selection: AgentCanonicalSelection) =>
-  JSON.stringify([
-    selection.kind,
-    selection.recordId,
-    selection.kind === "record" ? null : selection.id,
-  ]);
 
 const nonEmptyText = (value: string | undefined) => {
   const text = value?.trim();
@@ -106,9 +100,9 @@ const warningActionVisibility = (
   warningGroups: readonly AgentTrajectoryWarningGroup[],
   actions: readonly DetailAction[],
 ) => {
-  const displayedSelections = new Set(actions.map((action) => selectionIdentity(action.selection)));
+  const displayedSelections = new Set(actions.map((action) => agentSelectionKey(action.selection)));
   return warningGroups.map((group) => {
-    const identity = selectionIdentity(group.warning.selection);
+    const identity = agentSelectionKey(group.warning.selection);
     if (displayedSelections.has(identity)) {
       return false;
     }
