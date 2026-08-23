@@ -99,7 +99,6 @@ export interface ParserExecution {
   input: string;
   forcedFormat: "json" | "jsonl" | undefined;
   sourceFile: File | null;
-  hasLocalFile: boolean;
   reuseInitialResult: boolean;
   commit: (update: ParserStateUpdate) => void;
   onReadError: () => void;
@@ -123,7 +122,6 @@ export const createParserExecutor = (): ParserExecutor => {
       input,
       forcedFormat,
       sourceFile,
-      hasLocalFile,
       reuseInitialResult,
       commit,
       onReadError,
@@ -141,7 +139,7 @@ export const createParserExecutor = (): ParserExecutor => {
       };
       const reportUnparsedSource = (report: () => void) => {
         commit({
-          ...pendingParserSnapshot(sourceRevision, forcedFormat, hasLocalFile),
+          ...pendingParserSnapshot(sourceRevision, forcedFormat, sourceFile !== null),
           progress: idleParserProgress,
         });
         report();
@@ -322,7 +320,7 @@ export const createParserExecutor = (): ParserExecutor => {
       }
 
       if (!reuseInitialResult) {
-        commit(pendingParserSnapshot(sourceRevision, forcedFormat, hasLocalFile));
+        commit(pendingParserSnapshot(sourceRevision, forcedFormat, sourceFile !== null));
       }
       markPerf("parse:start");
       const timeoutId = window.setTimeout(
