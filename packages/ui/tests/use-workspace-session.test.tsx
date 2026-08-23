@@ -18,27 +18,29 @@ describe("useWorkspaceSession", () => {
 
     act(() => openAgentRecordFromRevisionZero(selection, "record-completion"));
 
-    expect(result.current.state.activeRecordId).toBe("record-completion");
-    expect(result.current.state.scrollIntent).toEqual({
+    expect(result.current.state.selection.activeRecordId).toBe("record-completion");
+    expect(result.current.state.selection.scrollIntent).toEqual({
       kind: "record",
       recordId: "record-completion",
     });
-    expect(result.current.state.detailSelection).toBe(selection);
+    expect(result.current.state.selection.detailSelection).toBe(selection);
 
     rerender({ sourceRevision: 1 });
 
     expect(result.current.state).toMatchObject({
       sourceRevision: 1,
-      activeRecordId: null,
-      detailSelection: null,
-      scrollIntent: null,
+      selection: {
+        activeRecordId: null,
+        detailSelection: null,
+        scrollIntent: null,
+      },
     });
 
     act(() => openAgentRecordFromRevisionZero(selection, "record-result"));
 
-    expect(result.current.state.activeRecordId).toBeNull();
-    expect(result.current.state.detailSelection).toBeNull();
-    expect(result.current.state.scrollIntent).toBeNull();
+    expect(result.current.state.selection.activeRecordId).toBeNull();
+    expect(result.current.state.selection.detailSelection).toBeNull();
+    expect(result.current.state.selection.scrollIntent).toBeNull();
   });
 
   it("invalidates selection and expansion when the Source Revision changes", () => {
@@ -55,16 +57,18 @@ describe("useWorkspaceSession", () => {
     });
 
     expect(result.current.state).toMatchObject({
-      activeRecordId: "record-2",
-      selectedPath: {
-        recordId: "record-2",
-        pathText: "$.payload.nested",
-        rawKey: "nested",
-      },
-      scrollIntent: {
-        kind: "path",
-        recordId: "record-2",
-        pathText: "$.payload.nested",
+      selection: {
+        activeRecordId: "record-2",
+        selectedPath: {
+          recordId: "record-2",
+          pathText: "$.payload.nested",
+          rawKey: "nested",
+        },
+        scrollIntent: {
+          kind: "path",
+          recordId: "record-2",
+          pathText: "$.payload.nested",
+        },
       },
     });
     expect(result.current.state.expandedPaths.get("record-2")).toEqual(new Set(["$.payload"]));
@@ -73,9 +77,11 @@ describe("useWorkspaceSession", () => {
 
     expect(result.current.state).toMatchObject({
       sourceRevision: 1,
-      activeRecordId: null,
-      selectedPath: null,
-      scrollIntent: null,
+      selection: {
+        activeRecordId: null,
+        selectedPath: null,
+        scrollIntent: null,
+      },
     });
     expect(result.current.state.expandedPaths).toEqual(new Map());
   });
@@ -94,7 +100,7 @@ describe("useWorkspaceSession", () => {
         pathText: "$.value",
       });
     });
-    expect(result.current.state.scrollIntent).toMatchObject({
+    expect(result.current.state.selection.scrollIntent).toMatchObject({
       recordId: "record-1",
       pathText: "$.value",
     });
@@ -116,7 +122,7 @@ describe("useWorkspaceSession", () => {
       });
     });
 
-    expect(result.current.state.scrollIntent).toBeNull();
+    expect(result.current.state.selection.scrollIntent).toBeNull();
 
     act(() => {
       result.current.navigate({
@@ -126,7 +132,7 @@ describe("useWorkspaceSession", () => {
         pathText: "$.current",
       });
     });
-    expect(result.current.state.scrollIntent).toMatchObject({
+    expect(result.current.state.selection.scrollIntent).toMatchObject({
       recordId: "record-4",
       pathText: "$.current",
     });

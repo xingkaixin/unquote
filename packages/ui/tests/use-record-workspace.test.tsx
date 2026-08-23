@@ -359,10 +359,10 @@ describe("useRecordWorkspace", () => {
     );
 
     act(() => workspace.current.query.intent.changeToolbarQuery("target"));
-    await waitFor(() => expect(workspace.current.expandedNestedCount).toBe(1));
+    await waitFor(() => expect(workspace.current.model.active.expandedNestedCount).toBe(1));
 
     act(() => workspace.current.model.intent.collapseAll());
-    expect(workspace.current.expandedNestedCount).toBe(0);
+    expect(workspace.current.model.active.expandedNestedCount).toBe(0);
 
     rerender({
       sourceRevision: 0,
@@ -371,12 +371,12 @@ describe("useRecordWorkspace", () => {
       result,
       recordAppend: null,
     });
-    expect(workspace.current.expandedNestedCount).toBe(0);
+    expect(workspace.current.model.active.expandedNestedCount).toBe(0);
 
     act(() => workspace.current.query.intent.changeToolbarQuery("missing"));
     await waitFor(() => expect(workspace.current.query.snapshot.searchStatus).toBe("complete"));
 
     act(() => workspace.current.query.intent.changeToolbarQuery("target"));
-    await waitFor(() => expect(workspace.current.expandedNestedCount).toBe(1));
+    await waitFor(() => expect(workspace.current.model.active.expandedNestedCount).toBe(1));
   });
 });

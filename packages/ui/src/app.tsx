@@ -211,7 +211,7 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.hasSelectedPath || activeOverlay === "command") {
+        if (!recordWorkspace.model.active.selectedPath || activeOverlay === "command") {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -221,7 +221,7 @@ export const UnquoteApp = ({
           return false;
         }
 
-        void recordWorkspace.copySelectedValue();
+        void recordWorkspace.model.intent.copySelectedValue();
       },
     },
   ]);
@@ -332,7 +332,7 @@ export const UnquoteApp = ({
         data-output-view={agentSession ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
-        data-expanded-nested={recordWorkspace.expandedNestedCount}
+        data-expanded-nested={recordWorkspace.model.active.expandedNestedCount}
       >
         <a
           href="#main-content"
@@ -380,7 +380,7 @@ export const UnquoteApp = ({
           failedCount={result.stats.failed}
           onSelectFailed={() => queryIntent.setFilter("errors")}
           maxDepth={fileOverview.structurePrecision === "exact" ? fileOverview.maxDepth : null}
-          expandedNestedCount={recordWorkspace.expandedNestedCount}
+          expandedNestedCount={recordWorkspace.model.active.expandedNestedCount}
           sourceStatus={sourceFileStatus}
           sourceBusy={sourceFileBusy}
           sourceProgress={operation.kind === "reading" ? operation.progress : null}

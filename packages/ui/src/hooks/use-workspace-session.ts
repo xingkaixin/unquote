@@ -243,12 +243,8 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     state: {
       sourceRevision,
       selection: workspaceState.selection,
-      activeRecordId: workspaceState.selection.activeRecordId,
-      detailSelection: workspaceState.selection.detailSelection,
       expandedPaths: workspaceState.expandedPaths,
       searchExpansionSuppressions: workspaceState.searchExpansionSuppressions,
-      selectedPath: workspaceState.selection.selectedPath,
-      scrollIntent: workspaceState.selection.scrollIntent,
     },
     navigate,
     selectPath,
