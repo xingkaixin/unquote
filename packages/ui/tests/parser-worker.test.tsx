@@ -99,9 +99,6 @@ describe("parser worker dispatch", () => {
       requestId: 1,
       stats: { total: 0, success: 0, failed: 0 },
       progress: {
-        processedLines: 0,
-        success: 0,
-        failed: 0,
         elapsedMs: expect.any(Number),
         done: true,
       },
@@ -392,7 +389,7 @@ describe("parser worker dispatch", () => {
       type: "error",
       requestId: 1,
       stats: { total: 0, success: 0, failed: 0 },
-      progress: { processedLines: 0, success: 0, failed: 0, elapsedMs: 0, done: true },
+      progress: { elapsedMs: 0, done: true },
     });
     vi.doUnmock("../src/lib/parse-text");
   });
@@ -420,7 +417,7 @@ describe("parser worker dispatch", () => {
         type: "error",
         requestId: 1,
         stats: { total: 1, success: 1, failed: 0 },
-        progress: expect.objectContaining({ processedLines: 1, done: true }),
+        progress: expect.objectContaining({ done: true }),
       }),
     );
     vi.doUnmock("../src/lib/jsonl-lines");

@@ -24,9 +24,6 @@ describe("parse text", () => {
       meta: { sessionId: "shared-parse" },
     });
     expect(parsed.progress).toEqual({
-      processedLines: 1,
-      success: 1,
-      failed: 0,
       elapsedMs: expect.any(Number),
       done: true,
     });

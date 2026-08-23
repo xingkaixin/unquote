@@ -13,8 +13,8 @@ import { zhCN } from "../src/i18n/zh-CN";
 const t = createTranslator(en);
 const zhT = createTranslator(zhCN);
 
-const doneProgress: ParseProgress = { done: true, processedLines: 3, elapsedMs: 12 };
-const pendingProgress: ParseProgress = { done: false, processedLines: 2, elapsedMs: 45.6 };
+const doneProgress: ParseProgress = { done: true, elapsedMs: 12 };
+const pendingProgress: ParseProgress = { done: false, elapsedMs: 45.6 };
 const stats = { total: 3, success: 2, failed: 1 };
 const visibleStats = { total: 3, success: 2, failed: 1 };
 
@@ -49,9 +49,9 @@ describe("progressLabel", () => {
     );
   });
 
-  it("appends rounded elapsed time and processed lines while parsing", () => {
+  it("appends rounded elapsed time and parsed record count while parsing", () => {
     expect(progressLabel(pendingProgress, "all", stats, visibleStats, t)).toBe(
-      "3 total · 2 ok · 1 err · 2 lines · 46 ms",
+      "3 total · 2 ok · 1 err · 3 lines · 46 ms",
     );
   });
 

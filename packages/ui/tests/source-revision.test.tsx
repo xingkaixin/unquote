@@ -141,9 +141,6 @@ const completeParser = (worker: ControlledWorker, requestId: number, text: strin
     result,
     agentSession: null,
     progress: {
-      processedLines: result.stats.total,
-      success: result.stats.success,
-      failed: result.stats.failed,
       elapsedMs: 1,
       done: true,
     },

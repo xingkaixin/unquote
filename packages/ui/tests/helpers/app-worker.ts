@@ -195,9 +195,6 @@ Object.assign(globalThis, {
               requestId: payload.requestId,
               stats: { total: 0, success: 0, failed: 0 },
               progress: {
-                processedLines: 0,
-                success: 0,
-                failed: 0,
                 elapsedMs: 1,
                 done: true,
               },

@@ -20,9 +20,6 @@ const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
 });
 
 export const idleParserProgress: ParserProgress = {
-  processedLines: 0,
-  success: 0,
-  failed: 0,
   elapsedMs: 0,
   done: true,
 };
@@ -37,9 +34,6 @@ export const parseInitialText = (
     result,
     agentSession: null,
     progress: {
-      processedLines: result.stats.total,
-      success: result.stats.success,
-      failed: result.stats.failed,
       elapsedMs: Number((performance.now() - startedAt).toFixed(2)),
       done: true,
     },

@@ -7,7 +7,7 @@ import type { SearchErrorKind, SearchStatus } from "./search-lifecycle";
 type Translator = ReturnType<typeof createTranslator>;
 type RecordFilter = QueryInteractionState["recordFilter"];
 
-export type ParseProgress = Pick<ParserProgress, "done" | "processedLines" | "elapsedMs">;
+export type ParseProgress = Pick<ParserProgress, "done" | "elapsedMs">;
 
 export const filterLabel = (filter: RecordFilter, t: Translator): string => {
   switch (filter) {
@@ -54,7 +54,7 @@ export const progressLabel = (
   return progress.done
     ? summary
     : `${summary} · ${t("stats.progress", {
-        processed: progress.processedLines,
+        processed: stats.total,
         elapsed: Math.round(progress.elapsedMs),
       })}`;
 };

@@ -236,7 +236,7 @@ export const UnquoteApp = ({
       ? t(progress.done ? "input.loadedFile" : "input.parsingFile", {
           name: sourceView.file.name,
           size: formatFileSize(sourceView.file.size),
-          processed: progress.processedLines,
+          processed: result.stats.total,
         })
       : undefined;
   const sourceFileBusy = Boolean(readingFile || (sourceView.file && !progress.done));
