@@ -29,6 +29,10 @@ export type ParserRequest =
 
 export type ParserWorkerResponse =
   | {
+      type: "agent-session-detected";
+      requestId: number;
+    }
+  | {
       type: "batch";
       requestId: number;
       records: JsonlRecord[];
@@ -72,13 +76,24 @@ interface JsonlSession {
 
 let jsonlSession: JsonlSession | null = null;
 
-const createJsonlSession = (compactForTransfer = false, fileName?: string): JsonlSession => ({
+const postAgentSessionDetected = (requestId: number) => {
+  self.postMessage({
+    type: "agent-session-detected",
+    requestId,
+  } satisfies ParserWorkerResponse);
+};
+
+const createJsonlSession = (
+  requestId: number,
+  compactForTransfer = false,
+  fileName?: string,
+): JsonlSession => ({
   startedAt: performance.now(),
   buffer: "",
   lineNumber: 1,
   batch: [],
   compactForTransfer,
-  ingestion: createJsonlIngestion(fileName),
+  ingestion: createJsonlIngestion(fileName, () => postAgentSessionDetected(requestId)),
 });
 
 const statsFromSession = (session: JsonlSession) => session.ingestion.stats();
@@ -166,7 +181,10 @@ const parseJson = ({
   input,
   forcedFormat,
 }: Extract<ParserRequest, { type: "parse" }>) => {
-  const { result, agentSession, progress } = parseText(input, { forcedFormat });
+  const { result, agentSession, progress } = parseText(input, {
+    forcedFormat,
+    onAgentSessionDetected: () => postAgentSessionDetected(requestId),
+  });
   self.postMessage({
     type: "complete-result",
     requestId,
@@ -222,13 +240,13 @@ const handleRequest = (message: ParserRequest) => {
 
   if (message.type === "start-jsonl") {
     latestRequestId = message.requestId;
-    jsonlSession = createJsonlSession();
+    jsonlSession = createJsonlSession(message.requestId);
     return;
   }
 
   if (message.type === "file-jsonl") {
     latestRequestId = message.requestId;
-    jsonlSession = createJsonlSession(true, message.file.name);
+    jsonlSession = createJsonlSession(message.requestId, true, message.file.name);
     void parseJsonlFile(message.requestId, message.file, jsonlSession);
     return;
   }

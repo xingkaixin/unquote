@@ -24,6 +24,7 @@ export interface ParsedText {
 interface ParseTextOptions {
   forcedFormat?: ForcedFormat | undefined;
   fileName?: string | undefined;
+  onAgentSessionDetected?: (() => void) | undefined;
 }
 
 export const parseText = (input: string, options: ParseTextOptions = {}): ParsedText => {
@@ -38,7 +39,7 @@ export const parseText = (input: string, options: ParseTextOptions = {}): Parsed
     result = parsed.result;
     agentSession = null;
   } else {
-    const ingestion = createJsonlIngestion(options.fileName);
+    const ingestion = createJsonlIngestion(options.fileName, options.onAgentSessionDetected);
     result = {
       format: "jsonl",
       records: parsed.lines.map(ingestion.push),

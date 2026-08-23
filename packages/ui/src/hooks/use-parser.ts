@@ -75,15 +75,26 @@ const pendingSnapshot = (
   recordAppend: null,
 });
 
-const parseFileOnMainThread = async (file: File): Promise<ParsedText> => {
+const parseFileOnMainThread = async (
+  file: File,
+  onAgentSessionDetected: () => void,
+): Promise<ParsedText> => {
   const text = await file.text();
   const { parseText } = await import("../lib/parse-text");
-  return parseText(text, { forcedFormat: "jsonl", fileName: file.name });
+  return parseText(text, {
+    forcedFormat: "jsonl",
+    fileName: file.name,
+    onAgentSessionDetected,
+  });
 };
 
-const parseTextOnMainThread = async (input: string, forcedFormat: "json" | "jsonl" | undefined) => {
+const parseTextOnMainThread = async (
+  input: string,
+  forcedFormat: "json" | "jsonl" | undefined,
+  onAgentSessionDetected: () => void,
+) => {
   const { parseText } = await import("../lib/parse-text");
-  return parseText(input, { forcedFormat });
+  return parseText(input, { forcedFormat, onAgentSessionDetected });
 };
 
 const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
@@ -99,9 +110,10 @@ const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
 
 export interface UseParserOptions {
   source: PublishedSourceRevision;
+  onAgentSessionDetected?: (() => void) | undefined;
 }
 
-export const useParser = ({ source }: UseParserOptions) => {
+export const useParser = ({ source, onAgentSessionDetected }: UseParserOptions) => {
   const { text: input, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
   const { t } = useTranslation();
   const [mountParse] = useState(() => {
@@ -139,6 +151,9 @@ export const useParser = ({ source }: UseParserOptions) => {
   });
   const reportInputTooLarge = useEffectEvent(() => {
     toast.error(t("input.tooLargeWithoutWorker"));
+  });
+  const reportAgentSessionDetected = useEffectEvent(() => {
+    onAgentSessionDetected?.();
   });
 
   useEffect(() => {
@@ -204,7 +219,7 @@ export const useParser = ({ source }: UseParserOptions) => {
           return;
         }
 
-        void parseFileOnMainThread(sourceFile)
+        void parseFileOnMainThread(sourceFile, reportAgentSessionDetected)
           .then((parsed) => {
             if (run.finish()) {
               applyParsedText(parsed);
@@ -230,7 +245,7 @@ export const useParser = ({ source }: UseParserOptions) => {
         return;
       }
 
-      void parseTextOnMainThread(input, forcedFormat)
+      void parseTextOnMainThread(input, forcedFormat, reportAgentSessionDetected)
         .then((parsed) => {
           if (run.finish()) {
             if (reusingMountParse) {
@@ -313,6 +328,11 @@ export const useParser = ({ source }: UseParserOptions) => {
     const onMessage = (event: MessageEvent<ParserWorkerResponse>) => {
       const message = event.data;
       if (message.requestId !== workerRun.requestId) {
+        return;
+      }
+
+      if (message.type === "agent-session-detected") {
+        reportAgentSessionDetected();
         return;
       }
 

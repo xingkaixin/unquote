@@ -205,9 +205,16 @@ interface ProbeProps {
   forcedFormat?: "json" | "jsonl";
   sourceFile?: File;
   revision?: number;
+  onAgentSessionDetected?: (() => void) | undefined;
 }
 
-const ParserProbe = ({ input, forcedFormat, sourceFile, revision = 0 }: ProbeProps) => {
+const ParserProbe = ({
+  input,
+  forcedFormat,
+  sourceFile,
+  revision = 0,
+  onAgentSessionDetected,
+}: ProbeProps) => {
   const source = useMemo(
     () =>
       sourceFile
@@ -215,7 +222,7 @@ const ParserProbe = ({ input, forcedFormat, sourceFile, revision = 0 }: ProbePro
         : createTextSourceRevision(revision, input, forcedFormat ?? "auto"),
     [forcedFormat, input, revision, sourceFile],
   );
-  const { result, progress, agentSession } = useParser({ source });
+  const { result, progress, agentSession } = useParser({ source, onAgentSessionDetected });
   return (
     <div>
       <div data-testid="records">{result.records.map((record) => record.summary).join(",")}</div>
@@ -256,6 +263,26 @@ describe("useParser", () => {
     cleanup();
     vi.useRealTimers();
     Reflect.deleteProperty(globalThis, "Worker");
+  });
+
+  it("reports Agent detection before the worker finishes parsing", async () => {
+    const onAgentSessionDetected = vi.fn();
+    renderAfterMount({
+      input: "stalled",
+      forcedFormat: "json",
+      onAgentSessionDetected,
+    });
+    await act(() => vi.advanceTimersByTimeAsync(121));
+
+    act(() => {
+      MockWorker.instances[0]!.respond({
+        type: "agent-session-detected",
+        requestId: 1,
+      });
+    });
+
+    expect(onAgentSessionDetected).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("progress")).toHaveTextContent("pending");
   });
 
   it("terminates a busy worker and publishes only the replacement source", async () => {
