@@ -165,10 +165,31 @@ describe("useQueryInteraction", () => {
       }),
     });
     const firstRequestId = query.current.navigation!.requestId;
+    const searchExpansionRevision = query.current.searchExpansionRevision;
+    expect(searchExpansionRevision).toBe(0);
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
     expect(query.current.navigation!.requestId).toBeGreaterThan(firstRequestId);
     expect(query.current.navigation?.target.kind).toBe("path");
+    expect(query.current.searchExpansionRevision).toBe(searchExpansionRevision);
+  });
+
+  it("versions navigation requests independently from search expansion", async () => {
+    const { result: query } = renderQuery();
+
+    act(() => query.current.intent.setFilter("message"));
+    expect(query.current.navigation?.requestId).toBe(1);
+    expect(query.current.searchExpansionRevision).toBe(0);
+
+    act(() => query.current.intent.searchFromCommand("needle"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
+    const firstSearchRevision = query.current.searchExpansionRevision;
+
+    act(() => query.current.intent.changeCommandInput("unrelated"));
+    expect(query.current.searchExpansionRevision).toBe(firstSearchRevision);
+
+    act(() => query.current.intent.nextResult());
+    expect(query.current.searchExpansionRevision).toBe(firstSearchRevision + 1);
   });
 
   it("stores lightweight path matches and resolves only the active navigation target", () => {
