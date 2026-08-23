@@ -69,42 +69,23 @@ const extractCodexReasoningText = (payload: Record<string, unknown>) => {
 const shortCallId = (callId: string | undefined) =>
   callId ? truncateAtCodePointBoundary(callId, 12) : callId;
 
-const codexMessageRole = (role: string | undefined): AgentConversationRole => {
+interface NormalizedCodexMessageRole {
+  conversationRole: AgentConversationRole;
+  category: AgentEventCategory;
+  evidenceRole: AgentModelOutputEvidence["role"] | undefined;
+}
+
+const normalizeCodexMessageRole = (role: string | undefined): NormalizedCodexMessageRole => {
   if (role === "developer" || role === "system") {
-    return "system";
+    return { conversationRole: "system", category: "system", evidenceRole: "system" };
   }
   if (role === "user") {
-    return "user";
+    return { conversationRole: "user", category: "user", evidenceRole: "user" };
   }
   if (role === "assistant") {
-    return "assistant";
+    return { conversationRole: "assistant", category: "assistant", evidenceRole: "assistant" };
   }
-  return "system";
-};
-
-const codexMessageCategory = (role: string | undefined): AgentEventCategory => {
-  if (role === "developer" || role === "system") {
-    return "system";
-  }
-  if (role === "user") {
-    return "user";
-  }
-  if (role === "assistant") {
-    return "assistant";
-  }
-  return "unknown";
-};
-
-const codexModelOutputRole = (
-  role: string | undefined,
-): AgentModelOutputEvidence["role"] | undefined => {
-  if (role === "developer" || role === "system") {
-    return "system";
-  }
-  if (role === "user" || role === "assistant") {
-    return role;
-  }
-  return undefined;
+  return { conversationRole: "system", category: "unknown", evidenceRole: undefined };
 };
 
 const codexResponseItemType = (payload: Record<string, unknown>) =>
@@ -116,6 +97,7 @@ type NormalizedCodexResponseItem =
       itemType: "message";
       messageRole: string | undefined;
       conversationRole: AgentConversationRole;
+      category: AgentEventCategory;
       evidenceRole: AgentModelOutputEvidence["role"] | undefined;
       text: string;
     }
@@ -181,12 +163,12 @@ const normalizeCodexResponseItem = (
   const itemType = codexResponseItemType(payload);
   if (itemType === "message") {
     const messageRole = getString(payload, "role");
+    const normalizedRole = normalizeCodexMessageRole(messageRole);
     return {
       type: "message",
       itemType,
       messageRole,
-      conversationRole: codexMessageRole(messageRole),
-      evidenceRole: codexModelOutputRole(messageRole),
+      ...normalizedRole,
       text: extractCodexMessageText(payload.content),
     };
   }
@@ -519,7 +501,7 @@ const projectCodexResponseItem = (
           } satisfies AgentSessionEvidence)
         : undefined;
       return {
-        category: codexMessageCategory(item.messageRole),
+        category: item.category,
         kind: item.itemType,
         label: item.messageRole ?? item.itemType,
         preview: truncatePreview(item.text),
