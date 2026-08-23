@@ -145,14 +145,23 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
       "tool_result",
     ]);
     expect(items[1]?.block).toEqual({ type: "text", text: "More context" });
-    expect(items[2]?.block).toMatchObject({ type: "tool_result", status: "completed" });
+    expect(items[2]?.block).toEqual({ type: "tool_result", text: '{\n  "ok": true\n}' });
     expect(items[3]).not.toHaveProperty("block");
     expect(items[4]?.block).toMatchObject({
       type: "tool_result",
-      status: "failed",
-      toolCallId: "toolu_12345😀tail",
     });
-    expect(items[5]?.block).toEqual({ type: "tool_result", text: "", status: "completed" });
+    expect(items[5]?.block).toEqual({ type: "tool_result", text: "" });
+    expect(session.events[2]?.sessionEvidence).toContainEqual(
+      expect.objectContaining({ kind: "tool-lifecycle", phase: "result", status: "completed" }),
+    );
+    expect(session.events[5]?.sessionEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "tool-lifecycle",
+        phase: "result",
+        status: "failed",
+        callId: "toolu_12345😀tail",
+      }),
+    );
     expect(session.events[2]?.label).toBe("tool_result (2 blocks)");
     expect(session.events[5]?.label).toBe("tool_result toolu_12345");
   });
@@ -254,9 +263,15 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     ]);
     expect(items[5]?.block).toMatchObject({
       type: "tool_use",
-      toolName: "Bash",
       text: "{}",
     });
+    expect(session.events[5]?.sessionEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "tool-lifecycle",
+        phase: "call",
+        toolName: "Bash",
+      }),
+    );
   });
 
   it("normalizes each event's content exactly once", () => {

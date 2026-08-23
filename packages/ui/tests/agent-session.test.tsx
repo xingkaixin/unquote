@@ -272,14 +272,14 @@ describe("agent session", () => {
     ]);
     expect(items[2]?.block).toMatchObject({
       type: "tool_use",
-      toolName: "exec_command",
-      toolCallId: callId,
     });
     expect(items[3]?.block).toMatchObject({
       type: "tool_result",
-      toolCallId: callId,
-      status: "completed",
     });
+    const model = createAgentSessionModel(session!);
+    expect(model.resolveToolName(items[2]!)).toBe("exec_command");
+    expect(model.resolveToolStatus(items[2]!)).toBe("completed");
+    expect(model.resolveToolStatus(items[3]!)).toBe("completed");
   });
 
   it("detects Claude Code logs with leading metadata events", () => {
@@ -395,15 +395,16 @@ describe("agent session", () => {
     const toolResult = items.find((item) => item.role === "tool_result");
     expect(toolCall?.block).toMatchObject({
       type: "tool_use",
-      toolName: "Bash",
-      toolCallId: "toolu_123",
     });
     expect(toolResult?.block).toMatchObject({
       type: "tool_result",
-      toolCallId: "toolu_123",
-      status: "completed",
       text: "file.txt",
     });
+    const model = createAgentSessionModel(session!);
+    expect(model.resolveToolName(toolCall!)).toBe("Bash");
+    expect(model.resolveToolName(toolResult!)).toBe("Bash");
+    expect(model.resolveToolStatus(toolCall!)).toBe("completed");
+    expect(model.resolveToolStatus(toolResult!)).toBe("completed");
   });
 
   it("maps each Claude parallel tool_result to its own tool_use", () => {
@@ -450,22 +451,28 @@ describe("agent session", () => {
     );
 
     const model = createAgentSessionModel(session!);
-    expect(
-      model.conversation
-        .filter(({ item }) => item.block?.type === "tool_use")
-        .map(({ item }) => item.block),
-    ).toMatchObject([{ toolCallId: "toolu_alpha" }, { toolCallId: "toolu_beta" }]);
+    const calls = model.conversation.filter(({ item }) => item.block?.type === "tool_use");
+    expect(calls.map(({ item }) => model.resolveToolName(item))).toEqual(["Read", "Read"]);
+    expect(calls.map(({ item }) => model.resolveToolStatus(item))).toEqual(["completed", "failed"]);
 
     const results = model.conversation.filter(({ item }) => item.block?.type === "tool_result");
     expect(results.map(({ item }) => item.block)).toEqual([
       {
         type: "tool_result",
         text: "alpha output",
-        status: "completed",
-        toolCallId: "toolu_alpha",
       },
-      { type: "tool_result", text: "beta failed", status: "failed", toolCallId: "toolu_beta" },
-      { type: "tool_result", text: "unattributed output", status: "completed" },
+      { type: "tool_result", text: "beta failed" },
+      { type: "tool_result", text: "unattributed output" },
+    ]);
+    expect(results.map(({ item }) => model.resolveToolStatus(item))).toEqual([
+      "completed",
+      "failed",
+      "completed",
+    ]);
+    expect(results.map(({ item }) => model.resolveToolName(item))).toEqual([
+      "Read",
+      "Read",
+      undefined,
     ]);
 
     // The interleaved user text stays its own item instead of being folded

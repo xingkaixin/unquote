@@ -32,12 +32,22 @@ const claudeMetaTypes = new Set([
   "pr-link",
 ]);
 
+type ClaudeContentBlock =
+  | Extract<AgentContentBlock, { type: "text" | "thinking" }>
+  | { type: "tool_use"; text: string; toolName: string; callId: string }
+  | {
+      type: "tool_result";
+      text: string;
+      status: "completed" | "failed";
+      callId?: string;
+    };
+
 /**
  * The single normalization pass for a record's message content. The label,
  * preview, category, and conversation items are all derived from this result,
  * so the raw record is never re-read per consumer.
  */
-const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentContentBlock[] => {
+const extractClaudeContentBlocks = (record: Record<string, unknown>): ClaudeContentBlock[] => {
   if (!isRecord(record.message)) {
     return [];
   }
@@ -50,7 +60,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
     return [];
   }
 
-  const blocks: AgentContentBlock[] = [];
+  const blocks: ClaudeContentBlock[] = [];
   for (const part of content) {
     if (!isRecord(part)) {
       continue;
@@ -69,7 +79,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         type: "tool_use",
         text: formatAgentBlockValue(part.input ?? {}),
         toolName: part.name,
-        toolCallId: part.id,
+        callId: part.id,
       });
     } else if (part.type === "tool_result") {
       // Parallel tool calls answer with one tool_result block per call, so each
@@ -78,7 +88,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
         type: "tool_result",
         text: formatAgentBlockValue(part.content),
         status: part.is_error === true ? "failed" : "completed",
-        ...(typeof part.tool_use_id === "string" ? { toolCallId: part.tool_use_id } : {}),
+        ...(typeof part.tool_use_id === "string" ? { callId: part.tool_use_id } : {}),
       });
     }
   }
@@ -86,7 +96,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): AgentConte
 };
 
 const claudeBlockRole = (
-  block: AgentContentBlock,
+  block: ClaudeContentBlock,
   textRole: AgentConversationRole,
 ): AgentConversationRole => {
   switch (block.type) {
@@ -101,22 +111,22 @@ const claudeBlockRole = (
   }
 };
 
-const claudeBlockLabel = (block: AgentContentBlock) => {
+const claudeBlockLabel = (block: ClaudeContentBlock) => {
   switch (block.type) {
     case "tool_use":
       return `tool_use ${block.toolName}`;
     case "thinking":
       return "thinking";
     case "tool_result":
-      return block.toolCallId
-        ? `tool_result ${truncateAtCodePointBoundary(block.toolCallId, 12)}`
+      return block.callId
+        ? `tool_result ${truncateAtCodePointBoundary(block.callId, 12)}`
         : "tool_result";
     case "text":
       return "text";
   }
 };
 
-const claudeBlocksLabel = (blocks: AgentContentBlock[], fallback: string) => {
+const claudeBlocksLabel = (blocks: ClaudeContentBlock[], fallback: string) => {
   if (blocks.length === 1) {
     return claudeBlockLabel(blocks[0]!);
   }
@@ -125,7 +135,7 @@ const claudeBlocksLabel = (blocks: AgentContentBlock[], fallback: string) => {
 
 const attachBlockItems = (
   event: AgentTimelineEvent,
-  blocks: AgentContentBlock[],
+  blocks: ClaudeContentBlock[],
   turnIndex: number | undefined,
   textRole: AgentConversationRole,
 ) => {
@@ -149,14 +159,14 @@ const attachBlockItems = (
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
       role: claudeBlockRole(block, textRole),
       ...(turnIndex === undefined ? {} : { turnIndex }),
-      block,
+      block: { type: block.type, text: block.text },
     });
   });
 
   return items;
 };
 
-const claudeBlockPreview = (block: AgentContentBlock) => {
+const claudeBlockPreview = (block: ClaudeContentBlock) => {
   if (block.type === "tool_use") {
     return truncatePreview(`${block.toolName}: ${block.text}`);
   }
@@ -176,7 +186,7 @@ const claudeCategory = (type: string, isToolResultTurn: boolean): AgentEventCate
   return "unknown";
 };
 
-const claudeLabel = (type: string, blocks: AgentContentBlock[], isToolResultTurn: boolean) => {
+const claudeLabel = (type: string, blocks: ClaudeContentBlock[], isToolResultTurn: boolean) => {
   if (type === "user") {
     return isToolResultTurn ? claudeBlocksLabel(blocks, "tool_result") : "user";
   }
@@ -191,7 +201,7 @@ const claudeLabel = (type: string, blocks: AgentContentBlock[], isToolResultTurn
 const claudePreview = (
   type: string,
   record: Record<string, unknown>,
-  blocks: AgentContentBlock[],
+  blocks: ClaudeContentBlock[],
 ) => {
   if (type === "user") {
     return truncatePreview(
@@ -248,6 +258,7 @@ const parseClaudeUsage = (
 };
 
 const claudeBlockEvidence = (
+  blocks: ClaudeContentBlock[],
   items: AgentConversationItem[],
   turnId: string | undefined,
   usage: AgentTrajectoryTokenUsage | undefined,
@@ -255,8 +266,8 @@ const claudeBlockEvidence = (
   const evidence: AgentSessionEvidence[] = [];
   const turn = turnId ? { turnId } : {};
 
-  for (const item of items) {
-    const block = item.block;
+  for (const [index, item] of items.entries()) {
+    const block = blocks[index];
     if (!block || block.type === "text") {
       const role =
         item.role === "user" ? "user" : item.role === "assistant" ? "assistant" : undefined;
@@ -287,7 +298,7 @@ const claudeBlockEvidence = (
         phase: "call",
         toolName: block.toolName,
         conversationItemId: item.id,
-        ...(block.toolCallId ? { callId: block.toolCallId } : {}),
+        callId: block.callId,
         ...turn,
       });
       continue;
@@ -298,7 +309,7 @@ const claudeBlockEvidence = (
       phase: "result",
       status: block.status,
       conversationItemId: item.id,
-      ...(block.toolCallId ? { callId: block.toolCallId } : {}),
+      ...(block.callId ? { callId: block.callId } : {}),
       ...turn,
     });
   }
@@ -472,7 +483,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           type === "assistant" && stopReason === "end_turn" ? closeCurrentTurn() : [];
         const evidence = [
           ...leadingLifecycle,
-          ...claudeBlockEvidence(items, turnId, trajectoryUsage),
+          ...claudeBlockEvidence(blocks, items, turnId, trajectoryUsage),
           ...trailingLifecycle,
         ];
         if (evidence.length > 0) {

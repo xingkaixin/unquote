@@ -42,7 +42,37 @@ const modelFor = (entries: AgentConversationEntry[]) => {
   const session: AgentSession = {
     fileType: "Codex",
     meta: { turnCount: 1 },
-    events: entries.map(({ item, event }) => ({ ...event, conversationItems: [item] })),
+    events: entries.map(({ item, event }) => ({
+      ...event,
+      conversationItems: [item],
+      ...(item.block?.type === "tool_use"
+        ? {
+            sessionEvidence: [
+              {
+                kind: "tool-lifecycle" as const,
+                phase: "call" as const,
+                toolName: "shell",
+                callId: "call-1",
+                conversationItemId: item.id,
+              },
+            ],
+          }
+        : item.block?.type === "tool_result"
+          ? {
+              sessionEvidence: [
+                {
+                  kind: "tool-lifecycle" as const,
+                  phase: "result" as const,
+                  status: item.block.text.includes("total 0")
+                    ? ("failed" as const)
+                    : ("completed" as const),
+                  callId: "call-1",
+                  conversationItemId: item.id,
+                },
+              ],
+            }
+          : {}),
+    })),
     parseWarnings: [],
     parseWarningCount: 0,
   };
@@ -154,7 +184,7 @@ describe("AgentConversationPane", () => {
   it("opens the underlying record from every turn header", () => {
     const entries = [
       buildEntry(0, { type: "text", text: "Plain response" }),
-      buildEntry(1, { type: "tool_result", text: '{"ok":true}', status: "completed" }),
+      buildEntry(1, { type: "tool_result", text: '{"ok":true}' }),
     ];
     const { onOpenRecord } = renderPane(entries);
 
@@ -171,8 +201,6 @@ describe("AgentConversationPane", () => {
       buildEntry(1, {
         type: "tool_use",
         text: '{"cmd":"ls -la"}',
-        toolName: "shell",
-        toolCallId: "call-1",
       }),
     ];
     renderPane(entries);
@@ -189,8 +217,6 @@ describe("AgentConversationPane", () => {
       buildEntry(1, {
         type: "tool_use",
         text: '{"cmd":"ls -la","timeout":30}',
-        toolName: "shell",
-        toolCallId: "call-1",
       }),
     ];
     renderPane(entries, { selectedConversationId: "item-1" });
@@ -207,8 +233,6 @@ describe("AgentConversationPane", () => {
       buildEntry(1, {
         type: "tool_use",
         text: `{"payload":${nestedValue}}`,
-        toolName: "deep",
-        toolCallId: "call-1",
       }),
     ];
 
@@ -223,8 +247,6 @@ describe("AgentConversationPane", () => {
       buildEntry(1, {
         type: "tool_result",
         text: "total 0\ndrwxr-xr-x  3 user",
-        status: "failed",
-        toolCallId: "call-1",
       }),
     ];
     renderPane(entries, { selectedConversationId: "item-1" });
@@ -238,14 +260,10 @@ describe("AgentConversationPane", () => {
       buildEntry(0, {
         type: "tool_use",
         text: "{}",
-        toolName: "shell",
-        toolCallId: "call-1",
       }),
       buildEntry(1, {
         type: "tool_result",
         text: "done",
-        status: "completed",
-        toolCallId: "call-1",
       }),
     ];
     renderPane(entries);

@@ -67,17 +67,14 @@ describe("codexRolloutAdapter: response-items", () => {
     // parsing it into a resident object.
     expect(items[5]?.block).toMatchObject({
       type: "tool_use",
-      toolName: "tool",
       text: "{}",
     });
     expect(items[6]?.block).toMatchObject({
       type: "tool_use",
-      toolCallId: "short-id",
       text: "not json",
     });
     expect(items[7]?.block).toMatchObject({
       type: "tool_use",
-      toolName: "scalar_tool",
       text: "42",
     });
     expect(session.events[8]?.label).toBe("tool_result call_123456");
@@ -87,9 +84,14 @@ describe("codexRolloutAdapter: response-items", () => {
       "tool_result",
     ]);
     expect(
-      items
+      session.events
         .slice(8, 11)
-        .map((item) => (item.block?.type === "tool_result" ? item.block.status : undefined)),
+        .map((event) => event?.sessionEvidence?.[0])
+        .map((evidence) =>
+          evidence?.kind === "tool-lifecycle" && evidence.phase === "result"
+            ? evidence.status
+            : undefined,
+        ),
     ).toEqual(["completed", "failed", "failed"]);
     expect(items[11]).not.toHaveProperty("block");
   });
@@ -200,15 +202,13 @@ describe("codexRolloutAdapter: response-items", () => {
     expect(evidence).not.toHaveProperty("output");
     expect(model.resolveToolStatus(call!)).toBe(expected);
     expect(model.resolveToolStatus(result!)).toBe(expected);
-    if (result?.block?.type === "tool_result") {
-      expect(evidence).toMatchObject({ status: result.block.status });
-    } else {
+    if (result?.block?.type !== "tool_result") {
       expect(evidence).not.toHaveProperty("status");
     }
     if (expected === "pending") {
       expect(result?.block).toBeUndefined();
     } else {
-      expect(result?.block).toMatchObject({ type: "tool_result", status: expected });
+      expect(result?.block).toMatchObject({ type: "tool_result" });
     }
   });
 
@@ -332,9 +332,15 @@ describe("codexRolloutAdapter: response-items", () => {
     expect(parse).not.toHaveBeenCalled();
     expect(block).toMatchObject({
       type: "tool_use",
-      toolName: "bulk_tool",
-      toolCallId: "call_bulk",
     });
+    expect(session.events[0]?.sessionEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "tool-lifecycle",
+        phase: "call",
+        toolName: "bulk_tool",
+        callId: "call_bulk",
+      }),
+    );
     expect(block).not.toHaveProperty("toolInput");
     expect(block?.text.startsWith(args.slice(0, 64))).toBe(true);
     expect(block?.text.length).toBeLessThan(args.length);
