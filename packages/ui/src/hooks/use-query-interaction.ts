@@ -323,6 +323,7 @@ export const useQueryInteraction = ({
 
   return {
     navigation,
+    searchExpansionRevision: navigationIntent.requestId,
     snapshot: {
       toolbarQuery: state.toolbarQuery,
       searchQuery,

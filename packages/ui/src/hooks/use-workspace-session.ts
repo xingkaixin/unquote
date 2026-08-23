@@ -1,5 +1,5 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback, useLayoutEffect, useMemo } from "react";
+import { useCallback } from "react";
 import type { AgentDetailSelection } from "../lib/agent-session";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
@@ -10,25 +10,16 @@ import {
   replaceExpandedStringifiedPathsBatch,
   toggleExpandedStringifiedPath,
   type ExpandedStringifiedPathsByRecord,
-  groupExpandedStringifiedPaths,
 } from "../lib/record-expansion";
-import type { RecordAppend } from "../lib/record-sequence";
-import type { SearchMatch } from "../lib/record-search";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionUpdater } from "../lib/source-revision";
 import { collectStringifiedPaths } from "../lib/tree";
 import type { TreeRow } from "../lib/tree";
 import {
   createInitialWorkspaceSelectionState,
-  reconcileWorkspaceSelection,
   reduceWorkspaceSelection,
 } from "../lib/workspace-selection";
-import type {
-  SelectedPath,
-  WorkspaceSelectionAction,
-  WorkspaceSelectionState,
-  WorkspaceSelectionVisibility,
-} from "../lib/workspace-selection";
+import type { SelectedPath, WorkspaceSelectionAction } from "../lib/workspace-selection";
 import { useSourceRevisionState } from "./use-source-revision-state";
 
 export type { SelectedPath } from "../lib/workspace-selection";
@@ -38,28 +29,13 @@ const createExpandedPaths = (): ExpandedStringifiedPathsByRecord => new Map();
 interface WorkspaceSessionValue {
   selection: ReturnType<typeof createInitialWorkspaceSelectionState>;
   expandedPaths: ExpandedStringifiedPathsByRecord;
-  searchExpansion: WorkspaceSearchExpansion;
+  searchExpansionSuppressions: ReadonlyMap<string, number>;
 }
-
-interface WorkspaceSearchExpansion {
-  source: readonly SearchMatch[];
-  paths: ExpandedStringifiedPathsByRecord;
-}
-
-interface WorkspaceQueryProjection {
-  selection: WorkspaceSelectionState;
-  searchExpansion: WorkspaceSearchExpansion;
-}
-
-export const emptyWorkspaceSearchMatches: SearchMatch[] = [];
 
 const createWorkspaceSessionValue = (): WorkspaceSessionValue => ({
   selection: createInitialWorkspaceSelectionState(),
   expandedPaths: createExpandedPaths(),
-  searchExpansion: {
-    source: emptyWorkspaceSearchMatches,
-    paths: createExpandedPaths(),
-  },
+  searchExpansionSuppressions: new Map(),
 });
 
 const createSelectionFromRow = (record: JsonlRecord, row: TreeRow): SelectedPath => ({
@@ -115,17 +91,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     },
     [updateWorkspace],
   );
-  const setSearchExpandedPaths = useCallback(
-    (updater: SourceRevisionUpdater<ExpandedStringifiedPathsByRecord>) => {
-      updateWorkspace((current) => {
-        const paths = updater(current.searchExpansion.paths);
-        return paths === current.searchExpansion.paths
-          ? current
-          : { ...current, searchExpansion: { ...current.searchExpansion, paths } };
-      });
-    },
-    [updateWorkspace],
-  );
   const scrollToPath = useCallback(
     (recordId: string, pathText: string) => {
       dispatchSelection({ type: "scrollToPath", recordId, pathText });
@@ -171,25 +136,6 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     [dispatchSelection],
   );
 
-  const commitQueryProjection = useCallback(
-    (projection: WorkspaceQueryProjection) => {
-      updateWorkspace((current) => {
-        if (
-          current.selection === projection.selection &&
-          current.searchExpansion === projection.searchExpansion
-        ) {
-          return current;
-        }
-
-        return {
-          ...current,
-          ...projection,
-        };
-      });
-    },
-    [updateWorkspace],
-  );
-
   const setSampleExpansions = useCallback(
     (
       revision: SourceRevision,
@@ -228,11 +174,29 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
   );
 
   const collapseAll = useCallback(
-    (recordIds: readonly string[]) => {
-      setExpandedPaths((current) => clearExpandedStringifiedPaths(current, recordIds));
-      setSearchExpandedPaths((current) => clearExpandedStringifiedPaths(current, recordIds));
+    (recordIds: readonly string[], searchExpansionRevision: number | null) => {
+      updateWorkspace((current) => {
+        const expandedPaths = clearExpandedStringifiedPaths(current.expandedPaths, recordIds);
+        let nextSuppressions: Map<string, number> | null = null;
+
+        if (searchExpansionRevision !== null) {
+          for (const recordId of recordIds) {
+            if (current.searchExpansionSuppressions.get(recordId) === searchExpansionRevision) {
+              continue;
+            }
+            nextSuppressions ??= new Map(current.searchExpansionSuppressions);
+            nextSuppressions.set(recordId, searchExpansionRevision);
+          }
+        }
+
+        const searchExpansionSuppressions = nextSuppressions ?? current.searchExpansionSuppressions;
+        return expandedPaths === current.expandedPaths &&
+          searchExpansionSuppressions === current.searchExpansionSuppressions
+          ? current
+          : { ...current, expandedPaths, searchExpansionSuppressions };
+      });
     },
-    [setExpandedPaths, setSearchExpandedPaths],
+    [updateWorkspace],
   );
 
   const togglePath = useCallback(
@@ -278,16 +242,13 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
   return {
     state: {
       sourceRevision,
+      selection: workspaceState.selection,
       activeRecordId: workspaceState.selection.activeRecordId,
       detailSelection: workspaceState.selection.detailSelection,
       expandedPaths: workspaceState.expandedPaths,
-      searchExpandedPaths: workspaceState.searchExpansion.paths,
+      searchExpansionSuppressions: workspaceState.searchExpansionSuppressions,
       selectedPath: workspaceState.selection.selectedPath,
       scrollIntent: workspaceState.selection.scrollIntent,
-    },
-    queryProjectionState: {
-      selection: workspaceState.selection,
-      searchExpansion: workspaceState.searchExpansion,
     },
     navigate,
     selectPath,
@@ -296,70 +257,10 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
     selectAgentDetail,
     openAgentRecord,
     scrollToPath,
-    commitQueryProjection,
     setSampleExpansions,
     expandAll,
     collapseAll,
     togglePath,
     clearScrollIntent,
-  };
-};
-
-interface WorkspaceQueryProjectionInput {
-  visibility: WorkspaceSelectionVisibility;
-  recordAppend: RecordAppend | null;
-  searchMatches: readonly SearchMatch[];
-}
-
-const projectSelection = (
-  selection: WorkspaceSelectionState,
-  visibility: WorkspaceSelectionVisibility,
-  recordAppend: RecordAppend | null,
-) =>
-  recordAppend
-    ? reduceWorkspaceSelection(selection, {
-        type: "recordsAppended",
-        firstRecordId: visibility.firstRecordId,
-      })
-    : reconcileWorkspaceSelection(selection, visibility);
-
-export const useWorkspaceQueryProjection = (
-  workspace: ReturnType<typeof useWorkspaceSession>,
-  { visibility, recordAppend, searchMatches }: WorkspaceQueryProjectionInput,
-) => {
-  const storedProjection = workspace.queryProjectionState;
-  const selection = useMemo(
-    () => projectSelection(storedProjection.selection, visibility, recordAppend),
-    [recordAppend, storedProjection.selection, visibility],
-  );
-  const groupedSearchExpandedPaths = useMemo(
-    () => groupExpandedStringifiedPaths(searchMatches),
-    [searchMatches],
-  );
-  const searchExpansion =
-    storedProjection.searchExpansion.source === searchMatches
-      ? storedProjection.searchExpansion
-      : { source: searchMatches, paths: groupedSearchExpandedPaths };
-
-  useLayoutEffect(() => {
-    if (
-      storedProjection.selection === selection &&
-      storedProjection.searchExpansion === searchExpansion
-    ) {
-      return;
-    }
-
-    workspace.commitQueryProjection({ selection, searchExpansion });
-  }, [
-    searchExpansion,
-    selection,
-    storedProjection.searchExpansion,
-    storedProjection.selection,
-    workspace.commitQueryProjection,
-  ]);
-
-  return {
-    selection,
-    searchExpandedPaths: searchExpansion.paths,
   };
 };
