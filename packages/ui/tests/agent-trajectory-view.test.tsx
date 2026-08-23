@@ -286,6 +286,45 @@ describe("AgentTrajectoryView", () => {
     expect(requestFullRecordById).toHaveBeenCalledWith(record.id);
   });
 
+  it("requests both Preview Records for a selected tool item", () => {
+    const callSelection = eventSelection("call", "record-call");
+    const resultSelection = eventSelection("result", "record-result");
+    const item = itemFor("tool-preview", {
+      kind: "tool",
+      recordId: callSelection.recordId,
+      callSelection,
+      resultSelection,
+    });
+    const model = modelFor([item]);
+    const selected = model.selectTrajectory(item.id);
+    const requestFullRecordById = vi.fn();
+    const records: Record<string, JsonlRecord> = Object.fromEntries(
+      [callSelection.recordId, resultSelection.recordId].map((recordId, index) => [
+        recordId,
+        {
+          id: recordId,
+          lineNumber: index + 1,
+          summary: "preview",
+          status: "preview",
+          node: { kind: "object", childCount: 1, preview: true },
+        },
+      ]),
+    );
+
+    renderView({
+      model,
+      resolveRecordById: (recordId) => records[recordId] ?? null,
+      requestFullRecordById,
+      detailSelection: selected,
+    });
+
+    expect(requestFullRecordById).toHaveBeenCalledTimes(2);
+    expect(requestFullRecordById).toHaveBeenNthCalledWith(1, callSelection.recordId);
+    expect(requestFullRecordById).toHaveBeenNthCalledWith(2, resultSelection.recordId);
+    expect(screen.getByRole("heading", { name: "Call input" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Result output" })).toBeInTheDocument();
+  });
+
   it("builds its presentation once for a stable model", () => {
     const sourceModel = modelFor([
       itemFor("first", { timestamp: 10 }),

@@ -9,6 +9,7 @@ import type {
   AgentDetailSelection,
 } from "../lib/agent-session/session-types";
 import type { AgentSessionModel } from "../lib/agent-session/model-types";
+import { trajectoryRawRecordsFor } from "../lib/agent-session/trajectory-raw-records";
 import {
   agentTrajectoryFilterKinds,
   agentTrajectoryFilterStatuses,
@@ -16,7 +17,6 @@ import {
   filterAgentTrajectoryPresentation,
   type AgentTrajectoryFilterKind,
   type AgentTrajectoryFilterStatus,
-  type AgentTrajectoryPresentationItem,
   type AgentTrajectoryPresentationSummary,
 } from "../lib/agent-session/trajectory-presentation";
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
@@ -273,28 +273,6 @@ export interface AgentTrajectoryViewProps {
   onOpenRecord: (selection: AgentDetailSelection, endpointRecordId: string) => void;
 }
 
-const rawRecordIdsFor = (item: AgentTrajectoryPresentationItem | null): string[] => {
-  if (!item) {
-    return [];
-  }
-  const trajectoryItem = item.item;
-  const ids: string[] = [];
-  if (trajectoryItem.kind === "tool") {
-    const callRecordId = trajectoryItem.callSelection?.recordId;
-    const resultRecordId = trajectoryItem.resultSelection?.recordId;
-    if (callRecordId !== undefined) {
-      ids.push(callRecordId);
-    }
-    if (resultRecordId !== undefined && resultRecordId !== callRecordId) {
-      ids.push(resultRecordId);
-    }
-  }
-  if (ids.length === 0) {
-    ids.push(trajectoryItem.recordId);
-  }
-  return ids;
-};
-
 export const AgentTrajectoryView = ({
   model,
   resolveRecordById,
@@ -342,7 +320,10 @@ export const AgentTrajectoryView = ({
   // Ask a streamed source for the Full Records of the selected item's raw
   // blocks; the cache update re-renders the detail pane with the JSON.
   useEffect(() => {
-    for (const recordId of rawRecordIdsFor(selectedItem)) {
+    if (!selectedItem) {
+      return;
+    }
+    for (const { recordId } of trajectoryRawRecordsFor(selectedItem.item)) {
       const record = resolveRecordById(recordId);
       if (record && isParsed(record) && !isFullRecord(record)) {
         requestFullRecordById(recordId);

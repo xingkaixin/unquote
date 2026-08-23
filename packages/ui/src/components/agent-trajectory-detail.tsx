@@ -11,6 +11,10 @@ import type {
   AgentTrajectoryToolItem,
 } from "../lib/agent-session/trajectory-types";
 import {
+  trajectoryRawRecordsFor,
+  type AgentTrajectoryRawRecordRole,
+} from "../lib/agent-session/trajectory-raw-records";
+import {
   truncateTrajectoryDisplayText,
   type AgentTrajectoryPresentationItem,
   type AgentTrajectoryWarningGroup,
@@ -28,6 +32,12 @@ const statusTone: Record<AgentTrajectoryStatus, string> = {
   running: "border-warning text-warning",
   failed: "border-error text-error",
   aborted: "border-error text-error",
+};
+
+const rawRecordMessageKey: Record<AgentTrajectoryRawRecordRole, MessageKey> = {
+  record: "trajectory.raw",
+  call: "trajectory.rawCall",
+  result: "trajectory.rawResult",
 };
 
 interface DetailAction {
@@ -310,20 +320,7 @@ export const AgentTrajectoryDetail = ({
       ? trajectoryItem.step
       : undefined;
   const tokenUsageFacts = tokenUsageFactsFor(trajectoryItem);
-  const rawBlocks: { title: string; recordId: string }[] = [];
-  if (trajectoryItem.kind === "tool") {
-    const callRecordId = trajectoryItem.callSelection?.recordId;
-    const resultRecordId = trajectoryItem.resultSelection?.recordId;
-    if (callRecordId !== undefined) {
-      rawBlocks.push({ title: t("trajectory.rawCall"), recordId: callRecordId });
-    }
-    if (resultRecordId !== undefined && resultRecordId !== callRecordId) {
-      rawBlocks.push({ title: t("trajectory.rawResult"), recordId: resultRecordId });
-    }
-  }
-  if (rawBlocks.length === 0) {
-    rawBlocks.push({ title: t("trajectory.raw"), recordId: trajectoryItem.recordId });
-  }
+  const rawRecords = trajectoryRawRecordsFor(trajectoryItem);
   const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
   const summary = truncateTrajectoryDisplayText(item.summary) || kind;
   const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
@@ -390,11 +387,11 @@ export const AgentTrajectoryDetail = ({
         </dl>
       ) : null}
 
-      {rawBlocks.map((block) => (
+      {rawRecords.map((record) => (
         <RawJsonBlock
-          key={`${block.title}:${block.recordId}`}
-          title={block.title}
-          raw={resolveRawJson(block.recordId)}
+          key={`${record.role}:${record.recordId}`}
+          title={t(rawRecordMessageKey[record.role])}
+          raw={resolveRawJson(record.recordId)}
         />
       ))}
 
