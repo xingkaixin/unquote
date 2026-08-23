@@ -5,6 +5,8 @@ import {
   type AgentConversationItem,
   type AgentSession,
   type AgentTimelineEvent,
+  type AgentToolCallEvidence,
+  type AgentToolResultEvidence,
   type AgentTrajectoryToolItem,
 } from "../src/lib/agent-session";
 
@@ -233,9 +235,9 @@ describe("createAgentSessionModel", () => {
 describe("tool call and result pairing", () => {
   const call = (
     id: string,
-    callId?: string,
+    _callId?: string,
     turnIndex?: number,
-    toolName = "shell",
+    _toolName = "shell",
   ): AgentConversationItem => ({
     id,
     role: "tool_call",
@@ -243,20 +245,39 @@ describe("tool call and result pairing", () => {
     block: {
       type: "tool_use",
       text: "{}",
-      toolName,
-      ...(callId ? { toolCallId: callId } : {}),
     },
   });
   const result = (
     id: string,
-    status: "completed" | "failed",
-    callId?: string,
+    _status: "completed" | "failed",
+    _callId?: string,
     turnIndex?: number,
   ): AgentConversationItem => ({
     id,
     role: "tool_result",
     ...(turnIndex === undefined ? {} : { turnIndex }),
-    block: { type: "tool_result", text: "out", status, ...(callId ? { toolCallId: callId } : {}) },
+    block: { type: "tool_result", text: "out" },
+  });
+
+  type ToolEvidenceInput =
+    | Omit<AgentToolCallEvidence, "kind" | "conversationItemId">
+    | Omit<AgentToolResultEvidence, "kind" | "conversationItemId">;
+
+  const toolEvent = (
+    id: string,
+    recordId: string,
+    entries: readonly { item: AgentConversationItem; evidence: ToolEvidenceInput }[],
+  ): AgentTimelineEvent => ({
+    ...event(
+      id,
+      recordId,
+      entries.map(({ item }) => item),
+    ),
+    sessionEvidence: entries.map(({ item, evidence }) => ({
+      kind: "tool-lifecycle",
+      ...evidence,
+      conversationItemId: item.id,
+    })),
   });
 
   it("reads a call's status from its paired result", () => {
@@ -264,8 +285,26 @@ describe("tool call and result pairing", () => {
     const succeeding = call("call-done", "id-1", 1);
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [succeeding, result("result-done", "completed", "id-1", 1)]),
-        event("event-2", "record-2", [failing, result("result-failed", "failed", "id-2", 2)]),
+        toolEvent("event-1", "record-1", [
+          {
+            item: succeeding,
+            evidence: { phase: "call", toolName: "shell", callId: "id-1", turnId: "turn-1" },
+          },
+          {
+            item: result("result-done", "completed", "id-1", 1),
+            evidence: { phase: "result", status: "completed", callId: "id-1", turnId: "turn-1" },
+          },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: failing,
+            evidence: { phase: "call", toolName: "shell", callId: "id-2", turnId: "turn-2" },
+          },
+          {
+            item: result("result-failed", "failed", "id-2", 2),
+            evidence: { phase: "result", status: "failed", callId: "id-2", turnId: "turn-2" },
+          },
+        ]),
       ]),
     );
 
@@ -277,7 +316,12 @@ describe("tool call and result pairing", () => {
     const unpaired = call("call-1", "id-1");
     const idless = call("call-2");
     const model = createAgentSessionModel(
-      session([event("event-1", "record-1", [unpaired, idless])]),
+      session([
+        toolEvent("event-1", "record-1", [
+          { item: unpaired, evidence: { phase: "call", toolName: "shell", callId: "id-1" } },
+          { item: idless, evidence: { phase: "call", toolName: "shell" } },
+        ]),
+      ]),
     );
 
     expect(model.resolveToolStatus(unpaired)).toBe("pending");
@@ -288,7 +332,22 @@ describe("tool call and result pairing", () => {
     const paired = result("result-1", "completed", "id-1", 1);
     const orphan = result("result-2", "failed", "missing");
     const model = createAgentSessionModel(
-      session([event("event-1", "record-1", [call("call-1", "id-1", 1), paired, orphan])]),
+      session([
+        toolEvent("event-1", "record-1", [
+          {
+            item: call("call-1", "id-1", 1),
+            evidence: { phase: "call", toolName: "shell", callId: "id-1", turnId: "turn-1" },
+          },
+          {
+            item: paired,
+            evidence: { phase: "result", status: "completed", callId: "id-1", turnId: "turn-1" },
+          },
+          {
+            item: orphan,
+            evidence: { phase: "result", status: "failed", callId: "missing" },
+          },
+        ]),
+      ]),
     );
 
     expect(model.resolveToolStatus(paired)).toBe("completed");
@@ -302,8 +361,18 @@ describe("tool call and result pairing", () => {
     const secondTurnResult = result("result-b", "completed", "shared", 2);
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [firstTurnCall]),
-        event("event-2", "record-2", [secondTurnResult]),
+        toolEvent("event-1", "record-1", [
+          {
+            item: firstTurnCall,
+            evidence: { phase: "call", toolName: "shell", callId: "shared", turnId: "turn-1" },
+          },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: secondTurnResult,
+            evidence: { phase: "result", status: "completed", callId: "shared", turnId: "turn-2" },
+          },
+        ]),
       ]),
     );
 
@@ -318,8 +387,26 @@ describe("tool call and result pairing", () => {
     const secondTurnResult = result("result-b", "failed", "shared", 2);
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [firstTurnCall, firstTurnResult]),
-        event("event-2", "record-2", [secondTurnCall, secondTurnResult]),
+        toolEvent("event-1", "record-1", [
+          {
+            item: firstTurnCall,
+            evidence: { phase: "call", toolName: "shell", callId: "shared", turnId: "turn-1" },
+          },
+          {
+            item: firstTurnResult,
+            evidence: { phase: "result", status: "completed", callId: "shared", turnId: "turn-1" },
+          },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: secondTurnCall,
+            evidence: { phase: "call", toolName: "read_file", callId: "shared", turnId: "turn-2" },
+          },
+          {
+            item: secondTurnResult,
+            evidence: { phase: "result", status: "failed", callId: "shared", turnId: "turn-2" },
+          },
+        ]),
       ]),
     );
 
@@ -334,8 +421,15 @@ describe("tool call and result pairing", () => {
     const unscopedResult = result("result-1", "completed", "shared");
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [unscopedCall]),
-        event("event-2", "record-2", [unscopedResult]),
+        toolEvent("event-1", "record-1", [
+          { item: unscopedCall, evidence: { phase: "call", toolName: "shell", callId: "shared" } },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: unscopedResult,
+            evidence: { phase: "result", status: "completed", callId: "shared" },
+          },
+        ]),
       ]),
     );
 
@@ -350,9 +444,21 @@ describe("tool call and result pairing", () => {
     const onlyResult = result("only-result", "completed", "duplicate");
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [firstCall]),
-        event("event-2", "record-2", [secondCall]),
-        event("event-3", "record-3", [onlyResult]),
+        toolEvent("event-1", "record-1", [
+          { item: firstCall, evidence: { phase: "call", toolName: "shell", callId: "duplicate" } },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: secondCall,
+            evidence: { phase: "call", toolName: "read_file", callId: "duplicate" },
+          },
+        ]),
+        toolEvent("event-3", "record-3", [
+          {
+            item: onlyResult,
+            evidence: { phase: "result", status: "completed", callId: "duplicate" },
+          },
+        ]),
       ]),
     );
 
@@ -371,8 +477,34 @@ describe("tool call and result pairing", () => {
     const anonymousResult = result("anonymous-result", "completed", "shared");
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [firstTurnCall, secondTurnCall, anonymousCall]),
-        event("event-2", "record-2", [firstTurnResult, secondTurnResult, anonymousResult]),
+        toolEvent("event-1", "record-1", [
+          {
+            item: firstTurnCall,
+            evidence: { phase: "call", toolName: "shell", callId: "shared", turnId: "turn-1" },
+          },
+          {
+            item: secondTurnCall,
+            evidence: { phase: "call", toolName: "read_file", callId: "shared", turnId: "turn-2" },
+          },
+          {
+            item: anonymousCall,
+            evidence: { phase: "call", toolName: "search", callId: "shared" },
+          },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: firstTurnResult,
+            evidence: { phase: "result", status: "completed", callId: "shared", turnId: "turn-1" },
+          },
+          {
+            item: secondTurnResult,
+            evidence: { phase: "result", status: "failed", callId: "shared", turnId: "turn-2" },
+          },
+          {
+            item: anonymousResult,
+            evidence: { phase: "result", status: "completed", callId: "shared" },
+          },
+        ]),
       ]),
     );
 
@@ -389,8 +521,15 @@ describe("tool call and result pairing", () => {
     const scopedResult = result("result-1", "completed", "shared", 1);
     const model = createAgentSessionModel(
       session([
-        event("event-1", "record-1", [unscopedCall]),
-        event("event-2", "record-2", [scopedResult]),
+        toolEvent("event-1", "record-1", [
+          { item: unscopedCall, evidence: { phase: "call", toolName: "shell", callId: "shared" } },
+        ]),
+        toolEvent("event-2", "record-2", [
+          {
+            item: scopedResult,
+            evidence: { phase: "result", status: "completed", callId: "shared", turnId: "turn-1" },
+          },
+        ]),
       ]),
     );
 
@@ -585,9 +724,9 @@ describe("tool call and result pairing", () => {
     );
   });
 
-  it("keeps legacy pairing for an unprojected tool in a mixed session", () => {
-    const legacyCall = call("legacy-call", "legacy", undefined, "read_file");
-    const legacyResult = result("legacy-result", "completed", "legacy");
+  it("does not infer lifecycle facts from display-only conversation blocks", () => {
+    const displayCall = call("display-call", "legacy", undefined, "read_file");
+    const displayResult = result("display-result", "completed", "legacy");
     const model = createAgentSessionModel(
       session([
         {
@@ -596,13 +735,15 @@ describe("tool call and result pairing", () => {
             { kind: "model-output", role: "assistant", conversationItemId: "output" },
           ],
         },
-        event("legacy-call-event", "record-2", [legacyCall]),
-        event("legacy-result-event", "record-3", [legacyResult]),
+        event("display-call-event", "record-2", [displayCall]),
+        event("display-result-event", "record-3", [displayResult]),
       ]),
     );
 
-    expect(model.resolveToolStatus(legacyCall)).toBe("completed");
-    expect(model.resolveToolName(legacyResult)).toBe("read_file");
+    expect(model.resolveToolStatus(displayCall)).toBe("pending");
+    expect(model.resolveToolStatus(displayResult)).toBe("pending");
+    expect(model.resolveToolName(displayCall)).toBeUndefined();
+    expect(model.resolveToolName(displayResult)).toBeUndefined();
   });
 
   it("uses a projected completion status for both a call and its output", () => {

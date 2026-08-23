@@ -15,7 +15,6 @@ import {
   resolveToolCorrelationGroup,
   toolCorrelationGroupFor,
   toolCorrelationScope,
-  type ToolCorrelationGroup,
   type ToolCorrelationResolution,
 } from "./tool-correlation";
 
@@ -61,19 +60,11 @@ const lifecycleOccurrence = <TEvidence extends AgentToolLifecycleEvidence>(
   ...(conversationItem ? { conversationItem } : {}),
 });
 
-type ConversationToolGroup = ToolCorrelationGroup<AgentConversationItem, AgentConversationItem>;
-
 const finiteTurnIndex = (value: number | undefined) =>
   typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
 
 const nonEmptyString = (value: string | undefined) =>
   value && value.length > 0 ? value : undefined;
-
-const toolUseBlock = (item: AgentConversationItem | undefined) =>
-  item?.block?.type === "tool_use" ? item.block : undefined;
-
-const toolResultBlock = (item: AgentConversationItem | undefined) =>
-  item?.block?.type === "tool_result" ? item.block : undefined;
 
 export const resolveToolLifecycleStatus = (
   result: AgentToolResultEvidence["status"],
@@ -131,33 +122,19 @@ export const createAgentToolLifecycleIndex = (
 ): AgentToolLifecycleIndex => {
   const evidenceEvents: AgentSessionEvidenceEvent[] = [];
   const stateByConversationItem = new Map<AgentConversationItem, AgentToolLifecycleState>();
-  const evidenceStates = new Map<AgentConversationItem, AgentToolLifecycleState>();
   const groupedEvidence = new Set<AgentToolLifecycleEvidence>();
   const evidenceGroups = createToolCorrelationGroups<
     AgentToolCallOccurrence,
     AgentToolResultOccurrence,
     AgentToolCompletionOccurrence
   >();
-  const conversationGroups = createToolCorrelationGroups<
-    AgentConversationItem,
-    AgentConversationItem
-  >();
 
   for (const canonicalEvent of session.events) {
     const { event, conversationItems } = canonicalEvent;
-    const evidenceTurnIds = new Map<string, string>();
     const indexedEvidence: AgentSessionEvidence[] = [];
     let conversationById: ReadonlyMap<string, AgentConversationItem> | undefined;
     for (const evidence of event.sessionEvidence ?? []) {
       indexedEvidence.push(evidence);
-      if (
-        (evidence.kind === "model-output" ||
-          (evidence.kind === "tool-lifecycle" && evidence.phase !== "completion")) &&
-        evidence.conversationItemId &&
-        evidence.turnId
-      ) {
-        evidenceTurnIds.set(evidence.conversationItemId, evidence.turnId);
-      }
       if (evidence.kind !== "tool-lifecycle") {
         continue;
       }
@@ -173,14 +150,14 @@ export const createAgentToolLifecycleIndex = (
         if (evidence.phase === "call") {
           const occurrence = lifecycleOccurrence(evidence, event, conversationItem);
           assignEvidenceState(
-            evidenceStates,
+            stateByConversationItem,
             occurrence,
             stateForEvidence(occurrence, undefined, undefined),
           );
         } else if (evidence.phase === "result") {
           const occurrence = lifecycleOccurrence(evidence, event, conversationItem);
           assignEvidenceState(
-            evidenceStates,
+            stateByConversationItem,
             occurrence,
             stateForEvidence(undefined, occurrence, undefined),
           );
@@ -205,66 +182,14 @@ export const createAgentToolLifecycleIndex = (
     if (indexedEvidence.length > 0) {
       evidenceEvents.push({ evidence: indexedEvidence, canonicalEvent });
     }
-
-    for (const item of conversationItems) {
-      const call = toolUseBlock(item);
-      const result = toolResultBlock(item);
-      const callId = call?.toolCallId ?? result?.toolCallId;
-      if (!callId) {
-        if (call) {
-          stateByConversationItem.set(item, { status: "pending", toolName: call.toolName });
-        } else if (result) {
-          stateByConversationItem.set(item, { status: result.status });
-        }
-        continue;
-      }
-
-      const group = toolCorrelationGroupFor(
-        conversationGroups,
-        toolCorrelationScope(
-          evidenceTurnIds.get(item.id),
-          finiteTurnIndex(item.turnIndex) ?? finiteTurnIndex(event.turnIndex),
-        ),
-        callId,
-      );
-      if (call) {
-        group.calls.push(item);
-      } else if (result) {
-        group.results.push(item);
-      }
-    }
   }
-
-  forEachToolCorrelationGroup(conversationGroups, (group: ConversationToolGroup) => {
-    const resolution = resolveToolCorrelationGroup(group);
-    const repeated = resolution.kind === "repeated";
-    const call = repeated ? undefined : resolution.call;
-    const result = repeated ? undefined : resolution.result;
-    for (const item of group.calls) {
-      const itemCall = toolUseBlock(item);
-      stateByConversationItem.set(item, {
-        status: repeated ? "pending" : (toolResultBlock(result)?.status ?? "pending"),
-        ...(itemCall ? { toolName: itemCall.toolName } : {}),
-      });
-    }
-    for (const item of group.results) {
-      const pairedCall = repeated ? undefined : toolUseBlock(call);
-      stateByConversationItem.set(item, {
-        status: toolResultBlock(item)?.status ?? "pending",
-        ...(pairedCall ? { toolName: pairedCall.toolName } : {}),
-      });
-    }
-  });
 
   const orderedGroups: AgentToolLifecycleResolution[] = [];
   forEachToolCorrelationGroup(evidenceGroups, (group) => {
     const resolution = resolveToolCorrelationGroup(group);
     orderedGroups.push(resolution);
-    finalizeEvidenceGroup(evidenceStates, resolution);
+    finalizeEvidenceGroup(stateByConversationItem, resolution);
   });
-  for (const [item, state] of evidenceStates) {
-    stateByConversationItem.set(item, state);
-  }
 
   return {
     evidenceEvents,

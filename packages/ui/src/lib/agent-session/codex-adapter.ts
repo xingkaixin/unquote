@@ -572,8 +572,6 @@ const projectCodexResponseItem = (
       const block = {
         type: "tool_use",
         text: truncateBlockText(item.text ?? "{}"),
-        toolName: item.toolName,
-        ...(item.callId ? { toolCallId: item.callId } : {}),
       } satisfies AgentContentBlock;
       return {
         category: "tool",
@@ -598,8 +596,6 @@ const projectCodexResponseItem = (
           ? ({
               type: "tool_result",
               text: item.text,
-              ...(item.callId ? { toolCallId: item.callId } : {}),
-              status: item.status,
             } satisfies AgentContentBlock)
           : undefined;
       return {
