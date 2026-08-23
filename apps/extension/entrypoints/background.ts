@@ -14,7 +14,7 @@ const handoffAlarms = browser.alarms as unknown as HandoffAlarms;
 const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
 
 const openOptionsPage = async (handoffId?: string) => {
-  const optionsUrl = new URL("/options.html", import.meta.url);
+  const optionsUrl = new URL(browser.runtime.getURL("/options.html"));
   if (handoffId) {
     optionsUrl.searchParams.set(handoffQueryParameter, handoffId);
   }

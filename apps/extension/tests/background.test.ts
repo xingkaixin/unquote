@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => {
       getMessage: vi.fn((name: string) => (name === "openInUnquote" ? "Unquote で開く" : "")),
     },
     runtime: {
+      getURL: vi.fn((path: string) => `chrome-extension://extension-id${path}`),
       onInstalled: {
         addListener: vi.fn((listener: () => void) => {
           listeners.onInstalled = listener;
@@ -148,7 +149,10 @@ describe("extension background", () => {
     await mocks.listeners.onCommand?.("open_unquote");
 
     expect(mocks.browser.tabs.create).toHaveBeenCalledTimes(2);
+    expect(mocks.browser.runtime.getURL).toHaveBeenCalledTimes(2);
+    expect(mocks.browser.runtime.getURL).toHaveBeenCalledWith("/options.html");
     for (const [options] of mocks.browser.tabs.create.mock.calls) {
+      expect(new URL(options.url).protocol).toBe("chrome-extension:");
       expect(new URL(options.url).pathname).toBe("/options.html");
     }
   });
