@@ -7,13 +7,13 @@ import {
 } from "../src/components/agent-trajectory-detail";
 import { I18nProvider } from "../src/i18n/context";
 import { formatClockTime } from "../src/lib/format";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
+import type { AgentSessionDetail } from "../src/lib/agent-session/model-types";
 import type {
-  AgentCanonicalSelection,
-  AgentSessionDetail,
   AgentTrajectoryItem,
   AgentTrajectoryTurn,
   AgentTrajectoryWarning,
-} from "../src/lib/agent-session/types";
+} from "../src/lib/agent-session/trajectory-types";
 import type {
   AgentTrajectoryPresentationItem,
   AgentTrajectoryWarningGroup,

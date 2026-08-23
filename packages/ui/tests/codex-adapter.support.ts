@@ -1,5 +1,5 @@
 import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
-import type { AgentDetectionSample } from "../src/lib/agent-session/types";
+import type { AgentDetectionSample } from "../src/lib/agent-session/adapter-types";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
 export const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({

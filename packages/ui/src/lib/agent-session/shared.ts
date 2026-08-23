@@ -4,8 +4,8 @@ import type {
   AgentParseWarning,
   AgentSession,
   AgentTimelineEvent,
-  ParsedAgentLine,
-} from "./types";
+} from "./session-types";
+import type { ParsedAgentLine } from "./adapter-types";
 
 export const parseTimestamp = (value: unknown): number | undefined => {
   if (typeof value === "string") {

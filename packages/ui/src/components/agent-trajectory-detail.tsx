@@ -3,10 +3,12 @@ import { useTranslation } from "../i18n/context";
 import { formatClockTime } from "../lib/format";
 import type {
   AgentCanonicalSelection,
-  AgentTrajectoryItem,
   AgentTrajectoryStatus,
+} from "../lib/agent-session/session-types";
+import type {
+  AgentTrajectoryItem,
   AgentTrajectoryToolItem,
-} from "../lib/agent-session/types";
+} from "../lib/agent-session/trajectory-types";
 import {
   truncateTrajectoryDisplayText,
   type AgentTrajectoryPresentationItem,

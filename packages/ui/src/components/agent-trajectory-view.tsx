@@ -7,8 +7,8 @@ import { useTranslation } from "../i18n/context";
 import type {
   AgentCanonicalSelection,
   AgentDetailSelection,
-  AgentSessionModel,
-} from "../lib/agent-session/types";
+} from "../lib/agent-session/session-types";
+import type { AgentSessionModel } from "../lib/agent-session/model-types";
 import {
   agentTrajectoryFilterKinds,
   agentTrajectoryFilterStatuses,

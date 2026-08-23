@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { ComponentType } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { useDeferredComponent } from "../hooks/use-deferred-component";
-import type { AgentDetailSelection, AgentSession } from "../lib/agent-session/types";
+import type { AgentDetailSelection, AgentSession } from "../lib/agent-session/session-types";
 import { createAgentSessionModel } from "../lib/agent-session/model";
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
 import type { OutputView } from "../lib/output-view";

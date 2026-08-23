@@ -7,7 +7,7 @@ import { AgentTrajectoryView } from "../src/components/agent-trajectory-view";
 import { trajectoryLedgerVirtualizationThreshold } from "../src/components/agent-trajectory-ledger";
 import { useTrajectoryFilters } from "../src/hooks/use-trajectory-filters";
 import { I18nProvider } from "../src/i18n/context";
-import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
 import type {
   AgentSessionDetail,
   AgentSessionModel,

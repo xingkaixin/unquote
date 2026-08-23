@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
 import {
   createAgentTrajectoryModel,
   type AgentSession,

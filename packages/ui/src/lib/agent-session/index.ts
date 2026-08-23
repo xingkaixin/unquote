@@ -1,7 +1,6 @@
 export type {
   AgentContentBlock,
   AgentConversationItem,
-  AgentConversationEntry,
   AgentConversationRole,
   AgentDetailSelection,
   AgentEventCategory,
@@ -10,10 +9,7 @@ export type {
   AgentParseWarning,
   AgentParseWarningKind,
   AgentSession,
-  AgentSessionDetail,
-  AgentSessionIntegrityIssue,
   AgentSessionMeta,
-  AgentSessionModel,
   AgentSubagentActivityEvidence,
   AgentTokenUsageEvidence,
   AgentToolCallEvidence,
@@ -21,8 +17,12 @@ export type {
   AgentToolLifecycleEvidence,
   AgentToolResultEvidence,
   AgentTimelineEvent,
-  AgentToolStatus,
   AgentSessionEvidence,
+  AgentTrajectoryStatus,
+  AgentTrajectoryTokenUsage,
+  AgentTurnLifecycleEvidence,
+} from "./session-types";
+export type {
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
   AgentTrajectoryItem,
@@ -31,18 +31,22 @@ export type {
   AgentTrajectoryModelOutputItem,
   AgentTrajectoryModel,
   AgentTrajectoryStats,
-  AgentTrajectoryStatus,
   AgentTrajectoryStep,
   AgentTrajectorySubagentItem,
   AgentTrajectorySystemItem,
-  AgentTrajectoryTokenUsage,
   AgentTrajectoryToolItem,
   AgentTrajectoryTurn,
   AgentTrajectoryUserItem,
   AgentTrajectoryWarning,
-  AgentTurnLifecycleEvidence,
-  ParsedAgentLine,
-} from "./types";
+} from "./trajectory-types";
+export type {
+  AgentConversationEntry,
+  AgentSessionDetail,
+  AgentSessionIntegrityIssue,
+  AgentSessionModel,
+  AgentToolStatus,
+} from "./model-types";
+export type { ParsedAgentLine } from "./adapter-types";
 export { createAgentSessionModel } from "./model";
 export { createAgentSessionTracker } from "./tracker";
 export { createAgentTrajectoryModel } from "./trajectory-model";

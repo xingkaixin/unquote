@@ -2,12 +2,14 @@ import type {
   AgentCanonicalSelection,
   AgentSessionEvidence,
   AgentTrajectoryStatus,
+  AgentTurnLifecycleEvidence,
+  AgentTimelineEvent,
+} from "./session-types";
+import type {
   AgentTrajectoryStep,
   AgentTrajectoryTurn,
   AgentTrajectoryWarning,
-  AgentTurnLifecycleEvidence,
-  AgentTimelineEvent,
-} from "./types";
+} from "./trajectory-types";
 import { finiteTrajectoryNumber } from "./trajectory-time";
 import { toolCorrelationScope } from "./tool-correlation";
 import { finiteTrajectoryTurnIndex, nonNegativeTrajectoryDuration } from "./trajectory-values";

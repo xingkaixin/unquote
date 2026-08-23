@@ -1,15 +1,14 @@
 import { truncateAtCodePointBoundary } from "@unquote/core";
+import type { AgentAdapterBuilder, AgentSessionAdapter } from "./adapter-types";
 import type {
-  AgentAdapterBuilder,
   AgentContentBlock,
   AgentConversationItem,
   AgentConversationRole,
   AgentEventCategory,
-  AgentSessionAdapter,
   AgentTimelineEvent,
   AgentSessionEvidence,
   AgentTrajectoryTokenUsage,
-} from "./types";
+} from "./session-types";
 import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
 import {
   attachConversationItem,

@@ -4,10 +4,10 @@ import { getString, isRecord } from "./shared";
 import type {
   AgentAdapterBuilder,
   AgentDetectionSample,
-  AgentParseWarning,
   AgentSessionAdapter,
   ParsedAgentLine,
-} from "./types";
+} from "./adapter-types";
+import type { AgentParseWarning } from "./session-types";
 
 const detectionLineLimit = 80;
 const earlyDetectionLineCount = 20;

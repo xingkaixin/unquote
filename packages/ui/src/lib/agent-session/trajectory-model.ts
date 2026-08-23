@@ -1,17 +1,19 @@
 import type {
   AgentCanonicalSelection,
   AgentSession,
+  AgentSessionEvidence,
+  AgentTimelineEvent,
+} from "./session-types";
+import type {
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
-  AgentSessionEvidence,
   AgentTrajectoryItem,
   AgentTrajectoryModel,
   AgentTrajectorySystemItem,
   AgentTrajectorySubagentItem,
   AgentTrajectoryUserItem,
   AgentTrajectoryWarning,
-  AgentTimelineEvent,
-} from "./types";
+} from "./trajectory-types";
 import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity";
 import { createAgentToolLifecycleIndex, type AgentToolLifecycleIndex } from "./tool-lifecycle";
 import {

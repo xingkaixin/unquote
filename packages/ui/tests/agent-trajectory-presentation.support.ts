@@ -1,4 +1,4 @@
-import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
 import {
   type AgentDetailSelection,
   type AgentSessionDetail,

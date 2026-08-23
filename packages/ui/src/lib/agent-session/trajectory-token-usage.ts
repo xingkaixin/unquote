@@ -1,4 +1,4 @@
-import type { AgentTrajectoryTokenUsage } from "./types";
+import type { AgentTrajectoryTokenUsage } from "./session-types";
 
 const tokenKeys = [
   "inputTokens",
