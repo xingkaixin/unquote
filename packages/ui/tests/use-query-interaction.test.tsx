@@ -2,11 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ParseResult } from "@unquote/core";
 import { parseInput } from "@unquote/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  memorySearchDebounceMs,
-  type QueryNavigationTarget,
-  useQueryInteraction,
-} from "../src/hooks/use-query-interaction";
+import { memorySearchDebounceMs, useQueryInteraction } from "../src/hooks/use-query-interaction";
 import { createTextSourceRevision } from "../src/lib/published-source";
 import type { SourceRevision } from "../src/lib/source-revision";
 
@@ -16,32 +12,29 @@ const result = parseInput(source, { forcedFormat: "jsonl" });
 const createSource = (text: string, revision = 0) =>
   createTextSourceRevision(revision, text, "jsonl");
 
-const renderQuery = (onNavigate = vi.fn()) =>
+const renderQuery = () =>
   renderHook(() =>
     useQueryInteraction({
       source: createSource(source),
       resultRevision: 0,
       result,
       translateError: (reason) => reason,
-      onNavigate,
     }),
   );
 
 interface RevisionedQueryProps {
   sourceRevision: SourceRevision;
   parseResult: ParseResult;
-  onNavigate: (target: QueryNavigationTarget) => void;
 }
 
 const renderRevisionedQuery = (initialProps: RevisionedQueryProps) =>
   renderHook(
-    ({ sourceRevision, parseResult, onNavigate }: RevisionedQueryProps) =>
+    ({ sourceRevision, parseResult }: RevisionedQueryProps) =>
       useQueryInteraction({
         source: createSource(source, sourceRevision),
         resultRevision: sourceRevision,
         result: parseResult,
         translateError: (reason) => reason,
-        onNavigate,
       }),
     { initialProps },
   );
@@ -71,8 +64,7 @@ describe("useQueryInteraction", () => {
   });
 
   it("owns search results, filtering, and match navigation behind its interface", async () => {
-    const onNavigate = vi.fn();
-    const { result: query } = renderQuery(onNavigate);
+    const { result: query } = renderQuery();
 
     act(() => query.current.intent.searchFromCommand("needle"));
 
@@ -88,16 +80,20 @@ describe("useQueryInteraction", () => {
       },
     });
     expect(query.current.snapshot.visibleRecords).toHaveLength(2);
-    onNavigate.mockClear();
+    const firstRequestId = query.current.navigation?.requestId;
 
     act(() => query.current.intent.nextResult());
     expect(query.current.snapshot.currentMatchIndex).toBe(1);
-    expect(onNavigate).toHaveBeenLastCalledWith({
-      sourceRevision: 0,
-      kind: "search",
-      recordId: "record-2",
-      pathText: "$.payload",
+    expect(query.current.navigation).toEqual({
+      requestId: expect.any(Number),
+      target: {
+        sourceRevision: 0,
+        kind: "search",
+        recordId: "record-2",
+        pathText: "$.payload",
+      },
     });
+    expect(query.current.navigation!.requestId).toBeGreaterThan(firstRequestId!);
     expect(query.current.snapshot.activeSearchMatch).toMatchObject({
       recordId: "record-2",
       pathText: "$.payload",
@@ -116,7 +112,6 @@ describe("useQueryInteraction", () => {
           resultRevision: 0,
           result: parseResult,
           translateError: (reason) => reason,
-          onNavigate: vi.fn(),
         }),
       { initialProps: { parseResult: firstResult } },
     );
@@ -132,13 +127,36 @@ describe("useQueryInteraction", () => {
     expect(query.current.snapshot.fileOverview.total).toBe(2);
   });
 
+  it("keeps a clear request stable when parser records change", () => {
+    const firstResult = parseInput('{"message":"first"}', { forcedFormat: "jsonl" });
+    const nextResult = parseInput('{"message":"first"}\n{"message":"second"}', {
+      forcedFormat: "jsonl",
+    });
+    const { result: query, rerender } = renderHook(
+      ({ parseResult }) =>
+        useQueryInteraction({
+          source: createSource(""),
+          resultRevision: 0,
+          result: parseResult,
+          translateError: (reason) => reason,
+        }),
+      { initialProps: { parseResult: firstResult } },
+    );
+
+    act(() => query.current.intent.setFilter("message"));
+    const clearRequest = query.current.navigation;
+
+    rerender({ parseResult: nextResult });
+
+    expect(query.current.navigation).toBe(clearRequest);
+  });
+
   it("reissues repeated path navigation through its interface", () => {
-    const onNavigate = vi.fn();
-    const { result: query } = renderQuery(onNavigate);
+    const { result: query } = renderQuery();
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
     expect(query.current.snapshot.activeSearchMatch).toBeNull();
-    expect(onNavigate).toHaveBeenLastCalledWith({
+    expect(query.current.navigation?.target).toEqual({
       sourceRevision: 0,
       kind: "path",
       target: expect.objectContaining({
@@ -146,19 +164,15 @@ describe("useQueryInteraction", () => {
         pathText: "$.payload",
       }),
     });
+    const firstRequestId = query.current.navigation!.requestId;
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
-    expect(onNavigate.mock.calls.map(([target]) => target.kind)).toEqual([
-      "clear",
-      "path",
-      "clear",
-      "path",
-    ]);
+    expect(query.current.navigation!.requestId).toBeGreaterThan(firstRequestId);
+    expect(query.current.navigation?.target.kind).toBe("path");
   });
 
   it("stores lightweight path matches and resolves only the active navigation target", () => {
-    const onNavigate = vi.fn();
-    const { result: query } = renderQuery(onNavigate);
+    const { result: query } = renderQuery();
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
 
@@ -166,7 +180,7 @@ describe("useQueryInteraction", () => {
       { recordId: "record-1", pathText: "$.payload" },
       { recordId: "record-2", pathText: "$.payload" },
     ]);
-    expect(onNavigate).toHaveBeenLastCalledWith({
+    expect(query.current.navigation?.target).toEqual({
       sourceRevision: 0,
       kind: "path",
       target: expect.objectContaining({
@@ -177,11 +191,10 @@ describe("useQueryInteraction", () => {
       }),
     });
 
-    onNavigate.mockClear();
     act(() => query.current.intent.nextResult());
 
     expect(query.current.snapshot.currentPathMatchIndex).toBe(1);
-    expect(onNavigate).toHaveBeenLastCalledWith({
+    expect(query.current.navigation?.target).toEqual({
       sourceRevision: 0,
       kind: "path",
       target: expect.objectContaining({
@@ -201,39 +214,32 @@ describe("useQueryInteraction", () => {
     expect(query.current.snapshot).toMatchObject({ searchJq: false, searchRegex: true });
   });
 
-  it("pauses automatic navigation while restoring all Records for an endpoint", async () => {
-    const firstNavigation = vi.fn<(target: QueryNavigationTarget) => void>();
-    const replacementNavigation = vi.fn<(target: QueryNavigationTarget) => void>();
+  it("cancels query navigation while revealing all Records for an endpoint", async () => {
     const { result: query, rerender } = renderRevisionedQuery({
       sourceRevision: 0,
       parseResult: result,
-      onNavigate: firstNavigation,
     });
 
     act(() => query.current.intent.searchFromCommand("needle"));
     await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
-    firstNavigation.mockClear();
-
-    act(() => query.current.intent.setFilter("all", { preserveActiveRecord: true }));
+    act(() => query.current.intent.revealAllRecords());
     expect(query.current.snapshot).toMatchObject({
       recordFilter: "all",
       searchQuery: "needle",
     });
+    expect(query.current.navigation).toBeNull();
 
     rerender({
       sourceRevision: 0,
       parseResult: parseInput(source, { forcedFormat: "jsonl" }),
-      onNavigate: replacementNavigation,
     });
     await act(async () => undefined);
 
-    expect(firstNavigation).toHaveBeenLastCalledWith({ sourceRevision: 0, kind: "clear" });
-    expect(firstNavigation).toHaveBeenCalledTimes(1);
-    expect(replacementNavigation).not.toHaveBeenCalled();
+    expect(query.current.navigation).toBeNull();
 
     act(() => query.current.intent.nextResult());
     await waitFor(() =>
-      expect(replacementNavigation).toHaveBeenLastCalledWith({
+      expect(query.current.navigation?.target).toEqual({
         sourceRevision: 0,
         kind: "search",
         recordId: "record-2",
@@ -242,24 +248,23 @@ describe("useQueryInteraction", () => {
     );
   });
 
-  it("does not carry a paused automatic navigation into a new Source Revision", async () => {
-    const navigation = vi.fn<(target: QueryNavigationTarget) => void>();
+  it("does not carry a canceled navigation into a new Source Revision", async () => {
     const { result: query, rerender } = renderRevisionedQuery({
       sourceRevision: 0,
       parseResult: result,
-      onNavigate: navigation,
     });
 
     act(() => query.current.intent.searchFromCommand("needle"));
     await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
-    act(() => query.current.intent.setFilter("all", { preserveActiveRecord: true }));
-    navigation.mockClear();
+    act(() => query.current.intent.revealAllRecords());
+    expect(query.current.navigation).toBeNull();
 
-    rerender({ sourceRevision: 1, parseResult: result, onNavigate: navigation });
+    rerender({ sourceRevision: 1, parseResult: result });
+    expect(query.current.navigation).toBeNull();
     act(() => query.current.intent.searchFromCommand("needle"));
 
     await waitFor(() =>
-      expect(navigation).toHaveBeenLastCalledWith({
+      expect(query.current.navigation?.target).toEqual({
         sourceRevision: 1,
         kind: "search",
         recordId: "record-1",
@@ -272,11 +277,10 @@ describe("useQueryInteraction", () => {
     const { result: query, rerender } = renderRevisionedQuery({
       sourceRevision: 0,
       parseResult: result,
-      onNavigate: vi.fn(),
     });
     const obsoleteIntent = query.current.intent;
 
-    rerender({ sourceRevision: 1, parseResult: result, onNavigate: vi.fn() });
+    rerender({ sourceRevision: 1, parseResult: result });
     act(() => query.current.intent.setFilter("message"));
     expect(query.current.snapshot.recordFilter).toBe("message");
 
