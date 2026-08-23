@@ -112,7 +112,6 @@ export const UnquoteApp = ({
     matchCount,
   } = query.snapshot;
   const { intent: queryIntent } = query;
-  const { setFilter } = queryIntent;
   const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
   const trajectoryFilters = useTrajectoryFilters(resultRevision);
 
@@ -168,11 +167,11 @@ export const UnquoteApp = ({
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
-      setFilter("all", { preserveActiveRecord: true });
+      queryIntent.revealAllRecords();
       recordWorkspace.selectRecordById(recordId);
       setOutputView("json");
     },
-    [recordWorkspace.selectRecordById, setFilter, setOutputView],
+    [queryIntent.revealAllRecords, recordWorkspace.selectRecordById, setOutputView],
   );
   const handleOpenTrajectoryRecord = useCallback(
     (selection: AgentDetailSelection, endpointRecordId: string) => {

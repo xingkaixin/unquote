@@ -10,3 +10,8 @@ export type QueryNavigationTarget =
       recordId: string;
       pathText: string;
     };
+
+export interface QueryNavigationRequest {
+  requestId: number;
+  target: QueryNavigationTarget;
+}

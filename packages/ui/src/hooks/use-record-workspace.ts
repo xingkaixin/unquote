@@ -1,6 +1,6 @@
 import type { ParseResult } from "@unquote/core";
 import { toast } from "sonner";
-import { useCallback, useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentDetailSelection, AgentSession } from "../lib/agent-session";
 import { resolveSourceWork } from "../lib/published-source";
@@ -55,7 +55,6 @@ export const useRecordWorkspace = ({
     result,
     recordAppend,
     translateError,
-    onNavigate: workspace.navigate,
   });
   const localFileSource = useLocalFileSource(sourceAccess, sourceRevision);
   const {
@@ -84,6 +83,11 @@ export const useRecordWorkspace = ({
       recordAppend: visibleRecordAppend,
       searchMatches: queryMatches,
     });
+  useLayoutEffect(() => {
+    if (query.navigation) {
+      workspace.navigate(query.navigation.target);
+    }
+  }, [query.navigation, workspace.navigate]);
   const displayedExpandedPaths = useMemo(
     () =>
       mergeExpandedStringifiedPaths(workspace.state.expandedPaths, projectedSearchExpandedPaths),
@@ -215,12 +219,12 @@ export const useRecordWorkspace = ({
         return false;
       }
       if (options?.reveal) {
-        query.intent.setFilter("all", { preserveActiveRecord: true });
+        query.intent.revealAllRecords();
       }
       workspace.openAgentRecord(selection, recordId);
       return true;
     },
-    [query.intent.setFilter, recordsById, workspace.openAgentRecord],
+    [query.intent.revealAllRecords, recordsById, workspace.openAgentRecord],
   );
   const model = useMemo<RecordWorkspaceModel>(
     () => ({

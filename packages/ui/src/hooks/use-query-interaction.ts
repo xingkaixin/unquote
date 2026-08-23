@@ -1,5 +1,5 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
@@ -11,7 +11,7 @@ import type {
   QueryInteractionState,
   SearchOptionKind,
 } from "../lib/query-interaction";
-import type { QueryNavigationTarget } from "../lib/query-navigation";
+import type { QueryNavigationRequest, QueryNavigationTarget } from "../lib/query-navigation";
 import type { PublishedSourceRevision } from "../lib/published-source";
 import type { SearchOptions } from "../lib/record-search";
 import type { RecordAppend } from "../lib/record-sequence";
@@ -34,27 +34,39 @@ interface UseQueryInteractionOptions {
   resultRevision: SourceRevision;
   result: ParseResult;
   translateError: (reason: "invalid" | "not-found") => string;
-  onNavigate: (target: QueryNavigationTarget) => void;
   recordAppend?: RecordAppend | null;
 }
 
-interface SetFilterOptions {
-  preserveActiveRecord?: boolean;
+type QueryNavigationMode = QueryNavigationTarget["kind"] | "none";
+
+interface QueryNavigationIntent {
+  requestId: number;
+  mode: QueryNavigationMode;
 }
+
+const createInitialNavigationIntent = (): QueryNavigationIntent => ({
+  requestId: 0,
+  mode: "none",
+});
+
+const navigationModeForState = (state: QueryInteractionState): QueryNavigationMode =>
+  state.modeState.mode === "idle" ? "clear" : state.modeState.mode;
 
 export const useQueryInteraction = ({
   source,
   resultRevision,
   result,
   translateError,
-  onNavigate,
   recordAppend = null,
 }: UseQueryInteractionOptions) => {
   const sourceRevision = source.sourceRevision;
-  const pausedAutomaticSearchNavigationRevisionRef = useRef<SourceRevision | null>(null);
   const [state, updateQuery] = useSourceRevisionState(
     sourceRevision,
     createInitialQueryInteractionState,
+  );
+  const [navigationIntent, updateNavigationIntent] = useSourceRevisionState(
+    sourceRevision,
+    createInitialNavigationIntent,
   );
   const dispatch = useCallback(
     (action: QueryInteractionAction) => {
@@ -62,14 +74,15 @@ export const useQueryInteraction = ({
     },
     [updateQuery],
   );
-  const pauseAutomaticSearchNavigation = useCallback(() => {
-    pausedAutomaticSearchNavigationRevisionRef.current = sourceRevision;
-  }, [sourceRevision]);
-  const resumeAutomaticSearchNavigation = useCallback(() => {
-    if (pausedAutomaticSearchNavigationRevisionRef.current === sourceRevision) {
-      pausedAutomaticSearchNavigationRevisionRef.current = null;
-    }
-  }, [sourceRevision]);
+  const requestNavigation = useCallback(
+    (mode: QueryNavigationMode) => {
+      updateNavigationIntent((current) => ({
+        requestId: current.requestId + 1,
+        mode,
+      }));
+    },
+    [updateNavigationIntent],
+  );
   const resolvePathQuery = useCallback(
     (records: JsonlRecord[], value: string): PathResolution | null => {
       const query = value.trim();
@@ -142,26 +155,72 @@ export const useQueryInteraction = ({
     searchWorker.requestWindow,
   ]);
 
-  useEffect(() => {
-    if (pausedAutomaticSearchNavigationRevisionRef.current === sourceRevision) {
-      return;
-    }
-    if (!activeSearchRecordId || !activeSearchPathText) {
-      return;
+  const clearNavigation = useMemo<QueryNavigationRequest | null>(() => {
+    if (navigationIntent.requestId === 0 || navigationIntent.mode !== "clear") {
+      return null;
     }
 
-    onNavigate({
-      sourceRevision,
-      kind: "search",
-      recordId: activeSearchRecordId,
-      pathText: activeSearchPathText,
-    });
-  }, [activeSearchPathText, activeSearchRecordId, currentMatchIndex, onNavigate, sourceRevision]);
+    return {
+      requestId: navigationIntent.requestId,
+      target: { sourceRevision, kind: "clear" },
+    };
+  }, [navigationIntent.mode, navigationIntent.requestId, sourceRevision]);
+  const searchNavigation = useMemo<QueryNavigationRequest | null>(() => {
+    if (navigationIntent.requestId === 0 || navigationIntent.mode !== "search") {
+      return null;
+    }
 
-  const invalidateNavigation = useCallback(
-    () => onNavigate({ sourceRevision, kind: "clear" }),
-    [onNavigate, sourceRevision],
-  );
+    return {
+      requestId: navigationIntent.requestId,
+      target:
+        activeSearchRecordId && activeSearchPathText
+          ? {
+              sourceRevision,
+              kind: "search",
+              recordId: activeSearchRecordId,
+              pathText: activeSearchPathText,
+            }
+          : { sourceRevision, kind: "clear" },
+    };
+  }, [
+    activeSearchPathText,
+    activeSearchRecordId,
+    navigationIntent.mode,
+    navigationIntent.requestId,
+    sourceRevision,
+  ]);
+  const pathNavigation = useMemo<QueryNavigationRequest | null>(() => {
+    if (navigationIntent.requestId === 0 || navigationIntent.mode !== "path") {
+      return null;
+    }
+
+    let target: QueryNavigationTarget = { sourceRevision, kind: "clear" };
+    if (state.modeState.mode === "path") {
+      const match =
+        state.modeState.matches[state.modeState.currentIndex] ?? state.modeState.matches[0];
+      const record = match ? pipeline.recordsById.get(match.recordId) : undefined;
+      const resolved = match && record ? resolveTreePath([record], match.pathText) : null;
+      if (resolved?.ok) {
+        target = { sourceRevision, kind: "path", target: resolved.target };
+      }
+    }
+
+    return { requestId: navigationIntent.requestId, target };
+  }, [
+    navigationIntent.mode,
+    navigationIntent.requestId,
+    pipeline.recordsById,
+    sourceRevision,
+    state.modeState,
+  ]);
+  const navigation =
+    navigationIntent.mode === "clear"
+      ? clearNavigation
+      : navigationIntent.mode === "search"
+        ? searchNavigation
+        : navigationIntent.mode === "path"
+          ? pathNavigation
+          : null;
 
   const navigate = useCallback(
     (action: QueryInteractionAction) => {
@@ -174,56 +233,17 @@ export const useQueryInteraction = ({
             };
       const nextState = reduceQueryInteraction(reconciledState, action);
       dispatch(action);
-
-      if (nextState.modeState.mode === "path") {
-        const match =
-          nextState.modeState.matches[nextState.modeState.currentIndex] ??
-          nextState.modeState.matches[0];
-        const record = match ? pipeline.recordsById.get(match.recordId) : undefined;
-        const resolved = match && record ? resolveTreePath([record], match.pathText) : null;
-        if (resolved?.ok) {
-          onNavigate({ sourceRevision, kind: "path", target: resolved.target });
-        }
-        return;
-      }
-
-      if (
-        nextState.modeState.mode === "search" &&
-        nextState.modeState.currentMatchIndex === currentMatchIndex &&
-        activeSearchRecordId &&
-        activeSearchPathText
-      ) {
-        onNavigate({
-          sourceRevision,
-          kind: "search",
-          recordId: activeSearchRecordId,
-          pathText: activeSearchPathText,
-        });
-      }
+      requestNavigation(navigationModeForState(nextState));
     },
-    [
-      activeSearchPathText,
-      activeSearchRecordId,
-      currentMatchIndex,
-      onNavigate,
-      pipeline.recordsById,
-      sourceRevision,
-      state,
-    ],
+    [currentMatchIndex, dispatch, requestNavigation, state],
   );
 
   const changeToolbarQuery = useCallback(
-    (value: string) => {
-      resumeAutomaticSearchNavigation();
-      invalidateNavigation();
-      dispatch({ type: "toolbarQueryChange", value });
-    },
-    [invalidateNavigation, resumeAutomaticSearchNavigation],
+    (value: string) => navigate({ type: "toolbarQueryChange", value }),
+    [navigate],
   );
   const submitToolbarQuery = useCallback(
     (value: string) => {
-      resumeAutomaticSearchNavigation();
-      invalidateNavigation();
       const resolution = resolvePathQuery(pipeline.visibleRecords, value);
       navigate({
         type: "submitToolbarQuery",
@@ -231,68 +251,44 @@ export const useQueryInteraction = ({
         resolution,
       });
     },
-    [
-      invalidateNavigation,
-      navigate,
-      pipeline.visibleRecords,
-      resolvePathQuery,
-      resumeAutomaticSearchNavigation,
-    ],
+    [navigate, pipeline.visibleRecords, resolvePathQuery],
   );
-  const clearToolbarQuery = useCallback(() => {
-    resumeAutomaticSearchNavigation();
-    invalidateNavigation();
-    dispatch({ type: "clearToolbarQuery" });
-  }, [invalidateNavigation, resumeAutomaticSearchNavigation]);
+  const clearToolbarQuery = useCallback(() => navigate({ type: "clearToolbarQuery" }), [navigate]);
   const searchFromCommand = useCallback(
-    (value: string) => {
-      resumeAutomaticSearchNavigation();
-      invalidateNavigation();
-      dispatch({ type: "commandSearch", value });
-    },
-    [invalidateNavigation, resumeAutomaticSearchNavigation],
+    (value: string) => navigate({ type: "commandSearch", value }),
+    [navigate],
   );
   const setOption = useCallback(
-    (kind: SearchOptionKind, on: boolean) => {
-      resumeAutomaticSearchNavigation();
-      invalidateNavigation();
-      dispatch({ type: "setSearchOption", kind, on });
-    },
-    [invalidateNavigation, resumeAutomaticSearchNavigation],
+    (kind: SearchOptionKind, on: boolean) => navigate({ type: "setSearchOption", kind, on }),
+    [navigate],
   );
   const setFilter = useCallback(
-    (filter: QueryInteractionState["recordFilter"], options?: SetFilterOptions) => {
-      if (options?.preserveActiveRecord) {
-        pauseAutomaticSearchNavigation();
-      } else {
-        resumeAutomaticSearchNavigation();
-      }
-      invalidateNavigation();
+    (filter: QueryInteractionState["recordFilter"]) => {
       dispatch({ type: "setRecordFilter", filter });
+      requestNavigation("clear");
     },
-    [invalidateNavigation, pauseAutomaticSearchNavigation, resumeAutomaticSearchNavigation],
+    [dispatch, requestNavigation],
   );
+  const revealAllRecords = useCallback(() => {
+    dispatch({ type: "setRecordFilter", filter: "all" });
+    requestNavigation("none");
+  }, [dispatch, requestNavigation]);
   const changeCommandInput = useCallback(
     (value: string) => dispatch({ type: "setCommandInput", value }),
     [dispatch],
   );
   const prepareCommandInput = useCallback(() => dispatch({ type: "seedCommandInput" }), [dispatch]);
   const previousResult = useCallback(() => {
-    resumeAutomaticSearchNavigation();
     return mode === "path"
       ? navigate({ type: "prevPathMatch" })
       : navigate({ type: "prevMatch", matchCount: pipeline.matchCount });
-  }, [mode, navigate, pipeline.matchCount, resumeAutomaticSearchNavigation]);
+  }, [mode, navigate, pipeline.matchCount]);
   const nextResult = useCallback(() => {
-    resumeAutomaticSearchNavigation();
     return mode === "path"
       ? navigate({ type: "nextPathMatch" })
       : navigate({ type: "nextMatch", matchCount: pipeline.matchCount });
-  }, [mode, navigate, pipeline.matchCount, resumeAutomaticSearchNavigation]);
-  const reset = useCallback(() => {
-    resumeAutomaticSearchNavigation();
-    dispatch({ type: "resetAll" });
-  }, [dispatch, resumeAutomaticSearchNavigation]);
+  }, [mode, navigate, pipeline.matchCount]);
+  const reset = useCallback(() => navigate({ type: "resetAll" }), [navigate]);
 
   const intent = useMemo(
     () => ({
@@ -302,6 +298,7 @@ export const useQueryInteraction = ({
       searchFromCommand,
       setOption,
       setFilter,
+      revealAllRecords,
       changeCommandInput,
       prepareCommandInput,
       previousResult,
@@ -317,6 +314,7 @@ export const useQueryInteraction = ({
       previousResult,
       reset,
       searchFromCommand,
+      revealAllRecords,
       setFilter,
       setOption,
       submitToolbarQuery,
@@ -324,6 +322,7 @@ export const useQueryInteraction = ({
   );
 
   return {
+    navigation,
     snapshot: {
       toolbarQuery: state.toolbarQuery,
       searchQuery,
