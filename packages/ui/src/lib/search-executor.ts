@@ -1,4 +1,5 @@
 import type { LocalFileAccess } from "./local-file-source";
+import { reportDiagnostic } from "./diagnostics";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
 import { parseTextResult } from "./parse-text-result";
 import { startPerfMeasure } from "./perf";
@@ -104,6 +105,7 @@ export const createSearchExecutor = (): SearchExecutor => {
         }
         finishRequestMeasure();
         if (response.type === "error") {
+          reportDiagnostic("search.worker", response.message);
           workerSourceRevision = null;
           onFailure("worker-error");
         } else {
@@ -136,9 +138,10 @@ export const createSearchExecutor = (): SearchExecutor => {
                 onComplete(result);
               }
             })
-            .catch(() => {
+            .catch((error: unknown) => {
               finishRequestMeasure();
               if (!fallbackController?.signal.aborted && workerRun.finish()) {
+                reportDiagnostic("search.main-thread-file", error);
                 onFailure("worker-error");
               }
             });

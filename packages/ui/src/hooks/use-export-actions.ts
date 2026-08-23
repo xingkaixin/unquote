@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
+import { reportDiagnostic } from "../lib/diagnostics";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import {
   addRecordBodiesToBuilder,
@@ -94,6 +95,7 @@ export const useExportActions = ({
       })();
       void operation.catch((error: unknown) => {
         if (!isAbortError(error)) {
+          reportDiagnostic("export.build", error);
           toast.error(t("toolbar.exportFailed"));
         }
       });
@@ -115,6 +117,7 @@ export const useExportActions = ({
         if (signal.aborted || isAbortError(error)) {
           return null;
         }
+        reportDiagnostic("copy.resolve-records", error);
         toast.error(t("input.readFailed"));
         return null;
       }
@@ -193,6 +196,7 @@ export const useExportActions = ({
           if (signal.aborted || isAbortError(error)) {
             return null;
           }
+          reportDiagnostic("copy.read-record", error);
           toast.error(t("input.readFailed"));
           return null;
         }

@@ -1,6 +1,7 @@
 import { parseInput, probeJsonl } from "@unquote/core";
 import type { ParseResult } from "@unquote/core";
 import type { ParsedText, ParserProgress } from "./parse-text";
+import { reportDiagnostic } from "./diagnostics";
 import { markPerf, measurePerf } from "./perf";
 import { belongsToSourceRevision } from "./source-revision";
 import type { SourceRevision } from "./source-revision";
@@ -157,8 +158,9 @@ export const createParserExecutor = (): ParserExecutor => {
                 applyParsedText(parsed);
               }
             })
-            .catch(() => {
+            .catch((error: unknown) => {
               if (run.finish()) {
+                reportDiagnostic("parser.main-thread-file", error);
                 reportUnparsedSource(onReadError);
               }
             });
@@ -186,8 +188,9 @@ export const createParserExecutor = (): ParserExecutor => {
               }
             }
           })
-          .catch(() => {
+          .catch((error: unknown) => {
             if (run.finish()) {
+              reportDiagnostic("parser.main-thread-text", error);
               reportUnparsedSource(onReadError);
             }
           });
@@ -275,6 +278,7 @@ export const createParserExecutor = (): ParserExecutor => {
         publisher.flush();
         if (message.type === "error") {
           if (!reuseInitialResult) {
+            reportDiagnostic("parser.worker", message.error);
             markPerf("parse:error");
             measurePerf("parse:error", "parse:start", "parse:error");
             commit((current) => ({

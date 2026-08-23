@@ -2,6 +2,7 @@ import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
+import { reportDiagnostic } from "../lib/diagnostics";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
@@ -168,8 +169,9 @@ export const useLocalFileSource = (
             return { sourceRevision: scope.sourceRevision, recordsByLine: next };
           });
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (fullRecordScopeRef.current === scope && !scope.controller.signal.aborted) {
+            reportDiagnostic("source.full-record", error);
             toast.error(t("input.readFailed"));
           }
         })

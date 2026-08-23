@@ -1,7 +1,10 @@
+import { reportDiagnostic } from "./diagnostics";
+
 const spawnWorker = (construct: () => Worker): Worker | null => {
   try {
     return construct();
-  } catch {
+  } catch (error) {
+    reportDiagnostic("worker.construct", error);
     return null;
   }
 };
@@ -78,8 +81,9 @@ const createWorkerRequest = <Response>(
     return true;
   };
 
-  function fail() {
+  function fail(error?: unknown) {
     if (terminate()) {
+      reportDiagnostic("worker.request", error);
       onFailure();
     }
   }
@@ -92,9 +96,9 @@ const createWorkerRequest = <Response>(
       try {
         worker.postMessage(message);
         return true;
-      } catch {
+      } catch (error) {
         // Structured-clone failures are synchronous and must settle the request.
-        fail();
+        fail(error);
         return false;
       }
     },
