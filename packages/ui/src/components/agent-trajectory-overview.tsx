@@ -12,6 +12,7 @@ import type {
   AgentTrajectoryPresentation,
   AgentTrajectoryTimeRange,
 } from "../lib/agent-session/trajectory-presentation";
+import { agentTrajectoryLaneFor } from "../lib/agent-session/trajectory-presentation";
 import {
   createTrajectoryTimeScale,
   trajectoryOverviewSpans,
@@ -42,62 +43,74 @@ const BUCKET_SEGMENT_INSET = 0.15;
 // docs/performance.md derives from this cap.
 export const trajectoryOverviewSpanLimit = 1000;
 
-const lanes: readonly AgentTrajectoryLane[] = ["activity", "model", "tool"];
-
-const laneLabelKey: Record<
-  AgentTrajectoryLane,
-  "trajectory.lane.activity" | "trajectory.lane.model" | "trajectory.lane.tool"
-> = {
-  activity: "trajectory.lane.activity",
-  model: "trajectory.lane.model",
-  tool: "trajectory.lane.tool",
-};
-
-const lanePosition: Record<AgentTrajectoryLane, number> = {
-  activity: 0.5,
-  model: 1.5,
-  tool: 2.5,
-};
-
-const kindsByLane: Record<AgentTrajectoryLane, readonly AgentTrajectoryItemKind[]> = {
-  activity: ["user", "system", "compaction"],
-  model: ["assistant", "reasoning"],
-  tool: ["tool", "subagent"],
-};
-
 type ChartColorKey = AgentTrajectoryItemKind | "error";
 
-const chartColorKeys: readonly ChartColorKey[] = [
-  "user",
-  "system",
-  "assistant",
-  "reasoning",
-  "tool",
-  "subagent",
-  "compaction",
-  "error",
-];
+interface ChartVisualDefinition {
+  strokeClass: string;
+  fillClass: string;
+}
 
-const kindStrokeClass: Record<ChartColorKey, string> = {
-  user: "stroke-code-boolean",
-  system: "stroke-text-tertiary",
-  assistant: "stroke-code-string",
-  reasoning: "stroke-code-number",
-  tool: "stroke-accent",
-  subagent: "stroke-code-key",
-  compaction: "stroke-code-null",
-  error: "stroke-error",
-};
+const laneDefinitions = {
+  activity: { labelKey: "trajectory.lane.activity", position: 0.5 },
+  model: { labelKey: "trajectory.lane.model", position: 1.5 },
+  tool: { labelKey: "trajectory.lane.tool", position: 2.5 },
+} satisfies Record<
+  AgentTrajectoryLane,
+  {
+    labelKey: "trajectory.lane.activity" | "trajectory.lane.model" | "trajectory.lane.tool";
+    position: number;
+  }
+>;
 
-const kindFillClass: Record<ChartColorKey, string> = {
-  user: "bg-code-boolean",
-  system: "bg-text-tertiary",
-  assistant: "bg-code-string",
-  reasoning: "bg-code-number",
-  tool: "bg-accent",
-  subagent: "bg-code-key",
-  compaction: "bg-code-null",
-  error: "bg-error",
+const itemChartDefinitions = {
+  user: {
+    strokeClass: "stroke-code-boolean",
+    fillClass: "bg-code-boolean",
+  },
+  system: {
+    strokeClass: "stroke-text-tertiary",
+    fillClass: "bg-text-tertiary",
+  },
+  assistant: {
+    strokeClass: "stroke-code-string",
+    fillClass: "bg-code-string",
+  },
+  reasoning: {
+    strokeClass: "stroke-code-number",
+    fillClass: "bg-code-number",
+  },
+  tool: { strokeClass: "stroke-accent", fillClass: "bg-accent" },
+  subagent: { strokeClass: "stroke-code-key", fillClass: "bg-code-key" },
+  compaction: {
+    strokeClass: "stroke-code-null",
+    fillClass: "bg-code-null",
+  },
+} satisfies Record<AgentTrajectoryItemKind, ChartVisualDefinition>;
+
+const chartDefinitions = {
+  ...itemChartDefinitions,
+  error: { strokeClass: "stroke-error", fillClass: "bg-error" },
+} satisfies Record<ChartColorKey, ChartVisualDefinition>;
+
+const laneEntries = Object.entries(laneDefinitions) as [
+  AgentTrajectoryLane,
+  (typeof laneDefinitions)[AgentTrajectoryLane],
+][];
+const itemChartEntries = Object.entries(itemChartDefinitions) as [
+  AgentTrajectoryItemKind,
+  ChartVisualDefinition,
+][];
+const chartEntries = Object.entries(chartDefinitions) as [ChartColorKey, ChartVisualDefinition][];
+
+const colorKeysForLane = (lane: AgentTrajectoryLane): readonly ChartColorKey[] => {
+  const keys: ChartColorKey[] = [];
+  for (const [key] of itemChartEntries) {
+    if (agentTrajectoryLaneFor(key) === lane) {
+      keys.push(key);
+    }
+  }
+  keys.push("error");
+  return keys;
 };
 
 const isFailureStatus = (status: AgentTrajectoryOverviewBucket["status"]) =>
@@ -130,19 +143,18 @@ const laneMaxCount = (buckets: readonly AgentTrajectoryOverviewBucket[]) => {
 
 const lanePath = (
   buckets: readonly AgentTrajectoryOverviewBucket[],
-  lane: AgentTrajectoryLane,
+  position: number,
   colorKey: ChartColorKey,
   tier: number,
   maxCount: number,
 ) => {
-  const y = lanePosition[lane];
   let d = "";
   for (let index = 0; index < buckets.length; index += 1) {
     const bucket = buckets[index]!;
     if (bucketColorKey(bucket) !== colorKey || densityTier(bucket.count, maxCount) !== tier) {
       continue;
     }
-    d += `M${index + BUCKET_SEGMENT_INSET} ${y}H${index + 1 - BUCKET_SEGMENT_INSET}`;
+    d += `M${index + BUCKET_SEGMENT_INSET} ${position}H${index + 1 - BUCKET_SEGMENT_INSET}`;
   }
   return d;
 };
@@ -408,10 +420,10 @@ export const AgentTrajectoryOverview = ({
       {activeViewport ? (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-secondary">
-            {chartColorKeys.map((key) => (
+            {chartEntries.map(([key, definition]) => (
               <span key={key} className="inline-flex items-center gap-1">
                 <span
-                  className={`size-1.5 rounded-full ${kindFillClass[key]}`}
+                  className={`size-1.5 rounded-full ${definition.fillClass}`}
                   aria-hidden="true"
                 />
                 {key === "error"
@@ -422,8 +434,8 @@ export const AgentTrajectoryOverview = ({
           </div>
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
             <div className="grid grid-rows-3 gap-1 py-0.5 text-right font-mono text-[10px] text-text-tertiary">
-              {lanes.map((lane) => (
-                <span key={lane}>{t(laneLabelKey[lane])}</span>
+              {laneEntries.map(([lane, definition]) => (
+                <span key={lane}>{t(definition.labelKey)}</span>
               ))}
             </div>
             <div ref={containerRef} className="min-w-0">
@@ -443,32 +455,38 @@ export const AgentTrajectoryOverview = ({
                     strokeWidth="0.04"
                     className="stroke-border-medium"
                   />
-                  {lanes.map((lane) => (
+                  {laneEntries.map(([lane, definition]) => (
                     <line
                       key={lane}
                       x1="0"
                       x2={Math.max(overview.bucketCount, 1)}
-                      y1={lanePosition[lane]}
-                      y2={lanePosition[lane]}
+                      y1={definition.position}
+                      y2={definition.position}
                       strokeWidth="0.04"
                       className="stroke-border"
                     />
                   ))}
                   {spans === null
-                    ? lanes.flatMap((lane) => {
+                    ? laneEntries.flatMap(([lane, definition]) => {
                         const maxCount = laneMaxCount(overview.lanes[lane]);
-                        return [...kindsByLane[lane], "error" as const].flatMap((colorKey) =>
+                        return colorKeysForLane(lane).flatMap((colorKey) =>
                           DENSITY_STROKE_WIDTHS.map((strokeWidth, tier) => (
                             <path
                               key={`${lane}-${colorKey}-${tier}`}
                               data-trajectory-kind={`${lane}-${colorKey}`}
                               data-trajectory-density={tier}
-                              d={lanePath(overview.lanes[lane], lane, colorKey, tier, maxCount)}
+                              d={lanePath(
+                                overview.lanes[lane],
+                                definition.position,
+                                colorKey,
+                                tier,
+                                maxCount,
+                              )}
                               fill="none"
                               strokeWidth={strokeWidth}
                               strokeLinecap="round"
                               vectorEffect="non-scaling-stroke"
-                              className={kindStrokeClass[colorKey]}
+                              className={chartDefinitions[colorKey].strokeClass}
                             />
                           )),
                         );
@@ -522,7 +540,7 @@ export const AgentTrajectoryOverview = ({
                           aria-current={selected ? "true" : undefined}
                           title={label}
                           onClick={onSelectItem ? () => onSelectItem(item.item.id) : undefined}
-                          className={`absolute h-2 -translate-y-1/2 rounded-[2px] ${kindFillClass[colorKey]} ${
+                          className={`absolute h-2 -translate-y-1/2 rounded-[2px] ${chartDefinitions[colorKey].fillClass} ${
                             selected
                               ? "outline outline-2 outline-offset-1 outline-accent"
                               : "hover:outline hover:outline-1 hover:outline-border-medium"
@@ -530,7 +548,7 @@ export const AgentTrajectoryOverview = ({
                           style={{
                             left: `${span.startRatio * 100}%`,
                             width: `max(3px, ${(span.endRatio - span.startRatio) * 100}%)`,
-                            top: `${(lanePosition[item.lane] / SVG_HEIGHT) * 100}%`,
+                            top: `${(laneDefinitions[item.lane].position / SVG_HEIGHT) * 100}%`,
                           }}
                         />
                       );
