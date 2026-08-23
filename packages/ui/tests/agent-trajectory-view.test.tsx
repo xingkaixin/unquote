@@ -198,7 +198,7 @@ const itemButton = (token: number) => {
 type HarnessProps = Omit<ComponentProps<typeof AgentTrajectoryView>, "filters">;
 
 const TrajectoryViewHarness = (props: HarnessProps) => {
-  const filters = useTrajectoryFilters(props.model);
+  const filters = useTrajectoryFilters(1);
   return <AgentTrajectoryView {...props} filters={filters} />;
 };
 
@@ -751,7 +751,7 @@ describe("AgentTrajectoryView", () => {
     expect(callbacks.onDetailSelectionChange).not.toHaveBeenCalled();
   });
 
-  it("clears local filters when the model changes", async () => {
+  it("keeps filters when the model refreshes within one Source Revision", async () => {
     const user = userEvent.setup();
     const firstModel = modelFor([
       itemFor("first-tool", { kind: "tool", timestamp: 20, toolName: "needle" }),
@@ -765,10 +765,10 @@ describe("AgentTrajectoryView", () => {
 
     rerenderView({ model: secondModel });
 
+    expect(screen.getByLabelText("Search trajectory")).toHaveValue("needle");
+    expect(screen.getByLabelText("Kind")).toHaveValue("tool");
     await waitFor(() => {
-      expect(screen.getByLabelText("Search trajectory")).toHaveValue("");
-      expect(screen.getByLabelText("Kind")).toHaveValue("all");
-      expect(itemButton(0)).toBeInTheDocument();
+      expect(document.querySelector('[data-trajectory-item-token="0"]')).toBeNull();
     });
   });
 
