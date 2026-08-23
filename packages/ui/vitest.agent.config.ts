@@ -5,7 +5,7 @@ export default defineProject({
     name: "ui-agent-domain",
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    maxWorkers: "50%",
+    maxWorkers: "25%",
     sequence: { groupOrder: 1 },
   },
 });

@@ -5,7 +5,7 @@ export default defineConfig({
     name: "ui-browser",
     environment: "jsdom",
     include: ["tests/**/*.test.tsx"],
-    maxWorkers: "50%",
+    maxWorkers: "25%",
     sequence: { groupOrder: 1 },
     setupFiles: ["./tests/setup.ts"],
   },
