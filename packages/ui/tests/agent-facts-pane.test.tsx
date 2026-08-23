@@ -7,6 +7,17 @@ import type { AgentSession, AgentTimelineEvent } from "../src/lib/agent-session"
 
 afterEach(cleanup);
 
+const toolCallItem = {
+  id: "conversation-1",
+  role: "tool_call",
+  block: { type: "tool_use", text: "{}" },
+} as const;
+const toolResultItem = {
+  id: "conversation-2",
+  role: "tool_result",
+  block: { type: "tool_result", text: "ok" },
+} as const;
+
 const toolEvent: AgentTimelineEvent = {
   id: "event-2",
   recordId: "record-2",
@@ -16,16 +27,8 @@ const toolEvent: AgentTimelineEvent = {
   label: "Tool call",
   preview: "shell",
   conversationItems: [
-    {
-      id: "conversation-1",
-      role: "tool_call",
-      block: { type: "tool_use", text: "{}" },
-    },
-    {
-      id: "conversation-2",
-      role: "tool_result",
-      block: { type: "tool_result", text: "ok" },
-    },
+    toolCallItem,
+    toolResultItem,
     { id: "conversation-3", role: "assistant", block: { type: "text", text: "done" } },
   ],
   sessionEvidence: [
@@ -34,14 +37,14 @@ const toolEvent: AgentTimelineEvent = {
       phase: "call",
       toolName: "shell",
       callId: "call-1",
-      conversationItemId: "conversation-1",
+      conversationItem: toolCallItem,
     },
     {
       kind: "tool-lifecycle",
       phase: "result",
       status: "completed",
       callId: "call-1",
-      conversationItemId: "conversation-2",
+      conversationItem: toolResultItem,
     },
   ],
 };

@@ -130,9 +130,8 @@ export const createAgentToolLifecycleIndex = (
   >();
 
   for (const canonicalEvent of session.events) {
-    const { event, conversationItems } = canonicalEvent;
+    const { event } = canonicalEvent;
     const indexedEvidence: AgentSessionEvidence[] = [];
-    let conversationById: ReadonlyMap<string, AgentConversationItem> | undefined;
     for (const evidence of event.sessionEvidence ?? []) {
       indexedEvidence.push(evidence);
       if (evidence.kind !== "tool-lifecycle") {
@@ -140,10 +139,10 @@ export const createAgentToolLifecycleIndex = (
       }
 
       const conversationItem =
-        evidence.phase !== "completion" && evidence.conversationItemId
-          ? (conversationById ??= new Map(conversationItems.map((item) => [item.id, item]))).get(
-              evidence.conversationItemId,
-            )
+        evidence.phase !== "completion" &&
+        evidence.conversationItem &&
+        canonicalEvent.conversationItemSet.has(evidence.conversationItem)
+          ? evidence.conversationItem
           : undefined;
       const callId = nonEmptyString(evidence.callId);
       if (!callId) {

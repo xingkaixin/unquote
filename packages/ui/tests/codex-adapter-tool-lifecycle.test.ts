@@ -56,7 +56,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
         phase: "result",
         turnId: "turn-statusless",
         callId: "call-statusless",
-        conversationItemId: "conv-3-tool-result",
+        conversationItem: expect.objectContaining({ id: "conv-3-tool-result" }),
       },
     ]);
 
@@ -131,7 +131,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
         turnId: "turn-custom",
         toolName: "apply_patch",
         callId: "call-custom",
-        conversationItemId: "conv-2-tool-call",
+        conversationItem: expect.objectContaining({ id: "conv-2-tool-call" }),
       },
     ]);
     expect(session.events[2]?.sessionEvidence).toEqual([
@@ -141,7 +141,7 @@ describe("codexRolloutAdapter: tool-lifecycle", () => {
         turnId: "turn-custom",
         status: "completed",
         callId: "call-custom",
-        conversationItemId: "conv-3-tool-result",
+        conversationItem: expect.objectContaining({ id: "conv-3-tool-result" }),
       },
     ]);
 

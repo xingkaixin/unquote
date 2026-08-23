@@ -73,7 +73,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
       {
         kind: "model-output",
         role: "user",
-        conversationItemId: "conv-1-block-0",
+        conversationItem: expect.objectContaining({ id: "conv-1-block-0" }),
         turnId: "prompt-1",
       },
     ]);
@@ -81,13 +81,13 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
       {
         kind: "model-output",
         role: "reasoning",
-        conversationItemId: "conv-2-block-0",
+        conversationItem: expect.objectContaining({ id: "conv-2-block-0" }),
         turnId: "prompt-1",
       },
       {
         kind: "model-output",
         role: "assistant",
-        conversationItemId: "conv-2-block-1",
+        conversationItem: expect.objectContaining({ id: "conv-2-block-1" }),
         turnId: "prompt-1",
       },
       {
@@ -95,7 +95,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         phase: "call",
         toolName: "Bash",
         callId: "tool-1",
-        conversationItemId: "conv-2-block-2",
+        conversationItem: expect.objectContaining({ id: "conv-2-block-2" }),
         turnId: "prompt-1",
       },
       {
@@ -113,7 +113,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
       {
         kind: "model-output",
         role: "user",
-        conversationItemId: "conv-3-block-0",
+        conversationItem: expect.objectContaining({ id: "conv-3-block-0" }),
         turnId: "prompt-1",
       },
       {
@@ -121,7 +121,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         phase: "result",
         status: "completed",
         callId: "tool-1",
-        conversationItemId: "conv-3-block-1",
+        conversationItem: expect.objectContaining({ id: "conv-3-block-1" }),
         turnId: "prompt-1",
       },
     ]);
@@ -306,7 +306,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
     expect(assistantEvidence).toHaveLength(6);
     expect(
       assistantEvidence.map((evidence) =>
-        "conversationItemId" in evidence ? evidence.conversationItemId : undefined,
+        "conversationItem" in evidence ? evidence.conversationItem?.id : undefined,
       ),
     ).toEqual([
       "conv-2-block-0",
@@ -340,7 +340,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         phase: "result",
         status: "completed",
         callId: "tool-alpha",
-        conversationItemId: "conv-3-block-0",
+        conversationItem: expect.objectContaining({ id: "conv-3-block-0" }),
         turnId: "prompt-blocks",
       },
       {
@@ -348,7 +348,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
         phase: "result",
         status: "failed",
         callId: "tool-beta",
-        conversationItemId: "conv-3-block-1",
+        conversationItem: expect.objectContaining({ id: "conv-3-block-1" }),
         turnId: "prompt-blocks",
       },
     ]);
