@@ -128,7 +128,7 @@ export const UnquoteApp = ({
     () => (agentSession ? createAgentSessionModel(agentSession) : null),
     [agentSession],
   );
-  const trajectoryFilters = useTrajectoryFilters(agentSessionModel);
+  const trajectoryFilters = useTrajectoryFilters(resultRevision);
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [

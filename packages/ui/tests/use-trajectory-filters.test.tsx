@@ -1,25 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useTrajectoryFilters } from "../src/hooks/use-trajectory-filters";
-import { createAgentSessionModel } from "../src/lib/agent-session";
-import type { AgentSession, AgentSessionModel } from "../src/lib/agent-session";
-
-const modelFor = (): AgentSessionModel => {
-  const session: AgentSession = {
-    fileType: "Codex",
-    meta: { turnCount: 0 },
-    events: [],
-    parseWarnings: [],
-    parseWarningCount: 0,
-  };
-  return createAgentSessionModel(session);
-};
 
 describe("useTrajectoryFilters", () => {
-  it("keeps filter state across re-renders for the same model", () => {
-    const model = modelFor();
-    const { result, rerender } = renderHook(({ current }) => useTrajectoryFilters(current), {
-      initialProps: { current: model },
+  it("keeps filter state across re-renders for the same Source Revision", () => {
+    const { result, rerender } = renderHook(({ revision }) => useTrajectoryFilters(revision), {
+      initialProps: { revision: 1 },
     });
 
     act(() => {
@@ -28,7 +14,7 @@ describe("useTrajectoryFilters", () => {
       result.current.setStatus("failed");
       result.current.setTimeRange({ start: 10, end: 20 });
     });
-    rerender({ current: model });
+    rerender({ revision: 1 });
 
     expect(result.current.query).toBe("shell");
     expect(result.current.kind).toBe("tool");
@@ -36,9 +22,9 @@ describe("useTrajectoryFilters", () => {
     expect(result.current.timeRange).toEqual({ start: 10, end: 20 });
   });
 
-  it("resets every filter when the session model changes", () => {
-    const { result, rerender } = renderHook(({ current }) => useTrajectoryFilters(current), {
-      initialProps: { current: modelFor() },
+  it("resets every filter when the Source Revision changes", () => {
+    const { result, rerender } = renderHook(({ revision }) => useTrajectoryFilters(revision), {
+      initialProps: { revision: 1 },
     });
 
     act(() => {
@@ -46,7 +32,7 @@ describe("useTrajectoryFilters", () => {
       result.current.setKind("tool");
       result.current.setTimeRange({ start: 10, end: 20 });
     });
-    rerender({ current: modelFor() });
+    rerender({ revision: 2 });
 
     expect(result.current.query).toBe("");
     expect(result.current.kind).toBe("all");
@@ -54,7 +40,7 @@ describe("useTrajectoryFilters", () => {
   });
 
   it("clears all filters on demand", () => {
-    const { result } = renderHook(() => useTrajectoryFilters(modelFor()));
+    const { result } = renderHook(() => useTrajectoryFilters(1));
 
     act(() => {
       result.current.setQuery("shell");

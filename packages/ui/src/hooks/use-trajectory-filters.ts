@@ -1,27 +1,55 @@
-import { useCallback, useEffect, useState } from "react";
-import type { AgentSessionModel } from "../lib/agent-session/types";
+import { useCallback } from "react";
+import type { SourceRevision } from "../lib/source-revision";
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
+import { useSourceRevisionState } from "./use-source-revision-state";
 
-/**
- * Owns the trajectory filter state above the view so switching output tabs
- * does not discard it; a new session model still resets every filter.
- */
-export const useTrajectoryFilters = (model: AgentSessionModel | null): TrajectoryFilters => {
-  const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<TrajectoryFilters["kind"]>("all");
-  const [status, setStatus] = useState<TrajectoryFilters["status"]>("all");
-  const [timeRange, setTimeRange] = useState<TrajectoryFilters["timeRange"]>(null);
+type TrajectoryFilterState = Pick<TrajectoryFilters, "query" | "kind" | "status" | "timeRange">;
+
+const createInitialTrajectoryFilters = (): TrajectoryFilterState => ({
+  query: "",
+  kind: "all",
+  status: "all",
+  timeRange: null,
+});
+
+export const useTrajectoryFilters = (sourceRevision: SourceRevision): TrajectoryFilters => {
+  const [state, updateState] = useSourceRevisionState(
+    sourceRevision,
+    createInitialTrajectoryFilters,
+  );
+  const setQuery = useCallback(
+    (query: string) =>
+      updateState((current) => (current.query === query ? current : { ...current, query })),
+    [updateState],
+  );
+  const setKind = useCallback(
+    (kind: TrajectoryFilters["kind"]) =>
+      updateState((current) => (current.kind === kind ? current : { ...current, kind })),
+    [updateState],
+  );
+  const setStatus = useCallback(
+    (status: TrajectoryFilters["status"]) =>
+      updateState((current) => (current.status === status ? current : { ...current, status })),
+    [updateState],
+  );
+  const setTimeRange = useCallback(
+    (timeRange: TrajectoryFilters["timeRange"]) =>
+      updateState((current) =>
+        current.timeRange === timeRange ? current : { ...current, timeRange },
+      ),
+    [updateState],
+  );
 
   const clear = useCallback(() => {
-    setQuery("");
-    setKind("all");
-    setStatus("all");
-    setTimeRange(null);
-  }, []);
+    updateState((current) =>
+      current.query === "" &&
+      current.kind === "all" &&
+      current.status === "all" &&
+      current.timeRange === null
+        ? current
+        : createInitialTrajectoryFilters(),
+    );
+  }, [updateState]);
 
-  useEffect(() => {
-    clear();
-  }, [clear, model]);
-
-  return { query, kind, status, timeRange, setQuery, setKind, setStatus, setTimeRange, clear };
+  return { ...state, setQuery, setKind, setStatus, setTimeRange, clear };
 };
