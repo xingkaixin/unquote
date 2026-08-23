@@ -1,5 +1,4 @@
 import { truncateAtCodePointBoundary } from "@unquote/core";
-import type { AgentTrajectoryTokenUsage } from "./session-types";
 import type { AgentSessionDetail, AgentSessionModel } from "./model-types";
 import type {
   AgentTrajectoryItem,
@@ -7,11 +6,16 @@ import type {
   AgentTrajectoryTurn,
 } from "./trajectory-types";
 import { finiteTrajectoryNumber, type AgentTrajectoryTimeRange } from "./trajectory-time";
+import type {
+  AgentTrajectoryLane,
+  AgentTrajectoryPresentation,
+  AgentTrajectoryPresentationGroup,
+  AgentTrajectoryPresentationItem,
+} from "./trajectory-presentation-types";
 import {
   addWarningCandidate,
   associateWarnings,
   createWarningGroupCollector,
-  type AgentTrajectoryWarningGroup,
   type WarningCandidateIndex,
   type WarningGroupCollector,
 } from "./trajectory-presentation-warnings";
@@ -21,6 +25,13 @@ import {
 } from "./trajectory-presentation-summary";
 
 export type { AgentTrajectoryTimeRange } from "./trajectory-time";
+export type {
+  AgentTrajectoryLane,
+  AgentTrajectoryPresentation,
+  AgentTrajectoryPresentationGroup,
+  AgentTrajectoryPresentationItem,
+  AgentTrajectoryPresentationSummary,
+} from "./trajectory-presentation-types";
 export {
   agentTrajectoryFilterKinds,
   agentTrajectoryFilterStatuses,
@@ -40,46 +51,6 @@ export type { AgentTrajectoryWarningGroup } from "./trajectory-presentation-warn
 
 const TRAJECTORY_DISPLAY_CHARACTER_LIMIT = 240;
 const UNASSIGNED_GROUP_ID = "unassigned";
-
-export type AgentTrajectoryLane = "activity" | "model" | "tool";
-
-export interface AgentTrajectoryPresentationSummary {
-  readonly turns: number;
-  readonly events: number;
-  readonly tools: number;
-  readonly failures: number;
-  readonly durationMs?: number;
-  readonly tokens: AgentTrajectoryTokenUsage;
-  readonly warningCount: number;
-}
-
-export interface AgentTrajectoryPresentationItem {
-  readonly ordinal: number;
-  readonly item: AgentTrajectoryItem;
-  readonly detail: AgentSessionDetail | null;
-  readonly summary: string;
-  readonly searchText: string;
-  readonly lane: AgentTrajectoryLane;
-  readonly interval: AgentTrajectoryTimeRange | null;
-  readonly warningGroups: readonly AgentTrajectoryWarningGroup[];
-  readonly turn: AgentTrajectoryTurn | null;
-}
-
-export interface AgentTrajectoryPresentationGroup {
-  readonly ordinal: number;
-  readonly id: string;
-  readonly turn: AgentTrajectoryTurn | null;
-  readonly items: readonly AgentTrajectoryPresentationItem[];
-}
-
-export interface AgentTrajectoryPresentation {
-  readonly items: readonly AgentTrajectoryPresentationItem[];
-  readonly groups: readonly AgentTrajectoryPresentationGroup[];
-  readonly summary: AgentTrajectoryPresentationSummary;
-  readonly unattachedWarningGroups: readonly AgentTrajectoryWarningGroup[];
-  readonly timeDomain: AgentTrajectoryTimeRange | null;
-  readonly timedItemCount: number;
-}
 
 interface PresentationItemDraft {
   item: AgentTrajectoryItem;
