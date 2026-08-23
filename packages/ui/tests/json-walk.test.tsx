@@ -1,19 +1,65 @@
 import { parseInput } from "@unquote/core";
 import type { JsonNode } from "@unquote/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   formatJsonValueLabel,
   getSearchableJsonValueLabelLength,
   walkJsonNode,
   walkRawJsonValue,
 } from "../src/lib/json-walk";
-import type { JsonWalkContext } from "../src/lib/json-walk";
+import type { JsonWalkContext, RawJsonWalkContext } from "../src/lib/json-walk";
 import type { TreePathSegment } from "../src/lib/path-codec";
 
 const nodeFrom = (text: string): JsonNode =>
   parseInput(text, { forcedFormat: "json" }).records[0]!.node!;
 
 describe("walkJsonNode", () => {
+  it("narrows values from their kind", () => {
+    const assertNodeContext = (context: JsonWalkContext) => {
+      switch (context.kind) {
+        case "object":
+        case "array":
+        case "null":
+          expectTypeOf(context.value).toEqualTypeOf<null>();
+          break;
+        case "string":
+          expectTypeOf(context.value).toEqualTypeOf<string>();
+          break;
+        case "number":
+          expectTypeOf(context.value).toEqualTypeOf<number | string>();
+          break;
+        case "boolean":
+          expectTypeOf(context.value).toEqualTypeOf<boolean>();
+          break;
+      }
+    };
+    const assertRawContext = (context: RawJsonWalkContext) => {
+      switch (context.kind) {
+        case "object":
+          expectTypeOf(context.value).toEqualTypeOf<object | undefined | symbol | bigint>();
+          break;
+        case "array":
+          expectTypeOf(context.value).toEqualTypeOf<unknown[]>();
+          break;
+        case "string":
+          expectTypeOf(context.value).toEqualTypeOf<string>();
+          break;
+        case "number":
+          expectTypeOf(context.value).toEqualTypeOf<number>();
+          break;
+        case "boolean":
+          expectTypeOf(context.value).toEqualTypeOf<boolean>();
+          break;
+        case "null":
+          expectTypeOf(context.value).toEqualTypeOf<null>();
+          break;
+      }
+    };
+
+    walkJsonNode(nodeFrom('[null,true,1,"value",[]]'), assertNodeContext);
+    walkRawJsonValue([null, true, 1, "value", []], assertRawContext);
+  });
+
   it("keeps node and raw adapters aligned", () => {
     const text = JSON.stringify({
       "a.b": [1, true],
