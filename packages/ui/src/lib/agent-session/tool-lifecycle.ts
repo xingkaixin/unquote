@@ -12,10 +12,11 @@ import type { CanonicalAgentEvent, CanonicalAgentSession } from "./identity";
 import {
   createToolCorrelationGroups,
   forEachToolCorrelationGroup,
-  hasRepeatedToolOccurrences,
+  resolveToolCorrelationGroup,
   toolCorrelationGroupFor,
   toolCorrelationScope,
   type ToolCorrelationGroup,
+  type ToolCorrelationResolution,
 } from "./tool-correlation";
 
 export interface AgentToolLifecycleState {
@@ -29,11 +30,10 @@ export interface AgentToolLifecycleOccurrence<TEvidence extends AgentToolLifecyc
   conversationItem?: AgentConversationItem;
 }
 
-export type AgentToolCallOccurrence = AgentToolLifecycleOccurrence<AgentToolCallEvidence>;
-export type AgentToolResultOccurrence = AgentToolLifecycleOccurrence<AgentToolResultEvidence>;
-export type AgentToolCompletionOccurrence =
-  AgentToolLifecycleOccurrence<AgentToolCompletionEvidence>;
-export type AgentToolLifecycleGroup = ToolCorrelationGroup<
+type AgentToolCallOccurrence = AgentToolLifecycleOccurrence<AgentToolCallEvidence>;
+type AgentToolResultOccurrence = AgentToolLifecycleOccurrence<AgentToolResultEvidence>;
+type AgentToolCompletionOccurrence = AgentToolLifecycleOccurrence<AgentToolCompletionEvidence>;
+export type AgentToolLifecycleResolution = ToolCorrelationResolution<
   AgentToolCallOccurrence,
   AgentToolResultOccurrence,
   AgentToolCompletionOccurrence
@@ -41,8 +41,8 @@ export type AgentToolLifecycleGroup = ToolCorrelationGroup<
 
 export interface AgentToolLifecycleIndex {
   evidenceEvents: readonly AgentSessionEvidenceEvent[];
-  groups: readonly AgentToolLifecycleGroup[];
-  groupByEvidence: ReadonlyMap<AgentToolLifecycleEvidence, AgentToolLifecycleGroup>;
+  groups: readonly AgentToolLifecycleResolution[];
+  groupedEvidence: ReadonlySet<AgentToolLifecycleEvidence>;
   stateByConversationItem: ReadonlyMap<AgentConversationItem, AgentToolLifecycleState>;
 }
 
@@ -109,23 +109,21 @@ const assignEvidenceState = (
 
 const finalizeEvidenceGroup = (
   states: Map<AgentConversationItem, AgentToolLifecycleState>,
-  group: AgentToolLifecycleGroup,
+  resolution: AgentToolLifecycleResolution,
 ) => {
-  if (hasRepeatedToolOccurrences(group)) {
-    for (const call of group.calls) {
+  if (resolution.kind === "repeated") {
+    for (const call of resolution.calls) {
       assignEvidenceState(states, call, stateForEvidence(call, undefined, undefined));
     }
-    for (const result of group.results) {
+    for (const result of resolution.results) {
       assignEvidenceState(states, result, stateForEvidence(undefined, result, undefined));
     }
     return;
   }
 
-  const call = group.calls[0];
-  const result = group.results[0];
-  const state = stateForEvidence(call, result, group.completions[0]);
-  assignEvidenceState(states, call, state);
-  assignEvidenceState(states, result, state);
+  const state = stateForEvidence(resolution.call, resolution.result, resolution.completion);
+  assignEvidenceState(states, resolution.call, state);
+  assignEvidenceState(states, resolution.result, state);
 };
 
 export const createAgentToolLifecycleIndex = (
@@ -134,7 +132,7 @@ export const createAgentToolLifecycleIndex = (
   const evidenceEvents: AgentSessionEvidenceEvent[] = [];
   const stateByConversationItem = new Map<AgentConversationItem, AgentToolLifecycleState>();
   const evidenceStates = new Map<AgentConversationItem, AgentToolLifecycleState>();
-  const groupByEvidence = new Map<AgentToolLifecycleEvidence, AgentToolLifecycleGroup>();
+  const groupedEvidence = new Set<AgentToolLifecycleEvidence>();
   const evidenceGroups = createToolCorrelationGroups<
     AgentToolCallOccurrence,
     AgentToolResultOccurrence,
@@ -195,7 +193,7 @@ export const createAgentToolLifecycleIndex = (
         toolCorrelationScope(evidence.turnId, finiteTurnIndex(event.turnIndex)),
         callId,
       );
-      groupByEvidence.set(evidence, group);
+      groupedEvidence.add(evidence);
       if (evidence.phase === "call") {
         group.calls.push(lifecycleOccurrence(evidence, event, conversationItem));
       } else if (evidence.phase === "result") {
@@ -238,9 +236,10 @@ export const createAgentToolLifecycleIndex = (
   }
 
   forEachToolCorrelationGroup(conversationGroups, (group: ConversationToolGroup) => {
-    const call = group.calls[0];
-    const result = group.results[0];
-    const repeated = hasRepeatedToolOccurrences(group);
+    const resolution = resolveToolCorrelationGroup(group);
+    const repeated = resolution.kind === "repeated";
+    const call = repeated ? undefined : resolution.call;
+    const result = repeated ? undefined : resolution.result;
     for (const item of group.calls) {
       const itemCall = toolUseBlock(item);
       stateByConversationItem.set(item, {
@@ -257,10 +256,11 @@ export const createAgentToolLifecycleIndex = (
     }
   });
 
-  const orderedGroups: AgentToolLifecycleGroup[] = [];
+  const orderedGroups: AgentToolLifecycleResolution[] = [];
   forEachToolCorrelationGroup(evidenceGroups, (group) => {
-    orderedGroups.push(group);
-    finalizeEvidenceGroup(evidenceStates, group);
+    const resolution = resolveToolCorrelationGroup(group);
+    orderedGroups.push(resolution);
+    finalizeEvidenceGroup(evidenceStates, resolution);
   });
   for (const [item, state] of evidenceStates) {
     stateByConversationItem.set(item, state);
@@ -269,7 +269,7 @@ export const createAgentToolLifecycleIndex = (
   return {
     evidenceEvents,
     groups: orderedGroups,
-    groupByEvidence,
+    groupedEvidence,
     stateByConversationItem,
   };
 };
