@@ -5,7 +5,7 @@ import {
   parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLineWithValue,
 } from "@unquote/core/ingestion";
-import { createAgentSessionTracker } from "./agent-session";
+import { createAgentSessionTracker } from "./agent-session/tracker";
 
 export const createJsonlIngestion = (fileName?: string) => {
   const agentTracker = createAgentSessionTracker(fileName);

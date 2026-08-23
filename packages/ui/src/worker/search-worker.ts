@@ -1,7 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 import { createLocalFileAccess } from "../lib/local-file-source";
 import type { LocalFileAccess } from "../lib/local-file-source";
-import { parseTextResult } from "../lib/parse-text";
+import { parseTextResult } from "../lib/parse-text-result";
 import type { SourceRevision } from "../lib/source-revision";
 import { searchRecords } from "../lib/record-search";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
