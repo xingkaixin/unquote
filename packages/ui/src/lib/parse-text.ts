@@ -8,9 +8,6 @@ export { parseTextResult } from "./parse-text-result";
 export type { ForcedFormat } from "./parse-text-result";
 
 export interface ParserProgress {
-  processedLines: number;
-  success: number;
-  failed: number;
   elapsedMs: number;
   done: boolean;
 }
@@ -52,9 +49,6 @@ export const parseText = (input: string, options: ParseTextOptions = {}): Parsed
     result,
     agentSession,
     progress: {
-      processedLines: result.stats.total,
-      success: result.stats.success,
-      failed: result.stats.failed,
       elapsedMs: Number((performance.now() - startedAt).toFixed(2)),
       done: true,
     },

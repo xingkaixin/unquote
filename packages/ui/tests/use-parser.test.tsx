@@ -98,9 +98,6 @@ class MockWorker extends MockWorkerEvents {
           requestId: payload.requestId,
           stats: { total: 0, success: 0, failed: 0 },
           progress: {
-            processedLines: 0,
-            success: 0,
-            failed: 0,
             elapsedMs: 1,
             done: true,
           },
@@ -125,9 +122,6 @@ class MockWorker extends MockWorkerEvents {
           requestId: payload.requestId,
           stats: { total: 0, success: 0, failed: 0 },
           progress: {
-            processedLines: 0,
-            success: 0,
-            failed: 0,
             elapsedMs: 1,
             done: true,
           },
@@ -145,9 +139,6 @@ class MockWorker extends MockWorkerEvents {
           result: resultFromRecords([failedRecord(1, "old")]),
           agentSession: null,
           progress: {
-            processedLines: 1,
-            success: 0,
-            failed: 1,
             elapsedMs: 10,
             done: true,
           },
@@ -163,9 +154,6 @@ class MockWorker extends MockWorkerEvents {
         records: [failedRecord(1, "new-1")],
         stats: { total: 1, success: 0, failed: 1 },
         progress: {
-          processedLines: 1,
-          success: 0,
-          failed: 1,
           elapsedMs: 1,
           done: false,
         },
@@ -176,9 +164,6 @@ class MockWorker extends MockWorkerEvents {
         records: [failedRecord(2, "new-2")],
         stats: { total: 2, success: 0, failed: 2 },
         progress: {
-          processedLines: 2,
-          success: 0,
-          failed: 2,
           elapsedMs: 2,
           done: true,
         },
@@ -189,9 +174,6 @@ class MockWorker extends MockWorkerEvents {
         stats: { total: 2, success: 0, failed: 2 },
         agentSession: null,
         progress: {
-          processedLines: 2,
-          success: 0,
-          failed: 2,
           elapsedMs: 2,
           done: true,
         },
@@ -305,9 +287,6 @@ describe("useParser", () => {
         result: resultFromRecords([failedRecord(1, "replacement")]),
         agentSession: null,
         progress: {
-          processedLines: 1,
-          success: 0,
-          failed: 1,
           elapsedMs: 10,
           done: true,
         },
@@ -318,9 +297,6 @@ describe("useParser", () => {
         result: resultFromRecords([failedRecord(1, "old")]),
         agentSession: null,
         progress: {
-          processedLines: 1,
-          success: 0,
-          failed: 1,
           elapsedMs: 10,
           done: true,
         },

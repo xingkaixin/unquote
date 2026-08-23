@@ -99,11 +99,7 @@ const createJsonlSession = (
 const statsFromSession = (session: JsonlSession) => session.ingestion.stats();
 
 const progressFromSession = (session: JsonlSession, done: boolean): ParserProgress => {
-  const stats = statsFromSession(session);
   return {
-    processedLines: stats.total,
-    success: stats.success,
-    failed: stats.failed,
     elapsedMs: elapsed(session.startedAt),
     done,
   };
@@ -124,9 +120,7 @@ const postRequestError = (requestId: number, session: JsonlSession | null) => {
     type: "error",
     requestId,
     stats: session ? statsFromSession(session) : { total: 0, success: 0, failed: 0 },
-    progress: session
-      ? progressFromSession(session, true)
-      : { processedLines: 0, success: 0, failed: 0, elapsedMs: 0, done: true },
+    progress: session ? progressFromSession(session, true) : { elapsedMs: 0, done: true },
   } satisfies ParserWorkerResponse);
 };
 
