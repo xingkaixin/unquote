@@ -1,9 +1,5 @@
-import type {
-  AgentConversationItem,
-  AgentSession,
-  AgentSessionIntegrityIssue,
-  AgentTimelineEvent,
-} from "./types";
+import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "./session-types";
+import type { AgentSessionIntegrityIssue } from "./model-types";
 
 export interface CanonicalAgentEvent {
   event: AgentTimelineEvent;

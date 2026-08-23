@@ -6,8 +6,8 @@ import type {
   AgentToolCompletionEvidence,
   AgentToolLifecycleEvidence,
   AgentToolResultEvidence,
-  AgentToolStatus,
-} from "./types";
+} from "./session-types";
+import type { AgentToolStatus } from "./model-types";
 import type { CanonicalAgentEvent, CanonicalAgentSession } from "./identity";
 import {
   createToolCorrelationGroups,

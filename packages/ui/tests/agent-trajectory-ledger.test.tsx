@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
 import type {
   AgentTrajectoryItem,
   AgentTrajectoryStatus,

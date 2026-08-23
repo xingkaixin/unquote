@@ -1,4 +1,5 @@
-import type { AgentTrajectoryItemKind, AgentTrajectoryStatus } from "./types";
+import type { AgentTrajectoryStatus } from "./session-types";
+import type { AgentTrajectoryItemKind } from "./trajectory-types";
 import type { AgentTrajectoryLane, AgentTrajectoryPresentation } from "./trajectory-presentation";
 import { createTrajectoryTimeScale } from "./trajectory-time-scale";
 import {

@@ -3,11 +3,13 @@ import type {
   AgentToolCallEvidence,
   AgentToolCompletionEvidence,
   AgentToolResultEvidence,
+  AgentTimelineEvent,
+} from "./session-types";
+import type {
   AgentTrajectoryItem,
   AgentTrajectoryToolItem,
   AgentTrajectoryWarning,
-  AgentTimelineEvent,
-} from "./types";
+} from "./trajectory-types";
 import {
   resolveToolLifecycleStatus,
   type AgentToolLifecycleIndex,

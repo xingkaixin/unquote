@@ -1,10 +1,9 @@
 import type {
   AgentCanonicalSelection,
-  AgentTrajectoryItem,
-  AgentTrajectoryItemBase,
   AgentTrajectoryStatus,
   AgentTimelineEvent,
-} from "./types";
+} from "./session-types";
+import type { AgentTrajectoryItem, AgentTrajectoryItemBase } from "./trajectory-types";
 import { finiteTrajectoryNumber } from "./trajectory-time";
 
 export const finiteTrajectoryTurnIndex = (value: number | undefined) =>

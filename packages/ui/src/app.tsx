@@ -15,7 +15,7 @@ import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import type { AgentDetailSelection } from "./lib/agent-session/types";
+import type { AgentDetailSelection } from "./lib/agent-session/session-types";
 import { formatFileSize } from "./lib/format";
 import { projectSourceImport, projectSourceView } from "./lib/published-source";
 import { sourceSamples } from "./lib/source-samples";

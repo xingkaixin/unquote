@@ -1,15 +1,16 @@
 import type {
-  AgentConversationEntry,
   AgentConversationItem,
   AgentDetailSelection,
   AgentSession,
+  AgentTimelineEvent,
+} from "./session-types";
+import type {
+  AgentConversationEntry,
   AgentSessionDetail,
   AgentSessionModel,
-  AgentTimelineEvent,
-  AgentTrajectoryItem,
-  AgentTrajectoryModel,
   AgentToolStatus,
-} from "./types";
+} from "./model-types";
+import type { AgentTrajectoryItem, AgentTrajectoryModel } from "./trajectory-types";
 import { measurePerfFn } from "../perf";
 import { canonicalizeAgentSession } from "./identity";
 import { createAgentToolLifecycleIndex } from "./tool-lifecycle";

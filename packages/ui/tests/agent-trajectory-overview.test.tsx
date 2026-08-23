@@ -10,7 +10,7 @@ import { createTranslator } from "../src/i18n/i18n";
 import { en } from "../src/i18n/en";
 import { formatClockTime } from "../src/lib/format";
 import { formatTrajectoryDuration } from "../src/components/agent-trajectory-format";
-import type { AgentCanonicalSelection } from "../src/lib/agent-session/types";
+import type { AgentCanonicalSelection } from "../src/lib/agent-session/session-types";
 import type {
   AgentSessionModel,
   AgentTrajectoryItem,

@@ -1,14 +1,12 @@
 import { truncateAtCodePointBoundary } from "@unquote/core";
+import type { AgentCanonicalSelection, AgentTrajectoryTokenUsage } from "./session-types";
+import type { AgentSessionDetail, AgentSessionModel } from "./model-types";
 import type {
-  AgentCanonicalSelection,
-  AgentSessionDetail,
-  AgentSessionModel,
   AgentTrajectoryItem,
   AgentTrajectoryItemKind,
-  AgentTrajectoryTokenUsage,
   AgentTrajectoryTurn,
   AgentTrajectoryWarning,
-} from "./types";
+} from "./trajectory-types";
 import {
   finiteTrajectoryNumber,
   trajectoryRangesOverlap,
