@@ -156,8 +156,8 @@ describe("createAgentSessionModel", () => {
     const sourceEvent = {
       ...event("event-1", "record-1", [first, second]),
       sessionEvidence: [
-        { kind: "model-output", role: "assistant", conversationItemId: first.id },
-        { kind: "model-output", role: "reasoning", conversationItemId: second.id },
+        { kind: "model-output", role: "assistant", conversationItem: first },
+        { kind: "model-output", role: "reasoning", conversationItem: second },
       ],
     } satisfies AgentTimelineEvent;
     const model = createAgentSessionModel(session([sourceEvent]));
@@ -188,6 +188,43 @@ describe("createAgentSessionModel", () => {
     expect(
       model.resolveDetail({ kind: "trajectory", id: "missing", recordId: "record-1" }),
     ).toBeNull();
+  });
+
+  it("preserves evidence references through structured cloning", () => {
+    const item = { id: "conversation-1", role: "assistant" } as const;
+    const sourceEvent = {
+      ...event("event-1", "record-1", [item]),
+      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItem: item }],
+    } satisfies AgentTimelineEvent;
+
+    const cloned = structuredClone(session([sourceEvent]));
+    const clonedEvent = cloned.events[0]!;
+    const evidence = clonedEvent.sessionEvidence?.[0];
+
+    expect(evidence?.kind).toBe("model-output");
+    expect(evidence && "conversationItem" in evidence ? evidence.conversationItem : undefined).toBe(
+      clonedEvent.conversationItems[0],
+    );
+    expect(createAgentSessionModel(cloned).trajectory.items[0]?.selection).toEqual({
+      kind: "conversation",
+      id: "conversation-1",
+      recordId: "record-1",
+    });
+  });
+
+  it("rejects an evidence reference outside its owning Event", () => {
+    const item = { id: "conversation-1", role: "assistant" } as const;
+    const lookalike = { ...item };
+    const sourceEvent = {
+      ...event("event-1", "record-1", [item]),
+      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItem: lookalike }],
+    } satisfies AgentTimelineEvent;
+
+    expect(createAgentSessionModel(session([sourceEvent])).trajectory.items[0]?.selection).toEqual({
+      kind: "event",
+      id: "event-1",
+      recordId: "record-1",
+    });
   });
 
   it("defaults only an empty selection and rejects missing associations", () => {
@@ -260,8 +297,8 @@ describe("tool call and result pairing", () => {
   });
 
   type ToolEvidenceInput =
-    | Omit<AgentToolCallEvidence, "kind" | "conversationItemId">
-    | Omit<AgentToolResultEvidence, "kind" | "conversationItemId">;
+    | Omit<AgentToolCallEvidence, "kind" | "conversationItem">
+    | Omit<AgentToolResultEvidence, "kind" | "conversationItem">;
 
   const toolEvent = (
     id: string,
@@ -276,7 +313,7 @@ describe("tool call and result pairing", () => {
     sessionEvidence: entries.map(({ item, evidence }) => ({
       kind: "tool-lifecycle",
       ...evidence,
-      conversationItemId: item.id,
+      conversationItem: item,
     })),
   });
 
@@ -557,7 +594,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "shell",
             callId: "same",
-            conversationItemId: sameTurnCall.id,
+            conversationItem: sameTurnCall,
             turnId: "same-turn",
           },
         ],
@@ -571,7 +608,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "same",
-            conversationItemId: sameTurnResult.id,
+            conversationItem: sameTurnResult,
             turnId: "same-turn",
           },
         ],
@@ -585,7 +622,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "read",
             callId: "different",
-            conversationItemId: differentTurnCall.id,
+            conversationItem: differentTurnCall,
             turnId: "left",
           },
         ],
@@ -599,7 +636,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "different",
-            conversationItemId: differentTurnResult.id,
+            conversationItem: differentTurnResult,
             turnId: "right",
           },
         ],
@@ -612,7 +649,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "search",
             callId: "anonymous",
-            conversationItemId: anonymousCall.id,
+            conversationItem: anonymousCall,
           },
         ],
       },
@@ -624,7 +661,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "anonymous",
-            conversationItemId: anonymousResult.id,
+            conversationItem: anonymousResult,
           },
         ],
       },
@@ -637,7 +674,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "first",
             callId: "duplicate",
-            conversationItemId: duplicateCallOne.id,
+            conversationItem: duplicateCallOne,
             turnId: "duplicate-turn",
           },
         ],
@@ -651,7 +688,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "second",
             callId: "duplicate",
-            conversationItemId: duplicateCallTwo.id,
+            conversationItem: duplicateCallTwo,
             turnId: "duplicate-turn",
           },
         ],
@@ -665,7 +702,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "duplicate",
-            conversationItemId: duplicateResult.id,
+            conversationItem: duplicateResult,
             turnId: "duplicate-turn",
           },
         ],
@@ -725,14 +762,15 @@ describe("tool call and result pairing", () => {
   });
 
   it("does not infer lifecycle facts from display-only conversation blocks", () => {
+    const projectedOutput = { id: "output", role: "assistant" } as const;
     const displayCall = call("display-call", "legacy", undefined, "read_file");
     const displayResult = result("display-result", "completed", "legacy");
     const model = createAgentSessionModel(
       session([
         {
-          ...event("projected-output", "record-1", [{ id: "output", role: "assistant" }]),
+          ...event("projected-output", "record-1", [projectedOutput]),
           sessionEvidence: [
-            { kind: "model-output", role: "assistant", conversationItemId: "output" },
+            { kind: "model-output", role: "assistant", conversationItem: projectedOutput },
           ],
         },
         event("display-call-event", "record-2", [displayCall]),
@@ -761,7 +799,7 @@ describe("tool call and result pairing", () => {
               toolName: "mcp_tool",
               callId: "projected",
               turnId: "turn-projected",
-              conversationItemId: projectedCall.id,
+              conversationItem: projectedCall,
             },
           ],
         },
@@ -788,7 +826,7 @@ describe("tool call and result pairing", () => {
               status: "completed",
               callId: "projected",
               turnId: "turn-projected",
-              conversationItemId: projectedResult.id,
+              conversationItem: projectedResult,
             },
           ],
         },
@@ -816,7 +854,7 @@ describe("tool call and result pairing", () => {
               toolName: "read_file",
               callId: "repeated",
               turnId: "turn-projected",
-              conversationItemId: projectedCall.id,
+              conversationItem: projectedCall,
             },
           ],
         },
@@ -830,7 +868,7 @@ describe("tool call and result pairing", () => {
               status: "completed",
               callId: "repeated",
               turnId: "turn-projected",
-              conversationItemId: projectedResult.id,
+              conversationItem: projectedResult,
             },
           ],
         },

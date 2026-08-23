@@ -151,7 +151,7 @@ describe("claudeTranscriptAdapter: turn-closure", () => {
       {
         kind: "model-output",
         role: "user",
-        conversationItemId: "conv-3-block-0",
+        conversationItem: expect.objectContaining({ id: "conv-3-block-0" }),
         turnId: "prompt-second",
       },
     ]);

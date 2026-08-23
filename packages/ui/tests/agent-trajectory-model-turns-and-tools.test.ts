@@ -26,7 +26,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("fallback-first", "record-fallback-first", 1, {
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          sessionEvidence: [modelOutput("assistant", firstAssistant.id)],
+          sessionEvidence: [modelOutput("assistant", firstAssistant)],
         }),
         event("actual-start", "record-actual-start", 2, {
           turnIndex: 1,
@@ -35,7 +35,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("fallback-second", "record-fallback-second", 3, {
           turnIndex: 1,
           conversationItems: [secondAssistant],
-          sessionEvidence: [modelOutput("assistant", secondAssistant.id)],
+          sessionEvidence: [modelOutput("assistant", secondAssistant)],
         }),
         event("actual-complete", "record-actual-complete", 4, {
           turnIndex: 1,
@@ -62,7 +62,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
           timestamp: 10,
           turnIndex: 1,
           conversationItems: [initial],
-          sessionEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "promoted" }],
+          sessionEvidence: [{ ...modelOutput("assistant", initial), turnId: "promoted" }],
         }),
         event("promoted-token", "record-promoted-token", 2, {
           turnIndex: 1,
@@ -87,7 +87,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
           timestamp: 35,
           turnIndex: 1,
           conversationItems: [recovered],
-          sessionEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "promoted" }],
+          sessionEvidence: [{ ...modelOutput("assistant", recovered), turnId: "promoted" }],
         }),
         event("promoted-complete", "record-promoted-complete", 7, {
           timestamp: 40,
@@ -132,7 +132,7 @@ describe("createAgentTrajectoryModel: turns-and-tools", () => {
         event("ambiguous-index-output", "record-ambiguous-index-output", 3, {
           turnIndex: 1,
           conversationItems: [unscoped],
-          sessionEvidence: [modelOutput("assistant", unscoped.id)],
+          sessionEvidence: [modelOutput("assistant", unscoped)],
         }),
       ]),
     );

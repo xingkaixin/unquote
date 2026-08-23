@@ -197,7 +197,7 @@ describe("codexRolloutAdapter: response-items", () => {
       kind: "tool-lifecycle",
       phase: "result",
       callId,
-      conversationItemId: "conv-2-tool-result",
+      conversationItem: expect.objectContaining({ id: "conv-2-tool-result" }),
     });
     expect(evidence).not.toHaveProperty("output");
     expect(model.resolveToolStatus(call!)).toBe(expected);
@@ -261,7 +261,7 @@ describe("codexRolloutAdapter: response-items", () => {
         turnId: "turn-completed-empty",
         status: "completed",
         callId: "call-completed-empty",
-        conversationItemId: "conv-3-tool-result",
+        conversationItem: expect.objectContaining({ id: "conv-3-tool-result" }),
       },
     ]);
   });
@@ -302,7 +302,7 @@ describe("codexRolloutAdapter: response-items", () => {
         turnId: "turn-normalized-result",
         status: "failed",
         callId: "call-normalized-result",
-        conversationItemId: "conv-2-tool-result",
+        conversationItem: expect.objectContaining({ id: "conv-2-tool-result" }),
       },
     ]);
   });
@@ -423,7 +423,7 @@ describe("codexRolloutAdapter: response-items", () => {
           kind: "model-output",
           role: "system",
           turnId: "turn-system",
-          conversationItemId: "conv-2-system",
+          conversationItem: expect.objectContaining({ id: "conv-2-system" }),
         },
       ],
       [
@@ -431,7 +431,7 @@ describe("codexRolloutAdapter: response-items", () => {
           kind: "model-output",
           role: "system",
           turnId: "turn-system",
-          conversationItemId: "conv-3-system",
+          conversationItem: expect.objectContaining({ id: "conv-3-system" }),
         },
       ],
     ]);

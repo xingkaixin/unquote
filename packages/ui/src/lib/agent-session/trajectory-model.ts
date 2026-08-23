@@ -1,5 +1,6 @@
 import type {
   AgentCanonicalSelection,
+  AgentConversationItem,
   AgentSession,
   AgentSessionEvidence,
   AgentTimelineEvent,
@@ -49,11 +50,11 @@ interface TrajectoryDraftState {
 
 const selectionFor = (
   event: AgentTimelineEvent,
-  conversationItemId: string | undefined,
-  canonicalConversationIds: ReadonlySet<string>,
+  conversationItem: AgentConversationItem | undefined,
+  canonicalConversationItems: ReadonlySet<AgentConversationItem>,
 ): AgentCanonicalSelection => {
-  if (conversationItemId && canonicalConversationIds.has(conversationItemId)) {
-    return { kind: "conversation", id: conversationItemId, recordId: event.recordId };
+  if (conversationItem && canonicalConversationItems.has(conversationItem)) {
+    return { kind: "conversation", id: conversationItem.id, recordId: event.recordId };
   }
   return { kind: "event", id: event.id, recordId: event.recordId };
 };
@@ -61,12 +62,12 @@ const selectionFor = (
 const itemIdFor = (event: AgentTimelineEvent, evidenceIndex: number) =>
   `${event.id}:evidence-${evidenceIndex}`;
 
-const conversationItemIdFor = (evidence: AgentSessionEvidence) => {
+const conversationItemFor = (evidence: AgentSessionEvidence) => {
   if (evidence.kind === "model-output") {
-    return evidence.conversationItemId;
+    return evidence.conversationItem;
   }
   return evidence.kind === "tool-lifecycle" && evidence.phase !== "completion"
-    ? evidence.conversationItemId
+    ? evidence.conversationItem
     : undefined;
 };
 
@@ -203,11 +204,11 @@ const collectEvidence = (
 ) => {
   for (const {
     evidence: evidenceList,
-    canonicalEvent: { event, conversationItemIds },
+    canonicalEvent: { event, conversationItemSet },
   } of toolLifecycle.evidenceEvents) {
     let evidenceIndex = 0;
     for (const evidence of evidenceList) {
-      const selection = selectionFor(event, conversationItemIdFor(evidence), conversationItemIds);
+      const selection = selectionFor(event, conversationItemFor(evidence), conversationItemSet);
       const source = warningSourceFor(event, selection);
       const turn = turns.observe(event, evidence, source);
       appendEvidence(state, tools, turns, evidence, {

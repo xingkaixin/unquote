@@ -62,37 +62,37 @@ export const lifecycle = (
 
 export const modelOutput = (
   role: "user" | "assistant" | "reasoning" | "system",
-  conversationItemId?: string,
+  conversationItem?: AgentConversationItem,
 ): AgentSessionEvidence => ({
   kind: "model-output",
   role,
-  ...(conversationItemId === undefined ? {} : { conversationItemId }),
+  ...(conversationItem === undefined ? {} : { conversationItem }),
 });
 
 export const toolCall = (
   toolName: string,
   callId?: string,
-  conversationItemId?: string,
+  conversationItem?: AgentConversationItem,
 ): AgentSessionEvidence => ({
   kind: "tool-lifecycle",
   phase: "call",
   toolName,
   ...(callId === undefined ? {} : { callId }),
-  ...(conversationItemId === undefined ? {} : { conversationItemId }),
+  ...(conversationItem === undefined ? {} : { conversationItem }),
 });
 
 export const toolResult = (
   status: "completed" | "failed",
   callId?: string,
   durationMs?: number,
-  conversationItemId?: string,
+  conversationItem?: AgentConversationItem,
 ): AgentSessionEvidence => ({
   kind: "tool-lifecycle",
   phase: "result",
   status,
   ...(callId === undefined ? {} : { callId }),
   ...(durationMs === undefined ? {} : { durationMs }),
-  ...(conversationItemId === undefined ? {} : { conversationItemId }),
+  ...(conversationItem === undefined ? {} : { conversationItem }),
 });
 
 export const unknownToolResult = (callId?: string): AgentSessionEvidence =>

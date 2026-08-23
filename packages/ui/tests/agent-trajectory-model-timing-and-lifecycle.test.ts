@@ -398,7 +398,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           timestamp: 10,
           turnIndex: 2,
           conversationItems: [observed],
-          sessionEvidence: [{ ...modelOutput("assistant", observed.id), turnId: "observed" }],
+          sessionEvidence: [{ ...modelOutput("assistant", observed), turnId: "observed" }],
         }),
         event("observed-complete", "record-observed-complete", 3, {
           timestamp: 50,
@@ -410,7 +410,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           turnIndex: 3,
           conversationItems: [reversedObserved],
           sessionEvidence: [
-            { ...modelOutput("assistant", reversedObserved.id), turnId: "reversed-observed" },
+            { ...modelOutput("assistant", reversedObserved), turnId: "reversed-observed" },
           ],
         }),
         event("reversed-observed-complete", "record-reversed-observed-complete", 5, {
@@ -493,7 +493,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           turnIndex: 1,
           conversationItems: [lateObserved],
           sessionEvidence: [
-            { ...modelOutput("assistant", lateObserved.id), turnId: "late-observed-turn" },
+            { ...modelOutput("assistant", lateObserved), turnId: "late-observed-turn" },
           ],
         }),
         event("later-assistant", "record-later-assistant", 3, {
@@ -501,7 +501,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           turnIndex: 2,
           conversationItems: [laterAssistant],
           sessionEvidence: [
-            { ...modelOutput("assistant", laterAssistant.id), turnId: "earliest-turn" },
+            { ...modelOutput("assistant", laterAssistant), turnId: "earliest-turn" },
           ],
         }),
         event("earlier-reasoning", "record-earlier-reasoning", 4, {
@@ -509,7 +509,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
           turnIndex: 2,
           conversationItems: [earlierReasoning],
           sessionEvidence: [
-            { ...modelOutput("reasoning", earlierReasoning.id), turnId: "earliest-turn" },
+            { ...modelOutput("reasoning", earlierReasoning), turnId: "earliest-turn" },
           ],
         }),
         event("earliest-complete", "record-earliest-complete", 5, {
@@ -556,7 +556,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("initial", "record-initial", 2, {
           turnIndex: 1,
           conversationItems: [initial],
-          sessionEvidence: [{ ...modelOutput("assistant", initial.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("assistant", initial), turnId: "turn-one" }],
         }),
         event("first-call", "record-first-call", 3, {
           turnIndex: 1,
@@ -577,17 +577,17 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("user-after-result", "record-user-after-result", 7, {
           turnIndex: 1,
           conversationItems: [userAfterResult],
-          sessionEvidence: [{ ...modelOutput("user", userAfterResult.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("user", userAfterResult), turnId: "turn-one" }],
         }),
         event("recovered", "record-recovered", 8, {
           turnIndex: 1,
           conversationItems: [recovered],
-          sessionEvidence: [{ ...modelOutput("assistant", recovered.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("assistant", recovered), turnId: "turn-one" }],
         }),
         event("continued", "record-continued", 9, {
           turnIndex: 1,
           conversationItems: [continued],
-          sessionEvidence: [{ ...modelOutput("reasoning", continued.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("reasoning", continued), turnId: "turn-one" }],
         }),
         event("third-call", "record-third-call", 10, {
           turnIndex: 1,
@@ -608,9 +608,7 @@ describe("createAgentTrajectoryModel: timing-and-lifecycle", () => {
         event("next-turn-assistant", "record-next-assistant", 14, {
           turnIndex: 2,
           conversationItems: [nextTurnAssistant],
-          sessionEvidence: [
-            { ...modelOutput("assistant", nextTurnAssistant.id), turnId: "turn-two" },
-          ],
+          sessionEvidence: [{ ...modelOutput("assistant", nextTurnAssistant), turnId: "turn-two" }],
         }),
       ]),
     );

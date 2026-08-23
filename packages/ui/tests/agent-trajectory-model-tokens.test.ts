@@ -29,12 +29,12 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("first-assistant", "record-first-assistant", 2, {
           turnIndex: 1,
           conversationItems: [firstAssistant],
-          sessionEvidence: [{ ...modelOutput("assistant", firstAssistant.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("assistant", firstAssistant), turnId: "turn-one" }],
         }),
         event("first-reasoning", "record-first-reasoning", 3, {
           turnIndex: 1,
           conversationItems: [firstReasoning],
-          sessionEvidence: [{ ...modelOutput("reasoning", firstReasoning.id), turnId: "turn-one" }],
+          sessionEvidence: [{ ...modelOutput("reasoning", firstReasoning), turnId: "turn-one" }],
         }),
         event("first-token", "record-first-token", 4, {
           turnIndex: 1,
@@ -53,9 +53,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("second-assistant", "record-second-assistant", 7, {
           turnIndex: 2,
           conversationItems: [secondAssistant],
-          sessionEvidence: [
-            { ...modelOutput("assistant", secondAssistant.id), turnId: "turn-two" },
-          ],
+          sessionEvidence: [{ ...modelOutput("assistant", secondAssistant), turnId: "turn-two" }],
         }),
         event("second-token", "record-second-token", 8, {
           turnIndex: 2,
@@ -111,7 +109,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
           turnIndex: 1,
           conversationItems: [firstAssistant],
           sessionEvidence: [
-            { ...modelOutput("assistant", firstAssistant.id), turnId: "snapshot-turn" },
+            { ...modelOutput("assistant", firstAssistant), turnId: "snapshot-turn" },
           ],
         }),
         event("snapshot-first-token", "record-snapshot-first-token", 2, {
@@ -128,7 +126,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
           turnIndex: 1,
           conversationItems: [secondAssistant],
           sessionEvidence: [
-            { ...modelOutput("assistant", secondAssistant.id), turnId: "snapshot-turn" },
+            { ...modelOutput("assistant", secondAssistant), turnId: "snapshot-turn" },
           ],
         }),
         event("snapshot-second-token", "record-snapshot-second-token", 4, {
@@ -221,7 +219,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
         event("flat-incremental", "record-flat-incremental", 1, {
           turnIndex: 1,
           conversationItems: [assistant],
-          sessionEvidence: [{ ...modelOutput("assistant", assistant.id), turnId: "flat-turn" }],
+          sessionEvidence: [{ ...modelOutput("assistant", assistant), turnId: "flat-turn" }],
         }),
         event("flat-first", "record-flat-first", 2, {
           turnIndex: 1,
@@ -249,7 +247,7 @@ describe("createAgentTrajectoryModel: tokens", () => {
           turnIndex: 1,
           conversationItems: [assistant],
           sessionEvidence: [
-            { ...modelOutput("assistant", assistant.id), turnId: "snapshot-increment-turn" },
+            { ...modelOutput("assistant", assistant), turnId: "snapshot-increment-turn" },
           ],
         }),
         event("snapshot", "record-snapshot", 2, {

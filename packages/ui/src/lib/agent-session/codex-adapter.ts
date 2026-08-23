@@ -2,6 +2,7 @@ import { truncateAtCodePointBoundary } from "@unquote/core";
 import type { AgentAdapterBuilder, AgentSessionAdapter } from "./adapter-types";
 import type {
   AgentContentBlock,
+  AgentConversationItem,
   AgentConversationRole,
   AgentEventCategory,
   AgentModelOutputEvidence,
@@ -466,18 +467,12 @@ const codexEventRuleFor = (eventType: string | undefined): CodexEventRule | unde
   return codexEventRules[eventType as keyof typeof codexEventRules];
 };
 
-interface CodexConversationProjection {
-  id: string;
-  role: AgentConversationRole;
-  block?: AgentContentBlock;
-}
-
 interface CodexEventProjection {
   category: AgentEventCategory;
   kind: string;
   label: string;
   preview: string;
-  conversation?: CodexConversationProjection;
+  conversation?: AgentConversationItem;
   sessionEvidence?: AgentSessionEvidence;
 }
 
@@ -485,6 +480,7 @@ const projectCodexResponseItem = (
   item: NormalizedCodexResponseItem,
   lineNumber: number,
   turnId: string | undefined,
+  turnIndex: number | undefined,
 ): CodexEventProjection => {
   switch (item.type) {
     case "message": {
@@ -492,12 +488,18 @@ const projectCodexResponseItem = (
       const block = item.text
         ? ({ type: "text", text: truncateBlockText(item.text) } satisfies AgentContentBlock)
         : undefined;
+      const conversation = {
+        id: conversationItemId,
+        role: item.conversationRole,
+        ...(turnIndex === undefined ? {} : { turnIndex }),
+        ...(block === undefined ? {} : { block }),
+      } satisfies AgentConversationItem;
       const sessionEvidence = item.evidenceRole
         ? ({
             kind: "model-output",
             role: item.evidenceRole,
             ...withTurnId(turnId),
-            conversationItemId,
+            conversationItem: conversation,
           } satisfies AgentSessionEvidence)
         : undefined;
       return {
@@ -505,31 +507,29 @@ const projectCodexResponseItem = (
         kind: item.itemType,
         label: item.messageRole ?? item.itemType,
         preview: truncatePreview(item.text),
-        conversation: {
-          id: conversationItemId,
-          role: item.conversationRole,
-          ...(block === undefined ? {} : { block }),
-        },
+        conversation,
         ...(sessionEvidence === undefined ? {} : { sessionEvidence }),
       };
     }
     case "reasoning": {
       const conversationItemId = `conv-${lineNumber}-thinking`;
+      const conversation = {
+        id: conversationItemId,
+        role: "thinking",
+        ...(turnIndex === undefined ? {} : { turnIndex }),
+        block: { type: "thinking", text: truncateBlockText(item.text) },
+      } satisfies AgentConversationItem;
       return {
         category: "thinking",
         kind: item.itemType,
         label: item.itemType,
         preview: truncatePreview(item.text),
-        conversation: {
-          id: conversationItemId,
-          role: "thinking",
-          block: { type: "thinking", text: truncateBlockText(item.text) },
-        },
+        conversation,
         sessionEvidence: {
           kind: "model-output",
           role: "reasoning",
           ...withTurnId(turnId),
-          conversationItemId,
+          conversationItem: conversation,
         },
       };
     }
@@ -542,6 +542,7 @@ const projectCodexResponseItem = (
         conversation: {
           id: `conv-${lineNumber}-response-item`,
           role: "system",
+          ...(turnIndex === undefined ? {} : { turnIndex }),
         },
         sessionEvidence: {
           kind: "subagent-activity",
@@ -555,19 +556,25 @@ const projectCodexResponseItem = (
         type: "tool_use",
         text: truncateBlockText(item.text ?? "{}"),
       } satisfies AgentContentBlock;
+      const conversation = {
+        id: conversationItemId,
+        role: "tool_call",
+        ...(turnIndex === undefined ? {} : { turnIndex }),
+        block,
+      } satisfies AgentConversationItem;
       return {
         category: "tool",
         kind: item.itemType,
         label: `tool_use ${item.toolName}`,
         preview: truncatePreview(item.text ?? ""),
-        conversation: { id: conversationItemId, role: "tool_call", block },
+        conversation,
         sessionEvidence: {
           kind: "tool-lifecycle",
           phase: "call",
           toolName: item.toolName,
           ...withTurnId(turnId),
           ...(item.callId ? { callId: item.callId } : {}),
-          conversationItemId,
+          conversationItem: conversation,
         },
       };
     }
@@ -580,23 +587,25 @@ const projectCodexResponseItem = (
               text: item.text,
             } satisfies AgentContentBlock)
           : undefined;
+      const conversation = {
+        id: conversationItemId,
+        role: "tool_result",
+        ...(turnIndex === undefined ? {} : { turnIndex }),
+        ...(block === undefined ? {} : { block }),
+      } satisfies AgentConversationItem;
       return {
         category: "tool",
         kind: item.itemType,
         label: `tool_result ${shortCallId(item.callId) ?? "unknown"}`,
         preview: item.preview,
-        conversation: {
-          id: conversationItemId,
-          role: "tool_result",
-          ...(block === undefined ? {} : { block }),
-        },
+        conversation,
         sessionEvidence: {
           kind: "tool-lifecycle",
           phase: "result",
           ...withTurnId(turnId),
           ...(item.evidenceStatus === undefined ? {} : { status: item.evidenceStatus }),
           ...(item.callId ? { callId: item.callId } : {}),
-          conversationItemId,
+          conversationItem: conversation,
         },
       };
     }
@@ -609,6 +618,7 @@ const projectCodexResponseItem = (
         conversation: {
           id: `conv-${lineNumber}-response-item`,
           role: "system",
+          ...(turnIndex === undefined ? {} : { turnIndex }),
         },
       };
   }
@@ -619,6 +629,7 @@ interface CodexEventProjectionContext {
   sessionId: string | undefined;
   cwd: string | undefined;
   turnId: string | undefined;
+  turnIndex: number | undefined;
   eventType: string | undefined;
   eventRule: CodexEventRule | undefined;
 }
@@ -633,6 +644,7 @@ const projectCodexEvent = (
       normalizeCodexResponseItem(payload),
       context.lineNumber,
       context.turnId,
+      context.turnIndex,
     );
   }
   if (envelopeType === "event_msg") {
@@ -742,6 +754,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         sessionId,
         cwd,
         turnId: eventTurnId,
+        turnIndex,
         eventType,
         eventRule,
       });
@@ -759,12 +772,7 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
       );
 
       if (projection.conversation) {
-        attachConversationItem(event, {
-          id: projection.conversation.id,
-          role: projection.conversation.role,
-          ...(turnIndex === undefined ? {} : { turnIndex }),
-          ...(projection.conversation.block ? { block: projection.conversation.block } : {}),
-        });
+        attachConversationItem(event, projection.conversation);
       }
 
       if (projection.sessionEvidence) {

@@ -53,7 +53,7 @@ const modelFor = (entries: AgentConversationEntry[]) => {
                 phase: "call" as const,
                 toolName: "shell",
                 callId: "call-1",
-                conversationItemId: item.id,
+                conversationItem: item,
               },
             ],
           }
@@ -67,7 +67,7 @@ const modelFor = (entries: AgentConversationEntry[]) => {
                     ? ("failed" as const)
                     : ("completed" as const),
                   callId: "call-1",
-                  conversationItemId: item.id,
+                  conversationItem: item,
                 },
               ],
             }

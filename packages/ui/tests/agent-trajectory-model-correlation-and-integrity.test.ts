@@ -74,12 +74,12 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("anonymous-call-event", "record-anonymous-call", 1, {
         timestamp: 10,
         conversationItems: [call],
-        sessionEvidence: [toolCall("shell", "anonymous", call.id)],
+        sessionEvidence: [toolCall("shell", "anonymous", call)],
       }),
       event("anonymous-result-event", "record-anonymous-result", 2, {
         timestamp: 25,
         conversationItems: [result],
-        sessionEvidence: [toolResult("completed", "anonymous", undefined, result.id)],
+        sessionEvidence: [toolResult("completed", "anonymous", undefined, result)],
       }),
     ]);
     const model = createAgentTrajectoryModel(source);
@@ -269,11 +269,11 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const source = session([
       event("first-event", "record-first", 1, {
         conversationItems: [first],
-        sessionEvidence: [modelOutput("assistant", first.id)],
+        sessionEvidence: [modelOutput("assistant", first)],
       }),
       event("second-event", "record-second", 2, {
         conversationItems: [second],
-        sessionEvidence: [modelOutput("assistant", second.id)],
+        sessionEvidence: [modelOutput("assistant", second)],
       }),
     ]);
     const trajectory = createAgentTrajectoryModel(source);
@@ -327,7 +327,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
     const source = session([
       event("same-event", "same-event-record", 1, {
         conversationItems: [shared],
-        sessionEvidence: [modelOutput("assistant", shared.id), modelOutput("reasoning", shared.id)],
+        sessionEvidence: [modelOutput("assistant", shared), modelOutput("reasoning", shared)],
       }),
     ]);
     const trajectory = createAgentTrajectoryModel(source);
@@ -350,21 +350,19 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
       event("opaque-output-event", "source-revision:9/record:opaque-output", 101, {
         turnIndex: 1,
         conversationItems: [output],
-        sessionEvidence: [{ ...modelOutput("assistant", output.id), turnId: "opaque-turn" }],
+        sessionEvidence: [{ ...modelOutput("assistant", output), turnId: "opaque-turn" }],
       }),
       event("opaque-call-event", "source-revision:9/record:opaque-call", 102, {
         turnIndex: 1,
         conversationItems: [call],
-        sessionEvidence: [
-          { ...toolCall("shell", "opaque-call-id", call.id), turnId: "opaque-turn" },
-        ],
+        sessionEvidence: [{ ...toolCall("shell", "opaque-call-id", call), turnId: "opaque-turn" }],
       }),
       event("opaque-result-event", "source-revision:9/record:opaque-result", 103, {
         turnIndex: 1,
         conversationItems: [result],
         sessionEvidence: [
           {
-            ...toolResult("completed", "opaque-call-id", undefined, result.id),
+            ...toolResult("completed", "opaque-call-id", undefined, result),
             turnId: "opaque-turn",
           },
         ],
