@@ -7,8 +7,11 @@ import {
 } from "@unquote/core/ingestion";
 import { createAgentSessionTracker } from "./agent-session/tracker";
 
-export const createJsonlIngestion = (fileName?: string) => {
-  const agentTracker = createAgentSessionTracker(fileName);
+export const createJsonlIngestion = (
+  fileName?: string,
+  onAgentSessionDetected?: (() => void) | undefined,
+) => {
+  const agentTracker = createAgentSessionTracker(fileName, onAgentSessionDetected);
   let total = 0;
   let success = 0;
 

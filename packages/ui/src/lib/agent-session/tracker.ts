@@ -78,7 +78,10 @@ const appendWarning = (buffer: WarningBuffer, warning: AgentParseWarning) => {
   }
 };
 
-export const createAgentSessionTracker = (fileName?: string) => {
+export const createAgentSessionTracker = (
+  fileName?: string,
+  onDetected?: (() => void) | undefined,
+) => {
   const samples: AgentDetectionSample[] = [];
   let candidates: DetectionCandidate[] = adapters.map((adapter) => ({
     adapter,
@@ -119,6 +122,7 @@ export const createAgentSessionTracker = (fileName?: string) => {
     status = "detected";
     candidates = [selectedCandidate];
     samples.splice(0, samples.length);
+    onDetected?.();
     return true;
   };
 

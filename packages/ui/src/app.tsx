@@ -22,11 +22,11 @@ import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 
-const AgentOutput = lazy(() =>
+const loadAgentOutput = () =>
   import("./components/agent-output").then(({ AgentOutput }) => ({
     default: AgentOutput,
-  })),
-);
+  }));
+const AgentOutput = lazy(loadAgentOutput);
 const CommandPalette = lazy(() =>
   import("./components/command-palette").then(({ CommandPalette }) => ({
     default: CommandPalette,
@@ -76,7 +76,7 @@ export const UnquoteApp = ({
     progress,
     agentSession,
     recordAppend,
-  } = useParser({ source });
+  } = useParser({ source, onAgentSessionDetected: loadAgentOutput });
   const hasData = sourceView.hasData;
 
   const translateError = useCallback(

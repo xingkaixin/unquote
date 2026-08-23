@@ -59,6 +59,10 @@ describe("parser worker dispatch", () => {
     const response = workerScope.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message.type === "complete-result");
+    expect(workerScope.postMessage.mock.calls.map(([message]) => message.type)).toEqual([
+      "agent-session-detected",
+      "complete-result",
+    ]);
     expect(response).toMatchObject({
       requestId: 1,
       result: { stats: { total: 2, success: 2, failed: 0 } },

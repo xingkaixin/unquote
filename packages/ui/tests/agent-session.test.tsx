@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseJson } from "@unquote/core";
 import { createAgentSessionModel, createAgentSessionTracker } from "../src/lib/agent-session";
 import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
@@ -99,7 +99,8 @@ describe("createAgentSessionTracker", () => {
   });
 
   it("locks in confident detection after twenty samples", () => {
-    const tracker = createAgentSessionTracker();
+    const onDetected = vi.fn();
+    const tracker = createAgentSessionTracker(undefined, onDetected);
 
     for (let index = 1; index <= 5; index += 1) {
       pushRawLine(tracker, unrelatedEvent(index), index);
@@ -113,6 +114,7 @@ describe("createAgentSessionTracker", () => {
     pushRawLine(tracker, codexEvent("task_complete"), 81);
 
     const session = tracker.finish();
+    expect(onDetected).toHaveBeenCalledTimes(1);
     expect(session?.fileType).toBe("Codex");
     expect(session?.events).toHaveLength(16);
     expect(session?.events.at(-1)).toMatchObject({ lineNumber: 81, kind: "task_complete" });
