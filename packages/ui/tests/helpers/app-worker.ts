@@ -198,6 +198,7 @@ Object.assign(globalThis, {
                 elapsedMs: 1,
                 done: true,
               },
+              error: { name: "Error", message: "mock failure" },
             });
             return;
           }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
+import { reportDiagnostic } from "../lib/diagnostics";
 import { createLocalFileAccess, readFileHead } from "../lib/local-file-source";
 import {
   createImportedFileSourceRevision,
@@ -121,12 +122,13 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
           );
         }
       }, controller.signal);
-    } catch {
+    } catch (error) {
       // An abort is the caller's own doing, not a failure to report.
       if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
         return;
       }
 
+      reportDiagnostic("source.read", error);
       setState((current) =>
         current.operation.kind === "reading" && current.operation.requestId === requestId
           ? { source: current.source, operation: { kind: "idle" } }

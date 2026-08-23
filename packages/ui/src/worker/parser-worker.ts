@@ -1,5 +1,7 @@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import type { AgentSession } from "../lib/agent-session";
+import { serializeDiagnosticError } from "../lib/diagnostics";
+import type { DiagnosticError } from "../lib/diagnostics";
 import { createJsonlIngestion } from "../lib/jsonl-ingestion";
 import { drainJsonlLines } from "../lib/jsonl-lines";
 import { parseText, type ParserProgress } from "../lib/parse-text";
@@ -58,6 +60,7 @@ export type ParserWorkerResponse =
       requestId: number;
       stats: ParseResult["stats"];
       progress: ParserProgress;
+      error: DiagnosticError;
     };
 
 const batchSize = 64;
@@ -115,12 +118,13 @@ const postSessionComplete = (requestId: number, session: JsonlSession) => {
   } satisfies ParserWorkerResponse);
 };
 
-const postRequestError = (requestId: number, session: JsonlSession | null) => {
+const postRequestError = (requestId: number, session: JsonlSession | null, error: unknown) => {
   self.postMessage({
     type: "error",
     requestId,
     stats: session ? statsFromSession(session) : { total: 0, success: 0, failed: 0 },
     progress: session ? progressFromSession(session, true) : { elapsedMs: 0, done: true },
+    error: serializeDiagnosticError(error),
   } satisfies ParserWorkerResponse);
 };
 
@@ -190,7 +194,7 @@ const parseJson = ({
 
 const parseJsonlFile = async (requestId: number, file: File, session: JsonlSession) => {
   let reader: ReadableStreamDefaultReader<string> | null = null;
-  let failed = false;
+  let failure: { error: unknown } | null = null;
 
   try {
     reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
@@ -211,8 +215,8 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
         return;
       }
     }
-  } catch {
-    failed = true;
+  } catch (error) {
+    failure = { error };
   } finally {
     if (jsonlSession === session) {
       jsonlSession = null;
@@ -220,8 +224,8 @@ const parseJsonlFile = async (requestId: number, file: File, session: JsonlSessi
     await reader?.cancel().catch(() => undefined);
   }
 
-  if (failed && requestId === latestRequestId) {
-    postRequestError(requestId, session);
+  if (failure && requestId === latestRequestId) {
+    postRequestError(requestId, session, failure.error);
   }
 };
 
@@ -260,11 +264,11 @@ const handleRequest = (message: ParserRequest) => {
 self.onmessage = (event: MessageEvent<ParserRequest>) => {
   try {
     handleRequest(event.data);
-  } catch {
+  } catch (error) {
     // Without this the failure surfaces as an uncaught worker exception and
     // the request never reaches a terminal state on the main thread.
     const session = jsonlSession;
     jsonlSession = null;
-    postRequestError(event.data.requestId, session);
+    postRequestError(event.data.requestId, session, error);
   }
 };

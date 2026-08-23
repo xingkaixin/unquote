@@ -102,6 +102,7 @@ describe("parser worker dispatch", () => {
         elapsedMs: expect.any(Number),
         done: true,
       },
+      error: expect.objectContaining({ name: "Error", message: "read failed" }),
     });
   });
 
@@ -390,6 +391,10 @@ describe("parser worker dispatch", () => {
       requestId: 1,
       stats: { total: 0, success: 0, failed: 0 },
       progress: { elapsedMs: 0, done: true },
+      error: expect.objectContaining({
+        name: "RangeError",
+        message: "Invalid string length",
+      }),
     });
     vi.doUnmock("../src/lib/parse-text");
   });

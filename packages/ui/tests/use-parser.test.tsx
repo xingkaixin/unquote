@@ -101,6 +101,7 @@ class MockWorker extends MockWorkerEvents {
             elapsedMs: 1,
             done: true,
           },
+          error: { name: "Error", message: "mock failure" },
         });
       }, 0);
       return;
@@ -125,6 +126,7 @@ class MockWorker extends MockWorkerEvents {
             elapsedMs: 1,
             done: true,
           },
+          error: { name: "Error", message: "mock failure" },
         });
       }, delay);
       return;
