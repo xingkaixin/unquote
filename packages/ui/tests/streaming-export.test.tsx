@@ -23,7 +23,11 @@ import { useExportActions } from "../src/hooks/use-export-actions";
 import type { LocalFileExportAccess } from "../src/hooks/use-export-actions";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
-import { formatRecordsAsJsonParts, formatRecordsAsJsonlParts } from "../src/lib/record-export";
+import {
+  addRecordsToBuilder,
+  createJsonPartsBuilder,
+  createJsonlPartsBuilder,
+} from "../src/lib/record-export";
 
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
@@ -87,10 +91,9 @@ describe("streaming export", () => {
       const { file } = createStreamFile(contents, "fixture.jsonl");
       const access = createLocalFileAccess(file);
       const records = previewRecords(fixtureLines);
-      const baseline =
-        format === "jsonl"
-          ? await formatRecordsAsJsonlParts(await access.resolveRecords(records))
-          : await formatRecordsAsJsonParts(await access.resolveRecords(records), "jsonl");
+      const builder =
+        format === "jsonl" ? createJsonlPartsBuilder() : createJsonPartsBuilder("jsonl");
+      const baseline = await addRecordsToBuilder(builder, await access.resolveRecords(records));
 
       const { result, resolveRecords } = renderExport({
         visibleRecords: records,
