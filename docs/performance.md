@@ -46,6 +46,14 @@ on a shared runner does not trip the check. p95 remains in the report for
 diagnostics. Override a pathological runner with the `UNQUOTE_BENCH_*_BUDGET_*`
 environment variables above.
 
+The GitHub `ubuntu-latest` job keeps the local release defaults except for Agent
+session readiness and Trajectory readiness, which use 700 ms and 130 ms. Four
+runs of the same deferred-Agent implementation measured 5K-session p50 values
+of 577–646.1 ms and Trajectory p50 values of 83.4–116.8 ms on the shared runner,
+while the same commit measured 528.1 ms and 50.5 ms locally. The runner-specific
+limits retain the stricter 600 ms and 100 ms local gates while leaving about 8%
+and 11% above the slowest observed shared-runner medians.
+
 Generate ignored local JSONL fixtures with:
 
 ```sh

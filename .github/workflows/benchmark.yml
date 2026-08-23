@@ -39,6 +39,8 @@ jobs:
       - name: Run benchmark
         env:
           UNQUOTE_BENCH_OUTPUT: ${{ runner.temp }}/unquote-benchmark/latest.json
+          UNQUOTE_BENCH_AGENT_READY_BUDGET_MS: 700
+          UNQUOTE_BENCH_AGENT_TRAJECTORY_READY_BUDGET_MS: 130
         run: dbus-run-session -- pnpm benchmark
       - name: Upload benchmark report
         if: always()
