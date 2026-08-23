@@ -21,7 +21,11 @@ import {
 } from "../lib/agent-session/trajectory-presentation";
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
 import { AgentTrajectoryDetail, type TrajectoryRawJson } from "./agent-trajectory-detail";
-import { formatTrajectoryDuration } from "./agent-trajectory-format";
+import {
+  formatTrajectoryDuration,
+  trajectoryKindMessageKey,
+  trajectoryStatusMessageKey,
+} from "./agent-trajectory-format";
 import { AgentTrajectoryLedger } from "./agent-trajectory-ledger";
 import { AgentTrajectoryOverview } from "./agent-trajectory-overview";
 import { Button } from "./button";
@@ -29,24 +33,15 @@ import { WorkspaceColumns } from "./workspace-columns";
 
 const MISSING_METRIC_VALUE = "—";
 
-const filterKindMessageKey: Record<AgentTrajectoryFilterKind, MessageKey> = {
+const filterKindMessageKey = {
   all: "trajectory.kind.all",
-  user: "trajectory.kind.user",
-  system: "trajectory.kind.system",
-  assistant: "trajectory.kind.assistant",
-  reasoning: "trajectory.kind.reasoning",
-  tool: "trajectory.kind.tool",
-  subagent: "trajectory.kind.subagent",
-  compaction: "trajectory.kind.compaction",
-};
+  ...trajectoryKindMessageKey,
+} satisfies Record<AgentTrajectoryFilterKind, MessageKey>;
 
-const filterStatusMessageKey: Record<AgentTrajectoryFilterStatus, MessageKey> = {
+const filterStatusMessageKey = {
   all: "trajectory.kind.all",
-  completed: "trajectory.status.completed",
-  running: "trajectory.status.running",
-  failed: "trajectory.status.failed",
-  aborted: "trajectory.status.aborted",
-};
+  ...trajectoryStatusMessageKey,
+} satisfies Record<AgentTrajectoryFilterStatus, MessageKey>;
 
 const isAgentTrajectoryFilterKind = (value: string): value is AgentTrajectoryFilterKind =>
   agentTrajectoryFilterKinds.some((kind) => kind === value);
