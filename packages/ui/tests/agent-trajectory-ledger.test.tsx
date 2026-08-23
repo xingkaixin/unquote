@@ -136,7 +136,6 @@ const groupFor = (
         item.timestamp === undefined ? null : { start: item.timestamp, end: item.timestamp },
       warningGroups: [],
       turn,
-      groupId: id,
     })),
   };
 };

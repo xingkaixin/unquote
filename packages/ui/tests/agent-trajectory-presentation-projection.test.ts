@@ -246,7 +246,6 @@ describe("agent trajectory presentation: projection", () => {
     expect(presentation.groups[2]?.items.map((item) => item.item.id)).toEqual([
       "event-3:evidence-1",
     ]);
-    expect(presentation.items.map((item) => item.groupId)).toEqual(["turn-assigned", "unassigned"]);
   });
 
   it("keeps every source reference once when malformed items reuse an id", () => {

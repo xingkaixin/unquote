@@ -388,8 +388,6 @@ export interface AgentAdapterBuilder {
 }
 
 export interface AgentSessionAdapter {
-  // Same value the builder's finish() writes into session.fileType.
-  fileType: AgentSession["fileType"];
   detect(samples: AgentDetectionSample[]): number;
   createBuilder(fileName?: string): AgentAdapterBuilder;
 }
