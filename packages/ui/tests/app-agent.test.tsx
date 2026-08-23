@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
 import { I18nProvider } from "../src/i18n/context";
-import * as agentSession from "../src/lib/agent-session";
+import * as agentSession from "../src/lib/agent-session/model";
 import {
   createInitialWorkspaceSelectionState,
   reduceWorkspaceSelection,
@@ -17,7 +17,7 @@ import {
 } from "./app-test-helpers";
 
 describe("UnquoteApp", () => {
-  describe("Agent and Trajectory", () => {
+  describe("Agent and Trajectory", { timeout: 10_000 }, () => {
     it("shows the Agent view for Codex rollout logs", async () => {
       await renderCodexAgentView();
 

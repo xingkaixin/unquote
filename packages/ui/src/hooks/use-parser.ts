@@ -1,9 +1,10 @@
+import { parseInput } from "@unquote/core";
 import type { ParseResult } from "@unquote/core";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { probeJsonl } from "@unquote/core";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
-import { parseText } from "../lib/parse-text";
+import { mightContainAgentSession } from "../lib/agent-session/probe";
 import type { ParsedText, ParserProgress } from "../lib/parse-text";
 import { markPerf, measurePerf } from "../lib/perf";
 import { resolveSourceWork } from "../lib/published-source";
@@ -33,6 +34,25 @@ const idleProgress: ParserProgress = {
 
 const workerChunkSize = 256 * 1024;
 
+const parseInitialText = (
+  input: string,
+  forcedFormat: "json" | "jsonl" | undefined,
+): ParsedText => {
+  const startedAt = performance.now();
+  const result = parseInput(input, forcedFormat ? { forcedFormat } : {});
+  return {
+    result,
+    agentSession: null,
+    progress: {
+      processedLines: result.stats.total,
+      success: result.stats.success,
+      failed: result.stats.failed,
+      elapsedMs: Number((performance.now() - startedAt).toFixed(2)),
+      done: true,
+    },
+  };
+};
+
 export interface ParserSnapshot {
   sourceRevision: SourceRevision;
   result: ParseResult;
@@ -57,7 +77,13 @@ const pendingSnapshot = (
 
 const parseFileOnMainThread = async (file: File): Promise<ParsedText> => {
   const text = await file.text();
+  const { parseText } = await import("../lib/parse-text");
   return parseText(text, { forcedFormat: "jsonl", fileName: file.name });
+};
+
+const parseTextOnMainThread = async (input: string, forcedFormat: "json" | "jsonl" | undefined) => {
+  const { parseText } = await import("../lib/parse-text");
+  return parseText(input, { forcedFormat });
 };
 
 const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
@@ -89,7 +115,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       sourceRevision,
       input,
       forcedFormat,
-      parsed: parseText(input, { forcedFormat }),
+      parsed: parseInitialText(input, forcedFormat),
     };
   });
   const [parserState, setParserState] = useState<ParserSnapshot>(() =>
@@ -102,7 +128,6 @@ export const useParser = ({ source }: UseParserOptions) => {
       commitSourceRevisionResult(current, typeof update === "function" ? update(current) : update),
     );
   });
-  const canReuseMountParseRef = useRef(mountParse !== null);
   const [workerRunner] = useState(() =>
     createWorkerRequestRunner(
       () => new Worker(new URL("../worker/parser-worker.ts", import.meta.url), { type: "module" }),
@@ -117,17 +142,17 @@ export const useParser = ({ source }: UseParserOptions) => {
   });
 
   useEffect(() => {
-    if (
-      canReuseMountParseRef.current &&
+    const reusingMountParse =
       mountParse?.sourceRevision === sourceRevision &&
       mountParse.input === input &&
       mountParse.forcedFormat === forcedFormat &&
-      !sourceAccess
+      !sourceAccess;
+    if (
+      reusingMountParse &&
+      (mountParse.parsed.result.format !== "jsonl" || !mightContainAgentSession(input))
     ) {
       return;
     }
-    canReuseMountParseRef.current = false;
-
     const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
       commitParserState({
         sourceRevision,
@@ -136,6 +161,17 @@ export const useParser = ({ source }: UseParserOptions) => {
         progress,
         recordAppend: null,
       });
+    };
+    const applyAgentEnrichment = ({
+      agentSession,
+      progress,
+    }: Pick<ParsedText, "agentSession" | "progress">) => {
+      commitParserState((current) => ({
+        ...current,
+        sourceRevision,
+        agentSession,
+        progress,
+      }));
     };
 
     const reportUnparsedSource = () => {
@@ -188,8 +224,27 @@ export const useParser = ({ source }: UseParserOptions) => {
         return;
       }
 
-      run.finish();
-      applyParsedText(parseText(input, { forcedFormat }));
+      if (!shouldStreamJsonl(input, forcedFormat)) {
+        run.finish();
+        applyParsedText(parseInitialText(input, forcedFormat));
+        return;
+      }
+
+      void parseTextOnMainThread(input, forcedFormat)
+        .then((parsed) => {
+          if (run.finish()) {
+            if (reusingMountParse) {
+              applyAgentEnrichment(parsed);
+            } else {
+              applyParsedText(parsed);
+            }
+          }
+        })
+        .catch(() => {
+          if (run.finish()) {
+            reportUnparsedSource();
+          }
+        });
     };
     let chunkTimeoutId: number | null = null;
 
@@ -212,6 +267,9 @@ export const useParser = ({ source }: UseParserOptions) => {
         window.clearTimeout(chunkTimeoutId);
       }
       publisher.cancel();
+      if (reusingMountParse) {
+        return;
+      }
       reportUnparsedSource();
     };
 
@@ -259,6 +317,9 @@ export const useParser = ({ source }: UseParserOptions) => {
       }
 
       if (message.type === "batch") {
+        if (reusingMountParse) {
+          return;
+        }
         if (!publisher.hasPublished()) {
           markPerf("parse:first-batch");
           measurePerf("parse:first-batch", "parse:start", "parse:first-batch");
@@ -272,6 +333,9 @@ export const useParser = ({ source }: UseParserOptions) => {
       }
       publisher.flush();
       if (message.type === "error") {
+        if (reusingMountParse) {
+          return;
+        }
         markPerf("parse:error");
         measurePerf("parse:error", "parse:start", "parse:error");
         commitParserState((current) => ({
@@ -288,13 +352,22 @@ export const useParser = ({ source }: UseParserOptions) => {
       markPerf("parse:complete");
       measurePerf("parse:complete", "parse:start", "parse:complete");
       if (message.type === "complete-result") {
-        commitParserState({
-          sourceRevision,
-          result: message.result,
-          agentSession: message.agentSession,
-          progress: message.progress,
-          recordAppend: null,
-        });
+        if (reusingMountParse) {
+          applyAgentEnrichment(message);
+        } else {
+          commitParserState({
+            sourceRevision,
+            result: message.result,
+            agentSession: message.agentSession,
+            progress: message.progress,
+            recordAppend: null,
+          });
+        }
+        return;
+      }
+
+      if (reusingMountParse) {
+        applyAgentEnrichment(message);
         return;
       }
 
@@ -318,26 +391,31 @@ export const useParser = ({ source }: UseParserOptions) => {
       return () => void workerRun.cancel();
     }
 
-    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null));
+    if (!reusingMountParse) {
+      commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null));
+    }
     markPerf("parse:start");
 
-    const timeoutId = window.setTimeout(() => {
-      if (sourceFile) {
-        post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
-        return;
-      }
+    const timeoutId = window.setTimeout(
+      () => {
+        if (sourceFile) {
+          post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
+          return;
+        }
 
-      if (shouldStreamJsonl(input, forcedFormat)) {
-        postJsonlChunks();
-        return;
-      }
+        if (shouldStreamJsonl(input, forcedFormat)) {
+          postJsonlChunks();
+          return;
+        }
 
-      post(
-        forcedFormat
-          ? { type: "parse", requestId: workerRun.requestId, input, forcedFormat }
-          : { type: "parse", requestId: workerRun.requestId, input },
-      );
-    }, 120);
+        post(
+          forcedFormat
+            ? { type: "parse", requestId: workerRun.requestId, input, forcedFormat }
+            : { type: "parse", requestId: workerRun.requestId, input },
+        );
+      },
+      reusingMountParse ? 0 : 120,
+    );
 
     return () => {
       window.clearTimeout(timeoutId);

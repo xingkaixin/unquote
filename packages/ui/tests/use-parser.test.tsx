@@ -39,6 +39,7 @@ const failedRecord = (lineNumber: number, summary: string): ParseResult["records
 class MockWorker extends MockWorkerEvents {
   static instances: MockWorker[] = [];
   static failConstruction = false;
+  static failJsonlEnrichment = false;
   static holdFileReads = false;
   // 1-based index of the first postMessage call that should throw.
   static postMessageFailsFrom: number | null = null;
@@ -88,6 +89,23 @@ class MockWorker extends MockWorkerEvents {
     }
     this.messages.push(payload);
     if (payload.type === "start-jsonl") {
+      return;
+    }
+    if (payload.type === "jsonl-chunk" && payload.done && MockWorker.failJsonlEnrichment) {
+      setTimeout(() => {
+        this.respond({
+          type: "error",
+          requestId: payload.requestId,
+          stats: { total: 0, success: 0, failed: 0 },
+          progress: {
+            processedLines: 0,
+            success: 0,
+            failed: 0,
+            elapsedMs: 1,
+            done: true,
+          },
+        });
+      }, 0);
       return;
     }
     // Mirrors the real worker, which only reports a terminal response once the
@@ -228,6 +246,7 @@ describe("useParser", () => {
     localStorage.clear();
     MockWorker.instances = [];
     MockWorker.failConstruction = false;
+    MockWorker.failJsonlEnrichment = false;
     MockWorker.holdFileReads = false;
     MockWorker.postMessageFailsFrom = null;
     Object.assign(globalThis, { Worker: MockWorker });
@@ -346,7 +365,23 @@ describe("useParser", () => {
     expect(screen.getByTestId("agent-session")).toHaveTextContent("absent");
   });
 
-  it("reuses a completed mount parse without publishing the Source to a Worker", async () => {
+  it("detects an Agent session on the main thread when Worker is unavailable", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const input = JSON.stringify({
+      type: "session_meta",
+      payload: { session_id: "main-thread-session" },
+    });
+
+    render(<Probe input={input} forcedFormat="jsonl" />);
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+
+    await act(() => vi.dynamicImportSettled());
+
+    expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
+  it("keeps the completed mount result while a Worker enriches JSONL input", async () => {
     const input = JSON.stringify({
       type: "session_meta",
       payload: { session_id: "mount-session" },
@@ -357,13 +392,35 @@ describe("useParser", () => {
         <Probe input={input} forcedFormat="jsonl" />
       </StrictMode>,
     );
-    expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
 
     await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.runOnlyPendingTimersAsync());
 
-    expect(MockWorker.instances).toHaveLength(0);
-    expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+    expect(
+      MockWorker.instances.some((worker) =>
+        worker.messages.some((message) => message.type === "start-jsonl"),
+      ),
+    ).toBe(true);
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
+  });
+
+  it("keeps the completed mount result when Agent enrichment fails", async () => {
+    MockWorker.failJsonlEnrichment = true;
+    const input = JSON.stringify({
+      type: "session_meta",
+      payload: { session_id: "failed-enrichment" },
+    });
+
+    render(<Probe input={input} forcedFormat="jsonl" />);
+    await act(() => vi.runAllTimersAsync());
+
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(screen.getByTestId("agent-session")).toHaveTextContent("absent");
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("parses a file on the main thread and ignores an obsolete read", async () => {
@@ -380,7 +437,7 @@ describe("useParser", () => {
 
     const { rerender } = render(<Probe input="" sourceFile={oldFile} />);
     rerender(<Probe input="" sourceFile={newFile} />);
-    await act(async () => undefined);
+    await act(() => vi.dynamicImportSettled());
     expect(screen.getByTestId("records")).toHaveTextContent("source:new");
 
     await act(async () => resolveOldFile?.('{"source":"old"}\n'));

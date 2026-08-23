@@ -1,9 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import type { ComponentType } from "react";
 import { AppHeader } from "./components/app-header";
-import type { AgentTrajectoryViewProps } from "./components/agent-trajectory-view";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
-import { DeferredLoadError } from "./components/deferred-load-error";
 import { Toaster } from "./components/sonner";
 import { SourceImportPanel } from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
@@ -11,7 +8,6 @@ import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
-import { useDeferredComponent } from "./hooks/use-deferred-component";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
@@ -19,22 +15,18 @@ import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import { createAgentSessionModel, type AgentDetailSelection } from "./lib/agent-session";
+import type { AgentDetailSelection } from "./lib/agent-session/types";
 import { formatFileSize } from "./lib/format";
 import { projectSourceImport, projectSourceView } from "./lib/published-source";
 import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 
-const AgentSessionView = lazy(() =>
-  import("./components/agent-session-view").then(({ AgentSessionView }) => ({
-    default: AgentSessionView,
+const AgentOutput = lazy(() =>
+  import("./components/agent-output").then(({ AgentOutput }) => ({
+    default: AgentOutput,
   })),
 );
-const loadAgentTrajectoryView = (): Promise<ComponentType<AgentTrajectoryViewProps>> =>
-  import("./components/agent-trajectory-view").then(
-    ({ AgentTrajectoryView }) => AgentTrajectoryView,
-  );
 const CommandPalette = lazy(() =>
   import("./components/command-palette").then(({ CommandPalette }) => ({
     default: CommandPalette,
@@ -122,12 +114,6 @@ export const UnquoteApp = ({
   const { intent: queryIntent } = query;
   const { setFilter } = queryIntent;
   const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
-  const trajectoryView = useDeferredComponent(loadAgentTrajectoryView, Boolean(agentSession));
-  const LoadedAgentTrajectoryView = trajectoryView.component;
-  const agentSessionModel = useMemo(
-    () => (agentSession ? createAgentSessionModel(agentSession) : null),
-    [agentSession],
-  );
   const trajectoryFilters = useTrajectoryFilters(resultRevision);
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
@@ -299,30 +285,19 @@ export const UnquoteApp = ({
   const output = (
     <DeferredLoadBoundary resetKey={`${resultRevision}:${outputView}`}>
       <Suspense fallback={null}>
-        {agentSession && agentSessionModel && outputView === "agent" ? (
-          <AgentSessionView
+        {agentSession && outputView !== "json" ? (
+          <AgentOutput
             session={agentSession}
-            model={agentSessionModel}
+            outputView={outputView}
             isDesktop={isDesktop}
+            filters={trajectoryFilters}
             detailSelection={recordWorkspace.detailSelection}
+            resolveRecordById={recordWorkspace.resolveRecordById}
+            requestFullRecordById={recordWorkspace.requestFullRecordById}
             onDetailSelectionChange={recordWorkspace.selectAgentDetail}
             onOpenRecord={handleOpenRecord}
+            onOpenTrajectoryRecord={handleOpenTrajectoryRecord}
           />
-        ) : agentSession && agentSessionModel && outputView === "trajectory" ? (
-          trajectoryView.failed ? (
-            <DeferredLoadError onRetry={trajectoryView.retry} />
-          ) : LoadedAgentTrajectoryView ? (
-            <LoadedAgentTrajectoryView
-              model={agentSessionModel}
-              resolveRecordById={recordWorkspace.resolveRecordById}
-              requestFullRecordById={recordWorkspace.requestFullRecordById}
-              isDesktop={isDesktop}
-              filters={trajectoryFilters}
-              detailSelection={recordWorkspace.detailSelection}
-              onDetailSelectionChange={recordWorkspace.selectAgentDetail}
-              onOpenRecord={handleOpenTrajectoryRecord}
-            />
-          ) : null
         ) : (
           <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
         )}
@@ -355,7 +330,7 @@ export const UnquoteApp = ({
         data-source-file={sourceView.streamedFileName ?? ""}
         data-parse-state={progress.done ? "complete" : "pending"}
         data-agent-session={agentSession ? "true" : "false"}
-        data-output-view={agentSession && agentSessionModel ? outputView : "json"}
+        data-output-view={agentSession ? outputView : "json"}
         data-search-query={searchQuery}
         data-search-state={searchStatus}
         data-expanded-nested={recordWorkspace.expandedNestedCount}
@@ -370,7 +345,7 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setActiveOverlay("import")}
-          outputView={agentSession && agentSessionModel ? outputView : null}
+          outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
           search={{

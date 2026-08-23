@@ -1,10 +1,11 @@
-import { parseInput } from "@unquote/core";
-import type { ParseOptions, ParseResult } from "@unquote/core";
+import type { ParseResult } from "@unquote/core";
 import { parseInputForIngestion } from "@unquote/core/ingestion";
 import type { AgentSession } from "./agent-session";
 import { createJsonlIngestion } from "./jsonl-ingestion";
+import type { ForcedFormat } from "./parse-text-result";
 
-export type ForcedFormat = NonNullable<ParseOptions["forcedFormat"]>;
+export { parseTextResult } from "./parse-text-result";
+export type { ForcedFormat } from "./parse-text-result";
 
 export interface ParserProgress {
   processedLines: number;
@@ -24,9 +25,6 @@ interface ParseTextOptions {
   forcedFormat?: ForcedFormat | undefined;
   fileName?: string | undefined;
 }
-
-export const parseTextResult = (input: string, forcedFormat?: ForcedFormat) =>
-  parseInput(input, forcedFormat ? { forcedFormat } : {});
 
 export const parseText = (input: string, options: ParseTextOptions = {}): ParsedText => {
   const startedAt = performance.now();

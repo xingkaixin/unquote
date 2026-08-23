@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { resolveSourceWork } from "../lib/published-source";
 import type { PublishedSourceRevision } from "../lib/published-source";
-import { parseTextResult } from "../lib/parse-text";
+import { parseTextResult } from "../lib/parse-text-result";
 import { startPerfMeasure } from "../lib/perf";
 import { commitSourceRevisionResult } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
