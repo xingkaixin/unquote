@@ -10,8 +10,8 @@ import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { searchRecords } from "../lib/record-search";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
 import type { SearchErrorKind, SearchStatus } from "../lib/search-lifecycle";
-import { createWorkerRequest, spawnWorker } from "../lib/worker-lifecycle";
-import type { WorkerRequest } from "../lib/worker-lifecycle";
+import { createWorkerRequestRunner } from "../lib/worker-lifecycle";
+import type { WorkerRun } from "../lib/worker-lifecycle";
 import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worker";
 
 type LocalFileSearchAccess = Pick<LocalFileAccess, "getFile" | "search" | "size">;
@@ -172,8 +172,11 @@ export const useSearchWorker = (params: {
       commitSourceRevisionResult(current, typeof update === "function" ? update(current) : update),
     );
   }, []);
-  const requestIdRef = useRef(0);
-  const workerRef = useRef<Worker | null>(null);
+  const [workerRunner] = useState(() =>
+    createWorkerRequestRunner(
+      () => new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" }),
+    ),
+  );
   const workerSourceRevisionRef = useRef<SourceRevision | null>(null);
   const [windowRequest, setWindowRequest] = useState<SearchWindowRequest | null>(null);
   const activeWindowIndexes =
@@ -205,17 +208,15 @@ export const useSearchWorker = (params: {
 
   useEffect(
     () => () => {
-      const worker = workerRef.current;
-      workerRef.current = null;
+      workerRunner.dispose();
       workerSourceRevisionRef.current = null;
-      worker?.terminate();
     },
-    [],
+    [workerRunner],
   );
 
   useEffect(() => {
     if (!query) {
-      requestIdRef.current += 1;
+      workerRunner.invalidate();
       commitState(idleResult(searchIdentity));
       return;
     }
@@ -231,14 +232,42 @@ export const useSearchWorker = (params: {
     let dispatchCleanup: (() => void) | undefined;
 
     const dispatch = () => {
-      const requestId = requestIdRef.current + 1;
-      requestIdRef.current = requestId;
       const finishRequestMeasure = startPerfMeasure("search:request");
+      let workerRun: WorkerRun;
+
+      const commitFailure = (errorKind: SearchErrorKind) => {
+        finishRequestMeasure();
+        commitState(failedResult(searchIdentity, errorKind));
+      };
+
+      function onMessage(event: MessageEvent<SearchWorkerResponse>) {
+        const response = event.data;
+        if (response.requestId !== workerRun.requestId || !workerRun.finish()) {
+          return;
+        }
+        finishRequestMeasure();
+
+        if (response.type === "error") {
+          workerSourceRevisionRef.current = null;
+          commitState(failedResult(searchIdentity, "worker-error"));
+          return;
+        }
+        commitState(completedResult(searchIdentity, response.result));
+      }
+
+      workerRun = workerRunner.begin({
+        onMessage,
+        onFailure: () => commitFailure("worker-error"),
+        onTerminate: () => {
+          workerSourceRevisionRef.current = null;
+        },
+      });
 
       // Reached both when no Worker exists and when one fails to start: the
       // request still has to settle somewhere.
       const searchOnMainThread = () => {
         if (options.syntax === "regex") {
+          workerRun.finish();
           finishRequestMeasure();
           commitState(failedResult(searchIdentity, "regex-without-worker"));
           return;
@@ -250,17 +279,20 @@ export const useSearchWorker = (params: {
             .search(query, options, controller.signal, activeWindowIndexes)
             .then((result) => {
               finishRequestMeasure();
-              if (!controller.signal.aborted && requestIdRef.current === requestId) {
+              if (!controller.signal.aborted && workerRun.finish()) {
                 commitState(completedResult(searchIdentity, result));
               }
             })
             .catch(() => {
               finishRequestMeasure();
-              if (!controller.signal.aborted && requestIdRef.current === requestId) {
+              if (!controller.signal.aborted && workerRun.finish()) {
                 commitState(failedResult(searchIdentity, "worker-error"));
               }
             });
-          dispatchCleanup = () => controller.abort();
+          dispatchCleanup = () => {
+            controller.abort();
+            workerRun.cancel();
+          };
           return;
         }
 
@@ -269,6 +301,7 @@ export const useSearchWorker = (params: {
         // instead of freezing the tab. The file path above already yields
         // between chunks.
         if (!isWithinMainThreadBudget(text.length)) {
+          workerRun.finish();
           finishRequestMeasure();
           commitState(failedResult(searchIdentity, "too-large"));
           return;
@@ -276,71 +309,19 @@ export const useSearchWorker = (params: {
 
         const result = parseTextResult(text, forcedFormat);
         const searchResult = searchRecords(result.records, query, options, activeWindowIndexes);
+        workerRun.finish();
         finishRequestMeasure();
         commitState(completedResult(searchIdentity, searchResult));
       };
 
-      if (typeof Worker === "undefined") {
+      if (!workerRun.available) {
         searchOnMainThread();
         return;
       }
-
-      const availableWorker =
-        workerRef.current ??
-        spawnWorker(
-          () =>
-            new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" }),
-        );
-      if (!availableWorker) {
-        searchOnMainThread();
-        return;
-      }
-      const currentWorker: Worker = availableWorker;
-      workerRef.current = currentWorker;
-
-      const handleWorkerTermination = () => {
-        if (workerRef.current === currentWorker) {
-          workerRef.current = null;
-          workerSourceRevisionRef.current = null;
-        }
-      };
-
-      const commitFailure = (errorKind: SearchErrorKind) => {
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-        finishRequestMeasure();
-        commitState(failedResult(searchIdentity, errorKind));
-      };
-
-      let workerRequest: WorkerRequest;
-
-      function onMessage(event: MessageEvent<SearchWorkerResponse>) {
-        const response = event.data;
-        if (response.requestId !== requestIdRef.current || !workerRequest.finish()) {
-          return;
-        }
-        finishRequestMeasure();
-
-        if (response.type === "error") {
-          if (workerRef.current === currentWorker) {
-            workerSourceRevisionRef.current = null;
-          }
-          commitState(failedResult(searchIdentity, "worker-error"));
-          return;
-        }
-        commitState(completedResult(searchIdentity, response.result));
-      }
-
-      workerRequest = createWorkerRequest(currentWorker, {
-        onMessage,
-        onFailure: () => commitFailure("worker-error"),
-        onTerminate: handleWorkerTermination,
-      });
       const sendText = !sourceAccess && workerSourceRevisionRef.current !== sourceRevision;
-      const posted = workerRequest.post(
+      const posted = workerRun.post(
         buildSearchRequest(
-          requestId,
+          workerRun.requestId,
           text,
           forcedFormat,
           sourceAccess,
@@ -358,13 +339,13 @@ export const useSearchWorker = (params: {
         workerSourceRevisionRef.current = sourceRevision;
       }
 
-      workerRequest.setTimeout(() => {
-        if (requestIdRef.current === requestId && workerRequest.terminate()) {
+      workerRun.setTimeout(() => {
+        if (workerRun.cancel()) {
           commitFailure("timeout");
         }
       }, getSearchWorkerTimeoutMs(sourceAccess));
 
-      dispatchCleanup = () => void workerRequest.terminate();
+      dispatchCleanup = () => void workerRun.cancel();
     };
 
     if (debounceMs > 0 && !activeWindowIndexes) {
@@ -388,6 +369,7 @@ export const useSearchWorker = (params: {
     sourceAccess,
     sourceRevision,
     text,
+    workerRunner,
   ]);
 
   const snapshot = hasSameSearchIdentity(state, searchIdentity)
