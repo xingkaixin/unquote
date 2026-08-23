@@ -74,7 +74,6 @@ export const useParser = ({ source, onAgentSessionDetected }: UseParserOptions) 
       input,
       forcedFormat,
       sourceFile: sourceAccess?.getFile() ?? null,
-      hasLocalFile: sourceAccess !== null,
       reuseInitialResult,
       commit: commitParserState,
       onReadError: reportFileReadError,
