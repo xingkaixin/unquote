@@ -94,7 +94,7 @@ const summaryFor = (item: AgentTrajectoryItem, detail: AgentSessionDetail | null
   return summary ? truncateTrajectoryDisplayText(summary) : "";
 };
 
-const laneFor = (kind: AgentTrajectoryItemKind): AgentTrajectoryLane => {
+export const agentTrajectoryLaneFor = (kind: AgentTrajectoryItemKind): AgentTrajectoryLane => {
   switch (kind) {
     case "user":
     case "system":
@@ -176,7 +176,7 @@ export const createAgentTrajectoryPresentation = (
       item,
       detail,
       summary: summaryFor(item, detail),
-      lane: laneFor(item.kind),
+      lane: agentTrajectoryLaneFor(item.kind),
       interval: intervalFor(item),
       warningGroups: createWarningGroupCollector(),
       turn,
