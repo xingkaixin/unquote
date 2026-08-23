@@ -44,13 +44,47 @@ interface QueryNavigationIntent {
   mode: QueryNavigationMode;
 }
 
-const createInitialNavigationIntent = (): QueryNavigationIntent => ({
-  requestId: 0,
-  mode: "none",
+interface QueryInteractionModel {
+  state: QueryInteractionState;
+  navigationIntent: QueryNavigationIntent;
+  searchExpansionRevision: number;
+}
+
+type NavigationRequest = QueryNavigationMode | "from-state" | null;
+
+const createInitialQueryInteractionModel = (): QueryInteractionModel => ({
+  state: createInitialQueryInteractionState(),
+  navigationIntent: { requestId: 0, mode: "none" },
+  searchExpansionRevision: 0,
 });
 
 const navigationModeForState = (state: QueryInteractionState): QueryNavigationMode =>
   state.modeState.mode === "idle" ? "clear" : state.modeState.mode;
+
+const hasSameSearchExpansion = (current: QueryInteractionState, next: QueryInteractionState) => {
+  if (next.modeState.mode !== "search") {
+    return true;
+  }
+  if (current.modeState.mode !== "search") {
+    return false;
+  }
+
+  return (
+    current.modeState.query === next.modeState.query &&
+    current.modeState.currentMatchIndex === next.modeState.currentMatchIndex &&
+    current.searchSyntax === next.searchSyntax &&
+    current.searchCaseSensitive === next.searchCaseSensitive &&
+    current.recordFilter === next.recordFilter
+  );
+};
+
+const reconcileCurrentMatch = (state: QueryInteractionState, currentMatchIndex: number) =>
+  state.modeState.mode !== "search" || currentMatchIndex === state.modeState.currentMatchIndex
+    ? state
+    : {
+        ...state,
+        modeState: { ...state.modeState, currentMatchIndex },
+      };
 
 export const useQueryInteraction = ({
   source,
@@ -60,29 +94,11 @@ export const useQueryInteraction = ({
   recordAppend = null,
 }: UseQueryInteractionOptions) => {
   const sourceRevision = source.sourceRevision;
-  const [state, updateQuery] = useSourceRevisionState(
+  const [model, updateModel] = useSourceRevisionState(
     sourceRevision,
-    createInitialQueryInteractionState,
+    createInitialQueryInteractionModel,
   );
-  const [navigationIntent, updateNavigationIntent] = useSourceRevisionState(
-    sourceRevision,
-    createInitialNavigationIntent,
-  );
-  const dispatch = useCallback(
-    (action: QueryInteractionAction) => {
-      updateQuery((current) => reduceQueryInteraction(current, action));
-    },
-    [updateQuery],
-  );
-  const requestNavigation = useCallback(
-    (mode: QueryNavigationMode) => {
-      updateNavigationIntent((current) => ({
-        requestId: current.requestId + 1,
-        mode,
-      }));
-    },
-    [updateNavigationIntent],
-  );
+  const { state, navigationIntent, searchExpansionRevision } = model;
   const resolvePathQuery = useCallback(
     (records: JsonlRecord[], value: string): PathResolution | null => {
       const query = value.trim();
@@ -222,20 +238,49 @@ export const useQueryInteraction = ({
           ? pathNavigation
           : null;
 
-  const navigate = useCallback(
-    (action: QueryInteractionAction) => {
-      const reconciledState =
-        state.modeState.mode !== "search" || currentMatchIndex === state.modeState.currentMatchIndex
-          ? state
-          : {
-              ...state,
-              modeState: { ...state.modeState, currentMatchIndex },
-            };
-      const nextState = reduceQueryInteraction(reconciledState, action);
-      dispatch(action);
-      requestNavigation(navigationModeForState(nextState));
+  const transition = useCallback(
+    (action: QueryInteractionAction, navigationRequest: NavigationRequest) => {
+      updateModel((current) => {
+        const transitionState =
+          navigationRequest === "from-state"
+            ? reconcileCurrentMatch(current.state, currentMatchIndex)
+            : current.state;
+        const nextState = reduceQueryInteraction(transitionState, action);
+        const nextNavigationIntent =
+          navigationRequest === null
+            ? current.navigationIntent
+            : {
+                requestId: current.navigationIntent.requestId + 1,
+                mode:
+                  navigationRequest === "from-state"
+                    ? navigationModeForState(nextState)
+                    : navigationRequest,
+              };
+        const nextSearchExpansionRevision = hasSameSearchExpansion(transitionState, nextState)
+          ? current.searchExpansionRevision
+          : current.searchExpansionRevision + 1;
+
+        if (
+          nextState === current.state &&
+          nextNavigationIntent === current.navigationIntent &&
+          nextSearchExpansionRevision === current.searchExpansionRevision
+        ) {
+          return current;
+        }
+
+        return {
+          state: nextState,
+          navigationIntent: nextNavigationIntent,
+          searchExpansionRevision: nextSearchExpansionRevision,
+        };
+      });
     },
-    [currentMatchIndex, dispatch, requestNavigation, state],
+    [currentMatchIndex, updateModel],
+  );
+
+  const navigate = useCallback(
+    (action: QueryInteractionAction) => transition(action, "from-state"),
+    [transition],
   );
 
   const changeToolbarQuery = useCallback(
@@ -263,21 +308,22 @@ export const useQueryInteraction = ({
     [navigate],
   );
   const setFilter = useCallback(
-    (filter: QueryInteractionState["recordFilter"]) => {
-      dispatch({ type: "setRecordFilter", filter });
-      requestNavigation("clear");
-    },
-    [dispatch, requestNavigation],
+    (filter: QueryInteractionState["recordFilter"]) =>
+      transition({ type: "setRecordFilter", filter }, "clear"),
+    [transition],
   );
-  const revealAllRecords = useCallback(() => {
-    dispatch({ type: "setRecordFilter", filter: "all" });
-    requestNavigation("none");
-  }, [dispatch, requestNavigation]);
+  const revealAllRecords = useCallback(
+    () => transition({ type: "setRecordFilter", filter: "all" }, "none"),
+    [transition],
+  );
   const changeCommandInput = useCallback(
-    (value: string) => dispatch({ type: "setCommandInput", value }),
-    [dispatch],
+    (value: string) => transition({ type: "setCommandInput", value }, null),
+    [transition],
   );
-  const prepareCommandInput = useCallback(() => dispatch({ type: "seedCommandInput" }), [dispatch]);
+  const prepareCommandInput = useCallback(
+    () => transition({ type: "seedCommandInput" }, null),
+    [transition],
+  );
   const previousResult = useCallback(() => {
     return mode === "path"
       ? navigate({ type: "prevPathMatch" })
@@ -323,7 +369,7 @@ export const useQueryInteraction = ({
 
   return {
     navigation,
-    searchExpansionRevision: navigationIntent.requestId,
+    searchExpansionRevision,
     snapshot: {
       toolbarQuery: state.toolbarQuery,
       searchQuery,
