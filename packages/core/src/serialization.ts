@@ -194,31 +194,30 @@ const createWriter = (limits: JsonSerializationLimits): SerializationWriter => {
   let byteLimitExceeded = false;
 
   const shouldContinue = () => {
-    if (maxCharacters !== undefined && maxBytes !== undefined) {
-      return !(characterLimitExceeded && byteLimitExceeded);
+    if (byteLimitExceeded) {
+      return false;
     }
-    if (maxCharacters !== undefined) {
-      return !characterLimitExceeded;
-    }
-    if (maxBytes !== undefined) {
-      return !byteLimitExceeded;
-    }
-    return true;
+    return !characterLimitExceeded || maxBytes !== undefined;
   };
 
   const append = (value: string) => {
+    let output = value;
     if (!characterLimitExceeded) {
-      if (maxCharacters === undefined || characterLength + value.length <= maxCharacters) {
-        chunks.push(value);
-        characterLength += value.length;
-      } else {
-        const prefix = truncateAtCodePointBoundary(value, maxCharacters - characterLength);
-        if (prefix) {
-          chunks.push(prefix);
-          characterLength += prefix.length;
-        }
+      if (maxCharacters !== undefined && characterLength + value.length > maxCharacters) {
+        output = truncateAtCodePointBoundary(value, maxCharacters - characterLength);
         characterLimitExceeded = true;
       }
+    } else {
+      output = "";
+    }
+
+    if (maxBytes !== undefined) {
+      const prefix = utf8PrefixWithin(output, maxBytes - byteLength);
+      output = output.slice(0, prefix.codeUnits);
+    }
+    if (output) {
+      chunks.push(output);
+      characterLength += output.length;
     }
 
     if (!byteLimitExceeded && maxBytes !== undefined) {

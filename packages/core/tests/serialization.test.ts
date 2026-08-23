@@ -59,9 +59,27 @@ describe("stringifyJsonNodeWithLimits", () => {
     const node: JsonNode = { kind: "string", value: "😀" };
     const result = stringifyJsonNodeWithLimits(node, { maxBytes: 4 });
 
+    expect(result.text).toBe('"');
+    expect(new TextEncoder().encode(result.text).byteLength).toBeLessThanOrEqual(4);
     expect(result.complete).toBe(false);
     expect(result.byteLimitExceeded).toBe(true);
     expect(result.nodeLimitExceeded).toBe(false);
+  });
+
+  it("does not append a number lexeme past the byte budget", () => {
+    const node: JsonNode = {
+      kind: "number",
+      value: 1,
+      rawValue: "12345678901234567890",
+    };
+
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 8 })).toEqual({
+      text: "12345678",
+      complete: false,
+      characterLimitExceeded: false,
+      byteLimitExceeded: true,
+      nodeLimitExceeded: false,
+    });
   });
 
   it("stops before reading a child beyond the node budget", () => {
