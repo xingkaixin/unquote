@@ -13,8 +13,8 @@ import type { SourceRevision } from "../lib/source-revision";
 import type { RecordAppend } from "../lib/record-sequence";
 import { isWithinMainThreadBudget } from "../lib/main-thread-budget";
 import { createStreamPublisher } from "../lib/stream-publisher";
-import { createWorkerRequest, spawnWorker } from "../lib/worker-lifecycle";
-import type { WorkerRequest } from "../lib/worker-lifecycle";
+import { createWorkerRequestRunner } from "../lib/worker-lifecycle";
+import type { WorkerRun } from "../lib/worker-lifecycle";
 import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
 
 const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
@@ -103,8 +103,11 @@ export const useParser = ({ source }: UseParserOptions) => {
     );
   });
   const canReuseMountParseRef = useRef(mountParse !== null);
-  const workerRef = useRef<Worker | null>(null);
-  const requestIdRef = useRef(0);
+  const [workerRunner] = useState(() =>
+    createWorkerRequestRunner(
+      () => new Worker(new URL("../worker/parser-worker.ts", import.meta.url), { type: "module" }),
+    ),
+  );
   const sourceFile = sourceAccess?.getFile() ?? null;
   const reportFileReadError = useEffectEvent(() => {
     toast.error(t("input.readFailed"));
@@ -125,11 +128,6 @@ export const useParser = ({ source }: UseParserOptions) => {
     }
     canReuseMountParseRef.current = false;
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-
-    let settled = false;
-    let dispatched = false;
     const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
       commitParserState({
         sourceRevision,
@@ -162,22 +160,22 @@ export const useParser = ({ source }: UseParserOptions) => {
     //
     // A synchronous parse cannot be preempted once it begins, so an oversized
     // input is refused before any work starts rather than freezing the tab.
-    const parseOnMainThread = () => {
-      settled = true;
+    const parseOnMainThread = (run: WorkerRun) => {
       if (sourceFile) {
         if (!isWithinMainThreadBudget(sourceFile.size)) {
+          run.finish();
           reportUnparsedSourceTooLarge();
           return;
         }
 
         void parseFileOnMainThread(sourceFile)
           .then((parsed) => {
-            if (requestIdRef.current === requestId) {
+            if (run.finish()) {
               applyParsedText(parsed);
             }
           })
           .catch(() => {
-            if (requestIdRef.current === requestId) {
+            if (run.finish()) {
               reportUnparsedSource();
             }
           });
@@ -185,28 +183,14 @@ export const useParser = ({ source }: UseParserOptions) => {
       }
 
       if (!isWithinMainThreadBudget(input.length)) {
+        run.finish();
         reportUnparsedSourceTooLarge();
         return;
       }
 
+      run.finish();
       applyParsedText(parseText(input, { forcedFormat }));
     };
-
-    if (typeof Worker === "undefined") {
-      parseOnMainThread();
-      return;
-    }
-
-    const currentWorker = (workerRef.current ??= spawnWorker(
-      () => new Worker(new URL("../worker/parser-worker.ts", import.meta.url), { type: "module" }),
-    ));
-    if (!currentWorker) {
-      parseOnMainThread();
-      return;
-    }
-
-    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null));
-    markPerf("parse:start");
     let chunkTimeoutId: number | null = null;
 
     const publisher = createStreamPublisher<ParseResult["stats"], ParserProgress>(
@@ -223,20 +207,7 @@ export const useParser = ({ source }: UseParserOptions) => {
       },
     );
 
-    // A worker that refuses work, raises an uncaught error, or sends an
-    // undeserializable message is dropped so the next request builds a fresh
-    // one, while this request still reaches exactly one terminal state.
-    const handleWorkerTermination = () => {
-      if (workerRef.current === currentWorker) {
-        workerRef.current = null;
-      }
-    };
-
     const handleWorkerFailure = () => {
-      if (settled || requestIdRef.current !== requestId) {
-        return;
-      }
-      settled = true;
       if (chunkTimeoutId !== null) {
         window.clearTimeout(chunkTimeoutId);
       }
@@ -244,31 +215,27 @@ export const useParser = ({ source }: UseParserOptions) => {
       reportUnparsedSource();
     };
 
-    let workerRequest: WorkerRequest;
+    let workerRun: WorkerRun;
 
     const post = (message: ParserRequest) => {
-      if (workerRequest.post(message)) {
-        dispatched = true;
-        return true;
-      }
-      return false;
+      return workerRun.post(message);
     };
 
     const postJsonlChunks = () => {
-      if (!post({ type: "start-jsonl", requestId })) {
+      if (!post({ type: "start-jsonl", requestId: workerRun.requestId })) {
         return;
       }
       let offset = 0;
 
       const postNextChunk = () => {
-        if (requestIdRef.current !== requestId) {
+        if (!workerRun.isActive()) {
           return;
         }
 
         const end = Math.min(input.length, offset + workerChunkSize);
         const posted = post({
           type: "jsonl-chunk",
-          requestId,
+          requestId: workerRun.requestId,
           chunk: input.slice(offset, end),
           done: end >= input.length,
         });
@@ -285,27 +252,9 @@ export const useParser = ({ source }: UseParserOptions) => {
       postNextChunk();
     };
 
-    const timeoutId = window.setTimeout(() => {
-      if (sourceFile) {
-        post({ type: "file-jsonl", requestId, file: sourceFile });
-        return;
-      }
-
-      if (shouldStreamJsonl(input, forcedFormat)) {
-        postJsonlChunks();
-        return;
-      }
-
-      post(
-        forcedFormat
-          ? { type: "parse", requestId, input, forcedFormat }
-          : { type: "parse", requestId, input },
-      );
-    }, 120);
-
     const onMessage = (event: MessageEvent<ParserWorkerResponse>) => {
       const message = event.data;
-      if (settled || message.requestId !== requestIdRef.current) {
+      if (message.requestId !== workerRun.requestId) {
         return;
       }
 
@@ -318,8 +267,9 @@ export const useParser = ({ source }: UseParserOptions) => {
         return;
       }
 
-      settled = true;
-      workerRequest.finish();
+      if (!workerRun.finish()) {
+        return;
+      }
       publisher.flush();
       if (message.type === "error") {
         markPerf("parse:error");
@@ -357,35 +307,55 @@ export const useParser = ({ source }: UseParserOptions) => {
       }));
     };
 
-    workerRequest = createWorkerRequest(currentWorker, {
+    workerRun = workerRunner.begin({
       onMessage,
       onFailure: handleWorkerFailure,
-      onTerminate: handleWorkerTermination,
     });
+
+    if (!workerRun.available) {
+      publisher.cancel();
+      parseOnMainThread(workerRun);
+      return () => void workerRun.cancel();
+    }
+
+    commitParserState(pendingSnapshot(sourceRevision, forcedFormat, sourceAccess !== null));
+    markPerf("parse:start");
+
+    const timeoutId = window.setTimeout(() => {
+      if (sourceFile) {
+        post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
+        return;
+      }
+
+      if (shouldStreamJsonl(input, forcedFormat)) {
+        postJsonlChunks();
+        return;
+      }
+
+      post(
+        forcedFormat
+          ? { type: "parse", requestId: workerRun.requestId, input, forcedFormat }
+          : { type: "parse", requestId: workerRun.requestId, input },
+      );
+    }, 120);
+
     return () => {
-      const shouldTerminateWorker = dispatched && !settled && workerRef.current === currentWorker;
-      settled = true;
       window.clearTimeout(timeoutId);
       if (chunkTimeoutId !== null) {
         window.clearTimeout(chunkTimeoutId);
       }
       publisher.cancel();
-      if (shouldTerminateWorker) {
-        workerRequest.terminate();
-      } else {
-        workerRequest.finish();
-      }
+      workerRun.cancel();
     };
-  }, [forcedFormat, input, mountParse, sourceAccess, sourceRevision]);
+  }, [forcedFormat, input, mountParse, sourceAccess, sourceRevision, workerRunner]);
 
   // Terminate an idle worker when the hook's owner unmounts; active work is
   // terminated by the request cleanup above.
   useEffect(
     () => () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
+      workerRunner.dispose();
     },
-    [],
+    [workerRunner],
   );
 
   return belongsToSourceRevision(sourceRevision, parserState)
