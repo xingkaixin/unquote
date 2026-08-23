@@ -85,7 +85,6 @@ export interface AgentTrajectoryPresentationItem {
   readonly interval: AgentTrajectoryTimeRange | null;
   readonly warningGroups: readonly AgentTrajectoryWarningGroup[];
   readonly turn: AgentTrajectoryTurn | null;
-  readonly groupId: string;
 }
 
 export interface AgentTrajectoryPresentationGroup {
@@ -527,7 +526,6 @@ export const createAgentTrajectoryPresentation = (
       interval: draft.interval,
       warningGroups: draft.warningGroups.groups,
       turn: draft.turn,
-      groupId: draft.turn?.id ?? UNASSIGNED_GROUP_ID,
     };
     presentationItems.push(item);
     presentationItemByDraft.set(draft, item);

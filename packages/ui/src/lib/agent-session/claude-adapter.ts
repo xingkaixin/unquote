@@ -513,7 +513,6 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 };
 
 export const claudeTranscriptAdapter: AgentSessionAdapter = {
-  fileType: "Claude Code",
   detect(samples) {
     if (samples.length === 0) {
       return 0;

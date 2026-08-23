@@ -59,7 +59,6 @@ const presentationItem = (
   interval: null,
   warningGroups: options.warningGroups ?? [],
   turn: options.turn ?? null,
-  groupId: options.turn?.id ?? "unassigned",
 });
 
 const renderDetail = (
