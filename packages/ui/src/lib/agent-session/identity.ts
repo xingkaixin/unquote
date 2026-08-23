@@ -1,4 +1,9 @@
-import type { AgentConversationItem, AgentSession, AgentTimelineEvent } from "./session-types";
+import type {
+  AgentCanonicalSelection,
+  AgentConversationItem,
+  AgentSession,
+  AgentTimelineEvent,
+} from "./session-types";
 import type { AgentSessionIntegrityIssue } from "./model-types";
 
 export interface CanonicalAgentEvent {
@@ -11,6 +16,13 @@ export interface CanonicalAgentSession {
   events: readonly CanonicalAgentEvent[];
   integrityIssues: readonly AgentSessionIntegrityIssue[];
 }
+
+export const agentSelectionKey = (selection: AgentCanonicalSelection) =>
+  JSON.stringify([
+    selection.kind,
+    selection.recordId,
+    selection.kind === "record" ? null : selection.id,
+  ]);
 
 export const canonicalizeAgentSession = (session: AgentSession): CanonicalAgentSession => {
   const events: CanonicalAgentEvent[] = [];
