@@ -24,13 +24,14 @@ import { canonicalizeAgentSession, type CanonicalAgentSession } from "./identity
 import {
   createAgentToolLifecycleIndex,
   resolveToolLifecycleStatus,
-  type AgentToolLifecycleGroup,
   type AgentToolLifecycleIndex,
+  type AgentToolLifecycleOccurrence,
+  type AgentToolLifecycleResolution,
 } from "./tool-lifecycle";
 import {
-  hasRepeatedToolOccurrences,
   toolCorrelationScope,
   type ToolCorrelationGroup,
+  type ToolCorrelationResolution,
 } from "./tool-correlation";
 
 const tokenKeys = [
@@ -94,18 +95,30 @@ type ToolGroup = ToolCorrelationGroup<
   ToolResultOccurrence,
   ToolCompletionOccurrence
 >;
+type ToolResolution = ToolCorrelationResolution<
+  ToolCallOccurrence,
+  ToolResultOccurrence,
+  ToolCompletionOccurrence
+>;
 
 type TurnLifecycleEvidence = Extract<AgentSessionEvidence, { kind: "turn-lifecycle" }>;
 type ModelOutputEvidence = Extract<AgentSessionEvidence, { kind: "model-output" }>;
 type ToolLifecycleEvidence = Extract<AgentSessionEvidence, { kind: "tool-lifecycle" }>;
 type TokenUsageEvidence = Extract<AgentSessionEvidence, { kind: "token-usage" }>;
 
+interface ToolProjectionContext {
+  itemId: string;
+  selection: AgentCanonicalSelection;
+  source: WarningSource;
+  draft: ItemDraft;
+}
+
 interface TrajectoryDraftState {
   turns: TurnDraft[];
   explicitTurnById: Map<string, TurnDraft>;
   fallbackTurnByIndex: Map<number, TurnDraft>;
   syntheticTurnByEventId: Map<string, TurnDraft>;
-  toolGroups: Map<AgentToolLifecycleGroup, ToolGroup>;
+  toolProjectionByEvidence: Map<ToolLifecycleEvidence, ToolProjectionContext>;
   itemDrafts: ItemDraft[];
   warnings: AgentTrajectoryWarning[];
   lastModelItemByTurn: Map<TurnDraft, ItemDraft>;
@@ -450,27 +463,25 @@ const addDuplicateWarnings = (group: ToolGroup, warnings: AgentTrajectoryWarning
   }
 };
 
-const finalizeToolGroup = (group: ToolGroup, warnings: AgentTrajectoryWarning[]) => {
-  if (hasRepeatedToolOccurrences(group)) {
-    addDuplicateWarnings(group, warnings);
-    for (const call of group.calls) {
+const finalizeToolGroup = (resolution: ToolResolution, warnings: AgentTrajectoryWarning[]) => {
+  if (resolution.kind === "repeated") {
+    addDuplicateWarnings(resolution, warnings);
+    for (const call of resolution.calls) {
       call.draft.item = toolItemFor(call, undefined, undefined, warnings);
       addUnpairedCallWarning(warnings, call);
     }
-    for (const result of group.results) {
+    for (const result of resolution.results) {
       result.draft.item = toolItemFor(undefined, result, undefined, warnings);
       addUnpairedResultWarning(warnings, result);
     }
-    for (const completion of group.completions) {
+    for (const completion of resolution.completions) {
       completion.draft.item = toolItemFor(undefined, undefined, completion, warnings);
       addUnpairedCompletionWarning(warnings, completion);
     }
     return;
   }
 
-  const call = group.calls[0];
-  const result = group.results[0];
-  const completion = group.completions[0];
+  const { call, result, completion } = resolution;
   const item = toolItemFor(call, result, completion, warnings);
 
   if (call) {
@@ -508,7 +519,7 @@ const createTrajectoryDraftState = (): TrajectoryDraftState => ({
   explicitTurnById: new Map(),
   fallbackTurnByIndex: new Map(),
   syntheticTurnByEventId: new Map(),
-  toolGroups: new Map(),
+  toolProjectionByEvidence: new Map(),
   itemDrafts: [],
   warnings: [],
   lastModelItemByTurn: new Map(),
@@ -700,20 +711,6 @@ const appendUngroupedTool = (
   addUnpairedCompletionWarning(state.warnings, occurrence);
 };
 
-const groupedToolOccurrence = <TEvidence extends ToolLifecycleEvidence>(
-  evidence: TEvidence,
-  context: EvidenceContext,
-  draft: ItemDraft,
-) =>
-  toolOccurrenceFor(
-    evidence,
-    context.itemId,
-    context.selection,
-    context.source,
-    context.event,
-    draft,
-  );
-
 const appendToolLifecycle = (
   state: TrajectoryDraftState,
   toolLifecycle: AgentToolLifecycleIndex,
@@ -722,22 +719,15 @@ const appendToolLifecycle = (
 ) => {
   const draft: ItemDraft = { turn: context.turn, item: null };
   state.itemDrafts.push(draft);
-  const lifecycleGroup = toolLifecycle.groupByEvidence.get(evidence);
-  if (!lifecycleGroup) {
+  if (!toolLifecycle.groupedEvidence.has(evidence)) {
     appendUngroupedTool(state, evidence, context, draft);
   } else {
-    let group = state.toolGroups.get(lifecycleGroup);
-    if (!group) {
-      group = { calls: [], results: [], completions: [] };
-      state.toolGroups.set(lifecycleGroup, group);
-    }
-    if (evidence.phase === "call") {
-      group.calls.push(groupedToolOccurrence(evidence, context, draft));
-    } else if (evidence.phase === "result") {
-      group.results.push(groupedToolOccurrence(evidence, context, draft));
-    } else {
-      group.completions.push(groupedToolOccurrence(evidence, context, draft));
-    }
+    state.toolProjectionByEvidence.set(evidence, {
+      itemId: context.itemId,
+      selection: context.selection,
+      source: context.source,
+      draft,
+    });
   }
   if (evidence.phase !== "call" && context.turn) {
     context.turn.pendingToolRecovery = true;
@@ -825,15 +815,52 @@ const collectEvidence = (state: TrajectoryDraftState, toolLifecycle: AgentToolLi
   }
 };
 
+const trajectoryOccurrenceFor = <TEvidence extends ToolLifecycleEvidence>(
+  state: TrajectoryDraftState,
+  occurrence: AgentToolLifecycleOccurrence<TEvidence>,
+) => {
+  const context = state.toolProjectionByEvidence.get(occurrence.evidence);
+  if (!context) {
+    throw new Error("Indexed tool evidence requires trajectory projection context");
+  }
+  return toolOccurrenceFor(
+    occurrence.evidence,
+    context.itemId,
+    context.selection,
+    context.source,
+    occurrence.event,
+    context.draft,
+  );
+};
+
+const trajectoryResolutionFor = (
+  state: TrajectoryDraftState,
+  resolution: AgentToolLifecycleResolution,
+): ToolResolution =>
+  resolution.kind === "repeated"
+    ? {
+        kind: "repeated",
+        calls: resolution.calls.map((occurrence) => trajectoryOccurrenceFor(state, occurrence)),
+        results: resolution.results.map((occurrence) => trajectoryOccurrenceFor(state, occurrence)),
+        completions: resolution.completions.map((occurrence) =>
+          trajectoryOccurrenceFor(state, occurrence),
+        ),
+      }
+    : {
+        kind: "unique",
+        call: resolution.call ? trajectoryOccurrenceFor(state, resolution.call) : undefined,
+        result: resolution.result ? trajectoryOccurrenceFor(state, resolution.result) : undefined,
+        completion: resolution.completion
+          ? trajectoryOccurrenceFor(state, resolution.completion)
+          : undefined,
+      };
+
 const finalizeToolGroups = (
   state: TrajectoryDraftState,
   toolLifecycle: AgentToolLifecycleIndex,
 ) => {
-  for (const lifecycleGroup of toolLifecycle.groups) {
-    const group = state.toolGroups.get(lifecycleGroup);
-    if (group) {
-      finalizeToolGroup(group, state.warnings);
-    }
+  for (const resolution of toolLifecycle.groups) {
+    finalizeToolGroup(trajectoryResolutionFor(state, resolution), state.warnings);
   }
 };
 

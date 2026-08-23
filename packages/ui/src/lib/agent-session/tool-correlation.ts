@@ -10,6 +10,15 @@ export interface ToolCorrelationGroup<TCall, TResult, TCompletion = never> {
   completions: TCompletion[];
 }
 
+export type ToolCorrelationResolution<TCall, TResult, TCompletion = never> =
+  | ({ kind: "repeated" } & ToolCorrelationGroup<TCall, TResult, TCompletion>)
+  | {
+      kind: "unique";
+      call: TCall | undefined;
+      result: TResult | undefined;
+      completion: TCompletion | undefined;
+    };
+
 export interface ToolCorrelationGroups<TCall, TResult, TCompletion = never> {
   readonly evidence: Map<string, Map<string, ToolCorrelationGroup<TCall, TResult, TCompletion>>>;
   readonly fallbackIndex: Map<
@@ -103,6 +112,14 @@ export const forEachToolCorrelationGroup = <TCall, TResult, TCompletion>(
   visitCallIdGroups(groups.anonymous);
 };
 
-export const hasRepeatedToolOccurrences = <TCall, TResult, TCompletion>(
+export const resolveToolCorrelationGroup = <TCall, TResult, TCompletion>(
   group: ToolCorrelationGroup<TCall, TResult, TCompletion>,
-) => group.calls.length > 1 || group.results.length > 1 || group.completions.length > 1;
+) =>
+  group.calls.length > 1 || group.results.length > 1 || group.completions.length > 1
+    ? { kind: "repeated" as const, ...group }
+    : {
+        kind: "unique" as const,
+        call: group.calls[0],
+        result: group.results[0],
+        completion: group.completions[0],
+      };
