@@ -204,7 +204,7 @@ describe("useRecordWorkspace", () => {
     expect(workspace.current.model.active.record).toBe(result.records[0]);
   });
 
-  it("clears hidden selection without restoring it when the filter opens again", () => {
+  it("projects hidden selection away without destroying it", () => {
     const sourceText = '{"value":1}\n{"value":2}';
     const result = parseInput(sourceText, { forcedFormat: "jsonl" });
     const { result: workspace } = renderHook(
@@ -230,8 +230,11 @@ describe("useRecordWorkspace", () => {
     expect(workspace.current.detailSelection).toBeNull();
 
     act(() => workspace.current.query.intent.setFilter("all"));
-    expect(workspace.current.model.active.record).toBe(result.records[0]);
-    expect(workspace.current.detailSelection).toBeNull();
+    expect(workspace.current.model.active.record).toBe(result.records[1]);
+    expect(workspace.current.detailSelection).toEqual({
+      kind: "record",
+      recordId: result.records[1]!.id,
+    });
   });
 
   it("preserves trajectory detail when a Record filter hides its primary Record", () => {
@@ -369,5 +372,11 @@ describe("useRecordWorkspace", () => {
       recordAppend: null,
     });
     expect(workspace.current.expandedNestedCount).toBe(0);
+
+    act(() => workspace.current.query.intent.changeToolbarQuery("missing"));
+    await waitFor(() => expect(workspace.current.query.snapshot.searchStatus).toBe("complete"));
+
+    act(() => workspace.current.query.intent.changeToolbarQuery("target"));
+    await waitFor(() => expect(workspace.current.expandedNestedCount).toBe(1));
   });
 });

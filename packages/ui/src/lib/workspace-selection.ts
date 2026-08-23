@@ -1,4 +1,5 @@
 import type { AgentDetailSelection } from "./agent-session";
+import type { RecordAppend } from "./record-sequence";
 import {
   issueScrollIntent,
   retainVisibleScrollIntent,
@@ -82,6 +83,18 @@ export const reconcileWorkspaceSelection = (
     scrollIntent,
   };
 };
+
+export const projectWorkspaceSelection = (
+  selection: WorkspaceSelectionState,
+  visibility: WorkspaceSelectionVisibility,
+  recordAppend: RecordAppend | null,
+) =>
+  recordAppend
+    ? reduceWorkspaceSelection(selection, {
+        type: "recordsAppended",
+        firstRecordId: visibility.firstRecordId,
+      })
+    : reconcileWorkspaceSelection(selection, visibility);
 
 export const reduceWorkspaceSelection = (
   state: WorkspaceSelectionState,
