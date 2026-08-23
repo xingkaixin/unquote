@@ -1,7 +1,7 @@
 import type {
   AgentTrajectoryPresentationItem,
   AgentTrajectoryPresentationSummary,
-} from "./trajectory-presentation";
+} from "./trajectory-presentation-types";
 import { finiteTrajectoryNumber } from "./trajectory-time";
 import type { AgentTrajectoryModel, AgentTrajectoryTurn } from "./trajectory-types";
 

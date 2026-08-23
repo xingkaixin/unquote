@@ -2,7 +2,7 @@ import type {
   AgentTrajectoryPresentation,
   AgentTrajectoryPresentationGroup,
   AgentTrajectoryPresentationItem,
-} from "./trajectory-presentation";
+} from "./trajectory-presentation-types";
 import {
   trajectoryRangesOverlap,
   type AgentTrajectoryTimeRange,
