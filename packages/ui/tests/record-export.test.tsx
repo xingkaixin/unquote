@@ -5,13 +5,11 @@ import {
   addRecordsToBuilder,
   copyRecordLimit,
   createExportFilename,
+  createJsonPartsBuilder,
+  createJsonlPartsBuilder,
   downloadBlob,
-  formatRecordsAsJson,
   formatRecordsAsJsonForCopy,
-  formatRecordsAsJsonParts,
-  formatRecordsAsJsonl,
   formatRecordsAsJsonlForCopy,
-  formatRecordsAsJsonlParts,
   getCopyValue,
   isCopyRecordCountAboveThreshold,
   isCopyTextAboveThreshold,
@@ -20,6 +18,12 @@ import type { ExportPartsBuilder } from "../src/lib/record-export";
 
 const recordsFrom = (text: string, format?: "json" | "jsonl") =>
   parseInput(text, format ? { forcedFormat: format } : {}).records;
+
+const buildJsonlParts = (records: JsonlRecord[]) =>
+  addRecordsToBuilder(createJsonlPartsBuilder(), records);
+
+const buildJsonParts = (records: JsonlRecord[], format: "json" | "jsonl") =>
+  addRecordsToBuilder(createJsonPartsBuilder(format), records);
 
 describe("record-export", () => {
   it("getCopyValue returns the materialized value for a parsed record", () => {
@@ -48,36 +52,19 @@ describe("record-export", () => {
     expect(isCopyRecordCountAboveThreshold(copyRecordLimit + 1)).toBe(true);
   });
 
-  it("formatRecordsAsJsonl joins record values with newlines", () => {
-    const records = recordsFrom('{"a":1}\n{"a":2}', "jsonl");
-    expect(formatRecordsAsJsonl(records)).toBe('{"a":1}\n{"a":2}');
-  });
-
-  it("formatRecordsAsJson emits the first value for json format", () => {
-    const records = recordsFrom('{"a":1}', "json");
-    expect(formatRecordsAsJson(records, "json")).toBe(JSON.stringify({ a: 1 }, null, 2));
-  });
-
-  it("formatRecordsAsJson emits an array for jsonl format", () => {
-    const records = recordsFrom('{"a":1}\n{"a":2}', "jsonl");
-    expect(formatRecordsAsJson(records, "jsonl")).toBe(
-      JSON.stringify([{ a: 1 }, { a: 2 }], null, 2),
-    );
-  });
-
-  it("matches the existing copy formats within budget", () => {
+  it("formats copy payloads within budget", () => {
     const records = recordsFrom('{"a":1}\n{bad}', "jsonl");
+    const jsonl = formatRecordsAsJsonlForCopy(records);
+    const json = formatRecordsAsJsonForCopy(records, "jsonl");
 
-    expect(formatRecordsAsJsonlForCopy(records)).toBe(formatRecordsAsJsonl(records));
-    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toBe(
-      formatRecordsAsJson(records, "jsonl"),
-    );
+    expect(jsonl?.split("\n").map((line) => JSON.parse(line))).toEqual(records.map(getCopyValue));
+    expect(JSON.parse(json!)).toEqual(records.map(getCopyValue));
     expect(formatRecordsAsJsonForCopy([], "json")).toBe("null");
   });
 
   it("checks the final UTF-8 payload at an inclusive byte limit", () => {
     const records = recordsFrom('{"emoji":"😀"}', "json");
-    const text = formatRecordsAsJson(records, "json");
+    const text = JSON.stringify({ emoji: "😀" }, null, 2);
     const byteLength = new TextEncoder().encode(text).byteLength;
 
     expect(formatRecordsAsJsonForCopy(records, "json", byteLength)).toBe(text);
@@ -110,10 +97,12 @@ describe("record-export", () => {
   it("preserves unsafe number lexemes in every export shape", async () => {
     const records = recordsFrom('{"large":9007199254740993}\n{"exponent":1e400}', "jsonl");
 
-    expect(formatRecordsAsJsonl(records)).toBe('{"large":9007199254740993}\n{"exponent":1e400}');
-    expect(formatRecordsAsJson(records, "jsonl")).toContain("9007199254740993");
-    expect(formatRecordsAsJson(records, "jsonl")).toContain("1e400");
-    await expect(formatRecordsAsJsonlParts(records)).resolves.toEqual([
+    expect(formatRecordsAsJsonlForCopy(records)).toBe(
+      '{"large":9007199254740993}\n{"exponent":1e400}',
+    );
+    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toContain("9007199254740993");
+    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toContain("1e400");
+    await expect(buildJsonlParts(records)).resolves.toEqual([
       '{"large":9007199254740993}',
       "\n",
       '{"exponent":1e400}',
@@ -121,29 +110,28 @@ describe("record-export", () => {
   });
 
   it("formats empty JSON and JSONL collections", async () => {
-    expect(formatRecordsAsJson([], "json")).toBe("null");
-    await expect(formatRecordsAsJsonParts([], "json")).resolves.toEqual(["null"]);
-    await expect(formatRecordsAsJsonParts([], "jsonl")).resolves.toEqual(["[]"]);
+    await expect(buildJsonParts([], "json")).resolves.toEqual(["null"]);
+    await expect(buildJsonParts([], "jsonl")).resolves.toEqual(["[]"]);
   });
 
-  it("formatRecordsAsJsonlParts concatenates to the same string as the sync formatter", async () => {
+  it("builds JSONL parts with newline separators", async () => {
     const records = recordsFrom('{"a":1}\n{"a":2}', "jsonl");
-    const parts = await formatRecordsAsJsonlParts(records);
-    expect(parts.join("")).toBe(formatRecordsAsJsonl(records));
+    const parts = await buildJsonlParts(records);
+    expect(parts.join("")).toBe('{"a":1}\n{"a":2}');
   });
 
-  it("formatRecordsAsJsonParts concatenates to the same string as the sync formatter", async () => {
+  it("builds JSON array parts with formatted records", async () => {
     const records = recordsFrom('{"a":1}\n{"a":2}', "jsonl");
-    const parts = await formatRecordsAsJsonParts(records, "jsonl");
-    expect(parts.join("")).toBe(formatRecordsAsJson(records, "jsonl"));
+    const parts = await buildJsonParts(records, "jsonl");
+    expect(parts.join("")).toBe(JSON.stringify([{ a: 1 }, { a: 2 }], null, 2));
   });
 
   it("chunks large JSONL and JSON-array exports", async () => {
     const [record] = recordsFrom('{"a":1}', "jsonl");
     const records = Array.from({ length: 201 }, () => record!);
 
-    const jsonlParts = await formatRecordsAsJsonlParts(records);
-    const jsonParts = await formatRecordsAsJsonParts(records, "jsonl");
+    const jsonlParts = await buildJsonlParts(records);
+    const jsonParts = await buildJsonParts(records, "jsonl");
 
     expect(jsonlParts.join("").split("\n")).toHaveLength(201);
     expect(JSON.parse(jsonParts.join(""))).toHaveLength(201);

@@ -72,23 +72,10 @@ const copyNodeFor = (record: JsonlRecord): JsonNode => {
   };
 };
 
-export const formatRecord = (record: JsonlRecord, indent = 0) =>
+const formatRecord = (record: JsonlRecord, indent = 0) =>
   record.status === "failed"
     ? JSON.stringify(getCopyValue(record), null, indent)
     : stringifyJsonNode(record.node, { indent });
-
-export const formatRecordsAsJsonl = (records: JsonlRecord[]) =>
-  records.map((record) => formatRecord(record)).join("\n");
-
-export const formatRecordsAsJson = (records: JsonlRecord[], format: "json" | "jsonl") => {
-  if (format === "json") {
-    const [record] = records;
-    return record ? formatRecord(record, 2) : "null";
-  }
-
-  const bodies = records.map((record) => `  ${formatRecord(record, 2).replace(/\n/g, "\n  ")}`);
-  return bodies.length === 0 ? "[]" : `[\n${bodies.join(",\n")}\n]`;
-};
 
 class CopyPayloadWriter {
   private readonly chunks: string[] = [];
@@ -282,14 +269,6 @@ export const addRecordsToBuilder = (
   records: JsonlRecord[],
   signal?: AbortSignal,
 ): Promise<BlobPart[]> => addRecordBodiesToBuilder(builder, records, builder.bodyFor, signal);
-
-export const formatRecordsAsJsonlParts = (records: JsonlRecord[]): Promise<BlobPart[]> =>
-  addRecordsToBuilder(createJsonlPartsBuilder(), records);
-
-export const formatRecordsAsJsonParts = (
-  records: JsonlRecord[],
-  format: "json" | "jsonl",
-): Promise<BlobPart[]> => addRecordsToBuilder(createJsonPartsBuilder(format), records);
 
 export const downloadBlob = (parts: BlobPart[], filename: string, type: string) => {
   const blob = new Blob(parts, { type });
