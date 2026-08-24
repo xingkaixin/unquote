@@ -68,10 +68,10 @@ Partner Center の検索語句欄には、重複を避けて次を入力しま�
 
 Partner Center の日本語掲載情報に、次の 4 枚をこの順序でアップロードします。
 
-1. [ダークテーマ：JSON の再帰展開](edge-add-ons-screenshot-ja-dark-json-tree-1280x800.jpg)
-2. [ダークテーマ：エージェントセッション](edge-add-ons-screenshot-ja-dark-agent-session-1280x800.jpg)
-3. [ライトテーマ：JSONL 検索](edge-add-ons-screenshot-ja-light-jsonl-search-1280x800.jpg)
-4. [ライトテーマ：エラー診断](edge-add-ons-screenshot-ja-light-error-diagnostics-1280x800.jpg)
+1. [ダークテーマ：JSON の再帰展開](edge-add-ons-screenshot-ja-dark-json-tree-1280x800.png)
+2. [ダークテーマ：エージェントセッション](edge-add-ons-screenshot-ja-dark-agent-session-1280x800.png)
+3. [ライトテーマ：JSONL 検索](edge-add-ons-screenshot-ja-light-jsonl-search-1280x800.png)
+4. [ライトテーマ：エラー診断](edge-add-ons-screenshot-ja-light-error-diagnostics-1280x800.png)
 
 追加素材：
 
