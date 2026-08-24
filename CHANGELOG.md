@@ -5,6 +5,29 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.0] - 2026-08-24
+
+### Added
+
+- Added Japanese across the web app, browser extensions, locale-aware metadata, and extension context menus, together with Japanese Chrome Web Store and Edge Add-ons listing copy and screenshots.
+- Agent session parsing warnings now show their failure type and source line in the session overview, with a direct action to open the affected Record in JSON.
+
+### Changed
+
+- Detected Agent sessions reach their first usable view sooner and retain less intermediate data: the Agent output is prefetched as soon as detection succeeds, trajectory projection waits until it is needed, and Agent JSONL ingestion avoids eagerly materializing duplicate full-record input. Large-file search and nested-record insight derivation also reuse prior work instead of repeating scans.
+- Parser, local-file, query, export, Agent-session, tool-lifecycle, and trajectory projection responsibilities were split into focused modules with narrower state ownership and behavior-oriented test suites, reducing the risk of stale-source updates and making release-critical paths independently verifiable.
+- Release checks now cover root tooling sources, pinned GitHub Actions, extension manifest behavior, observable UI bundle budgets, and bounded test-worker concurrency; deployment and supported development dependencies were also updated and pinned where reproducibility requires it.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.0`.
+
+### Fixed
+
+- Consecutive layers of stringified JSON now expand recursively, including nested objects, arrays, primitives, and strings, while restore and formatted output preserve the expected value.
+- Browser-extension actions, keyboard shortcuts, and selection handoff now open Unquote in a normal tab using the runtime-resolved options URL; legacy message responses remain supported. Safari no longer echoes native messages back to the extension.
+- Replacing a Source can no longer let stale parsing, search, copy, or final export work update the new workspace, and trajectory filters are scoped to the current Source Revision. Final copy payloads are validated before clipboard writes.
+- Deferred Agent and Trajectory views now present a retryable error state when their code cannot load, while parser, search, file, and export failures preserve useful asynchronous diagnostic details.
+- Parser depth options and serialization limits are validated consistently, and byte-bounded serialization now enforces actual encoded size rather than character count.
+- Record summaries and insights now rank candidates using full input length and structural depth, avoiding misleading labels from truncated previews or shallower competing fields.
+
 ## [1.1.0] - 2026-08-16
 
 ### Added
