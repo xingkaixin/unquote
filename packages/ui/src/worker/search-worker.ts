@@ -1,9 +1,8 @@
-import type { JsonlRecord } from "@unquote/core";
 import { createLocalFileAccess } from "../lib/local-file-source";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text-result";
 import type { SourceRevision } from "../lib/source-revision";
-import { searchRecords } from "../lib/record-search";
+import { createMemorySearch } from "../lib/memory-search";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
 
 type TextSearchSource =
@@ -41,25 +40,28 @@ export type SearchWorkerResponse =
   | { type: "result"; requestId: number; result: SearchResultSet | null }
   | { type: "error"; requestId: number; message: string };
 
-interface TextRecordsCache {
-  sourceRevision: SourceRevision;
-  records: JsonlRecord[];
-}
+type SearchSourceCache =
+  | {
+      kind: "memory";
+      sourceRevision: SourceRevision;
+      search: ReturnType<typeof createMemorySearch>;
+    }
+  | { kind: "file"; sourceRevision: SourceRevision; access: LocalFileAccess };
 
-let textRecordsCache: TextRecordsCache | null = null;
-let fileAccessCache: { sourceRevision: SourceRevision; access: LocalFileAccess } | null = null;
+let sourceCache: SearchSourceCache | null = null;
 
-const recordsForSource = (source: TextSearchSource): JsonlRecord[] => {
+const searchForSource = (source: TextSearchSource) => {
   if (source.kind === "cached") {
-    if (textRecordsCache?.sourceRevision !== source.sourceRevision) {
+    if (sourceCache?.kind !== "memory" || sourceCache.sourceRevision !== source.sourceRevision) {
       throw new Error("Search source revision is unavailable");
     }
-    return textRecordsCache.records;
+    return sourceCache.search;
   }
 
   const result = parseTextResult(source.text, source.forcedFormat);
-  textRecordsCache = { sourceRevision: source.sourceRevision, records: result.records };
-  return result.records;
+  const search = createMemorySearch(result.records);
+  sourceCache = { kind: "memory", sourceRevision: source.sourceRevision, search };
+  return search;
 };
 
 const searchText = ({
@@ -68,7 +70,7 @@ const searchText = ({
   options,
   windowIndexes,
 }: Extract<SearchRequest, { type: "search-text" }>): SearchResultSet | null =>
-  searchRecords(recordsForSource(source), query, options, windowIndexes);
+  searchForSource(source)(query, options, windowIndexes);
 
 // Cancellation is handled by the main thread terminating this worker on
 // timeout, so this signal never needs to fire.
@@ -79,10 +81,10 @@ const searchFile = ({
   options,
   windowIndexes,
 }: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchResultSet | null> => {
-  if (fileAccessCache?.sourceRevision !== sourceRevision) {
-    fileAccessCache = { sourceRevision, access: createLocalFileAccess(file) };
+  if (sourceCache?.kind !== "file" || sourceCache.sourceRevision !== sourceRevision) {
+    sourceCache = { kind: "file", sourceRevision, access: createLocalFileAccess(file) };
   }
-  return fileAccessCache.access.search(query, options, new AbortController().signal, windowIndexes);
+  return sourceCache.access.search(query, options, new AbortController().signal, windowIndexes);
 };
 
 // Never include the raw error, input text, or query in the posted message —
