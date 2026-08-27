@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseInput } from "@unquote/core";
 
 interface WorkerScope {
   onmessage: ((event: MessageEvent) => void) | null;
@@ -56,6 +57,7 @@ describe("search worker", () => {
     vi.restoreAllMocks();
     vi.doUnmock("../src/lib/record-search");
     vi.doUnmock("../src/lib/local-file-source");
+    vi.doUnmock("../src/lib/parse-text-result");
   });
 
   it("finds matches in text input", async () => {
@@ -78,6 +80,49 @@ describe("search worker", () => {
     expect(response).toMatchObject({ type: "result", requestId: 1 });
     expect(response.result.total).toBeGreaterThan(0);
     expect(response.result.window.matches.length).toBeGreaterThan(0);
+  });
+
+  it("reads only requested records when materializing a later memory-search window", async () => {
+    const parsed = parseInput(
+      Array.from({ length: 500 }, (_, index) => JSON.stringify({ value: `needle-${index}` })).join(
+        "\n",
+      ),
+      { forcedFormat: "jsonl" },
+    );
+    let nodeReads = 0;
+    for (const record of parsed.records) {
+      const node = record.node;
+      Object.defineProperty(record, "node", {
+        get: () => {
+          nodeReads += 1;
+          return node;
+        },
+      });
+    }
+    vi.doMock("../src/lib/parse-text-result", () => ({ parseTextResult: () => parsed }));
+    const scope = await loadWorker();
+    dispatch(scope, {
+      type: "search-text",
+      requestId: 1,
+      source: { kind: "content", sourceRevision: 1, text: "fixture" },
+      query: "needle",
+      options: defaultOptions,
+    });
+    expect(scope.postMessage.mock.calls[0]![0].result.total).toBe(500);
+    expect(nodeReads).toBe(500);
+    nodeReads = 0;
+    dispatch(scope, {
+      type: "search-text",
+      requestId: 2,
+      source: { kind: "cached", sourceRevision: 1 },
+      query: "needle",
+      options: defaultOptions,
+      windowIndexes: Float64Array.from([128]),
+    });
+    const result = scope.postMessage.mock.calls[1]![0].result;
+    expect(nodeReads).toBe(1);
+    expect(result.total).toBe(500);
+    expect(result.window.matches).toMatchObject([{ recordId: "record-129" }]);
   });
 
   it("reuses parsed records for the same text across queries", async () => {
@@ -108,6 +153,24 @@ describe("search worker", () => {
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(2));
 
     expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidates matches when new source content arrives", async () => {
+    const scope = await loadWorker();
+    for (const [revision, text] of [
+      [1, '{"value":"needle"}'],
+      [2, '{"value":"hay"}'],
+    ] as const) {
+      dispatch(scope, {
+        type: "search-text",
+        requestId: revision,
+        source: { kind: "content", sourceRevision: revision, text },
+        query: "needle",
+        options: defaultOptions,
+      });
+    }
+    expect(scope.postMessage.mock.calls[0]![0].result.total).toBe(1);
+    expect(scope.postMessage.mock.calls[1]![0].result.total).toBe(0);
   });
 
   it("rejects a cached revision that was not loaded", async () => {
@@ -149,6 +212,34 @@ describe("search worker", () => {
       requestId: 1,
       result: null,
     });
+  });
+
+  it("releases the previous memory source when switching to a file", async () => {
+    const scope = await loadWorker();
+    dispatch(scope, {
+      type: "search-text",
+      requestId: 1,
+      source: { kind: "content", sourceRevision: 1, text: '{"value":"needle"}' },
+      query: "needle",
+      options: defaultOptions,
+    });
+    dispatch(scope, {
+      type: "search-file",
+      requestId: 2,
+      sourceRevision: 2,
+      file: makeStreamedFile('{"value":"hay"}'),
+      query: "needle",
+      options: defaultOptions,
+    });
+    await vi.waitFor(() => expect(scope.postMessage).toHaveBeenCalledTimes(2));
+    dispatch(scope, {
+      type: "search-text",
+      requestId: 3,
+      source: { kind: "cached", sourceRevision: 1 },
+      query: "needle",
+      options: defaultOptions,
+    });
+    expect(scope.postMessage.mock.calls[2]![0]).toMatchObject({ type: "error", requestId: 3 });
   });
 
   it("finds matches in a streamed file", async () => {
