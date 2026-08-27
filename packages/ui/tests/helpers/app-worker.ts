@@ -1,5 +1,5 @@
 import { cleanup } from "@testing-library/react";
-import { parsePreviewJsonlRecordLine } from "@unquote/core";
+import { parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, vi } from "vitest";
 import type { SearchOptions } from "../../src/lib/record-search";
@@ -44,6 +44,7 @@ Object.assign(globalThis, {
   Worker: class extends MockWorkerEvents {
     chunks = "";
     isSearchWorker: boolean;
+    isRecordParser: boolean;
     searchSource: {
       sourceRevision: number;
       text: string;
@@ -52,6 +53,7 @@ Object.assign(globalThis, {
     constructor(...args: unknown[]) {
       super();
       this.isSearchWorker = String(args[0]).includes("search-worker");
+      this.isRecordParser = String(args[0]).includes("record-parser-worker");
     }
     terminate() {
       this.clearListeners();
@@ -113,6 +115,7 @@ Object.assign(globalThis, {
     postMessage(payload: {
       type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl" | "search-text" | "search-file";
       requestId: number;
+      lines?: Map<number, string>;
       input?: string;
       forcedFormat?: "json" | "jsonl";
       chunk?: string;
@@ -130,6 +133,15 @@ Object.assign(globalThis, {
       options?: unknown;
       windowIndexes?: Float64Array;
     }) {
+      if (this.isRecordParser && payload.lines) {
+        const records = new Map(
+          [...payload.lines].map(([number, line]) => [number, parseJsonlRecordLine(line, number)]),
+        );
+        queueMicrotask(() =>
+          this.respond({ type: "result", requestId: payload.requestId, records }),
+        );
+        return;
+      }
       if (payload.type === "search-text") {
         if (!this.isSearchWorker || !payload.source) {
           return;

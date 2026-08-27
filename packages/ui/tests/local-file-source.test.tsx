@@ -160,7 +160,7 @@ describe("local-file-source", () => {
 
     await expect(
       createLocalFileAccess(file).readRecords(new Set([2]), controller.signal),
-    ).resolves.toEqual(new Map());
+    ).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("searches raw lines and reports matches across them", async () => {

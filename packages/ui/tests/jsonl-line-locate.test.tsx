@@ -169,6 +169,6 @@ describe("locating a JSONL line by number", () => {
 
     await expect(
       createLocalFileAccess(file).readRecords(new Set([50]), controller.signal),
-    ).resolves.toEqual(new Map());
+    ).rejects.toMatchObject({ name: "AbortError" });
   });
 });
