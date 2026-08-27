@@ -84,6 +84,21 @@ afterEach(() => {
 });
 
 describe("streaming export", () => {
+  it("does not download a partial export when a preview record cannot be resolved", async () => {
+    const { file } = createStreamFile("null", "missing.jsonl");
+    const { result } = renderExport({
+      visibleRecords: previewRecords(["null", "true"]),
+      sourceAccess: createLocalFileAccess(file),
+    });
+    await act(async () => {
+      result.current.onExportJsonl();
+      const pending = toastMocks.promise.mock.calls.at(-1)![0];
+      await expect(pending).rejects.toThrow(TypeError);
+    });
+    expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledWith("Export failed");
+  });
+
   it.each(["jsonl", "json"] as const)(
     "produces byte-identical %s output without materializing every record",
     async (format) => {

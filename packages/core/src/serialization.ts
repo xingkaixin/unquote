@@ -1,4 +1,10 @@
-import type { FormatOptions, JsonNode, LosslessJsonValue, MaterializeOptions } from "./types.js";
+import type {
+  FormatOptions,
+  FullJsonNode,
+  JsonNode,
+  LosslessJsonValue,
+  MaterializeOptions,
+} from "./types.js";
 import {
   materializeJsonNumber,
   materializeLosslessValue,
@@ -20,6 +26,17 @@ interface ContainerView {
 type ResolvedValue = { literal: string } | { string: string } | { container: ContainerView };
 
 const jsonLiteral = (value: string | boolean | null) => JSON.stringify(value);
+
+function assertSerializableNode(node: JsonNode): asserts node is FullJsonNode {
+  if (
+    node.preview ||
+    (node.kind === "string" &&
+      (node.stringifiedPreview ||
+        (node.valueLength !== undefined && node.valueLength > node.value.length)))
+  ) {
+    throw new TypeError("Cannot serialize an incomplete JSON preview; load the full record first");
+  }
+}
 
 const resolveLosslessValue = (value: LosslessJsonValue): ResolvedValue => {
   if (typeof value === "string") {
@@ -57,6 +74,7 @@ const resolveLosslessValue = (value: LosslessJsonValue): ResolvedValue => {
 };
 
 const resolveNode = (node: JsonNode): ResolvedValue => {
+  assertSerializableNode(node);
   if (node.kind === "object") {
     if (node.children) {
       const keys = Object.keys(node.children);
@@ -72,7 +90,7 @@ const resolveNode = (node: JsonNode): ResolvedValue => {
         },
       };
     }
-    return node.preview ? { literal: "null" } : resolveLosslessValue(node.value);
+    return resolveLosslessValue(node.value);
   }
 
   if (node.kind === "array") {
@@ -86,7 +104,7 @@ const resolveNode = (node: JsonNode): ResolvedValue => {
         },
       };
     }
-    return node.preview ? { literal: "null" } : resolveLosslessValue(node.value);
+    return resolveLosslessValue(node.value);
   }
 
   if (node.kind === "number") {
@@ -267,6 +285,7 @@ const serializeJsonNode = (
   options: FormatOptions,
   limits: JsonSerializationLimits = {},
 ): JsonSerializationResult => {
+  assertSerializableNode(node);
   const indentation = " ".repeat(normalizedIndent(options.indent));
   const pretty = indentation.length > 0;
   const writer = createWriter(limits);
@@ -368,15 +387,18 @@ const serializeJsonNode = (
   return writer.finish(complete, nodeLimitExceeded);
 };
 
+/** Throws TypeError for incomplete preview data, including visited descendants. */
 export const stringifyJsonNode = (node: JsonNode, options: FormatOptions = {}) =>
   serializeJsonNode(node, options).text;
 
+/** Limits output work, not input completeness: visited preview nodes still throw. */
 export const stringifyJsonNodeWithLimits = (
   node: JsonNode,
   limits: JsonSerializationLimits,
   options: FormatOptions = {},
 ) => serializeJsonNode(node, options, limits);
 
+/** Returns a display prefix of complete data; incomplete preview nodes still throw. */
 export const stringifyJsonNodeBounded = (
   node: JsonNode,
   maxLength: number,
@@ -388,7 +410,9 @@ export const stringifyJsonNodeBounded = (
   return { text: result.text, truncated: result.characterLimitExceeded };
 };
 
+/** Throws TypeError for incomplete preview data instead of fabricating values. */
 export const materializeNode = (node: JsonNode, options: MaterializeOptions = {}): unknown => {
+  assertSerializableNode(node);
   if (node.kind === "object" && node.children) {
     return Object.fromEntries(
       Object.entries(node.children).map(([key, child]) => [key, materializeNode(child, options)]),
@@ -400,7 +424,7 @@ export const materializeNode = (node: JsonNode, options: MaterializeOptions = {}
   }
 
   if (node.kind === "object" || node.kind === "array") {
-    return node.preview ? null : materializeLosslessValue(node.value, options);
+    return materializeLosslessValue(node.value, options);
   }
 
   if (node.kind === "number" && node.rawValue !== undefined) {

@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { writeClipboardText } from "../lib/clipboard";
+import { reportDiagnostic } from "../lib/diagnostics";
 import { isCopyTextAboveThreshold } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 
@@ -51,7 +52,8 @@ export const useCopyToClipboard = (sourceRevision: SourceRevision) => {
         }
       } catch (error) {
         if (!controller.signal.aborted) {
-          throw error;
+          reportDiagnostic("copy.build", error);
+          toast.error(t("copy.failed"));
         }
       } finally {
         if (controllerRef.current === controller) {

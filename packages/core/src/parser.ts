@@ -12,7 +12,7 @@ import type {
 import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 import { getErrorMessage, getParseErrorMeta } from "./parse-error.js";
 import { createFullJsonlRecord, createPreviewJsonlRecord } from "./record-builder.js";
-import { isFailedRecord, isParsed } from "./records.js";
+import { isFailedRecord, isParsed, isPreviewRecord } from "./records.js";
 import { stringifyJsonNode } from "./serialization.js";
 import {
   DEFAULT_MAX_DEPTH,
@@ -389,6 +389,9 @@ export const restoreNode = (node: JsonNode, paths?: string[][]): JsonNode =>
   restoreNodeAtPath(node, paths, ["$"]);
 
 export const formatResult = (result: ParseResult, options: FormatOptions = {}) => {
+  if (result.records.some(isPreviewRecord)) {
+    throw new TypeError("Cannot format preview records; load the full records first");
+  }
   const indent = options.indent ?? 2;
   if (result.format === "json") {
     const record = result.records[0];

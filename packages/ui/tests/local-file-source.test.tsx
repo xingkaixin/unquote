@@ -83,6 +83,13 @@ describe("local-file-source", () => {
     await expect(createLocalFileAccess(file).readRecords(new Set())).resolves.toEqual(new Map());
   });
 
+  it("rejects missing copy records instead of returning a preview or summary", async () => {
+    const access = createLocalFileAccess(makeStreamedFile('{"a":1}'));
+    const missing = parsePreviewJsonlRecordLine('{"b":2}', 2);
+    await expect(access.resolveRecords([missing])).rejects.toThrow("Record line 2 was not found");
+    await expect(access.readRecordText(missing)).rejects.toThrow("Record line 2 was not found");
+  });
+
   it("accepts export-sized line-number sets", async () => {
     const file = makeStreamedFile('{"a":1}');
     const lineNumbers = new Set(Array.from({ length: 100_000 }, (_, index) => index + 1));

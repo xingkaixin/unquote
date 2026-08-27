@@ -66,6 +66,18 @@ describe("useCopyToClipboard", () => {
     expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
   });
 
+  it("reports serialization failures without writing or leaving an unhandled rejection", async () => {
+    const writeText = stubClipboard(vi.fn());
+    const { result } = renderCopy();
+    await act(() =>
+      result.current(() => {
+        throw new TypeError("Incomplete preview");
+      }),
+    );
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
+  });
+
   it("blocks a final clipboard payload above the byte budget", async () => {
     const writeText = stubClipboard(vi.fn().mockResolvedValue(undefined));
     const { result } = renderCopy();

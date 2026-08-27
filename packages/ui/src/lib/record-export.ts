@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { stringifyJsonNode, stringifyJsonNodeBounded } from "@unquote/core";
+import { isPreviewRecord, stringifyJsonNode, stringifyJsonNodeBounded } from "@unquote/core";
 import { materializeRecord } from "./tree";
 
 // Copy builds one giant string and hands it to the clipboard API, which freezes
@@ -54,6 +54,9 @@ export const getCopyValue = (record: JsonlRecord) => {
 };
 
 const copyNodeFor = (record: JsonlRecord): JsonNode => {
+  if (isPreviewRecord(record)) {
+    throw new TypeError("Cannot export a preview record; load the full record first");
+  }
   if (record.status !== "failed") {
     return record.node;
   }
@@ -73,9 +76,7 @@ const copyNodeFor = (record: JsonlRecord): JsonNode => {
 };
 
 const formatRecord = (record: JsonlRecord, indent = 0) =>
-  record.status === "failed"
-    ? JSON.stringify(getCopyValue(record), null, indent)
-    : stringifyJsonNode(record.node, { indent });
+  stringifyJsonNode(copyNodeFor(record), { indent });
 
 class CopyPayloadWriter {
   private readonly chunks: string[] = [];
