@@ -1,5 +1,5 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { isParsed, isStringifiedNode, materializeNode } from "@unquote/core";
+import { isParsed, isPreviewRecord, isStringifiedNode, materializeNode } from "@unquote/core";
 import { getPreviewPath } from "./record-preview";
 import { formatJsonValueLabel, maxStringValueLabelLength, walkJsonNode } from "./json-walk";
 
@@ -48,6 +48,9 @@ export const buildRecordRows = (
 };
 
 export const materializeRecord = (record: JsonlRecord) => {
+  if (isPreviewRecord(record)) {
+    throw new TypeError("Cannot materialize a preview record; load the full record first");
+  }
   if (!isParsed(record)) {
     return null;
   }

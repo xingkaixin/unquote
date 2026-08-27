@@ -53,7 +53,13 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
         new Set(records.map((record) => record.lineNumber)),
         signal,
       );
-      return records.map((record) => resolved.get(record.lineNumber) ?? record);
+      return records.map((record) => {
+        const full = resolved.get(record.lineNumber);
+        if (!full) {
+          throw new Error(`Record line ${record.lineNumber} was not found`);
+        }
+        return full;
+      });
     },
     streamRecords: (lineNumbers, onRecord, signal) =>
       streamJsonlRecords(file, lineNumbers, onRecord, signal),
@@ -61,10 +67,10 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
       const resolved = (await readRecords(new Set([record.lineNumber]), signal)).get(
         record.lineNumber,
       );
-      if (resolved) {
-        return formatRecordText(resolved);
+      if (!resolved) {
+        throw new Error(`Record line ${record.lineNumber} was not found`);
       }
-      return record.status === "failed" ? record.rawLine : record.summary;
+      return formatRecordText(resolved);
     },
     readRecordTextByLine: async (lineNumber, signal) => {
       const line = (await readJsonlLinesByNumber(file, new Set([lineNumber]), signal)).get(

@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -26,6 +26,18 @@ const buildJsonParts = (records: JsonlRecord[], format: "json" | "jsonl") =>
   addRecordsToBuilder(createJsonPartsBuilder(format), records);
 
 describe("record-export", () => {
+  it.each(['{"value":1}', "[]", '"hello"', "1", "true", "null"])(
+    "rejects unresolved previews of %s in copy and export formats",
+    async (source) => {
+      const record = parsePreviewJsonlRecordLine(source, 1);
+      expect(() => getCopyValue(record)).toThrow(TypeError);
+      expect(() => formatRecordsAsJsonForCopy([record], "json")).toThrow(TypeError);
+      expect(() => formatRecordsAsJsonlForCopy([record])).toThrow(TypeError);
+      await expect(buildJsonParts([record], "jsonl")).rejects.toThrow(TypeError);
+      await expect(buildJsonlParts([record])).rejects.toThrow(TypeError);
+    },
+  );
+
   it("getCopyValue returns the materialized value for a parsed record", () => {
     const [record] = recordsFrom('{"a":1,"b":"x"}', "json");
     expect(getCopyValue(record!)).toEqual({ a: 1, b: "x" });

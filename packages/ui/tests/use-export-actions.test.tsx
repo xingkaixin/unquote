@@ -1,4 +1,4 @@
-import { parseInput } from "@unquote/core";
+import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +55,21 @@ const renderActions = ({
   );
 
 describe("useExportActions", () => {
+  it("blocks copy when record resolution leaves a preview", async () => {
+    const preview = parsePreviewJsonlRecordLine("null", 1);
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { result } = renderActions({ getFullRecords: vi.fn(async () => [preview]) });
+    await act(async () => {
+      await result.current.onCopyJsonl();
+      await result.current.onCopyFormattedJson();
+      await result.current.onCopyRecord(preview);
+    });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledTimes(3);
+    expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
+  });
+
   it("keeps action references stable while inputs are unchanged", () => {
     const { result, rerender } = renderActions();
     const actions = result.current;
