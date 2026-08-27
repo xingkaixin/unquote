@@ -76,6 +76,12 @@ describe("toolbarSummary", () => {
     ).toBe("Search timed out");
   });
 
+  it("reports worker failures for path queries without a text search", () => {
+    expect(
+      toolbarSummary({ ...baseInput, searchStatus: "error", searchErrorKind: "timeout" }, t),
+    ).toBe("Search timed out");
+  });
+
   it("shows a generic failure label for non-timeout search errors", () => {
     expect(
       toolbarSummary(

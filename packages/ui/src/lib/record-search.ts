@@ -8,6 +8,7 @@ import {
   walkRawJsonValue,
 } from "./json-walk";
 import type { JsonValueWalkContext } from "./json-walk";
+import { formatJsonPath, parseTreePath } from "./path-codec";
 import { measurePerfFn } from "./perf";
 
 export interface TextRange {
@@ -27,7 +28,7 @@ export interface SearchMatch {
 export type SearchSyntax = "text" | "regex" | "jq";
 
 export interface SearchOptions {
-  syntax: SearchSyntax;
+  syntax: SearchSyntax | "path";
   caseSensitive: boolean;
 }
 
@@ -124,10 +125,11 @@ const createCollector = (
   ) => {
     const keySegment = context.pathSegments.at(-1);
     const keyText = keySegment?.kind === "key" ? keySegment.value : null;
-    const valueText = formatJsonValueLabel(context);
-    const keyMatched = keyText ? matchesPattern(keyText) : false;
-    const valueMatched = matchesPattern(valueText);
-    const pathMatched = options.syntax === "jq" && matchesPattern(context.jsonPath);
+    const pathOnly = options.syntax === "path";
+    const valueText = pathOnly ? "" : formatJsonValueLabel(context);
+    const keyMatched = !pathOnly && keyText ? matchesPattern(keyText) : false;
+    const valueMatched = !pathOnly && matchesPattern(valueText);
+    const pathMatched = (pathOnly || options.syntax === "jq") && matchesPattern(context.jsonPath);
 
     if (!keyMatched && !valueMatched && !pathMatched) {
       return;
@@ -146,12 +148,14 @@ const createCollector = (
     matches.push({
       recordId,
       pathText: context.jsonPath,
-      keyRanges: keyText ? scanRanges(keyText, pattern) : [],
-      valueRanges: scanRanges(
-        valueText,
-        pattern,
-        getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
-      ),
+      keyRanges: keyMatched && keyText ? scanRanges(keyText, pattern) : [],
+      valueRanges: valueMatched
+        ? scanRanges(
+            valueText,
+            pattern,
+            getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
+          )
+        : [],
       pathRanges: options.syntax === "jq" ? scanRanges(context.jsonPath, pattern) : [],
       stringifiedPathChain: [...context.stringifiedChain],
     });
@@ -201,6 +205,15 @@ export const searchJsonValue = (
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
   if (!query) {
     return null;
+  }
+
+  if (options.syntax === "path") {
+    const segments = parseTreePath(query);
+    if (!segments) {
+      return null;
+    }
+    const path = formatJsonPath(segments).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^${path}$`, "g");
   }
 
   const flags = options.caseSensitive ? "g" : "gi";

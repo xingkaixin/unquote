@@ -1,12 +1,10 @@
-import type { JsonlRecord, ParseResult } from "@unquote/core";
+import type { ParseResult } from "@unquote/core";
 import { useCallback, useEffect, useMemo } from "react";
 import {
   createInitialQueryInteractionState,
-  isPathLikeQuery,
   reduceQueryInteraction,
 } from "../lib/query-interaction";
 import type {
-  PathResolution,
   QueryInteractionAction,
   QueryInteractionState,
   SearchOptionKind,
@@ -17,15 +15,14 @@ import type { SearchOptions } from "../lib/record-search";
 import type { RecordAppend } from "../lib/record-sequence";
 import { shareSourceRevision } from "../lib/source-revision";
 import type { SourceRevision } from "../lib/source-revision";
-import { resolveTreePath, resolveTreePathMatches } from "../lib/tree-path";
-import type { TreePathMatch } from "../lib/tree-path";
+import { parseTreePath } from "../lib/path-codec";
+import { createSearchResultVisibility, projectSearchResult } from "../lib/search-result";
 import { useRecordPipeline } from "./use-record-pipeline";
 import { useSearchWorker } from "./use-search-worker";
 import { useSourceRevisionState } from "./use-source-revision-state";
 
 export const memorySearchDebounceMs = 120;
 export const localFileSearchDebounceMs = 250;
-const emptyPathMatches: TreePathMatch[] = [];
 
 export type { QueryNavigationTarget } from "../lib/query-navigation";
 
@@ -99,38 +96,28 @@ export const useQueryInteraction = ({
     createInitialQueryInteractionModel,
   );
   const { state, navigationIntent, searchExpansionRevision } = model;
-  const resolvePathQuery = useCallback(
-    (records: JsonlRecord[], value: string): PathResolution | null => {
-      const query = value.trim();
-      if (!query || !isPathLikeQuery(query)) {
-        return null;
-      }
-
-      const resolution = resolveTreePathMatches(records, query);
-      return resolution.ok
-        ? { query, ok: true, targets: resolution.targets }
-        : { query, ok: false, error: translateError(resolution.reason) };
-    },
-    [translateError],
-  );
-
   const mode = state.modeState.mode;
   const searchQuery = mode === "search" ? state.modeState.query : "";
-  const pathError = mode === "path" ? state.modeState.error : null;
-  const pathMatches = mode === "path" ? state.modeState.matches : emptyPathMatches;
-  const currentPathMatchIndex = mode === "path" ? state.modeState.currentIndex : 0;
+  const pathQuery = mode === "path" && state.modeState.submitted ? state.modeState.query : "";
+  const pathSegments = useMemo(() => (pathQuery ? parseTreePath(pathQuery) : null), [pathQuery]);
+  const workerQuery = mode === "path" ? (pathSegments ? pathQuery : "") : searchQuery;
   const searchOptions = useMemo<SearchOptions>(
     () => ({
-      syntax: state.searchSyntax,
-      caseSensitive: state.searchCaseSensitive,
+      syntax: mode === "path" ? "path" : state.searchSyntax,
+      caseSensitive: mode === "path" || state.searchCaseSensitive,
     }),
-    [state.searchCaseSensitive, state.searchSyntax],
+    [mode, state.searchCaseSensitive, state.searchSyntax],
   );
   const searchWorker = useSearchWorker({
     source,
-    query: searchQuery,
+    query: workerQuery,
     options: searchOptions,
-    debounceMs: source.kind === "local-file" ? localFileSearchDebounceMs : memorySearchDebounceMs,
+    debounceMs:
+      mode === "path"
+        ? 0
+        : source.kind === "local-file"
+          ? localFileSearchDebounceMs
+          : memorySearchDebounceMs,
   });
   const revisionsAligned = shareSourceRevision(
     sourceRevision,
@@ -141,32 +128,50 @@ export const useQueryInteraction = ({
   const pipeline = useRecordPipeline({
     sourceRevision,
     result,
-    searchResult: revisionsAligned ? searchWorker.result : null,
+    searchResult: revisionsAligned && mode === "search" ? searchWorker.result : null,
     currentMatchIndex: requestedCurrentMatchIndex,
     recordFilter: state.recordFilter,
     recordAppend,
   });
+
+  const pathResult = revisionsAligned && mode === "path" ? searchWorker.result : null;
+  const pathVisibility = useMemo(
+    () => createSearchResultVisibility(pathResult, pipeline.visibleRecords),
+    [pathResult, pipeline.visibleRecords],
+  );
+  const requestedPathIndex = mode === "path" ? state.modeState.currentIndex : 0;
+  const pathProjection = useMemo(
+    () => projectSearchResult(pathResult, pathVisibility, requestedPathIndex),
+    [pathResult, pathVisibility, requestedPathIndex],
+  );
+  const pathError =
+    pathQuery && !pathSegments
+      ? translateError("invalid")
+      : pathResult && pathResult.total === 0
+        ? translateError("not-found")
+        : null;
+  const currentPathMatchIndex = pathProjection.currentMatchIndex;
+  const pathMatchCount = pathProjection.matchCount;
+  const activePathMatch = pathProjection.activeMatch;
 
   const currentMatchIndex = pipeline.currentMatchIndex;
   const activeSearchMatch = mode === "search" ? pipeline.activeSearchMatch : null;
   const activeSearchRecordId = activeSearchMatch?.recordId ?? null;
   const activeSearchPathText = activeSearchMatch?.pathText ?? null;
 
+  const activeMatch = mode === "path" ? activePathMatch : activeSearchMatch;
+  const activeMatchCount = mode === "path" ? pathMatchCount : pipeline.matchCount;
+  const requestedWindowIndexes =
+    mode === "path" ? pathProjection.requestedWindowIndexes : pipeline.requestedSearchWindowIndexes;
   useEffect(() => {
-    if (
-      mode !== "search" ||
-      !revisionsAligned ||
-      pipeline.matchCount === 0 ||
-      pipeline.activeSearchMatch
-    ) {
+    if (!revisionsAligned || activeMatchCount === 0 || activeMatch) {
       return;
     }
-    searchWorker.requestWindow(pipeline.requestedSearchWindowIndexes);
+    searchWorker.requestWindow(requestedWindowIndexes);
   }, [
-    mode,
-    pipeline.activeSearchMatch,
-    pipeline.matchCount,
-    pipeline.requestedSearchWindowIndexes,
+    activeMatch,
+    activeMatchCount,
+    requestedWindowIndexes,
     revisionsAligned,
     searchWorker.requestWindow,
   ]);
@@ -210,24 +215,28 @@ export const useQueryInteraction = ({
       return null;
     }
 
-    let target: QueryNavigationTarget = { sourceRevision, kind: "clear" };
-    if (state.modeState.mode === "path") {
-      const match =
-        state.modeState.matches[state.modeState.currentIndex] ?? state.modeState.matches[0];
-      const record = match ? pipeline.recordsById.get(match.recordId) : undefined;
-      const resolved = match && record ? resolveTreePath([record], match.pathText) : null;
-      if (resolved?.ok) {
-        target = { sourceRevision, kind: "path", target: resolved.target };
-      }
-    }
-
-    return { requestId: navigationIntent.requestId, target };
+    return {
+      requestId: navigationIntent.requestId,
+      target:
+        activePathMatch && pathSegments
+          ? {
+              sourceRevision,
+              kind: "path",
+              target: {
+                recordId: activePathMatch.recordId,
+                pathText: activePathMatch.pathText,
+                rawKey: pathSegments.at(-1)?.value ?? "$",
+                stringifiedPathChain: activePathMatch.stringifiedPathChain,
+              },
+            }
+          : { sourceRevision, kind: "clear" },
+    };
   }, [
+    activePathMatch,
     navigationIntent.mode,
     navigationIntent.requestId,
-    pipeline.recordsById,
+    pathSegments,
     sourceRevision,
-    state.modeState,
   ]);
   const navigation =
     navigationIntent.mode === "clear"
@@ -288,15 +297,8 @@ export const useQueryInteraction = ({
     [navigate],
   );
   const submitToolbarQuery = useCallback(
-    (value: string) => {
-      const resolution = resolvePathQuery(pipeline.visibleRecords, value);
-      navigate({
-        type: "submitToolbarQuery",
-        value,
-        resolution,
-      });
-    },
-    [navigate, pipeline.visibleRecords, resolvePathQuery],
+    (value: string) => navigate({ type: "submitToolbarQuery", value }),
+    [navigate],
   );
   const clearToolbarQuery = useCallback(() => navigate({ type: "clearToolbarQuery" }), [navigate]);
   const searchFromCommand = useCallback(
@@ -326,14 +328,14 @@ export const useQueryInteraction = ({
   );
   const previousResult = useCallback(() => {
     return mode === "path"
-      ? navigate({ type: "prevPathMatch" })
+      ? navigate({ type: "prevPathMatch", matchCount: pathMatchCount })
       : navigate({ type: "prevMatch", matchCount: pipeline.matchCount });
-  }, [mode, navigate, pipeline.matchCount]);
+  }, [mode, navigate, pathMatchCount, pipeline.matchCount]);
   const nextResult = useCallback(() => {
     return mode === "path"
-      ? navigate({ type: "nextPathMatch" })
+      ? navigate({ type: "nextPathMatch", matchCount: pathMatchCount })
       : navigate({ type: "nextMatch", matchCount: pipeline.matchCount });
-  }, [mode, navigate, pipeline.matchCount]);
+  }, [mode, navigate, pathMatchCount, pipeline.matchCount]);
   const reset = useCallback(() => navigate({ type: "resetAll" }), [navigate]);
 
   const intent = useMemo(
@@ -379,10 +381,10 @@ export const useQueryInteraction = ({
       recordFilter: state.recordFilter,
       commandInput: state.commandInput,
       pathError,
-      pathMatches,
+      pathMatchCount,
       currentPathMatchIndex,
       mode,
-      searchStatus: revisionsAligned ? searchWorker.status : searchQuery ? "pending" : "idle",
+      searchStatus: revisionsAligned ? searchWorker.status : workerQuery ? "pending" : "idle",
       searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,
       ...pipeline,
     },

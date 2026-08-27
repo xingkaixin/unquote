@@ -151,10 +151,11 @@ describe("useQueryInteraction", () => {
     expect(query.current.navigation).toBe(clearRequest);
   });
 
-  it("reissues repeated path navigation through its interface", () => {
+  it("reissues repeated path navigation through its interface", async () => {
     const { result: query } = renderQuery();
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
     expect(query.current.snapshot.activeSearchMatch).toBeNull();
     expect(query.current.navigation?.target).toEqual({
       sourceRevision: 0,
@@ -169,6 +170,7 @@ describe("useQueryInteraction", () => {
     expect(searchExpansionRevision).toBe(0);
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
     expect(query.current.navigation!.requestId).toBeGreaterThan(firstRequestId);
     expect(query.current.navigation?.target.kind).toBe("path");
     expect(query.current.searchExpansionRevision).toBe(searchExpansionRevision);
@@ -192,15 +194,13 @@ describe("useQueryInteraction", () => {
     expect(query.current.searchExpansionRevision).toBe(firstSearchRevision + 1);
   });
 
-  it("stores lightweight path matches and resolves only the active navigation target", () => {
+  it("exposes path counts and only the active navigation target", async () => {
     const { result: query } = renderQuery();
 
     act(() => query.current.intent.submitToolbarQuery("$.payload"));
+    await waitFor(() => expect(query.current.snapshot.searchStatus).toBe("complete"));
 
-    expect(query.current.snapshot.pathMatches).toEqual([
-      { recordId: "record-1", pathText: "$.payload" },
-      { recordId: "record-2", pathText: "$.payload" },
-    ]);
+    expect(query.current.snapshot.pathMatchCount).toBe(2);
     expect(query.current.navigation?.target).toEqual({
       sourceRevision: 0,
       kind: "path",
@@ -208,7 +208,6 @@ describe("useQueryInteraction", () => {
         recordId: "record-1",
         pathText: "$.payload",
         rawKey: "payload",
-        node: expect.objectContaining({ value: "needle" }),
       }),
     });
 
