@@ -5,20 +5,7 @@ import {
   reconcileMatchIndex,
   reduceQueryInteraction,
 } from "../src/lib/query-interaction";
-import type { PathResolution, QueryInteractionState } from "../src/lib/query-interaction";
-import type { TreePathMatch } from "../src/lib/tree-path";
-
-const okPath = (query: string, targets: TreePathMatch[]): PathResolution => ({
-  query,
-  ok: true,
-  targets,
-});
-
-const errPath = (query: string, error: string): PathResolution => ({
-  query,
-  ok: false,
-  error,
-});
+import type { QueryInteractionState } from "../src/lib/query-interaction";
 
 const searchState = (query = "needle", currentMatchIndex = 0): QueryInteractionState => ({
   ...createInitialQueryInteractionState(),
@@ -26,21 +13,11 @@ const searchState = (query = "needle", currentMatchIndex = 0): QueryInteractionS
   modeState: { mode: "search", query, currentMatchIndex },
 });
 
-const pathState = (
-  query = "$.payload",
-  matches: TreePathMatch[] = [],
-  currentIndex = 0,
-  error: string | null = null,
-): QueryInteractionState => ({
+const pathState = (query = "$.payload", currentIndex = 0): QueryInteractionState => ({
   ...createInitialQueryInteractionState(),
   toolbarQuery: query,
-  modeState: { mode: "path", query, error, matches, currentIndex },
+  modeState: { mode: "path", query, submitted: true, currentIndex },
 });
-
-const target = {
-  recordId: "rec-1",
-  pathText: "$.payload",
-} satisfies TreePathMatch;
 
 describe("query-interaction", () => {
   it("detects path-like input", () => {
@@ -79,8 +56,7 @@ describe("query-interaction", () => {
     expect(state.modeState).toEqual({
       mode: "path",
       query: "$.payload",
-      error: null,
-      matches: [],
+      submitted: false,
       currentIndex: 0,
     });
 
@@ -102,7 +78,7 @@ describe("query-interaction", () => {
     });
     expect(blank.modeState).toEqual({ mode: "idle" });
 
-    const cleared = reduceQueryInteraction(pathState("$.payload", [target]), {
+    const cleared = reduceQueryInteraction(pathState(), {
       type: "clearToolbarQuery",
     });
     expect(cleared.toolbarQuery).toBe("");
@@ -142,32 +118,28 @@ describe("query-interaction", () => {
     expect(caseSensitive.searchSyntax).toBe("text");
   });
 
-  it("applies a successful path resolution and lands on the first target", () => {
+  it("submits a path query without storing results in interaction state", () => {
     const state = reduceQueryInteraction(searchState(), {
       type: "submitToolbarQuery",
       value: "$.payload",
-      resolution: okPath("$.payload", [target]),
     });
     expect(state.modeState).toEqual({
       mode: "path",
       query: "$.payload",
-      error: null,
-      matches: [target],
+      submitted: true,
       currentIndex: 0,
     });
   });
 
-  it("records path resolution errors in the path member", () => {
-    const state = reduceQueryInteraction(createInitialQueryInteractionState(), {
-      type: "submitToolbarQuery",
-      value: "$.payload",
-      resolution: errPath("$.payload", "INVALID"),
+  it("editing a submitted path requires another submission", () => {
+    const state = reduceQueryInteraction(pathState(), {
+      type: "toolbarQueryChange",
+      value: "$.next",
     });
     expect(state.modeState).toEqual({
       mode: "path",
-      query: "$.payload",
-      error: "INVALID",
-      matches: [],
+      query: "$.next",
+      submitted: false,
       currentIndex: 0,
     });
   });
@@ -177,7 +149,6 @@ describe("query-interaction", () => {
     const state = reduceQueryInteraction(base, {
       type: "submitToolbarQuery",
       value: "needle",
-      resolution: null,
     });
     expect(state).toEqual({ ...base, toolbarQuery: "needle" });
   });
@@ -218,19 +189,25 @@ describe("query-interaction", () => {
   });
 
   it("cycles path targets inside the path member", () => {
-    const secondTarget = { ...target, recordId: "rec-2" };
-    let state = pathState("$.payload", [target, secondTarget]);
-    state = reduceQueryInteraction(state, { type: "nextPathMatch" });
+    let state = pathState();
+    state = reduceQueryInteraction(state, { type: "nextPathMatch", matchCount: 2 });
     expect(state.modeState).toMatchObject({ mode: "path", currentIndex: 1 });
-    state = reduceQueryInteraction(state, { type: "nextPathMatch" });
+    state = reduceQueryInteraction(state, { type: "nextPathMatch", matchCount: 2 });
     expect(state.modeState).toMatchObject({ mode: "path", currentIndex: 0 });
-    state = reduceQueryInteraction(state, { type: "prevPathMatch" });
+    state = reduceQueryInteraction(state, { type: "prevPathMatch", matchCount: 2 });
     expect(state.modeState).toMatchObject({ mode: "path", currentIndex: 1 });
+  });
+
+  it("ignores path navigation without a submitted path or matches", () => {
+    const idle = createInitialQueryInteractionState();
+    expect(reduceQueryInteraction(idle, { type: "nextPathMatch", matchCount: 2 })).toBe(idle);
+    const state = pathState();
+    expect(reduceQueryInteraction(state, { type: "prevPathMatch", matchCount: 0 })).toBe(state);
   });
 
   it("resets only the active member's navigation when changing filters", () => {
     const path = {
-      ...pathState("$.payload", [target], 1, "NOT_FOUND"),
+      ...pathState("$.payload", 1),
       recordFilter: "matches" as const,
     };
     expect(reduceQueryInteraction(path, { type: "setRecordFilter", filter: "errors" })).toEqual({
@@ -239,8 +216,7 @@ describe("query-interaction", () => {
       modeState: {
         mode: "path",
         query: "$.payload",
-        error: null,
-        matches: [],
+        submitted: false,
         currentIndex: 0,
       },
     });
@@ -255,7 +231,7 @@ describe("query-interaction", () => {
   });
 
   it("replaces path state when command search starts", () => {
-    const state = reduceQueryInteraction(pathState("$.payload", [target]), {
+    const state = reduceQueryInteraction(pathState(), {
       type: "commandSearch",
       value: "boom",
     });

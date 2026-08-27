@@ -101,7 +101,7 @@ export const UnquoteApp = ({
     toolbarQuery,
     commandInput,
     pathError,
-    pathMatches,
+    pathMatchCount,
     currentPathMatchIndex,
     currentMatchIndex,
     mode: queryMode,
@@ -349,7 +349,7 @@ export const UnquoteApp = ({
           onOutputViewChange={setOutputView}
           search={{
             query: toolbarQuery,
-            matchCount: toolbarInPathMode ? pathMatches.length : matchCount,
+            matchCount: toolbarInPathMode ? pathMatchCount : matchCount,
             currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
             disabled: !hasData,
             onQueryChange: queryIntent.changeToolbarQuery,
@@ -405,7 +405,7 @@ export const UnquoteApp = ({
                   caseSensitive={searchCaseSensitive}
                   jq={searchJq}
                   matchCount={matchCount}
-                  pathMatchCount={pathMatches.length}
+                  pathMatchCount={pathMatchCount}
                   visibleCount={visibleStats.total}
                   totalCount={result.stats.total}
                   filterMode={recordFilter}

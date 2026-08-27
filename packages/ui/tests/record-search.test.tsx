@@ -124,3 +124,46 @@ describe("search pattern semantics", () => {
     ).toBeNull();
   });
 });
+
+describe("exact path search", () => {
+  const options: SearchOptions = { syntax: "path", caseSensitive: false };
+
+  it.each(["$.payload", ".payload", "$['payload']"])(
+    "normalizes %s and only matches that path",
+    (query) => {
+      const result = searchRecords(
+        recordsFor({ payload: 1, payloadMore: 2, Payload: 3, text: "$.payload" }),
+        query,
+        options,
+      );
+      expect(result?.window.matches).toEqual([
+        {
+          recordId: "record-1",
+          pathText: "$.payload",
+          keyRanges: [],
+          valueRanges: [],
+          pathRanges: [],
+          stringifiedPathChain: [],
+        },
+      ]);
+    },
+  );
+
+  it("escapes special keys and traverses arrays and stringified JSON", () => {
+    const result = searchRecords(
+      recordsFor({ "a.b[1]": JSON.stringify([{ value: 1 }]) }),
+      '$["a.b[1]"][0].value',
+      options,
+    );
+    expect(result?.window.matches).toMatchObject([
+      {
+        pathText: '$["a.b[1]"][0].value',
+        stringifiedPathChain: ['$["a.b[1]"]'],
+      },
+    ]);
+  });
+
+  it("rejects invalid selectors", () => {
+    expect(buildSearchPattern("$[", options)).toBeNull();
+  });
+});

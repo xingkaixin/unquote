@@ -1,6 +1,5 @@
 import type { RecordFilterMode } from "./record-filter";
 import type { SearchSyntax } from "./record-search";
-import type { TreePathMatch } from "./tree-path";
 
 export type QueryModeState =
   | { mode: "idle" }
@@ -8,8 +7,7 @@ export type QueryModeState =
   | {
       mode: "path";
       query: string;
-      error: string | null;
-      matches: TreePathMatch[];
+      submitted: boolean;
       currentIndex: number;
     };
 
@@ -38,16 +36,9 @@ export const createInitialQueryInteractionState = (): QueryInteractionState => (
 
 export type SearchOptionKind = "regex" | "caseSensitive" | "jq";
 
-// Path resolution needs the current record set, which only the caller has at
-// dispatch time — so it happens in the hook callback and the reducer receives
-// the outcome, staying a pure state transition.
-export type PathResolution =
-  | { query: string; ok: true; targets: TreePathMatch[] }
-  | { query: string; ok: false; error: string };
-
 export type QueryInteractionAction =
   | { type: "toolbarQueryChange"; value: string }
-  | { type: "submitToolbarQuery"; value: string; resolution: PathResolution | null }
+  | { type: "submitToolbarQuery"; value: string }
   | { type: "clearToolbarQuery" }
   | { type: "commandSearch"; value: string }
   | { type: "setSearchOption"; kind: SearchOptionKind; on: boolean }
@@ -56,8 +47,8 @@ export type QueryInteractionAction =
   | { type: "seedCommandInput" }
   | { type: "prevMatch"; matchCount: number }
   | { type: "nextMatch"; matchCount: number }
-  | { type: "prevPathMatch" }
-  | { type: "nextPathMatch" }
+  | { type: "prevPathMatch"; matchCount: number }
+  | { type: "nextPathMatch"; matchCount: number }
   | { type: "resetAll" };
 
 export const reconcileMatchIndex = (currentMatchIndex: number, matchCount: number) =>
@@ -77,15 +68,15 @@ export const reduceQueryInteraction = (
     }
 
     case "submitToolbarQuery": {
-      if (!action.resolution) {
-        const modeState =
-          state.modeState.mode === "search" && state.modeState.query === action.value
-            ? state.modeState
-            : createModeState(action.value);
-        return { ...state, toolbarQuery: action.value, modeState };
-      }
-
-      return applyPathResolution(state, action.value, action.resolution);
+      const modeState =
+        state.modeState.mode === "search" && state.modeState.query === action.value
+          ? state.modeState
+          : createModeState(action.value);
+      return {
+        ...state,
+        toolbarQuery: action.value,
+        modeState: modeState.mode === "path" ? { ...modeState, submitted: true } : modeState,
+      };
     }
 
     case "clearToolbarQuery": {
@@ -172,22 +163,21 @@ export const reduceQueryInteraction = (
       };
     }
 
-    case "prevPathMatch": {
-      if (state.modeState.mode !== "path" || state.modeState.matches.length === 0) {
-        return state;
-      }
-      const next =
-        (state.modeState.currentIndex - 1 + state.modeState.matches.length) %
-        state.modeState.matches.length;
-      return { ...state, modeState: { ...state.modeState, currentIndex: next } };
-    }
-
+    case "prevPathMatch":
     case "nextPathMatch": {
-      if (state.modeState.mode !== "path" || state.modeState.matches.length === 0) {
+      const matchCount = action.matchCount;
+      if (state.modeState.mode !== "path" || matchCount === 0) {
         return state;
       }
-      const next = (state.modeState.currentIndex + 1) % state.modeState.matches.length;
-      return { ...state, modeState: { ...state.modeState, currentIndex: next } };
+      const currentIndex = reconcileMatchIndex(state.modeState.currentIndex, matchCount);
+      const direction = action.type === "prevPathMatch" ? -1 : 1;
+      return {
+        ...state,
+        modeState: {
+          ...state.modeState,
+          currentIndex: (currentIndex + direction + matchCount) % matchCount,
+        },
+      };
     }
 
     case "resetAll": {
@@ -208,7 +198,7 @@ const createModeState = (query: string): QueryModeState => {
   }
 
   return isPathLikeQuery(query)
-    ? { mode: "path", query, error: null, matches: [], currentIndex: 0 }
+    ? { mode: "path", query, submitted: false, currentIndex: 0 }
     : createSearchModeState(query);
 };
 
@@ -222,22 +212,6 @@ const resetModeNavigation = (modeState: QueryModeState): QueryModeState => {
     case "search":
       return { ...modeState, currentMatchIndex: 0 };
     case "path":
-      return { ...modeState, error: null, matches: [], currentIndex: 0 };
+      return { ...modeState, submitted: false, currentIndex: 0 };
   }
 };
-
-const applyPathResolution = (
-  state: QueryInteractionState,
-  toolbarValue: string,
-  resolution: PathResolution,
-): QueryInteractionState => ({
-  ...state,
-  toolbarQuery: toolbarValue,
-  modeState: {
-    mode: "path",
-    query: resolution.query,
-    error: resolution.ok ? null : resolution.error,
-    matches: resolution.ok ? resolution.targets : [],
-    currentIndex: 0,
-  },
-});

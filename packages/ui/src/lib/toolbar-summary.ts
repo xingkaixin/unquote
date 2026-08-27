@@ -95,9 +95,7 @@ export const toolbarSummary = (input: ToolbarSummaryInput, t: Translator): strin
     "regex-without-worker": "search.regexRequiresWorker",
   } as const;
   const searchErrorLabel =
-    searchQuery && searchStatus === "error"
-      ? t(searchErrorMessageKey[searchErrorKind ?? "worker-error"])
-      : null;
+    searchStatus === "error" ? t(searchErrorMessageKey[searchErrorKind ?? "worker-error"]) : null;
   if (searchErrorLabel) {
     return searchErrorLabel;
   }

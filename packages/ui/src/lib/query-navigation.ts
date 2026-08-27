@@ -3,7 +3,11 @@ import type { ResolvedTreePath } from "./tree-path";
 
 export type QueryNavigationTarget =
   | { sourceRevision: SourceRevision; kind: "clear" }
-  | { sourceRevision: SourceRevision; kind: "path"; target: ResolvedTreePath }
+  | {
+      sourceRevision: SourceRevision;
+      kind: "path";
+      target: Pick<ResolvedTreePath, "recordId" | "pathText" | "rawKey" | "stringifiedPathChain">;
+    }
   | {
       sourceRevision: SourceRevision;
       kind: "search";
