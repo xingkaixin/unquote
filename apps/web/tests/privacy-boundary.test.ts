@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
 const readWebFile = (relativePath: string) =>
@@ -28,18 +29,26 @@ const parseContentSecurityPolicy = (headers: string) => {
 };
 
 describe("web privacy boundary", () => {
-  it("loads no cross-origin script into the page", () => {
-    const sources = collectScriptSources(readWebFile("index.html"));
+  it("allows only production-scoped Umami tracking without legacy source hashes", () => {
+    const html = readWebFile("index.html");
+    const sources = collectScriptSources(html);
+    const { document } = new JSDOM(html).window;
+    const tracker = document.querySelector('script[src="https://umami.xingkaixin.me/script.js"]');
 
     expect(sources).toContain("/src/main.tsx");
-    expect(sources.filter(isCrossOrigin)).toEqual([]);
+    expect(sources.filter(isCrossOrigin)).toEqual(["https://umami.xingkaixin.me/script.js"]);
+    expect(tracker?.hasAttribute("defer")).toBe(true);
+    expect(tracker?.getAttribute("data-website-id")).toBe("65b7d2aa-b029-43fc-8a87-a62ca0f3f23d");
+    expect(tracker?.getAttribute("data-domains")).toBe("unquote.xingkaixin.me");
+    expect(tracker?.getAttribute("data-exclude-hash")).toBe("true");
   });
 
-  it("grants no remote script execution or reporting origin", () => {
+  it("allows only the Umami origin for remote scripts and reporting", () => {
     const policy = parseContentSecurityPolicy(readWebFile("public/_headers"));
 
-    for (const directive of ["script-src", "connect-src", "worker-src"]) {
-      expect(policy.get(directive)).toEqual(["'self'"]);
+    for (const directive of ["script-src", "connect-src"]) {
+      expect(policy.get(directive)).toEqual(["'self'", "https://umami.xingkaixin.me"]);
     }
+    expect(policy.get("worker-src")).toEqual(["'self'"]);
   });
 });
