@@ -39,7 +39,7 @@ const assetPathsFromHtml = (surface, extension) => {
   const attributePattern = /(?:src|href)=(['"])([^'"]+)\1/g;
   for (const match of html.matchAll(attributePattern)) {
     const assetPath = match[2];
-    if (assetPath?.endsWith(extension)) {
+    if (assetPath?.endsWith(extension) && !/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(assetPath)) {
       assets.add(path.join(surface.root, assetPath.replace(/^\//, "")));
     }
   }
