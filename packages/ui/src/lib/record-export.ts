@@ -189,7 +189,7 @@ export const formatRecordsAsJsonForCopy = (
 // spinners stay live). Resolves on the next macrotask.
 export const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-const exportChunkSize = 200;
+export const exportChunkSize = 200;
 
 /**
  * Serializes records one at a time so a caller can release each Full Record as

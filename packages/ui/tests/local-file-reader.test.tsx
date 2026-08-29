@@ -46,4 +46,16 @@ describe("local JSONL line reading", () => {
     await expect(collectLines(createLineFile(contents, true))).resolves.toEqual(expected);
     await expect(collectLines(createLineFile(contents, false))).resolves.toEqual(expected);
   });
+
+  it.each([true, false])("waits for each async callback when streamed is %s", async (streamed) => {
+    const events: string[] = [];
+    await readJsonlFileLines(createLineFile("first\nsecond\nthird", streamed), async (line) => {
+      events.push(`start:${line}`);
+      await Promise.resolve();
+      events.push(`end:${line}`);
+      return line !== "second";
+    });
+
+    expect(events).toEqual(["start:first", "end:first", "start:second", "end:second"]);
+  });
 });
