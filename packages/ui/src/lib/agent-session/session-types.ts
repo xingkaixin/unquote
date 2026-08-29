@@ -145,7 +145,6 @@ export interface AgentTimelineEvent {
 export interface AgentConversationItem {
   id: string;
   role: AgentConversationRole;
-  turnIndex?: number;
   block?: AgentContentBlock;
 }
 

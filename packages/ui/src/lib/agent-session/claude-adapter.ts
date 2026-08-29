@@ -136,7 +136,6 @@ const claudeBlocksLabel = (blocks: ClaudeContentBlock[], fallback: string) => {
 const attachBlockItems = (
   event: AgentTimelineEvent,
   blocks: ClaudeContentBlock[],
-  turnIndex: number | undefined,
   textRole: AgentConversationRole,
 ) => {
   const items: AgentConversationItem[] = [];
@@ -149,7 +148,6 @@ const attachBlockItems = (
     attach({
       id: `conv-${event.lineNumber}-${textRole}`,
       role: textRole,
-      ...(turnIndex === undefined ? {} : { turnIndex }),
     });
     return items;
   }
@@ -158,7 +156,6 @@ const attachBlockItems = (
     attach({
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
       role: claudeBlockRole(block, textRole),
-      ...(turnIndex === undefined ? {} : { turnIndex }),
       block: { type: block.type, text: block.text },
     });
   });
@@ -468,11 +465,11 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       let items: AgentConversationItem[] = [];
       if (type === "user") {
         if (isToolResultTurn || !getBoolean(record, "isMeta")) {
-          items = attachBlockItems(event, blocks, turnIndex, "user");
+          items = attachBlockItems(event, blocks, "user");
         }
       } else if (type === "assistant") {
         model = parseClaudeModel(record) ?? model;
-        items = attachBlockItems(event, blocks, turnIndex, "assistant");
+        items = attachBlockItems(event, blocks, "assistant");
       }
 
       if (type === "user" || type === "assistant") {

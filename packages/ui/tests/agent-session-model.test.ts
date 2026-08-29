@@ -272,29 +272,17 @@ describe("createAgentSessionModel", () => {
 });
 
 describe("tool call and result pairing", () => {
-  const call = (
-    id: string,
-    _callId?: string,
-    turnIndex?: number,
-    _toolName = "shell",
-  ): AgentConversationItem => ({
+  const call = (id: string): AgentConversationItem => ({
     id,
     role: "tool_call",
-    ...(turnIndex === undefined ? {} : { turnIndex }),
     block: {
       type: "tool_use",
       text: "{}",
     },
   });
-  const result = (
-    id: string,
-    _status: "completed" | "failed",
-    _callId?: string,
-    turnIndex?: number,
-  ): AgentConversationItem => ({
+  const result = (id: string): AgentConversationItem => ({
     id,
     role: "tool_result",
-    ...(turnIndex === undefined ? {} : { turnIndex }),
     block: { type: "tool_result", text: "out" },
   });
 
@@ -320,8 +308,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("reads a call's status from its paired result", () => {
-    const failing = call("call-failed", "id-2", 2);
-    const succeeding = call("call-done", "id-1", 1);
+    const failing = call("call-failed");
+    const succeeding = call("call-done");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -330,7 +318,7 @@ describe("tool call and result pairing", () => {
             evidence: { phase: "call", toolName: "shell", callId: "id-1", turnId: "turn-1" },
           },
           {
-            item: result("result-done", "completed", "id-1", 1),
+            item: result("result-done"),
             evidence: { phase: "result", status: "completed", callId: "id-1", turnId: "turn-1" },
           },
         ]),
@@ -340,7 +328,7 @@ describe("tool call and result pairing", () => {
             evidence: { phase: "call", toolName: "shell", callId: "id-2", turnId: "turn-2" },
           },
           {
-            item: result("result-failed", "failed", "id-2", 2),
+            item: result("result-failed"),
             evidence: { phase: "result", status: "failed", callId: "id-2", turnId: "turn-2" },
           },
         ]),
@@ -352,7 +340,7 @@ describe("tool call and result pairing", () => {
   });
 
   it("reports an unpaired call as pending and never invents an outcome", () => {
-    const unpaired = call("call-1", "id-1");
+    const unpaired = call("call-1");
     const idless = call("call-2");
     const model = createAgentSessionModel(
       session([
@@ -368,13 +356,13 @@ describe("tool call and result pairing", () => {
   });
 
   it("keeps a result's own status and borrows the paired call's tool name", () => {
-    const paired = result("result-1", "completed", "id-1", 1);
-    const orphan = result("result-2", "failed", "missing");
+    const paired = result("result-1");
+    const orphan = result("result-2");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
           {
-            item: call("call-1", "id-1", 1),
+            item: call("call-1"),
             evidence: { phase: "call", toolName: "shell", callId: "id-1", turnId: "turn-1" },
           },
           {
@@ -396,8 +384,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("does not pair a matching call ID across turns", () => {
-    const firstTurnCall = call("call-a", "shared", 1);
-    const secondTurnResult = result("result-b", "completed", "shared", 2);
+    const firstTurnCall = call("call-a");
+    const secondTurnResult = result("result-b");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -420,10 +408,10 @@ describe("tool call and result pairing", () => {
   });
 
   it("pairs repeated call IDs independently within each turn", () => {
-    const firstTurnCall = call("call-a", "shared", 1, "shell");
-    const firstTurnResult = result("result-a", "completed", "shared", 1);
-    const secondTurnCall = call("call-b", "shared", 2, "read_file");
-    const secondTurnResult = result("result-b", "failed", "shared", 2);
+    const firstTurnCall = call("call-a");
+    const firstTurnResult = result("result-a");
+    const secondTurnCall = call("call-b");
+    const secondTurnResult = result("result-b");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -456,8 +444,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("pairs unscoped call IDs within the anonymous scope", () => {
-    const unscopedCall = call("call-1", "shared");
-    const unscopedResult = result("result-1", "completed", "shared");
+    const unscopedCall = call("call-1");
+    const unscopedResult = result("result-1");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -478,9 +466,9 @@ describe("tool call and result pairing", () => {
   });
 
   it("does not borrow across an ambiguous anonymous call group", () => {
-    const firstCall = call("first-call", "duplicate", undefined, "shell");
-    const secondCall = call("second-call", "duplicate", undefined, "read_file");
-    const onlyResult = result("only-result", "completed", "duplicate");
+    const firstCall = call("first-call");
+    const secondCall = call("second-call");
+    const onlyResult = result("only-result");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -508,12 +496,12 @@ describe("tool call and result pairing", () => {
   });
 
   it("isolates explicit turns and the anonymous scope for a shared call ID", () => {
-    const firstTurnCall = call("first-turn-call", "shared", 1, "shell");
-    const secondTurnCall = call("second-turn-call", "shared", 2, "read_file");
-    const anonymousCall = call("anonymous-call", "shared", undefined, "search");
-    const firstTurnResult = result("first-turn-result", "completed", "shared", 1);
-    const secondTurnResult = result("second-turn-result", "failed", "shared", 2);
-    const anonymousResult = result("anonymous-result", "completed", "shared");
+    const firstTurnCall = call("first-turn-call");
+    const secondTurnCall = call("second-turn-call");
+    const anonymousCall = call("anonymous-call");
+    const firstTurnResult = result("first-turn-result");
+    const secondTurnResult = result("second-turn-result");
+    const anonymousResult = result("anonymous-result");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -556,8 +544,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("does not pair unscoped call IDs with explicit turns", () => {
-    const unscopedCall = call("call-1", "shared");
-    const scopedResult = result("result-1", "completed", "shared", 1);
+    const unscopedCall = call("call-1");
+    const scopedResult = result("result-1");
     const model = createAgentSessionModel(
       session([
         toolEvent("event-1", "record-1", [
@@ -577,15 +565,15 @@ describe("tool call and result pairing", () => {
   });
 
   it("uses the same normalized tool scope as the trajectory projection", () => {
-    const sameTurnCall = call("same-turn-call", "same", 1);
-    const sameTurnResult = result("same-turn-result", "completed", "same", 2);
-    const differentTurnCall = call("different-turn-call", "different", 3, "read");
-    const differentTurnResult = result("different-turn-result", "completed", "different", 3);
-    const anonymousCall = call("anonymous-call", "anonymous", undefined, "search");
-    const anonymousResult = result("anonymous-result", "completed", "anonymous");
-    const duplicateCallOne = call("duplicate-call-one", "duplicate", 4, "first");
-    const duplicateCallTwo = call("duplicate-call-two", "duplicate", 4, "second");
-    const duplicateResult = result("duplicate-result", "completed", "duplicate", 4);
+    const sameTurnCall = call("same-turn-call");
+    const sameTurnResult = result("same-turn-result");
+    const differentTurnCall = call("different-turn-call");
+    const differentTurnResult = result("different-turn-result");
+    const anonymousCall = call("anonymous-call");
+    const anonymousResult = result("anonymous-result");
+    const duplicateCallOne = call("duplicate-call-one");
+    const duplicateCallTwo = call("duplicate-call-two");
+    const duplicateResult = result("duplicate-result");
     const source = session([
       {
         ...event("same-turn-call-event", "record-10", [sameTurnCall]),
@@ -765,8 +753,8 @@ describe("tool call and result pairing", () => {
 
   it("does not infer lifecycle facts from display-only conversation blocks", () => {
     const projectedOutput = { id: "output", role: "assistant" } as const;
-    const displayCall = call("display-call", "legacy", undefined, "read_file");
-    const displayResult = result("display-result", "completed", "legacy");
+    const displayCall = call("display-call");
+    const displayResult = result("display-result");
     const model = createAgentSessionModel(
       session([
         {
@@ -791,8 +779,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("uses a projected completion status for both a call and its output", () => {
-    const projectedCall = call("projected-call", "projected", 1, "mcp_tool");
-    const projectedResult = result("projected-result", "completed", "projected", 1);
+    const projectedCall = call("projected-call");
+    const projectedResult = result("projected-result");
     const model = createAgentSessionModel(
       session([
         {
@@ -846,8 +834,8 @@ describe("tool call and result pairing", () => {
   });
 
   it("does not recover a result name after duplicate completion evidence", () => {
-    const projectedCall = call("projected-call", "repeated", 1, "read_file");
-    const projectedResult = result("projected-result", "completed", "repeated", 1);
+    const projectedCall = call("projected-call");
+    const projectedResult = result("projected-result");
     const model = createAgentSessionModel(
       session([
         {

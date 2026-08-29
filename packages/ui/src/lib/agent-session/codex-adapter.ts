@@ -480,7 +480,6 @@ const projectCodexResponseItem = (
   item: NormalizedCodexResponseItem,
   lineNumber: number,
   turnId: string | undefined,
-  turnIndex: number | undefined,
 ): CodexEventProjection => {
   switch (item.type) {
     case "message": {
@@ -491,7 +490,6 @@ const projectCodexResponseItem = (
       const conversation = {
         id: conversationItemId,
         role: item.conversationRole,
-        ...(turnIndex === undefined ? {} : { turnIndex }),
         ...(block === undefined ? {} : { block }),
       } satisfies AgentConversationItem;
       const sessionEvidence = item.evidenceRole
@@ -516,7 +514,6 @@ const projectCodexResponseItem = (
       const conversation = {
         id: conversationItemId,
         role: "thinking",
-        ...(turnIndex === undefined ? {} : { turnIndex }),
         block: { type: "thinking", text: truncateBlockText(item.text) },
       } satisfies AgentConversationItem;
       return {
@@ -542,7 +539,6 @@ const projectCodexResponseItem = (
         conversation: {
           id: `conv-${lineNumber}-response-item`,
           role: "system",
-          ...(turnIndex === undefined ? {} : { turnIndex }),
         },
         sessionEvidence: {
           kind: "subagent-activity",
@@ -559,7 +555,6 @@ const projectCodexResponseItem = (
       const conversation = {
         id: conversationItemId,
         role: "tool_call",
-        ...(turnIndex === undefined ? {} : { turnIndex }),
         block,
       } satisfies AgentConversationItem;
       return {
@@ -590,7 +585,6 @@ const projectCodexResponseItem = (
       const conversation = {
         id: conversationItemId,
         role: "tool_result",
-        ...(turnIndex === undefined ? {} : { turnIndex }),
         ...(block === undefined ? {} : { block }),
       } satisfies AgentConversationItem;
       return {
@@ -618,7 +612,6 @@ const projectCodexResponseItem = (
         conversation: {
           id: `conv-${lineNumber}-response-item`,
           role: "system",
-          ...(turnIndex === undefined ? {} : { turnIndex }),
         },
       };
   }
@@ -629,7 +622,6 @@ interface CodexEventProjectionContext {
   sessionId: string | undefined;
   cwd: string | undefined;
   turnId: string | undefined;
-  turnIndex: number | undefined;
   eventType: string | undefined;
   eventRule: CodexEventRule | undefined;
 }
@@ -644,7 +636,6 @@ const projectCodexEvent = (
       normalizeCodexResponseItem(payload),
       context.lineNumber,
       context.turnId,
-      context.turnIndex,
     );
   }
   if (envelopeType === "event_msg") {
@@ -754,7 +745,6 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         sessionId,
         cwd,
         turnId: eventTurnId,
-        turnIndex,
         eventType,
         eventRule,
       });

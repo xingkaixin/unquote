@@ -152,7 +152,7 @@ const ConversationTurn = ({
           {config.label}
         </span>
         <span className="min-w-0 truncate font-mono text-[10.5px] text-text-tertiary">
-          {formatEventMeta(event.lineNumber, time, item.turnIndex, t)}
+          {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
         </span>
         <span className="flex-1" />
         <Button

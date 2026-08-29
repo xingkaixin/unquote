@@ -9,7 +9,6 @@ const trajectoryMeasureName = "unquote:agentTrajectory:build";
 const userConversationItem = {
   id: "conversation-1",
   role: "user",
-  turnIndex: 1,
   block: { type: "text", text: "hello" },
 } as const;
 
