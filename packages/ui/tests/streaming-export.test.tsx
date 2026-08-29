@@ -131,11 +131,11 @@ describe("streaming export", () => {
     },
   );
 
-  it("keeps CRLF lines and filtered record order", async () => {
+  it("keeps CRLF lines and source order for a filtered subset", async () => {
     const contents = `${fixtureLines.join("\r\n")}\r\n`;
     const { file } = createStreamFile(contents, "crlf.jsonl");
     const access = createLocalFileAccess(file);
-    const filtered = [previewRecords(fixtureLines)[2]!, previewRecords(fixtureLines)[0]!];
+    const filtered = [previewRecords(fixtureLines)[0]!, previewRecords(fixtureLines)[2]!];
 
     const { result } = renderExport({ visibleRecords: filtered, sourceAccess: access });
     await act(async () => {
@@ -144,9 +144,9 @@ describe("streaming export", () => {
       await Promise.resolve();
     });
 
-    const [third, first] = downloadedText().split("\n");
-    expect(JSON.parse(third!)).toEqual({ id: 3, text: "unicode ✓" });
+    const [first, third] = downloadedText().split("\n");
     expect(JSON.parse(first!)).toEqual({ id: 1, nested: { deep: true } });
+    expect(JSON.parse(third!)).toEqual({ id: 3, text: "unicode ✓" });
   });
 
   it("exports a single record as a JSON value", async () => {
@@ -245,16 +245,19 @@ describe("streaming export", () => {
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
-  it("aborts a local export whose source changes during final assembly", async () => {
+  it("aborts a local export whose source changes during a streamed builder yield", async () => {
     vi.useFakeTimers();
     const lines = Array.from({ length: 401 }, (_, index) => `{"id":${index + 1}}`);
     const records = fullRecords(lines);
     const sourceAccess: LocalFileExportAccess = {
       readRecordText: vi.fn(),
       streamRecords: vi.fn(
-        async (_lineNumbers: ReadonlySet<number>, onRecord: (record: JsonlRecord) => void) => {
+        async (
+          _lineNumbers: ReadonlySet<number>,
+          onRecord: (record: JsonlRecord) => void | Promise<void>,
+        ) => {
           for (const record of records) {
-            onRecord(record);
+            await onRecord(record);
           }
         },
       ),
@@ -372,13 +375,14 @@ describe("streaming export", () => {
       streamRecords: (lineNumbers, onRecord, signal) =>
         access.streamRecords(
           lineNumbers,
-          (record) => {
+          async (record) => {
             liveRecords += 1;
             peakLiveRecords = Math.max(peakLiveRecords, liveRecords);
-            onRecord(record);
-            // The builder has already turned the record into text, so nothing
-            // holds the AST past this callback.
-            liveRecords -= 1;
+            try {
+              await onRecord(record);
+            } finally {
+              liveRecords -= 1;
+            }
           },
           signal,
         ),

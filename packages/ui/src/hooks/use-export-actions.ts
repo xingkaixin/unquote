@@ -5,14 +5,15 @@ import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import {
-  addRecordBodiesToBuilder,
   addRecordsToBuilder,
   createExportFilename,
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
   downloadBlob,
+  exportChunkSize,
   formatRecordsAsJsonForCopy,
   formatRecordsAsJsonlForCopy,
+  yieldToMain,
 } from "../lib/record-export";
 import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
@@ -67,20 +68,33 @@ export const useExportActions = ({
         return addRecordsToBuilder(builder, records, signal);
       }
 
-      const bodies = new Map<number, string>();
+      let exportedCount = 0;
       await sourceAccess.streamRecords(
         new Set(visibleRecords.map((record) => record.lineNumber)),
-        (record) => bodies.set(record.lineNumber, builder.bodyFor(record)),
+        async (record) => {
+          signal.throwIfAborted();
+          const expectedRecord = visibleRecords[exportedCount];
+          if (record.lineNumber !== expectedRecord?.lineNumber) {
+            throw new TypeError(
+              `Expected record line ${expectedRecord?.lineNumber ?? "none"}, received ${record.lineNumber}`,
+            );
+          }
+
+          builder.addBody(builder.bodyFor(record));
+          exportedCount += 1;
+          if (exportedCount % exportChunkSize === 0) {
+            await yieldToMain();
+            signal.throwIfAborted();
+          }
+        },
         signal,
       );
       signal.throwIfAborted();
-
-      return addRecordBodiesToBuilder(
-        builder,
-        visibleRecords,
-        (record) => bodies.get(record.lineNumber) ?? builder.bodyFor(record),
-        signal,
-      );
+      const missingRecord = visibleRecords[exportedCount];
+      if (missingRecord) {
+        throw new TypeError(`Record line ${missingRecord.lineNumber} was not found`);
+      }
+      return builder.finish();
     },
     [resolveRecords, sourceAccess, visibleRecords],
   );

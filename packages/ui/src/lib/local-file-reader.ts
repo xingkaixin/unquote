@@ -174,25 +174,57 @@ export const readFileHead = (file: File, maxBytes: number, signal?: AbortSignal)
 
 export const readJsonlFileLines = async (
   file: File,
-  onLine: (line: string, lineNumber: number) => boolean | void,
+  onLine: (line: string, lineNumber: number) => boolean | void | Promise<boolean | void>,
   signal?: AbortSignal,
 ) => {
   let lineNumber = 1;
   let stopped = false;
+  const queuedLines: { line: string; lineNumber: number }[] = [];
+  let pendingDecision: Promise<boolean | void> | null = null;
   const processLine = (line: string) => {
     if (signal?.aborted) {
       return false;
     }
 
-    stopped = onLine(line, lineNumber) === false;
+    const currentLineNumber = lineNumber;
     lineNumber += 1;
+    if (pendingDecision) {
+      queuedLines.push({ line, lineNumber: currentLineNumber });
+      return true;
+    }
+
+    const decision = onLine(line, currentLineNumber);
+    if (decision instanceof Promise) {
+      pendingDecision = decision;
+      return true;
+    }
+    stopped = decision === false;
     return !stopped;
+  };
+  const finishQueuedLines = async () => {
+    if (pendingDecision) {
+      stopped = (await pendingDecision) === false;
+      pendingDecision = null;
+    }
+    for (const queued of queuedLines) {
+      if (stopped || signal?.aborted) {
+        stopped = true;
+        break;
+      }
+      const decision = onLine(queued.line, queued.lineNumber);
+      stopped = (decision instanceof Promise ? await decision : decision) === false;
+      if (stopped) {
+        break;
+      }
+    }
+    queuedLines.length = 0;
   };
 
   if (typeof file.stream !== "function") {
     try {
       const text = await readFileText(file, () => undefined, signal);
       drainJsonlLines("", text, true, processLine);
+      await finishQueuedLines();
     } catch (error) {
       if (!signal?.aborted) {
         throw error;
@@ -221,6 +253,7 @@ export const readJsonlFileLines = async (
         const drained = drainJsonlLines(buffer, decoder.decode(), true, processLine);
         buffer = drained.buffer;
         stopped = stopped || drained.stopped;
+        await finishQueuedLines();
         break;
       }
 
@@ -245,6 +278,7 @@ export const readJsonlFileLines = async (
       buffer = drained.buffer;
       stopped = stopped || drained.stopped;
       absoluteByteOffset += value.byteLength;
+      await finishQueuedLines();
     }
   } catch (error) {
     if (!signal?.aborted) {
@@ -409,7 +443,7 @@ export const readJsonlRecordsByLine = async (
 export const streamJsonlRecords = async (
   file: File,
   lineNumbers: ReadonlySet<number>,
-  onRecord: (record: JsonlRecord) => void,
+  onRecord: (record: JsonlRecord) => void | Promise<void>,
   signal?: AbortSignal,
 ) => {
   if (lineNumbers.size === 0) {
@@ -419,11 +453,11 @@ export const streamJsonlRecords = async (
   let remaining = lineNumbers.size;
   await readJsonlFileLines(
     file,
-    (line, lineNumber) => {
+    async (line, lineNumber) => {
       if (!lineNumbers.has(lineNumber)) {
         return true;
       }
-      onRecord(parseJsonlRecordLine(line, lineNumber));
+      await onRecord(parseJsonlRecordLine(line, lineNumber));
       remaining -= 1;
       return remaining > 0;
     },

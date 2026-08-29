@@ -21,7 +21,7 @@ export interface LocalFileAccess {
   resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
   streamRecords: (
     lineNumbers: ReadonlySet<number>,
-    onRecord: (record: JsonlRecord) => void,
+    onRecord: (record: JsonlRecord) => void | Promise<void>,
     signal?: AbortSignal,
   ) => Promise<void>;
   readRecordText: (record: JsonlRecord, signal?: AbortSignal) => Promise<string>;
