@@ -36,7 +36,7 @@ vi.mock("../src/lib/clipboard", () => ({
 }));
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
-import { useSourceLoader } from "../src/hooks/use-source-loader";
+import { maxInMemorySourceBytes, useSourceLoader } from "../src/hooks/use-source-loader";
 
 const snapshot = (current: ReturnType<typeof useSourceLoader>) => {
   const work = resolveSourceWork(current.source);
@@ -365,6 +365,38 @@ describe("useSourceLoader", () => {
     expect(snapshot(result.current).sourceAccess).toBeNull();
     expect(snapshot(result.current).importedFile).toBe(file);
     expect(stream).toHaveBeenCalledOnce();
+  });
+
+  it.each(["auto", "json"] as const)(
+    "rejects an oversized file that would require a full read in %s mode",
+    async (mode) => {
+      const { file, stream } = createStreamFile('{"blob":"unfinished', "oversized.json");
+      Object.defineProperty(file, "size", { value: maxInMemorySourceBytes + 1 });
+      const { result } = setup();
+
+      await act(() => result.current.onFileDrop(file, mode));
+
+      expect(snapshot(result.current).sourceText).toBe("initial");
+      expect(snapshot(result.current).sourceAccess).toBeNull();
+      expect(snapshot(result.current).readingFile).toBeNull();
+      expect(stream).not.toHaveBeenCalled();
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        "File is too large to load as JSON — choose JSONL to stream it",
+      );
+    },
+  );
+
+  it("still streams an oversized file when auto detection proves it is JSONL", async () => {
+    const { file, stream } = createStreamFile('{"i":1}\n{"i":2}\n', "oversized.jsonl");
+    Object.defineProperty(file, "size", { value: maxInMemorySourceBytes + 1 });
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file, "auto"));
+
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
+    expect(snapshot(result.current).readingFile).toBeNull();
+    expect(stream).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it("cancels a content probe superseded by a text source", async () => {

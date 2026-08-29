@@ -178,6 +178,7 @@ export const zhCN: Messages = {
   "input.parsingFile": "正在解析 {name} · {size} · 已处理 {processed} 行",
   "input.loadedFile": "{name} · {size} · 已处理 {processed} 行",
   "input.readFailed": "文件读取失败",
+  "input.fileTooLargeForMemory": "文件过大，无法按 JSON 载入；请选择 JSONL 进行流式读取",
   "input.tooLargeWithoutWorker": "输入过大，没有后台 Worker 时无法解析",
   "samples.label": "样例",
   "samples.ariaLabel": "样例输入",

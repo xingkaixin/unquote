@@ -177,6 +177,7 @@ export const en = {
   "input.parsingFile": "Parsing {name} · {size} · {processed} lines processed",
   "input.loadedFile": "{name} · {size} · {processed} lines processed",
   "input.readFailed": "Failed to read file",
+  "input.fileTooLargeForMemory": "File is too large to load as JSON — choose JSONL to stream it",
   "input.tooLargeWithoutWorker": "This input is too large to parse without a background worker",
   "samples.label": "Samples",
   "samples.ariaLabel": "Sample inputs",
