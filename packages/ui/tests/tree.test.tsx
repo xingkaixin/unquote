@@ -1,11 +1,11 @@
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createFileOverview } from "../src/lib/file-overview";
 import { parseTreePath } from "../src/lib/path-codec";
 import { filterRecords } from "../src/lib/record-filter";
 import { createRecordInsightMap } from "../src/lib/record-insight";
-import { buildSearchPattern, searchJsonValue, searchRecords } from "../src/lib/record-search";
+import { searchRecords } from "../src/lib/record-search";
 import type { SearchResultSet } from "../src/lib/record-search";
 import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
 import { resolveTreePath, resolveTreePathMatches } from "../src/lib/tree-path";
@@ -190,29 +190,6 @@ describe("tree paths", () => {
     expect(collectStringifiedPaths(preview, new Set())).toEqual([]);
   });
 
-  it("searches raw JSON values with the same matches as a JsonNode tree", () => {
-    const line = JSON.stringify({
-      "a.b": "needle",
-      payload: JSON.stringify({ nested: [{ value: "needle" }] }),
-      nullable: "null",
-    });
-    const result = parseInput(line);
-    const record = result.records[0]!;
-    const options = { syntax: "text", caseSensitive: false } as const;
-    const pattern = buildSearchPattern("needle", options);
-
-    expect(pattern).not.toBeNull();
-    expect(searchJsonValue(JSON.parse(line), record.id, pattern!, options)).toEqual(
-      searchRecords([record], "needle", options),
-    );
-
-    const nullPattern = buildSearchPattern("null", options);
-    expect(nullPattern).not.toBeNull();
-    expect(searchJsonValue(JSON.parse(line), record.id, nullPattern!, options)).toEqual(
-      searchRecords([record], "null", options),
-    );
-  });
-
   it("searches object keys without treating roots or array indexes as keys", () => {
     const result = parseInput('{"0":"object-key","items":[10,20,30]}');
     const options = { syntax: "text", caseSensitive: true } as const;
@@ -261,41 +238,6 @@ describe("tree paths", () => {
       expect(searchResult?.window.matches).toHaveLength(128);
     },
   );
-
-  it("prefilters ordinary strings without skipping valid stringified JSON scalars", () => {
-    const values = [
-      "ordinary log message",
-      "truthy",
-      "false alarm",
-      "nullish",
-      "01",
-      "1.",
-      "1e",
-      "-",
-      "  true  ",
-      "\tfalse\n",
-      " null\r",
-      "0",
-      "-12.5e+2",
-      '"nested"',
-      '{"nested":true}',
-      "[1,2]",
-    ];
-    const pattern = buildSearchPattern("nested", {
-      syntax: "text",
-      caseSensitive: true,
-    })!;
-    const parse = vi.spyOn(JSON, "parse");
-
-    const matches = searchJsonValue(values, "record-1", pattern, {
-      syntax: "text",
-      caseSensitive: true,
-    }).window.matches;
-
-    expect(parse).toHaveBeenCalledTimes(8);
-    expect(matches.map((match) => match.pathText)).toEqual(["$[13]", "$[14].nested"]);
-    parse.mockRestore();
-  });
 
   it("limits long string labels without changing the node value", () => {
     const longValue = "a".repeat(600);

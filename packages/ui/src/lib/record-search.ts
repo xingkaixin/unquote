@@ -5,9 +5,8 @@ import {
   getSearchableJsonValueLabelLength,
   maxStringValueLabelLength,
   walkJsonNode,
-  walkRawJsonValue,
 } from "./json-walk";
-import type { JsonValueWalkContext } from "./json-walk";
+import type { JsonWalkContext } from "./json-walk";
 import { formatJsonPath, parseTreePath } from "./path-codec";
 import { measurePerfFn } from "./perf";
 
@@ -51,11 +50,7 @@ export interface SearchResultCollector {
 }
 
 interface InternalSearchResultCollector extends SearchResultCollector {
-  addContext: (
-    context: JsonValueWalkContext<unknown>,
-    recordId: string,
-    lineNumber: number,
-  ) => void;
+  addContext: (context: JsonWalkContext, recordId: string, lineNumber: number) => void;
 }
 
 /**
@@ -118,11 +113,7 @@ const createCollector = (
   const materializedIndexes: number[] = [];
   const matches: SearchMatch[] = [];
 
-  const addContext = (
-    context: JsonValueWalkContext<unknown>,
-    recordId: string,
-    lineNumber: number,
-  ) => {
+  const addContext = (context: JsonWalkContext, recordId: string, lineNumber: number) => {
     const keySegment = context.pathSegments.at(-1);
     const keyText = keySegment?.kind === "key" ? keySegment.value : null;
     const pathOnly = options.syntax === "path";
@@ -189,18 +180,6 @@ export const createSearchResultCollector = (
   options: SearchOptions,
   windowIndexes?: ArrayLike<number>,
 ): SearchResultCollector => createCollector(pattern, options, windowIndexes);
-
-export const searchJsonValue = (
-  value: unknown,
-  recordId: string,
-  pattern: RegExp,
-  options: SearchOptions,
-  windowIndexes?: ArrayLike<number>,
-): SearchResultSet => {
-  const collector = createCollector(pattern, options, windowIndexes);
-  walkRawJsonValue(value, (context) => collector.addContext(context, recordId, 1));
-  return collector.finish();
-};
 
 export const buildSearchPattern = (query: string, options: SearchOptions): RegExp | null => {
   if (!query) {
