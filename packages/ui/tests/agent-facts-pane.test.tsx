@@ -18,6 +18,19 @@ const toolResultItem = {
   block: { type: "tool_result", text: "ok" },
 } as const;
 
+const firstTurnEvent: AgentTimelineEvent = {
+  id: "event-1",
+  recordId: "record-1",
+  lineNumber: 1,
+  category: "user",
+  kind: "message",
+  label: "User message",
+  preview: "start",
+  conversationItems: [],
+  turnIndex: 1,
+  sessionEvidence: [{ kind: "turn-lifecycle", phase: "start" }],
+};
+
 const toolEvent: AgentTimelineEvent = {
   id: "event-2",
   recordId: "record-2",
@@ -26,6 +39,7 @@ const toolEvent: AgentTimelineEvent = {
   kind: "function_call",
   label: "Tool call",
   preview: "shell",
+  turnIndex: 2,
   conversationItems: [
     toolCallItem,
     toolResultItem,
@@ -57,9 +71,8 @@ const session: AgentSession = {
     model: "gpt-5",
     cwd: "/repo",
     version: "1.0.0",
-    turnCount: 2,
   },
-  events: [toolEvent],
+  events: [firstTurnEvent, toolEvent],
   parseWarnings: [{ kind: "invalid-json", recordId: "record-3", lineNumber: 3 }],
   parseWarningCount: 1,
 };
@@ -83,7 +96,7 @@ describe("AgentFactsPane", () => {
     const metrics = document.querySelector("[data-agent-metrics]")!;
 
     expect(metrics).toHaveAttribute("data-agent-metrics", "4");
-    expect(metrics).toHaveTextContent("Events1");
+    expect(metrics).toHaveTextContent("Events2");
     expect(metrics).toHaveTextContent("Messages3");
     expect(metrics).toHaveTextContent("Turns2");
     expect(metrics).toHaveTextContent("Tools2");
@@ -134,7 +147,7 @@ describe("AgentFactsPane", () => {
   });
 
   it("keeps the session block for a working directory with no version", () => {
-    renderPane({ ...session, meta: { cwd: "/repo", turnCount: 0 } });
+    renderPane({ ...session, meta: { cwd: "/repo" } });
 
     expect(screen.getByText("Session")).toBeInTheDocument();
     expect(screen.getByText("/repo")).toBeInTheDocument();
@@ -143,7 +156,7 @@ describe("AgentFactsPane", () => {
   it("omits every fact the session does not carry", () => {
     renderPane({
       fileType: "Claude Code",
-      meta: { sessionId: "session-1", turnCount: 0 },
+      meta: { sessionId: "session-1" },
       events: session.events,
       parseWarnings: [],
       parseWarningCount: 0,
@@ -156,7 +169,7 @@ describe("AgentFactsPane", () => {
   });
 
   it("drops the session block entirely when nothing identifies the session", () => {
-    renderPane({ ...session, meta: { turnCount: 0 } });
+    renderPane({ ...session, meta: {} });
 
     expect(screen.queryByText("Session")).not.toBeInTheDocument();
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAgentSessionModel } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import {
   conversationItems,
@@ -118,9 +119,9 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
         sessionId: "session",
         cwd: "/repo",
         version: "1.0.0",
-        turnCount: 2,
       },
     });
+    expect(createAgentSessionModel(session).turnCount).toBe(2);
     expect(session.meta).not.toHaveProperty("eventCount");
     expect(session.events.map((event) => event.category)).toEqual([
       "meta",
@@ -239,7 +240,8 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     );
 
     const session = builder.finish([]);
-    expect(session.meta).toMatchObject({ model: "claude-test", turnCount: 1 });
+    expect(session.meta).toMatchObject({ model: "claude-test" });
+    expect(createAgentSessionModel(session).turnCount).toBe(1);
     expect(session.events[3]?.label).toBe("text");
     expect(session.events[4]?.label).toBe("thinking");
     expect(session.events[5]).toMatchObject({

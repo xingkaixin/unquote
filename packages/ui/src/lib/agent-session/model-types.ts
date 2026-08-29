@@ -27,6 +27,7 @@ export interface AgentSessionModel {
   events: readonly AgentTimelineEvent[];
   conversation: readonly AgentConversationEntry[];
   integrityIssues: readonly AgentSessionIntegrityIssue[];
+  readonly turnCount: number;
   readonly trajectory: AgentTrajectoryModel;
   resolveDetail(selection: AgentDetailSelection | null): AgentSessionDetail | null;
   selectEvent(eventId: string): AgentDetailSelection | null;

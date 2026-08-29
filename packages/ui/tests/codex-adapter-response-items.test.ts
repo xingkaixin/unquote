@@ -43,7 +43,9 @@ describe("codexRolloutAdapter: response-items", () => {
 
     const session = builder.finish([]);
     const items = conversationItems(session);
-    expect(session.meta.turnCount).toBe(1);
+    const model = createAgentSessionModel(session);
+    expect(model.turnCount).toBe(0);
+    expect(model.trajectory.turns).toHaveLength(model.turnCount);
     expect(items.map((item) => item.role)).toEqual([
       "system",
       "assistant",

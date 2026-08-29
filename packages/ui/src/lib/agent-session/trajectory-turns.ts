@@ -50,6 +50,23 @@ const syntheticTurnScope = (eventId: string): TrajectoryTurnScope => ({
 const trajectoryTurnId = (scope: TrajectoryTurnScope) =>
   JSON.stringify([scope.source, scope.value]);
 
+const trajectoryTurnScopeFor = (
+  event: AgentTimelineEvent,
+  evidence: AgentSessionEvidence,
+): TrajectoryTurnScope | null => {
+  const turnIndex = finiteTrajectoryTurnIndex(event.turnIndex);
+  const scope = toolCorrelationScope(evidence.turnId, turnIndex);
+  if (scope.source !== "anonymous") {
+    return scope;
+  }
+  return evidence.kind === "turn-lifecycle" ? syntheticTurnScope(event.id) : null;
+};
+
+export const trajectoryTurnIdFor = (event: AgentTimelineEvent, evidence: AgentSessionEvidence) => {
+  const scope = trajectoryTurnScopeFor(event, evidence);
+  return scope ? trajectoryTurnId(scope) : null;
+};
+
 export const trajectoryWarningSourceFor = (
   event: AgentTimelineEvent,
   selection: AgentCanonicalSelection,
@@ -201,7 +218,10 @@ export const createTrajectoryTurnTracker = () => {
     source: TrajectoryWarningSource,
   ) => {
     const turnIndex = finiteTrajectoryTurnIndex(event.turnIndex);
-    const scope = toolCorrelationScope(evidence.turnId, turnIndex);
+    const scope = trajectoryTurnScopeFor(event, evidence);
+    if (!scope) {
+      return null;
+    }
     if (scope.source === "evidence") {
       let turn = explicitTurnById.get(scope.value);
       if (!turn) {
@@ -221,10 +241,6 @@ export const createTrajectoryTurnTracker = () => {
       }
       return turn;
     }
-    if (evidence.kind !== "turn-lifecycle") {
-      return null;
-    }
-
     let turn = syntheticTurnByEventId.get(event.id);
     if (!turn) {
       turn = createTurn(syntheticTurnScope(event.id), undefined, source);

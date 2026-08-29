@@ -6,6 +6,12 @@ import { I18nProvider } from "../src/i18n/context";
 import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-session";
 
 const trajectoryMeasureName = "unquote:agentTrajectory:build";
+const userConversationItem = {
+  id: "conversation-1",
+  role: "user",
+  turnIndex: 1,
+  block: { type: "text", text: "hello" },
+} as const;
 
 const session: AgentSession = {
   fileType: "Codex",
@@ -15,7 +21,6 @@ const session: AgentSession = {
     model: "gpt-5",
     cwd: "/repo",
     version: "1.0.0",
-    turnCount: 1,
   },
   events: [
     {
@@ -37,15 +42,15 @@ const session: AgentSession = {
       kind: "message",
       label: "User message",
       preview: "hello",
-      conversationItems: [
+      conversationItems: [userConversationItem],
+      turnIndex: 1,
+      sessionEvidence: [
         {
-          id: "conversation-1",
+          kind: "model-output",
           role: "user",
-          turnIndex: 1,
-          block: { type: "text", text: "hello" },
+          conversationItem: userConversationItem,
         },
       ],
-      turnIndex: 1,
     },
     {
       id: "event-3",
@@ -197,7 +202,7 @@ describe("AgentSessionView", () => {
   it("renders a minimal empty session", () => {
     const emptySession: AgentSession = {
       fileType: "Claude Code",
-      meta: { turnCount: 0 },
+      meta: {},
       events: [],
       parseWarnings: [],
       parseWarningCount: 0,

@@ -129,6 +129,7 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     events,
     conversation,
     integrityIssues: canonicalSession.integrityIssues,
+    turnCount: toolLifecycle.turnCount,
     get trajectory() {
       return getTrajectoryProjection().model;
     },

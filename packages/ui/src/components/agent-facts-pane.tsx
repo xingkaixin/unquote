@@ -20,7 +20,7 @@ const metricItems = (
   return [
     { label: t("agent.metric.events"), value: model.events.length },
     { label: t("agent.metric.messages"), value: model.conversation.length },
-    { label: t("agent.metric.turns"), value: session.meta.turnCount },
+    { label: t("agent.metric.turns"), value: model.turnCount },
     { label: t("agent.metric.tools"), value: toolCount },
   ];
 };
