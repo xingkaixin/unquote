@@ -2,6 +2,7 @@ import type { ParseResult } from "@unquote/core";
 import { useCallback, useEffect, useMemo } from "react";
 import {
   createInitialQueryInteractionState,
+  queryForModeState,
   reduceQueryInteraction,
 } from "../lib/query-interaction";
 import type {
@@ -373,7 +374,7 @@ export const useQueryInteraction = ({
     navigation,
     searchExpansionRevision,
     snapshot: {
-      toolbarQuery: state.toolbarQuery,
+      toolbarQuery: queryForModeState(state.modeState),
       searchQuery,
       searchRegex: state.searchSyntax === "regex",
       searchCaseSensitive: state.searchCaseSensitive,
