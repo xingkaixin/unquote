@@ -5,9 +5,8 @@ import {
   formatJsonValueLabel,
   getSearchableJsonValueLabelLength,
   walkJsonNode,
-  walkRawJsonValue,
 } from "../src/lib/json-walk";
-import type { JsonWalkContext, RawJsonWalkContext } from "../src/lib/json-walk";
+import type { JsonWalkContext } from "../src/lib/json-walk";
 import type { TreePathSegment } from "../src/lib/path-codec";
 
 const nodeFrom = (text: string): JsonNode =>
@@ -33,60 +32,7 @@ describe("walkJsonNode", () => {
           break;
       }
     };
-    const assertRawContext = (context: RawJsonWalkContext) => {
-      switch (context.kind) {
-        case "object":
-          expectTypeOf(context.value).toEqualTypeOf<object | undefined | symbol | bigint>();
-          break;
-        case "array":
-          expectTypeOf(context.value).toEqualTypeOf<unknown[]>();
-          break;
-        case "string":
-          expectTypeOf(context.value).toEqualTypeOf<string>();
-          break;
-        case "number":
-          expectTypeOf(context.value).toEqualTypeOf<number>();
-          break;
-        case "boolean":
-          expectTypeOf(context.value).toEqualTypeOf<boolean>();
-          break;
-        case "null":
-          expectTypeOf(context.value).toEqualTypeOf<null>();
-          break;
-      }
-    };
-
     walkJsonNode(nodeFrom('[null,true,1,"value",[]]'), assertNodeContext);
-    walkRawJsonValue([null, true, 1, "value", []], assertRawContext);
-  });
-
-  it("keeps node and raw adapters aligned", () => {
-    const text = JSON.stringify({
-      "a.b": [1, true],
-      payload: JSON.stringify({ nested: [{ value: null }] }),
-    });
-    const nodeContexts: unknown[] = [];
-    const rawContexts: unknown[] = [];
-    const selectContext = (ctx: {
-      jsonPath: string;
-      kind: string;
-      childCount: number;
-      stringifiedChain: string[];
-    }) => ({
-      jsonPath: ctx.jsonPath,
-      kind: ctx.kind,
-      childCount: ctx.childCount,
-      stringifiedChain: ctx.stringifiedChain,
-    });
-
-    walkJsonNode(nodeFrom(text), (ctx) => {
-      nodeContexts.push(selectContext(ctx));
-    });
-    walkRawJsonValue(JSON.parse(text), (ctx) => {
-      rawContexts.push(selectContext(ctx));
-    });
-
-    expect(rawContexts).toEqual(nodeContexts);
   });
 
   it("visits every node depth-first with JSON paths", () => {

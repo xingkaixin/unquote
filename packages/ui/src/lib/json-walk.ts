@@ -1,53 +1,25 @@
-import {
-  DEFAULT_MAX_DEPTH,
-  hasJsonNodeChildren,
-  isStringifiedNode,
-  mightBeStringifiedJson,
-  truncateAtCodePointBoundary,
-} from "@unquote/core";
-import type { JsonKind, JsonNode } from "@unquote/core";
+import { hasJsonNodeChildren, isStringifiedNode, truncateAtCodePointBoundary } from "@unquote/core";
+import type { JsonNode } from "@unquote/core";
 import { appendJsonPathSegment } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 
-export interface JsonWalkValueMap {
-  object: unknown;
-  array: unknown[] | null;
-  string: string;
-  number: number | string;
-  boolean: boolean;
-  null: null;
-}
+type JsonWalkValue =
+  | { kind: "object" | "array"; value: null }
+  | { kind: "string"; value: string }
+  | { kind: "number"; value: number | string }
+  | { kind: "boolean"; value: boolean }
+  | { kind: "null"; value: null };
 
-interface JsonNodeWalkValueMap extends JsonWalkValueMap {
-  object: null;
-  array: null;
-}
-
-interface RawJsonWalkValueMap extends JsonWalkValueMap {
-  object: object | undefined | symbol | bigint;
-  array: unknown[];
-  number: number;
-}
-
-type JsonWalkValue<TValues extends JsonWalkValueMap> = {
-  [TKind in JsonKind]: { kind: TKind; value: TValues[TKind] };
-}[JsonKind];
-
-type ResolvedJsonValue<T, TValues extends JsonWalkValueMap> = JsonWalkValue<TValues> & {
-  node: T;
+type ResolvedJsonValue = JsonWalkValue & {
+  node: JsonNode;
   wasStringified: boolean;
   childCount: number;
-  children?: T[] | Record<string, T>;
+  children?: JsonNode[] | Record<string, JsonNode>;
   valueLength?: number;
 };
 
-type JsonValueResolver<T, TValues extends JsonWalkValueMap> = (
-  node: T,
-  depth: number,
-) => ResolvedJsonValue<T, TValues>;
-
-interface JsonValueWalkMetadata<T> {
-  node: T;
+interface JsonWalkMetadata {
+  node: JsonNode;
   childCount: number;
   valueLength?: number;
   jsonPath: string;
@@ -56,15 +28,8 @@ interface JsonValueWalkMetadata<T> {
   pathSegments: readonly TreePathSegment[];
 }
 
-export type JsonValueWalkContext<
-  T,
-  TValues extends JsonWalkValueMap = JsonWalkValueMap,
-> = JsonWalkValue<TValues> & JsonValueWalkMetadata<T>;
-
-export type JsonWalkContext = JsonValueWalkContext<JsonNode, JsonNodeWalkValueMap>;
-export type RawJsonWalkContext = JsonValueWalkContext<unknown, RawJsonWalkValueMap>;
+export type JsonWalkContext = JsonWalkValue & JsonWalkMetadata;
 export type JsonNodeVisitor = (ctx: JsonWalkContext) => boolean | void;
-type RawJsonValueVisitor = (ctx: RawJsonWalkContext) => boolean | void;
 
 export const maxStringValueLabelLength = 512;
 
@@ -74,7 +39,7 @@ export interface JsonWalkStart {
   pathSegments?: readonly TreePathSegment[];
 }
 
-const resolveJsonNode: JsonValueResolver<JsonNode, JsonNodeWalkValueMap> = (node) => {
+const resolveJsonNode = (node: JsonNode): ResolvedJsonValue => {
   if (hasJsonNodeChildren(node)) {
     return {
       node,
@@ -121,66 +86,11 @@ const resolveJsonNode: JsonValueResolver<JsonNode, JsonNodeWalkValueMap> = (node
   }
 };
 
-const parseStringifiedValue = (value: string, depth: number) => {
-  if (depth > DEFAULT_MAX_DEPTH || !mightBeStringifiedJson(value)) {
-    return null;
-  }
-
-  try {
-    return { value: JSON.parse(value) as unknown };
-  } catch {
-    return null;
-  }
-};
-
-const resolveRawJsonValue: JsonValueResolver<unknown, RawJsonWalkValueMap> = (node, depth) => {
-  const parsed = typeof node === "string" ? parseStringifiedValue(node, depth) : null;
-  const value = parsed ? parsed.value : node;
-  const canDescend = depth < DEFAULT_MAX_DEPTH;
-  const shared = { node, wasStringified: Boolean(parsed) };
-
-  if (value === null) {
-    return { ...shared, kind: "null", value: null, childCount: 0 };
-  }
-  if (Array.isArray(value)) {
-    return {
-      ...shared,
-      kind: "array",
-      value,
-      childCount: value.length,
-      ...(canDescend ? { children: value } : {}),
-    };
-  }
-  switch (typeof value) {
-    case "string":
-      return { ...shared, kind: "string", value, childCount: 0 };
-    case "number":
-      return { ...shared, kind: "number", value, childCount: 0 };
-    case "boolean":
-      return { ...shared, kind: "boolean", value, childCount: 0 };
-    default: {
-      const childCount = value ? Object.keys(value).length : 0;
-      return {
-        ...shared,
-        kind: "object",
-        value,
-        childCount,
-        ...(canDescend && childCount > 0 ? { children: value as Record<string, unknown> } : {}),
-      };
-    }
-  }
-};
-
-const walkJsonValue = <T, TValues extends JsonWalkValueMap>(
-  root: T,
-  resolveValue: JsonValueResolver<T, TValues>,
-  visit: (ctx: JsonValueWalkContext<T, TValues>) => boolean | void,
-  start: JsonWalkStart,
-) => {
+export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) => {
   const pathSegments = [...(start.pathSegments ?? [])];
 
-  function walk(node: T, jsonPath: string, stringifiedAncestors: string[], depth: number) {
-    const resolved = resolveValue(node, depth);
+  function walk(node: JsonNode, jsonPath: string, stringifiedAncestors: string[]) {
+    const resolved = resolveJsonNode(node);
     const stringifiedChain = resolved.wasStringified
       ? [...stringifiedAncestors, jsonPath]
       : stringifiedAncestors;
@@ -194,7 +104,7 @@ const walkJsonValue = <T, TValues extends JsonWalkValueMap>(
       jsonPath,
       stringifiedChain,
       pathSegments,
-    } as JsonValueWalkContext<T, TValues>;
+    } as JsonWalkContext;
 
     if (visit(context) === false || !resolved.children) {
       return;
@@ -204,7 +114,7 @@ const walkJsonValue = <T, TValues extends JsonWalkValueMap>(
       resolved.children.forEach((child, index) => {
         const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
         pathSegments.push(segment);
-        walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+        walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain);
         pathSegments.pop();
       });
       return;
@@ -213,12 +123,12 @@ const walkJsonValue = <T, TValues extends JsonWalkValueMap>(
     for (const [key, child] of Object.entries(resolved.children)) {
       const segment = { kind: "key", value: key } satisfies TreePathSegment;
       pathSegments.push(segment);
-      walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain, depth + 1);
+      walk(child, appendJsonPathSegment(jsonPath, segment), stringifiedChain);
       pathSegments.pop();
     }
   }
 
-  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? [], 0);
+  walk(root, start.jsonPath ?? "$", start.stringifiedAncestors ?? []);
 };
 
 const formatStringLabel = (
@@ -234,7 +144,7 @@ const formatStringLabel = (
   return `${JSON.stringify(`${truncated}...`)} (${originalLength} chars)`;
 };
 
-type JsonValueLabelInput = JsonWalkValue<JsonWalkValueMap> & {
+type JsonValueLabelInput = JsonWalkValue & {
   childCount: number;
   valueLength?: number;
 };
@@ -275,12 +185,3 @@ export const getSearchableJsonValueLabelLength = (
 
   return JSON.stringify(truncateAtCodePointBoundary(stringValue, maxStringLength)).length - 1;
 };
-
-export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) =>
-  walkJsonValue(root, resolveJsonNode, visit, start);
-
-export const walkRawJsonValue = (
-  root: unknown,
-  visit: RawJsonValueVisitor,
-  start: JsonWalkStart = {},
-) => walkJsonValue(root, resolveRawJsonValue, visit, start);

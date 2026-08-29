@@ -4,7 +4,6 @@ import { maxStringValueLabelLength } from "../src/lib/json-walk";
 import {
   buildSearchPattern,
   createSearchResultCollector,
-  searchJsonValue,
   searchRecords,
 } from "../src/lib/record-search";
 import type { SearchOptions, SearchResultSet } from "../src/lib/record-search";
@@ -18,6 +17,14 @@ const recordsFor = (value: unknown) =>
 // value plus its opening quote.
 const maxVisibleStringRanges = maxStringValueLabelLength + 1;
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
+
+const matchesForPattern = (value: unknown, pattern: RegExp, options = defaultOptions) => {
+  const collector = createSearchResultCollector(pattern, options);
+  for (const record of recordsFor(value)) {
+    collector.addRecord(record);
+  }
+  return collector.finish().window.matches;
+};
 
 const valueRangesFor = (value: unknown, query: string, options = defaultOptions) => {
   const matches = matchesOf(searchRecords(recordsFor(value), query, options));
@@ -64,10 +71,10 @@ describe("search range materialization", () => {
 
 describe("search pattern semantics", () => {
   it("advances past zero-length regex matches without looping", () => {
-    const matches = searchJsonValue({ blob: "abc" }, "record-1", /x*/g, {
+    const matches = matchesForPattern({ blob: "abc" }, /x*/g, {
       ...defaultOptions,
       syntax: "regex",
-    }).window.matches;
+    });
     const blob = matches.find((match) => match.pathText === "$.blob");
 
     // One empty match at every position of the `"abc"` label, quotes included.
@@ -76,7 +83,7 @@ describe("search pattern semantics", () => {
   });
 
   it("scans every occurrence for a pattern that lacks the global flag", () => {
-    const matches = searchJsonValue({ blob: "aa" }, "record-1", /a/, defaultOptions).window.matches;
+    const matches = matchesForPattern({ blob: "aa" }, /a/);
 
     expect(matches[0]?.valueRanges).toEqual([
       { start: 1, end: 2 },
