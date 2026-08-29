@@ -337,7 +337,7 @@ describe("local-file-source", () => {
     expect(matches).toBeNull();
   });
 
-  it("aborts a FileReader-backed line scan", async () => {
+  it("returns null after aborting a FileReader-backed line scan", async () => {
     const file = new File(['{"message":"needle"}\n'], "payload.jsonl");
     Object.defineProperty(file, "stream", { configurable: true, value: undefined });
     Object.defineProperty(file, "text", { configurable: true, value: undefined });
@@ -352,7 +352,7 @@ describe("local-file-source", () => {
       );
       controller.abort();
 
-      await expect(search).rejects.toMatchObject({ name: "AbortError" });
+      await expect(search).resolves.toBeNull();
       expect(abort).toHaveBeenCalledOnce();
     } finally {
       abort.mockRestore();
@@ -378,7 +378,7 @@ describe("local-file-source", () => {
     }
   });
 
-  it("does not scan text() results completed after cancellation", async () => {
+  it("returns null for text() results completed after cancellation", async () => {
     let finishRead: ((value: string) => void) | undefined;
     const file = new File([], "payload.jsonl");
     Object.defineProperty(file, "stream", { configurable: true, value: undefined });
@@ -399,7 +399,7 @@ describe("local-file-source", () => {
     controller.abort();
     finishRead?.('{"message":"needle"}\n');
 
-    await expect(search).rejects.toMatchObject({ name: "AbortError" });
+    await expect(search).resolves.toBeNull();
   });
 
   it("returns null for an empty query", async () => {
