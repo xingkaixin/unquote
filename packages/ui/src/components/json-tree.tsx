@@ -68,14 +68,10 @@ export const JsonTree = memo(function JsonTree({
     displayRows.forEach((row, index) => indexById.set(row.id, index));
     return indexById;
   }, [displayRows]);
-
-  useEffect(() => {
-    if (activeRowId !== undefined && interactiveIndexById.has(activeRowId)) {
-      return;
-    }
-
-    setActiveRowId(interactiveRows[0]?.id);
-  }, [activeRowId, interactiveIndexById, interactiveRows]);
+  const resolvedActiveRowId =
+    activeRowId !== undefined && interactiveIndexById.has(activeRowId)
+      ? activeRowId
+      : interactiveRows[0]?.id;
 
   const searchMatchMap = useMemo(() => {
     const map = new Map<string, SearchMatch>();
@@ -99,9 +95,9 @@ export const JsonTree = memo(function JsonTree({
   const virtualRows = rowVirtualizer.getVirtualItems();
   const activeDescendantId =
     !shouldVirtualize ||
-    activeRowId === undefined ||
-    virtualRows.some(({ index }) => displayRows[index]?.id === activeRowId)
-      ? activeRowId
+    resolvedActiveRowId === undefined ||
+    virtualRows.some(({ index }) => displayRows[index]?.id === resolvedActiveRowId)
+      ? resolvedActiveRowId
       : undefined;
 
   const toggleRow = useCallback(
@@ -120,7 +116,7 @@ export const JsonTree = memo(function JsonTree({
 
   const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const currentIndex =
-      activeRowId === undefined ? 0 : (interactiveIndexById.get(activeRowId) ?? 0);
+      resolvedActiveRowId === undefined ? 0 : (interactiveIndexById.get(resolvedActiveRowId) ?? 0);
     const activeRow = interactiveRows[currentIndex];
     if (!activeRow) {
       return;
@@ -324,7 +320,7 @@ export const JsonTree = memo(function JsonTree({
                 isActiveMatch={isActive}
                 isSelected={isSelected}
                 isSelectedAnchor={isSelectedAnchor}
-                isActiveDescendant={row.id === activeRowId}
+                isActiveDescendant={row.id === resolvedActiveRowId}
                 onSelectNode={selectNode}
                 onActivate={setActiveRowId}
                 onTogglePath={toggleRow}
@@ -350,7 +346,7 @@ export const JsonTree = memo(function JsonTree({
                 isActiveMatch={isActive}
                 isSelected={isSelected}
                 isSelectedAnchor={isSelectedAnchor}
-                isActiveDescendant={row.id === activeRowId}
+                isActiveDescendant={row.id === resolvedActiveRowId}
                 onSelectNode={selectNode}
                 onActivate={setActiveRowId}
                 onTogglePath={toggleRow}
