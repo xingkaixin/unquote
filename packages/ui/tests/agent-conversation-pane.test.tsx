@@ -166,6 +166,13 @@ describe("AgentConversationPane", () => {
     expect(screen.getByText("No conversation items in this session")).toBeInTheDocument();
   });
 
+  it("renders the turn owned by the conversation event", () => {
+    const entry = buildEntry(0);
+    renderPane([{ ...entry, event: { ...entry.event, turnIndex: 3 } }]);
+
+    expect(screen.getByText(/Turn 3/)).toBeInTheDocument();
+  });
+
   it("renders every item without virtualizing below the threshold", () => {
     const entries = Array.from({ length: 5 }, (_, index) => buildEntry(index));
     const { onSelectItem } = renderPane(entries, { selectedConversationId: "item-2" });
