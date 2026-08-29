@@ -181,6 +181,7 @@ export const ja: Messages = {
   "input.parsingFile": "{name} を解析中 · {size} · {processed} 行処理済み",
   "input.loadedFile": "{name} · {size} · {processed} 行処理済み",
   "input.readFailed": "ファイルの読み込みに失敗しました",
+  "input.fileTooLargeForMemory": "JSON として読み込むには大きすぎます。JSONL を選択してください",
   "input.tooLargeWithoutWorker": "バックグラウンドワーカーなしで解析するには入力が大きすぎます",
   "samples.label": "サンプル",
   "samples.ariaLabel": "サンプル入力",

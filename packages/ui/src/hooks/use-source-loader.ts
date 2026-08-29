@@ -18,6 +18,9 @@ import { detectSourceFormat, sourceDetectionProbeByteBudget } from "../lib/sourc
 import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceStreamBytes = 1_000_000;
+// Full JSON parsing keeps source and parsed representations live together.
+// Reserve three quarters of the 256 MiB release heap budget for that expansion.
+export const maxInMemorySourceBytes = 64 * 1024 * 1024;
 const sourceDetectionFileProbeBytes = sourceDetectionProbeByteBudget + 1;
 
 interface ReadingSourceOperation {
@@ -118,7 +121,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       operation: { kind: "reading", requestId, file, progress: 0 },
     }));
 
-    const access = createLocalFileAccess(file);
     let text: string;
     try {
       if (isLargeFile && sourceMode === "auto") {
@@ -129,24 +131,44 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
         if (detectSourceFormat(head).kind === "jsonl") {
           activeReadRef.current = null;
           publishSource(
-            createStreamingFileSourceRevision(nextSourceRevision(), access, sourceMode),
+            createStreamingFileSourceRevision(
+              nextSourceRevision(),
+              createLocalFileAccess(file),
+              sourceMode,
+            ),
           );
           return;
         }
       }
 
-      text = await access.readText((nextProgress) => {
-        if (fileImportIdRef.current === requestId) {
-          setState((current) =>
-            current.operation.kind === "reading" && current.operation.requestId === requestId
-              ? {
-                  source: current.source,
-                  operation: { ...current.operation, progress: nextProgress },
-                }
-              : current,
-          );
-        }
-      }, controller.signal);
+      if (file.size > maxInMemorySourceBytes) {
+        activeReadRef.current = null;
+        setState((current) =>
+          current.operation.kind === "reading" && current.operation.requestId === requestId
+            ? { source: current.source, operation: { kind: "idle" } }
+            : current,
+        );
+        toast.error(t("input.fileTooLargeForMemory"));
+        return;
+      }
+
+      const access = createLocalFileAccess(file);
+      try {
+        text = await access.readText((nextProgress) => {
+          if (fileImportIdRef.current === requestId) {
+            setState((current) =>
+              current.operation.kind === "reading" && current.operation.requestId === requestId
+                ? {
+                    source: current.source,
+                    operation: { ...current.operation, progress: nextProgress },
+                  }
+                : current,
+            );
+          }
+        }, controller.signal);
+      } finally {
+        access.dispose();
+      }
     } catch (error) {
       // An abort is the caller's own doing, not a failure to report.
       if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
