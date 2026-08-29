@@ -499,7 +499,7 @@ const projectCodexResponseItem = (
             kind: "model-output",
             role: item.evidenceRole,
             ...withTurnId(turnId),
-            conversationItem: conversation,
+            conversationItemId,
           } satisfies AgentSessionEvidence)
         : undefined;
       return {
@@ -529,7 +529,7 @@ const projectCodexResponseItem = (
           kind: "model-output",
           role: "reasoning",
           ...withTurnId(turnId),
-          conversationItem: conversation,
+          conversationItemId,
         },
       };
     }
@@ -574,7 +574,7 @@ const projectCodexResponseItem = (
           toolName: item.toolName,
           ...withTurnId(turnId),
           ...(item.callId ? { callId: item.callId } : {}),
-          conversationItem: conversation,
+          conversationItemId,
         },
       };
     }
@@ -605,7 +605,7 @@ const projectCodexResponseItem = (
           ...withTurnId(turnId),
           ...(item.evidenceStatus === undefined ? {} : { status: item.evidenceStatus }),
           ...(item.callId ? { callId: item.callId } : {}),
-          conversationItem: conversation,
+          conversationItemId,
         },
       };
     }

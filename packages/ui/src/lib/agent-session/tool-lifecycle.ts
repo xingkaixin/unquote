@@ -146,10 +146,8 @@ export const createAgentToolLifecycleIndex = (
       }
 
       const conversationItem =
-        evidence.phase !== "completion" &&
-        evidence.conversationItem &&
-        canonicalEvent.conversationItemSet.has(evidence.conversationItem)
-          ? evidence.conversationItem
+        evidence.phase !== "completion" && evidence.conversationItemId
+          ? canonicalEvent.conversationItemById.get(evidence.conversationItemId)
           : undefined;
       const callId = nonEmptyString(evidence.callId);
       if (!callId) {

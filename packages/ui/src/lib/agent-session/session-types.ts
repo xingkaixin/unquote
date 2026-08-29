@@ -57,7 +57,7 @@ export interface AgentTurnLifecycleEvidence extends AgentSessionEvidenceBase {
 export interface AgentModelOutputEvidence extends AgentSessionEvidenceBase {
   kind: "model-output";
   role: "user" | "assistant" | "reasoning" | "system";
-  conversationItem?: AgentConversationItem;
+  conversationItemId?: string;
 }
 
 export interface AgentToolCallEvidence extends AgentSessionEvidenceBase {
@@ -65,7 +65,7 @@ export interface AgentToolCallEvidence extends AgentSessionEvidenceBase {
   phase: "call";
   toolName: string;
   callId?: string;
-  conversationItem?: AgentConversationItem;
+  conversationItemId?: string;
 }
 
 export interface AgentToolResultEvidence extends AgentSessionEvidenceBase {
@@ -74,7 +74,7 @@ export interface AgentToolResultEvidence extends AgentSessionEvidenceBase {
   status?: "completed" | "failed";
   callId?: string;
   durationMs?: number;
-  conversationItem?: AgentConversationItem;
+  conversationItemId?: string;
 }
 
 export interface AgentToolCompletionEvidence extends AgentSessionEvidenceBase {

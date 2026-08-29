@@ -156,8 +156,8 @@ describe("createAgentSessionModel", () => {
     const sourceEvent = {
       ...event("event-1", "record-1", [first, second]),
       sessionEvidence: [
-        { kind: "model-output", role: "assistant", conversationItem: first },
-        { kind: "model-output", role: "reasoning", conversationItem: second },
+        { kind: "model-output", role: "assistant", conversationItemId: first.id },
+        { kind: "model-output", role: "reasoning", conversationItemId: second.id },
       ],
     } satisfies AgentTimelineEvent;
     const model = createAgentSessionModel(session([sourceEvent]));
@@ -190,11 +190,11 @@ describe("createAgentSessionModel", () => {
     ).toBeNull();
   });
 
-  it("preserves evidence references through structured cloning", () => {
+  it("preserves evidence IDs through structured cloning", () => {
     const item = { id: "conversation-1", role: "assistant" } as const;
     const sourceEvent = {
       ...event("event-1", "record-1", [item]),
-      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItem: item }],
+      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItemId: item.id }],
     } satisfies AgentTimelineEvent;
 
     const cloned = structuredClone(session([sourceEvent]));
@@ -202,9 +202,9 @@ describe("createAgentSessionModel", () => {
     const evidence = clonedEvent.sessionEvidence?.[0];
 
     expect(evidence?.kind).toBe("model-output");
-    expect(evidence && "conversationItem" in evidence ? evidence.conversationItem : undefined).toBe(
-      clonedEvent.conversationItems[0],
-    );
+    expect(
+      evidence && "conversationItemId" in evidence ? evidence.conversationItemId : undefined,
+    ).toBe(clonedEvent.conversationItems[0]?.id);
     expect(createAgentSessionModel(cloned).trajectory.items[0]?.selection).toEqual({
       kind: "conversation",
       id: "conversation-1",
@@ -212,18 +212,20 @@ describe("createAgentSessionModel", () => {
     });
   });
 
-  it("rejects an evidence reference outside its owning Event", () => {
+  it("rejects an evidence ID outside its owning Event", () => {
     const item = { id: "conversation-1", role: "assistant" } as const;
-    const lookalike = { ...item };
+    const ownerEvent = event("event-1", "record-1", [item]);
     const sourceEvent = {
-      ...event("event-1", "record-1", [item]),
-      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItem: lookalike }],
+      ...event("event-2", "record-2"),
+      sessionEvidence: [{ kind: "model-output", role: "assistant", conversationItemId: item.id }],
     } satisfies AgentTimelineEvent;
 
-    expect(createAgentSessionModel(session([sourceEvent])).trajectory.items[0]?.selection).toEqual({
+    expect(
+      createAgentSessionModel(session([ownerEvent, sourceEvent])).trajectory.items[0]?.selection,
+    ).toEqual({
       kind: "event",
-      id: "event-1",
-      recordId: "record-1",
+      id: "event-2",
+      recordId: "record-2",
     });
   });
 
@@ -297,8 +299,8 @@ describe("tool call and result pairing", () => {
   });
 
   type ToolEvidenceInput =
-    | Omit<AgentToolCallEvidence, "kind" | "conversationItem">
-    | Omit<AgentToolResultEvidence, "kind" | "conversationItem">;
+    | Omit<AgentToolCallEvidence, "kind" | "conversationItemId">
+    | Omit<AgentToolResultEvidence, "kind" | "conversationItemId">;
 
   const toolEvent = (
     id: string,
@@ -313,7 +315,7 @@ describe("tool call and result pairing", () => {
     sessionEvidence: entries.map(({ item, evidence }) => ({
       kind: "tool-lifecycle",
       ...evidence,
-      conversationItem: item,
+      conversationItemId: item.id,
     })),
   });
 
@@ -594,7 +596,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "shell",
             callId: "same",
-            conversationItem: sameTurnCall,
+            conversationItemId: sameTurnCall.id,
             turnId: "same-turn",
           },
         ],
@@ -608,7 +610,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "same",
-            conversationItem: sameTurnResult,
+            conversationItemId: sameTurnResult.id,
             turnId: "same-turn",
           },
         ],
@@ -622,7 +624,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "read",
             callId: "different",
-            conversationItem: differentTurnCall,
+            conversationItemId: differentTurnCall.id,
             turnId: "left",
           },
         ],
@@ -636,7 +638,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "different",
-            conversationItem: differentTurnResult,
+            conversationItemId: differentTurnResult.id,
             turnId: "right",
           },
         ],
@@ -649,7 +651,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "search",
             callId: "anonymous",
-            conversationItem: anonymousCall,
+            conversationItemId: anonymousCall.id,
           },
         ],
       },
@@ -661,7 +663,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "anonymous",
-            conversationItem: anonymousResult,
+            conversationItemId: anonymousResult.id,
           },
         ],
       },
@@ -674,7 +676,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "first",
             callId: "duplicate",
-            conversationItem: duplicateCallOne,
+            conversationItemId: duplicateCallOne.id,
             turnId: "duplicate-turn",
           },
         ],
@@ -688,7 +690,7 @@ describe("tool call and result pairing", () => {
             phase: "call",
             toolName: "second",
             callId: "duplicate",
-            conversationItem: duplicateCallTwo,
+            conversationItemId: duplicateCallTwo.id,
             turnId: "duplicate-turn",
           },
         ],
@@ -702,7 +704,7 @@ describe("tool call and result pairing", () => {
             phase: "result",
             status: "completed",
             callId: "duplicate",
-            conversationItem: duplicateResult,
+            conversationItemId: duplicateResult.id,
             turnId: "duplicate-turn",
           },
         ],
@@ -770,7 +772,11 @@ describe("tool call and result pairing", () => {
         {
           ...event("projected-output", "record-1", [projectedOutput]),
           sessionEvidence: [
-            { kind: "model-output", role: "assistant", conversationItem: projectedOutput },
+            {
+              kind: "model-output",
+              role: "assistant",
+              conversationItemId: projectedOutput.id,
+            },
           ],
         },
         event("display-call-event", "record-2", [displayCall]),
@@ -799,7 +805,7 @@ describe("tool call and result pairing", () => {
               toolName: "mcp_tool",
               callId: "projected",
               turnId: "turn-projected",
-              conversationItem: projectedCall,
+              conversationItemId: projectedCall.id,
             },
           ],
         },
@@ -826,7 +832,7 @@ describe("tool call and result pairing", () => {
               status: "completed",
               callId: "projected",
               turnId: "turn-projected",
-              conversationItem: projectedResult,
+              conversationItemId: projectedResult.id,
             },
           ],
         },
@@ -854,7 +860,7 @@ describe("tool call and result pairing", () => {
               toolName: "read_file",
               callId: "repeated",
               turnId: "turn-projected",
-              conversationItem: projectedCall,
+              conversationItemId: projectedCall.id,
             },
           ],
         },
@@ -868,7 +874,7 @@ describe("tool call and result pairing", () => {
               status: "completed",
               callId: "repeated",
               turnId: "turn-projected",
-              conversationItem: projectedResult,
+              conversationItemId: projectedResult.id,
             },
           ],
         },

@@ -275,7 +275,7 @@ const claudeBlockEvidence = (
         evidence.push({
           kind: "model-output",
           role,
-          conversationItem: item,
+          conversationItemId: item.id,
           ...turn,
         });
       }
@@ -286,7 +286,7 @@ const claudeBlockEvidence = (
       evidence.push({
         kind: "model-output",
         role: "reasoning",
-        conversationItem: item,
+        conversationItemId: item.id,
         ...turn,
       });
       continue;
@@ -297,7 +297,7 @@ const claudeBlockEvidence = (
         kind: "tool-lifecycle",
         phase: "call",
         toolName: block.toolName,
-        conversationItem: item,
+        conversationItemId: item.id,
         callId: block.callId,
         ...turn,
       });
@@ -308,7 +308,7 @@ const claudeBlockEvidence = (
       kind: "tool-lifecycle",
       phase: "result",
       status: block.status,
-      conversationItem: item,
+      conversationItemId: item.id,
       ...(block.callId ? { callId: block.callId } : {}),
       ...turn,
     });

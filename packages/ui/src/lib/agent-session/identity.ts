@@ -9,7 +9,7 @@ import type { AgentSessionIntegrityIssue } from "./model-types";
 export interface CanonicalAgentEvent {
   event: AgentTimelineEvent;
   conversationItems: readonly AgentConversationItem[];
-  conversationItemSet: ReadonlySet<AgentConversationItem>;
+  conversationItemById: ReadonlyMap<string, AgentConversationItem>;
 }
 
 export interface CanonicalAgentSession {
@@ -44,7 +44,7 @@ export const canonicalizeAgentSession = (session: AgentSession): CanonicalAgentS
     eventIds.add(event.id);
     recordIds.add(event.recordId);
     const conversationItems: AgentConversationItem[] = [];
-    const conversationItemSet = new Set<AgentConversationItem>();
+    const conversationItemById = new Map<string, AgentConversationItem>();
     for (const item of event.conversationItems) {
       if (conversationIds.has(item.id)) {
         integrityIssues.push({ kind: "duplicate-conversation-id", id: item.id });
@@ -52,9 +52,9 @@ export const canonicalizeAgentSession = (session: AgentSession): CanonicalAgentS
       }
       conversationIds.add(item.id);
       conversationItems.push(item);
-      conversationItemSet.add(item);
+      conversationItemById.set(item.id, item);
     }
-    events.push({ event, conversationItems, conversationItemSet });
+    events.push({ event, conversationItems, conversationItemById });
   }
 
   return { events, integrityIssues };
