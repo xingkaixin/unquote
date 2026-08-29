@@ -17,6 +17,7 @@ import {
   toolCorrelationScope,
   type ToolCorrelationResolution,
 } from "./tool-correlation";
+import { trajectoryTurnIdFor } from "./trajectory-turns";
 
 export interface AgentToolLifecycleState {
   status: AgentToolStatus;
@@ -43,6 +44,7 @@ export interface AgentToolLifecycleIndex {
   groups: readonly AgentToolLifecycleResolution[];
   groupedEvidence: ReadonlySet<AgentToolLifecycleEvidence>;
   stateByConversationItem: ReadonlyMap<AgentConversationItem, AgentToolLifecycleState>;
+  turnCount: number;
 }
 
 export interface AgentSessionEvidenceEvent {
@@ -123,6 +125,7 @@ export const createAgentToolLifecycleIndex = (
   const evidenceEvents: AgentSessionEvidenceEvent[] = [];
   const stateByConversationItem = new Map<AgentConversationItem, AgentToolLifecycleState>();
   const groupedEvidence = new Set<AgentToolLifecycleEvidence>();
+  const turnIds = new Set<string>();
   const evidenceGroups = createToolCorrelationGroups<
     AgentToolCallOccurrence,
     AgentToolResultOccurrence,
@@ -134,6 +137,10 @@ export const createAgentToolLifecycleIndex = (
     const indexedEvidence: AgentSessionEvidence[] = [];
     for (const evidence of event.sessionEvidence ?? []) {
       indexedEvidence.push(evidence);
+      const turnId = trajectoryTurnIdFor(event, evidence);
+      if (turnId) {
+        turnIds.add(turnId);
+      }
       if (evidence.kind !== "tool-lifecycle") {
         continue;
       }
@@ -195,5 +202,6 @@ export const createAgentToolLifecycleIndex = (
     groups: orderedGroups,
     groupedEvidence,
     stateByConversationItem,
+    turnCount: turnIds.size,
   };
 };

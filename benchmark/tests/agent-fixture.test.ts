@@ -65,7 +65,6 @@ const expectCodexSession = (
     meta: {
       sessionId: "synthetic-agent-session-v1",
       model: "benchmark-model-v1",
-      turnCount,
     },
     parseWarnings: [],
   });
@@ -75,6 +74,7 @@ const expectCodexSession = (
   expect(session.events).toHaveLength(recordCount);
 
   const model = createAgentSessionModel(session);
+  expect(model.turnCount).toBe(turnCount);
   expect(
     model.conversation.filter(
       ({ item }) => item.role === "tool_call" || item.role === "tool_result",

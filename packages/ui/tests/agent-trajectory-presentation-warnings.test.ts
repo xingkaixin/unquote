@@ -428,7 +428,7 @@ describe("agent trajectory presentation: warnings", () => {
   it("keeps a reversed terminal lifecycle warning unattached to the preceding item", () => {
     const session = {
       fileType: "Codex",
-      meta: { turnCount: 1 },
+      meta: {},
       parseWarnings: [],
       parseWarningCount: 0,
       events: [

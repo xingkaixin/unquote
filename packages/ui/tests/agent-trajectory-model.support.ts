@@ -41,7 +41,7 @@ export const event = (
 
 export const session = (events: AgentTimelineEvent[]): AgentSession => ({
   fileType: "Codex",
-  meta: { turnCount: 0 },
+  meta: {},
   events,
   parseWarnings: [],
   parseWarningCount: 0,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentTrajectoryModel } from "../src/lib/agent-session";
+import { createAgentSessionModel, createAgentTrajectoryModel } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import {
   trajectoryTurnId,
@@ -62,7 +62,7 @@ describe("claudeTranscriptAdapter: evidence-and-usage", () => {
 
     const session = builder.finish([]);
 
-    expect(session.meta.turnCount).toBe(1);
+    expect(createAgentSessionModel(session).turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
     expect(session.events[0]?.sessionEvidence).toEqual([
       {

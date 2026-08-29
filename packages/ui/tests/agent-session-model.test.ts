@@ -34,7 +34,7 @@ const event = (
 
 const session = (events: AgentTimelineEvent[]): AgentSession => ({
   fileType: "Codex",
-  meta: { turnCount: 1 },
+  meta: {},
   events,
   parseWarnings: [],
   parseWarningCount: 0,

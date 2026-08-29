@@ -158,6 +158,7 @@ export const modelFor = (
     events,
     conversation: [],
     integrityIssues: [],
+    turnCount: canonicalTurns.length,
     trajectory,
     resolveDetail,
     selectEvent: (id) => (eventById.has(id) ? selectionFor(id) : null),

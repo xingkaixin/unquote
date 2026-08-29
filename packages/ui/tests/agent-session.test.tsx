@@ -260,7 +260,6 @@ describe("agent session", () => {
         sessionId: "session-from-newer-codex",
         cwd: "/repo",
         version: "0.137.0",
-        turnCount: 1,
       },
     });
     const items = conversationItems(session);
@@ -336,7 +335,6 @@ describe("agent session", () => {
       meta: {
         sessionId: "claude-session",
         model: "claude-sonnet-4-5",
-        turnCount: 1,
       },
     });
     expect(conversationItems(session).map((item) => item.role)).toEqual([

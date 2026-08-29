@@ -20,7 +20,6 @@ export interface AgentSessionMeta {
   model?: string;
   cwd?: string;
   version?: string;
-  turnCount: number;
 }
 
 export type AgentParseWarningKind = "invalid-json" | "projection-failed";

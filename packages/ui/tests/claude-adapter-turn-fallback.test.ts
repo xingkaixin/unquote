@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAgentSessionModel } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import {
   trajectoryTurnId,
@@ -40,7 +41,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     const session = builder.finish([]);
 
-    expect(session.meta.turnCount).toBe(1);
+    expect(createAgentSessionModel(session).turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
     expect(session.events.flatMap((event) => event.sessionEvidence ?? [])).toMatchObject([
       { kind: "turn-lifecycle", phase: "start", turnId: "prompt-stable" },
@@ -76,7 +77,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
 
     const session = builder.finish([]);
 
-    expect(session.meta.turnCount).toBe(1);
+    expect(createAgentSessionModel(session).turnCount).toBe(1);
     expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1]);
     expect(session.events.flatMap((event) => event.sessionEvidence ?? [])).toEqual([
       {
@@ -137,7 +138,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
     const trajectory = expectTrajectorySelectionsToResolve(session);
     const turnId = trajectoryTurnId("fallback-index", 1);
 
-    expect(session.meta.turnCount).toBe(1);
+    expect(createAgentSessionModel(session).turnCount).toBe(1);
     expect(session.events[0]?.sessionEvidence).toEqual([
       {
         kind: "turn-lifecycle",
@@ -202,7 +203,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
     );
     const activeSession = activeBuilder.finish([]);
 
-    expect(activeSession.meta.turnCount).toBe(1);
+    expect(createAgentSessionModel(activeSession).turnCount).toBe(1);
     expect(activeSession.events.map((event) => event.turnIndex)).toEqual([1, 1]);
     expect(activeSession.events.flatMap((event) => event.sessionEvidence ?? [])).toMatchObject([
       { kind: "turn-lifecycle", phase: "start", turnId: "prompt-existing" },
@@ -231,7 +232,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
     );
     const unscopedSession = unscopedBuilder.finish([]);
 
-    expect(unscopedSession.meta.turnCount).toBe(0);
+    expect(createAgentSessionModel(unscopedSession).turnCount).toBe(0);
     expect(unscopedSession.events.map((event) => event.turnIndex)).toEqual([undefined, undefined]);
     expect(unscopedSession.events.flatMap((event) => event.sessionEvidence ?? [])).toEqual([
       {

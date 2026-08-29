@@ -82,6 +82,7 @@ const modelFor = (
     events: [],
     conversation: [],
     integrityIssues: [],
+    turnCount: turns.length,
     trajectory: {
       turns,
       items,

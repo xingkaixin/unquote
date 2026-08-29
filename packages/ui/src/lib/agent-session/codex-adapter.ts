@@ -782,18 +782,11 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
       events.push(event);
     },
     finish(parseWarnings) {
-      const turnCount =
-        turnIdToIndex.size > 0
-          ? turnIdToIndex.size
-          : events.some((event) => event.conversationItems.length > 0)
-            ? 1
-            : 0;
       return buildSession(
         {
           fileType: "Codex",
           ...(fileName ? { fileName } : {}),
           meta: {
-            turnCount,
             ...(sessionId ? { sessionId } : {}),
             ...(model ? { model } : {}),
             ...(cwd ? { cwd } : {}),

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createAgentTrajectoryModel } from "../src/lib/agent-session";
+import { createAgentSessionModel, createAgentTrajectoryModel } from "../src/lib/agent-session";
 import { codexRolloutAdapter } from "../src/lib/agent-session/codex-adapter";
 import { parsedLine, detectionSample, trajectoryTurnId } from "./codex-adapter.support";
 
@@ -64,8 +64,10 @@ describe("codexRolloutAdapter: detection-and-evidence", () => {
       cwd: "/repo",
       version: "1.0.0",
       model: "gpt-test",
-      turnCount: 2,
     });
+    const model = createAgentSessionModel(session);
+    expect(model.turnCount).toBe(1);
+    expect(model.trajectory.turns).toHaveLength(model.turnCount);
     expect(session.meta).not.toHaveProperty("eventCount");
     expect(session.events.map((event) => event.category)).toEqual([
       "meta",
