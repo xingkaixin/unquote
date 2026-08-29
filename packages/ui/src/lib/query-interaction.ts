@@ -14,7 +14,6 @@ export type QueryModeState =
 export type QueryMode = QueryModeState["mode"];
 
 export interface QueryInteractionState {
-  toolbarQuery: string;
   modeState: QueryModeState;
   searchSyntax: SearchSyntax;
   searchCaseSensitive: boolean;
@@ -26,7 +25,6 @@ export const isPathLikeQuery = (value: string) =>
   /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
 
 export const createInitialQueryInteractionState = (): QueryInteractionState => ({
-  toolbarQuery: "",
   modeState: { mode: "idle" },
   searchSyntax: "text",
   searchCaseSensitive: false,
@@ -62,7 +60,6 @@ export const reduceQueryInteraction = (
     case "toolbarQueryChange": {
       return {
         ...state,
-        toolbarQuery: action.value,
         modeState: createModeState(action.value),
       };
     }
@@ -74,7 +71,6 @@ export const reduceQueryInteraction = (
           : createModeState(action.value);
       return {
         ...state,
-        toolbarQuery: action.value,
         modeState: modeState.mode === "path" ? { ...modeState, submitted: true } : modeState,
       };
     }
@@ -82,7 +78,6 @@ export const reduceQueryInteraction = (
     case "clearToolbarQuery": {
       return {
         ...state,
-        toolbarQuery: "",
         modeState: { mode: "idle" },
       };
     }
@@ -90,7 +85,6 @@ export const reduceQueryInteraction = (
     case "commandSearch": {
       return {
         ...state,
-        toolbarQuery: action.value,
         modeState: createSearchModeState(action.value),
         recordFilter: "matches",
       };
@@ -128,8 +122,7 @@ export const reduceQueryInteraction = (
     case "seedCommandInput": {
       return {
         ...state,
-        commandInput:
-          state.toolbarQuery || (state.modeState.mode === "idle" ? "" : state.modeState.query),
+        commandInput: queryForModeState(state.modeState),
       };
     }
 
@@ -188,6 +181,9 @@ export const reduceQueryInteraction = (
   action satisfies never;
   return state;
 };
+
+export const queryForModeState = (modeState: QueryModeState) =>
+  modeState.mode === "idle" ? "" : modeState.query;
 
 const createSearchModeState = (query: string): QueryModeState =>
   query.trim() ? { mode: "search", query, currentMatchIndex: 0 } : { mode: "idle" };

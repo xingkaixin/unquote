@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInitialQueryInteractionState,
   isPathLikeQuery,
+  queryForModeState,
   reconcileMatchIndex,
   reduceQueryInteraction,
 } from "../src/lib/query-interaction";
@@ -9,13 +10,11 @@ import type { QueryInteractionState } from "../src/lib/query-interaction";
 
 const searchState = (query = "needle", currentMatchIndex = 0): QueryInteractionState => ({
   ...createInitialQueryInteractionState(),
-  toolbarQuery: query,
   modeState: { mode: "search", query, currentMatchIndex },
 });
 
 const pathState = (query = "$.payload", currentIndex = 0): QueryInteractionState => ({
   ...createInitialQueryInteractionState(),
-  toolbarQuery: query,
   modeState: { mode: "path", query, submitted: true, currentIndex },
 });
 
@@ -31,7 +30,6 @@ describe("query-interaction", () => {
 
   it("starts in an explicit idle mode", () => {
     expect(createInitialQueryInteractionState()).toMatchObject({
-      toolbarQuery: "",
       modeState: { mode: "idle" },
       recordFilter: "all",
       commandInput: "",
@@ -81,8 +79,8 @@ describe("query-interaction", () => {
     const cleared = reduceQueryInteraction(pathState(), {
       type: "clearToolbarQuery",
     });
-    expect(cleared.toolbarQuery).toBe("");
     expect(cleared.modeState).toEqual({ mode: "idle" });
+    expect(queryForModeState(cleared.modeState)).toBe("");
   });
 
   it("represents text, jq, and regex as one active syntax", () => {
@@ -145,12 +143,12 @@ describe("query-interaction", () => {
   });
 
   it("preserves search navigation when submitting the active text query", () => {
-    const base = { ...searchState("needle", 2), toolbarQuery: "" };
+    const base = searchState("needle", 2);
     const state = reduceQueryInteraction(base, {
       type: "submitToolbarQuery",
       value: "needle",
     });
-    expect(state).toEqual({ ...base, toolbarQuery: "needle" });
+    expect(state).toEqual(base);
   });
 
   it("cycles search match indices with wrap-around", () => {
@@ -240,7 +238,7 @@ describe("query-interaction", () => {
       query: "boom",
       currentMatchIndex: 0,
     });
-    expect(state.toolbarQuery).toBe("boom");
+    expect(queryForModeState(state.modeState)).toBe("boom");
     expect(state.recordFilter).toBe("matches");
   });
 
@@ -258,10 +256,7 @@ describe("query-interaction", () => {
     let state = reduceQueryInteraction(pathState("$.x"), { type: "seedCommandInput" });
     expect(state.commandInput).toBe("$.x");
 
-    state = reduceQueryInteraction(
-      { ...searchState("boom"), toolbarQuery: "" },
-      { type: "seedCommandInput" },
-    );
+    state = reduceQueryInteraction(searchState("boom"), { type: "seedCommandInput" });
     expect(state.commandInput).toBe("boom");
   });
 });
