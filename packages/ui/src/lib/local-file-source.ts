@@ -1,7 +1,7 @@
 import { stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { readFileText, readJsonlLinesByNumber, streamJsonlRecords } from "./local-file-reader";
-import { parseRecordLines } from "./record-parser";
+import { createRecordParser } from "./record-parser";
 import { createLocalFileSearch } from "./local-file-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
 
@@ -37,10 +37,11 @@ const formatRecordText = (record: JsonlRecord) =>
   record.status === "failed" ? record.rawLine : stringifyJsonNode(record.node);
 
 export const createLocalFileAccess = (file: File): LocalFileAccess => {
+  const recordParser = createRecordParser();
   const readRecords: LocalFileAccess["readRecords"] = async (lineNumbers, signal) => {
     signal?.throwIfAborted();
     const lines = await readJsonlLinesByNumber(file, new Set(lineNumbers), signal);
-    return parseRecordLines(lines, signal);
+    return recordParser.parse(lines, signal);
   };
   return {
     name: file.name,
