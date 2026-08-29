@@ -14,21 +14,39 @@ import type { ExpandedStringifiedPathsByRecord } from "../lib/record-expansion";
 import { isCopyRecordCountAboveThreshold } from "../lib/record-export";
 import { recordContainsStringifiedJson } from "../lib/record-filter";
 import type { NestedFilterScope } from "../lib/record-filter";
-import type { RecordAppend } from "../lib/record-sequence";
 import type { RecordViewActions } from "../lib/record-view";
 import { narrowPathToRecord } from "../lib/record-view";
 import type { SearchMatch } from "../lib/record-search";
 import type { RecordWorkspaceModel } from "../lib/record-workspace-model";
 import { projectSelectedNode } from "../lib/selected-node";
-import type { SourceRevision } from "../lib/source-revision";
 import { projectWorkspaceSelection } from "../lib/workspace-selection";
 import type { WorkspaceSelectionVisibility } from "../lib/workspace-selection";
 import { useExportActions } from "./use-export-actions";
 import { useLocalFileSource } from "./use-local-file-source";
-import { useQueryInteraction } from "./use-query-interaction";
+import type { useQueryInteraction } from "./use-query-interaction";
 import { useWorkspaceSession } from "./use-workspace-session";
 
 const emptySearchMatches: SearchMatch[] = [];
+
+type QueryInteraction = ReturnType<typeof useQueryInteraction>;
+
+interface RecordWorkspaceQuery {
+  navigation: QueryInteraction["navigation"];
+  searchExpansionRevision: QueryInteraction["searchExpansionRevision"];
+  snapshot: Pick<
+    QueryInteraction["snapshot"],
+    | "activeSearchMatch"
+    | "fileOverview"
+    | "recordFilter"
+    | "recordInsights"
+    | "recordsById"
+    | "visibleMatches"
+    | "visibleRecordAppend"
+    | "visibleRecords"
+    | "visibleStats"
+  >;
+  intent: Pick<QueryInteraction["intent"], "revealAllRecords" | "setFilter">;
+}
 
 const applySearchExpansionSuppressions = (
   paths: ExpandedStringifiedPathsByRecord,
@@ -48,31 +66,20 @@ const applySearchExpansionSuppressions = (
 
 interface UseRecordWorkspaceParams {
   source: PublishedSourceRevision;
-  resultRevision: SourceRevision;
   result: ParseResult;
-  recordAppend: RecordAppend | null;
   agentSession: AgentSession | null;
-  translateError: (reason: "invalid" | "not-found") => string;
+  query: RecordWorkspaceQuery;
 }
 
 export const useRecordWorkspace = ({
   source,
-  resultRevision,
   result,
-  recordAppend,
   agentSession,
-  translateError,
+  query,
 }: UseRecordWorkspaceParams) => {
   const { t } = useTranslation();
   const { sourceAccess, sourceRevision } = resolveSourceWork(source);
   const workspace = useWorkspaceSession(sourceRevision);
-  const query = useQueryInteraction({
-    source,
-    resultRevision,
-    result,
-    recordAppend,
-    translateError,
-  });
   const localFileSource = useLocalFileSource(sourceAccess, sourceRevision);
   const {
     activeSearchMatch,
@@ -251,16 +258,19 @@ export const useRecordWorkspace = ({
     () => exportActions.copyText(async () => projectedSelection.selectedPath?.pathText ?? null),
     [exportActions.copyText, projectedSelection.selectedPath],
   );
-  const selectRecordById = useCallback(
+  const openRecord = useCallback(
     (recordId: string) => {
       const record = recordsById.get(recordId);
-      if (record) {
-        workspace.selectRecord(record);
+      if (!record) {
+        return false;
       }
+      query.intent.revealAllRecords();
+      workspace.selectRecord(record);
+      return true;
     },
-    [recordsById, workspace.selectRecord],
+    [query.intent.revealAllRecords, recordsById, workspace.selectRecord],
   );
-  const openAgentRecord = useCallback(
+  const openAgentEndpoint = useCallback(
     (selection: AgentDetailSelection, recordId: string, options?: { reveal: boolean }) => {
       if (!recordsById.has(recordId)) {
         return false;
@@ -338,17 +348,45 @@ export const useRecordWorkspace = ({
     ],
   );
 
+  const toolbar = useMemo(
+    () => ({
+      copyBlocked: isCopyBlocked,
+      copyJsonl: exportActions.onCopyJsonl,
+      copyFormattedJson: exportActions.onCopyFormattedJson,
+      exportJsonl: exportActions.onExportJsonl,
+      exportFormattedJson: exportActions.onExportFormattedJson,
+    }),
+    [
+      exportActions.onCopyFormattedJson,
+      exportActions.onCopyJsonl,
+      exportActions.onExportFormattedJson,
+      exportActions.onExportJsonl,
+      isCopyBlocked,
+    ],
+  );
+  const agent = useMemo(
+    () => ({
+      detailSelection: projectedSelection.detailSelection,
+      selectDetail: workspace.selectAgentDetail,
+      openRecord,
+      openEndpoint: openAgentEndpoint,
+      resolveRecordById,
+      requestFullRecordById,
+    }),
+    [
+      openAgentEndpoint,
+      openRecord,
+      projectedSelection.detailSelection,
+      requestFullRecordById,
+      resolveRecordById,
+      workspace.selectAgentDetail,
+    ],
+  );
+
   return {
     model,
-    query,
-    exportActions,
-    isCopyBlocked,
-    detailSelection: projectedSelection.detailSelection,
-    selectAgentDetail: workspace.selectAgentDetail,
-    openAgentRecord,
-    selectRecordById,
+    toolbar,
+    agent,
     setSampleExpansions: workspace.setSampleExpansions,
-    resolveRecordById,
-    requestFullRecordById,
   };
 };
