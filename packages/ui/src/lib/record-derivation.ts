@@ -24,9 +24,48 @@ export interface RecordDerivation {
 
 export interface RecordDerivationState {
   cache: PartialRecordCache;
-  insights: Map<string, RecordInsight>;
+  recordIndexes: Map<string, number>;
+  insightsById: Map<string, RecordInsight>;
   overview: FileOverviewAggregate;
 }
+
+export interface RecordLookup {
+  readonly size: number;
+  get(recordId: string): JsonlRecord | undefined;
+  has(recordId: string): boolean;
+}
+
+export interface RecordInsights {
+  get(recordId: string): RecordInsight | undefined;
+}
+
+const recordAt = (
+  records: readonly JsonlRecord[],
+  recordIndexes: ReadonlyMap<string, number>,
+  recordId: string,
+) => {
+  const index = recordIndexes.get(recordId);
+  const record = index === undefined ? undefined : records[index];
+  return record?.id === recordId ? record : undefined;
+};
+
+const createRecordLookup = (
+  records: readonly JsonlRecord[],
+  recordIndexes: ReadonlyMap<string, number>,
+): RecordLookup => ({
+  size: records.length,
+  get: (recordId) => recordAt(records, recordIndexes, recordId),
+  has: (recordId) => recordAt(records, recordIndexes, recordId) !== undefined,
+});
+
+const createRecordInsights = (
+  records: readonly JsonlRecord[],
+  recordIndexes: ReadonlyMap<string, number>,
+  insightsById: ReadonlyMap<string, RecordInsight>,
+): RecordInsights => ({
+  get: (recordId) =>
+    recordAt(records, recordIndexes, recordId) ? insightsById.get(recordId) : undefined,
+});
 
 export const deriveRecord = (record: JsonlRecord): RecordDerivation => {
   // A Failed Record has no tree to walk and contributes only its error summary.
@@ -49,7 +88,8 @@ export const deriveRecord = (record: JsonlRecord): RecordDerivation => {
 
 export const createRecordDerivationState = (): RecordDerivationState => ({
   cache: createPartialRecordCache(),
-  insights: new Map(),
+  recordIndexes: new Map(),
+  insightsById: new Map(),
   overview: createFileOverviewAggregate(),
 });
 
@@ -59,7 +99,8 @@ export const updateRecordDerivations = (
   recordAppend: RecordAppend | null = null,
 ): {
   state: RecordDerivationState;
-  insights: Map<string, RecordInsight>;
+  recordsById: RecordLookup;
+  insights: RecordInsights;
   overview: FileOverview;
 } => {
   const { cache, rebuilt, processed } = updatePartialRecordCache(
@@ -68,21 +109,28 @@ export const updateRecordDerivations = (
     deriveRecord,
     recordAppend,
   );
-  const insights = rebuilt ? new Map<string, RecordInsight>() : new Map(state.insights);
+  // Shared append-only indexes avoid copying history. Each returned lookup is
+  // bounded by its own records array, so older render snapshots cannot see a suffix.
+  const recordIndexes = rebuilt ? new Map<string, number>() : state.recordIndexes;
+  const insightsById = rebuilt ? new Map<string, RecordInsight>() : state.insightsById;
   const overview = rebuilt ? createFileOverviewAggregate() : { ...state.overview };
 
-  for (const { record, value } of processed) {
+  const firstProcessedIndex = records.length - processed.length;
+  for (let offset = 0; offset < processed.length; offset += 1) {
+    const { record, value } = processed[offset]!;
+    recordIndexes.set(record.id, firstProcessedIndex + offset);
     if (value.insight) {
-      insights.set(record.id, value.insight);
+      insightsById.set(record.id, value.insight);
     } else {
-      insights.delete(record.id);
+      insightsById.delete(record.id);
     }
     addSummaryToFileOverview(overview, record, value.overview);
   }
 
   return {
-    state: { cache, insights, overview },
-    insights,
+    state: { cache, recordIndexes, insightsById, overview },
+    recordsById: createRecordLookup(records, recordIndexes),
+    insights: createRecordInsights(records, recordIndexes, insightsById),
     overview: toFileOverview(overview, records.length),
   };
 };

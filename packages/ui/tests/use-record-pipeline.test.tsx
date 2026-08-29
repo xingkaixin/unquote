@@ -95,7 +95,7 @@ describe("useRecordPipeline", () => {
     expect(pipeline.current.matchCount).toBe(0);
   });
 
-  it("publishes a new recordsById Map without mutating the previous snapshot", () => {
+  it("keeps the previous record lookup bounded when records append", () => {
     const r1 = rec("r1");
     const r2 = rec("r2");
     const initialResult = buildResult([r1, r2]);
@@ -115,7 +115,7 @@ describe("useRecordPipeline", () => {
       { initialProps },
     );
 
-    const mapBeforeAppend = pipeline.current.recordsById;
+    const lookupBeforeAppend = pipeline.current.recordsById;
 
     const r3 = rec("r3");
     rerender({
@@ -123,23 +123,18 @@ describe("useRecordPipeline", () => {
       recordAppend: { previousRecords: initialResult.records },
     });
 
-    expect(pipeline.current.recordsById).not.toBe(mapBeforeAppend);
-    expect(mapBeforeAppend).toEqual(
-      new Map([
-        ["r1", r1],
-        ["r2", r2],
-      ]),
-    );
+    expect(pipeline.current.recordsById).not.toBe(lookupBeforeAppend);
+    expect(lookupBeforeAppend.size).toBe(2);
+    expect(lookupBeforeAppend.get("r1")).toBe(r1);
+    expect(lookupBeforeAppend.get("r2")).toBe(r2);
+    expect(lookupBeforeAppend.get("r3")).toBeUndefined();
     expect(pipeline.current.visibleRecordAppend).toEqual({
       previousRecords: initialResult.records,
     });
-    expect(pipeline.current.recordsById).toEqual(
-      new Map([
-        ["r1", r1],
-        ["r2", r2],
-        ["r3", r3],
-      ]),
-    );
+    expect(pipeline.current.recordsById.size).toBe(3);
+    expect(pipeline.current.recordsById.get("r1")).toBe(r1);
+    expect(pipeline.current.recordsById.get("r2")).toBe(r2);
+    expect(pipeline.current.recordsById.get("r3")).toBe(r3);
   });
 
   it("rebuilds recordsById without stale entries when the source changes", () => {
@@ -156,20 +151,19 @@ describe("useRecordPipeline", () => {
       { initialProps: { result: buildResult([r1, r2]) } },
     );
 
-    const mapBeforeSwitch = pipeline.current.recordsById;
+    const lookupBeforeSwitch = pipeline.current.recordsById;
 
     const r4 = rec("r4");
     const r5 = rec("r5");
     rerender({ result: buildResult([r4, r5]) });
 
-    expect(pipeline.current.recordsById).not.toBe(mapBeforeSwitch);
+    expect(pipeline.current.recordsById).not.toBe(lookupBeforeSwitch);
+    expect(lookupBeforeSwitch.get("r1")).toBe(r1);
+    expect(lookupBeforeSwitch.get("r4")).toBeUndefined();
     expect(pipeline.current.recordsById.has("r1")).toBe(false);
     expect(pipeline.current.recordsById.has("r2")).toBe(false);
-    expect(pipeline.current.recordsById).toEqual(
-      new Map([
-        ["r4", r4],
-        ["r5", r5],
-      ]),
-    );
+    expect(pipeline.current.recordsById.size).toBe(2);
+    expect(pipeline.current.recordsById.get("r4")).toBe(r4);
+    expect(pipeline.current.recordsById.get("r5")).toBe(r5);
   });
 });

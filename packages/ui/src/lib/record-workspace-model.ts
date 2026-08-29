@@ -1,6 +1,6 @@
 import type { JsonlRecord } from "@unquote/core";
+import type { RecordInsights } from "./record-derivation";
 import type { NestedFilterScope, RecordFilterMode } from "./record-filter";
-import type { RecordInsight } from "./record-insight";
 import type { SearchMatch } from "./record-search";
 import type { RecordViewActions } from "./record-view";
 import type { ScrollIntent } from "./scroll-intent";
@@ -15,7 +15,7 @@ export interface RecordWorkspaceModel {
   };
   records: {
     visible: readonly JsonlRecord[];
-    insights: ReadonlyMap<string, RecordInsight>;
+    insights: RecordInsights;
     turnIndexByRecordId: ReadonlyMap<string, number> | null;
   };
   active: {

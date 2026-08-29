@@ -7,6 +7,7 @@ import { useTranslation } from "../i18n/context";
 import type { MessageKey } from "../i18n/i18n";
 import { formatClockTime } from "../lib/format";
 import { preferredScrollBehavior } from "../lib/motion-preference";
+import type { RecordInsights } from "../lib/record-derivation";
 import type { RecordInsight, RecordInsightKind } from "../lib/record-insight";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 
@@ -120,7 +121,7 @@ const RailRow = ({
 
 export interface RecordRailProps {
   records: readonly JsonlRecord[];
-  recordInsights: ReadonlyMap<string, RecordInsight>;
+  recordInsights: RecordInsights;
   turnIndexByRecordId: ReadonlyMap<string, number> | null;
   activeRecordId: string | null;
   scrollIntent: ScrollIntent | null;
