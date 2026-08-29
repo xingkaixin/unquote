@@ -11,6 +11,7 @@ import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
 import { useParser } from "./hooks/use-parser";
+import { useQueryInteraction } from "./hooks/use-query-interaction";
 import { useRecordWorkspace } from "./hooks/use-record-workspace";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
@@ -83,15 +84,19 @@ export const UnquoteApp = ({
     (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
     [t],
   );
-  const recordWorkspace = useRecordWorkspace({
+  const query = useQueryInteraction({
     source,
     resultRevision,
     result,
     recordAppend,
-    agentSession,
     translateError,
   });
-  const { query } = recordWorkspace;
+  const recordWorkspace = useRecordWorkspace({
+    source,
+    result,
+    agentSession,
+    query,
+  });
   const {
     searchQuery,
     searchRegex,
@@ -167,21 +172,21 @@ export const UnquoteApp = ({
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
-      queryIntent.revealAllRecords();
-      recordWorkspace.selectRecordById(recordId);
-      setOutputView("json");
+      if (recordWorkspace.agent.openRecord(recordId)) {
+        setOutputView("json");
+      }
     },
-    [queryIntent.revealAllRecords, recordWorkspace.selectRecordById, setOutputView],
+    [recordWorkspace.agent.openRecord, setOutputView],
   );
   const handleOpenTrajectoryRecord = useCallback(
     (selection: AgentDetailSelection, endpointRecordId: string) => {
-      if (!recordWorkspace.openAgentRecord(selection, endpointRecordId, { reveal: true })) {
+      if (!recordWorkspace.agent.openEndpoint(selection, endpointRecordId, { reveal: true })) {
         return;
       }
 
       setOutputView("json");
     },
-    [recordWorkspace.openAgentRecord, setOutputView],
+    [recordWorkspace.agent.openEndpoint, setOutputView],
   );
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
@@ -290,10 +295,10 @@ export const UnquoteApp = ({
             outputView={outputView}
             isDesktop={isDesktop}
             filters={trajectoryFilters}
-            detailSelection={recordWorkspace.detailSelection}
-            resolveRecordById={recordWorkspace.resolveRecordById}
-            requestFullRecordById={recordWorkspace.requestFullRecordById}
-            onDetailSelectionChange={recordWorkspace.selectAgentDetail}
+            detailSelection={recordWorkspace.agent.detailSelection}
+            resolveRecordById={recordWorkspace.agent.resolveRecordById}
+            requestFullRecordById={recordWorkspace.agent.requestFullRecordById}
+            onDetailSelectionChange={recordWorkspace.agent.selectDetail}
             onOpenRecord={handleOpenRecord}
             onOpenTrajectoryRecord={handleOpenTrajectoryRecord}
           />
@@ -361,11 +366,11 @@ export const UnquoteApp = ({
           onOpenCommandPalette={handleOpenCommandPalette}
           theme={theme}
           onThemeChange={setTheme}
-          copyBlocked={recordWorkspace.isCopyBlocked}
-          onCopyJsonl={recordWorkspace.exportActions.onCopyJsonl}
-          onCopyFormattedJson={recordWorkspace.exportActions.onCopyFormattedJson}
-          onExportJsonl={recordWorkspace.exportActions.onExportJsonl}
-          onExportFormattedJson={recordWorkspace.exportActions.onExportFormattedJson}
+          copyBlocked={recordWorkspace.toolbar.copyBlocked}
+          onCopyJsonl={recordWorkspace.toolbar.copyJsonl}
+          onCopyFormattedJson={recordWorkspace.toolbar.copyFormattedJson}
+          onExportJsonl={recordWorkspace.toolbar.exportJsonl}
+          onExportFormattedJson={recordWorkspace.toolbar.exportFormattedJson}
         />
 
         <main
