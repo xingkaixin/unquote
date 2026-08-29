@@ -11,6 +11,7 @@ export type { SearchMatch, SearchOptions } from "./record-search";
 export interface LocalFileAccess {
   readonly name: string;
   readonly size: number;
+  dispose: () => void;
   getFile: () => File;
   readText: (onProgress: (progress: number) => void, signal?: AbortSignal) => Promise<string>;
   readRecords: (
@@ -46,6 +47,7 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
   return {
     name: file.name,
     size: file.size,
+    dispose: () => recordParser.dispose(),
     getFile: () => file,
     readText: (onProgress, signal) => readFileText(file, onProgress, signal),
     readRecords,

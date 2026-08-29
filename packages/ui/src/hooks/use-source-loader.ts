@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
-import { createLocalFileAccess, readFileHead } from "../lib/local-file-source";
+import {
+  createLocalFileAccess,
+  readFileHead,
+  type LocalFileAccess,
+} from "../lib/local-file-source";
 import {
   createImportedFileSourceRevision,
   createStreamingFileSourceRevision,
@@ -42,6 +46,8 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
   }));
   const sourceRevisionRef = useRef<SourceRevision>(state.source.sourceRevision);
   const fileImportIdRef = useRef(0);
+  const publishedAccessRef = useRef<LocalFileAccess | null>(null);
+  const mountedRef = useRef(false);
   // The request id keeps a stale result from being committed; this stops the
   // work that produced it. A superseded read has no value, so it should not
   // keep decoding a large file in the background.
@@ -51,7 +57,20 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     activeReadRef.current = null;
   };
 
-  useEffect(() => () => abortActiveRead(), []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      abortActiveRead();
+      mountedRef.current = false;
+      // React StrictMode immediately remounts this effect during its development check.
+      queueMicrotask(() => {
+        if (!mountedRef.current) {
+          publishedAccessRef.current?.dispose();
+          publishedAccessRef.current = null;
+        }
+      });
+    };
+  }, []);
 
   const nextSourceRevision = () => {
     sourceRevisionRef.current += 1;
@@ -59,6 +78,12 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
   };
 
   const publishSource = (source: PublishedSourceRevision) => {
+    const nextAccess = source.kind === "local-file" ? source.access : null;
+    const previousAccess = publishedAccessRef.current;
+    publishedAccessRef.current = nextAccess;
+    if (previousAccess && previousAccess !== nextAccess) {
+      previousAccess.dispose();
+    }
     setState({ source, operation: { kind: "idle" } });
     return source.sourceRevision;
   };

@@ -1,14 +1,28 @@
+import { parseJsonlRecordLine } from "@unquote/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../src/i18n/context";
 import { projectSourceImport, resolveSourceWork } from "../src/lib/published-source";
 import { sourceDetectionProbeByteBudget } from "../src/lib/source-detect";
+import type { RecordParserRequest } from "../src/worker/record-parser-worker";
 import {
   createControlledStreamFile,
   createFailingStreamFile,
   createStreamFile,
 } from "./helpers/stub-file";
+import { MockWorkerEvents } from "./helpers/mock-worker-events";
+
+class ControlledRecordWorker extends MockWorkerEvents {
+  static instances: ControlledRecordWorker[] = [];
+  postMessage = vi.fn<(request: RecordParserRequest) => void>();
+  terminate = vi.fn(() => this.clearListeners());
+
+  constructor() {
+    super();
+    ControlledRecordWorker.instances.push(this);
+  }
+}
 
 const mocks = vi.hoisted(() => ({
   writeClipboardText: vi.fn(),
@@ -114,9 +128,13 @@ const setup = (overrides: Partial<Parameters<typeof useSourceLoader>[0]> = {}) =
 
 describe("useSourceLoader", () => {
   beforeEach(() => {
+    ControlledRecordWorker.instances = [];
     vi.clearAllMocks();
     localStorage.clear();
     mocks.writeClipboardText.mockResolvedValue(true);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("publishes text and parsing mode as one Source Revision", () => {
@@ -255,6 +273,53 @@ describe("useSourceLoader", () => {
     expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
     expect(snapshot(result.current).sourceText).toBe("");
     expect(snapshot(result.current).mode).toBe("jsonl");
+  });
+
+  it("releases a completed record worker when replacing a streamed source", async () => {
+    vi.stubGlobal("Worker", ControlledRecordWorker);
+    const contents = oversizedJsonlContents();
+    const { file } = createStreamFile(contents, "large.jsonl");
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file, "jsonl"));
+    const access = snapshot(result.current).sourceAccess!;
+    const recordsPromise = access.readRecords(new Set([1]));
+    await waitFor(() => expect(ControlledRecordWorker.instances).toHaveLength(1));
+    const worker = ControlledRecordWorker.instances[0]!;
+    worker.respond({
+      type: "result",
+      requestId: 1,
+      records: new Map([[1, parseJsonlRecordLine('{"loaded":true}', 1)]]),
+    });
+    const records = await recordsPromise;
+    expect(records.size).toBe(1);
+    expect(worker.terminate).not.toHaveBeenCalled();
+
+    act(() => result.current.onSourceChange("replacement"));
+
+    expect(worker.terminate).toHaveBeenCalledOnce();
+    await expect(access.readRecords(new Set())).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("keeps streamed access alive through StrictMode checks and releases it on unmount", async () => {
+    const strictWrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <I18nProvider>{children}</I18nProvider>
+      </StrictMode>
+    );
+    const { file } = createStreamFile(oversizedJsonlContents(), "large.jsonl");
+    const { result, unmount } = renderHook(() => useSourceLoader({ initialInput: "initial" }), {
+      wrapper: strictWrapper,
+    });
+
+    await act(() => result.current.onFileDrop(file, "jsonl"));
+    const access = snapshot(result.current).sourceAccess!;
+    await expect(access.readRecords(new Set())).resolves.toEqual(new Map());
+
+    unmount();
+    await Promise.resolve();
+
+    await expect(access.readRecords(new Set())).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it.each(["trace.txt", "events.json", "trace"])(
