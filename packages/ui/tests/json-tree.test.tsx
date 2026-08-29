@@ -154,6 +154,21 @@ describe("JsonTree", () => {
     expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload.answer`);
   });
 
+  it("falls back to a visible row when the active row disappears", () => {
+    const { setExpandedPaths, record } = renderTree(new Set(["$.payload"]));
+    const tree = screen.getByRole("tree");
+
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload.answer`);
+
+    setExpandedPaths(new Set());
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$`);
+
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload`);
+  });
+
   it("rails the unwrapped payload rather than the boundary row", () => {
     const { setExpandedPaths, record } = renderTree();
     const rail = "shadow-[inset_3px_0_0_var(--color-border-medium)]";
