@@ -1,6 +1,7 @@
 import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RecordInsight } from "../src/lib/record-insight";
 
 // deriveRecord's whole point is to walk each record once instead of twice, so
 // the traversal is wrapped here to make the call count observable.
@@ -25,6 +26,15 @@ const { createRecordDerivationState, deriveRecord, updateRecordDerivations } =
 
 const parseRecords = (lines: string[]) =>
   parseInput(lines.join("\n"), { forcedFormat: "jsonl" }).records;
+
+const insightEntries = (
+  records: readonly JsonlRecord[],
+  insights: { get(recordId: string): RecordInsight | undefined },
+) =>
+  records.flatMap((record) => {
+    const insight = insights.get(record.id);
+    return insight ? ([[record.id, insight]] as const) : [];
+  });
 
 const sampleLines = [
   '{"event":"tool_call","tool":"billing.search","args":"{\\"status\\":\\"open\\"}"}',
@@ -55,7 +65,7 @@ describe("record derivation", () => {
 
     const derived = updateRecordDerivations(records, createRecordDerivationState());
 
-    expect([...derived.insights]).toEqual([...createRecordInsightMap(records)]);
+    expect(insightEntries(records, derived.insights)).toEqual([...createRecordInsightMap(records)]);
     expect(derived.overview).toEqual(createFileOverview(records));
   });
 
@@ -64,7 +74,7 @@ describe("record derivation", () => {
 
     const derived = updateRecordDerivations(records, createRecordDerivationState());
 
-    expect(derived.insights.size).toBe(0);
+    expect(derived.insights.get(records[0]!.id)).toBeUndefined();
     expect(derived.overview).toEqual({
       total: 1,
       success: 0,
@@ -124,8 +134,11 @@ describe("record derivation", () => {
     });
 
     expect(second.insights).not.toBe(first.insights);
-    expect([...first.insights.keys()]).toEqual(["record-1"]);
-    expect([...second.insights.keys()]).toEqual(["record-1", "record-2", "record-3"]);
+    expect(first.insights.get("record-1")).toBeDefined();
+    expect(first.insights.get("record-2")).toBeUndefined();
+    expect(second.insights.get("record-1")).toBeDefined();
+    expect(second.insights.get("record-2")).toBeDefined();
+    expect(second.insights.get("record-3")).toBeDefined();
   });
 
   it("stays equal to full recomputation across streamed appends and rebuilds", () => {
@@ -151,13 +164,17 @@ describe("record derivation", () => {
         previousRecords.length > 0 ? { previousRecords } : null,
       );
       state = derived.state;
-      expect([...derived.insights]).toEqual([...createRecordInsightMap(streamedRecords)]);
+      expect(insightEntries(streamedRecords, derived.insights)).toEqual([
+        ...createRecordInsightMap(streamedRecords),
+      ]);
       expect(derived.overview).toEqual(createFileOverview(streamedRecords));
     }
 
     const shortened = allRecords.slice(0, 83);
     const rebuilt = updateRecordDerivations(shortened, state);
-    expect([...rebuilt.insights]).toEqual([...createRecordInsightMap(shortened)]);
+    expect(insightEntries(shortened, rebuilt.insights)).toEqual([
+      ...createRecordInsightMap(shortened),
+    ]);
     expect(rebuilt.overview).toEqual(createFileOverview(shortened));
   });
 });

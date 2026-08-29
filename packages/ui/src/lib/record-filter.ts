@@ -51,7 +51,7 @@ export const filterRecords = (
   records: JsonlRecord[],
   mode: RecordFilterMode,
   searchResult: SearchResultSet | null,
-  insights: ReadonlyMap<string, RecordInsight> = new Map(),
+  insights: Pick<ReadonlyMap<string, RecordInsight>, "get"> = new Map(),
 ) => {
   if (mode === "all") {
     return records;

@@ -15,12 +15,15 @@ export interface StreamPublisher<Stats, Progress extends { done: boolean }> {
   cancel(): void;
 }
 
+// Avoid copying a complete snapshot for every small parser-worker batch.
+const minimumSnapshotGrowth = 64;
+
 /**
  * Coalesces streamed record batches into animation-frame-throttled emits.
  *
  * The first batch publishes synchronously so results appear immediately;
- * later batches only stash a snapshot and are flushed once per frame. A
- * batch whose progress is done publishes immediately as well.
+ * later batches publish after the visible record count grows geometrically.
+ * A batch whose progress is done publishes immediately as well.
  * Every emit receives a distinct records snapshot that later batches do not mutate.
  *
  * The scheduler is injectable so tests don't need fake rAF globals.
@@ -44,6 +47,11 @@ export const createStreamPublisher = <Stats, Progress extends { done: boolean }>
   let frameId: number | null = null;
   let hasPublished = false;
   let lastPublishedRecords: JsonlRecord[] | null = null;
+
+  const hasEnoughRecordsForSnapshot = () => {
+    const previousCount = lastPublishedRecords?.length ?? 0;
+    return records.length >= Math.max(previousCount + minimumSnapshotGrowth, previousCount * 2);
+  };
 
   const cancelFrame = () => {
     if (frameId === null) {
@@ -82,7 +90,9 @@ export const createStreamPublisher = <Stats, Progress extends { done: boolean }>
         return;
       }
 
-      frameId ??= schedule(publish);
+      if (hasEnoughRecordsForSnapshot()) {
+        frameId ??= schedule(publish);
+      }
     },
     flush() {
       cancelFrame();

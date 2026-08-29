@@ -14,6 +14,9 @@ const makeRecord = (lineNumber: number): JsonlRecord => ({
   summary: `line ${lineNumber}`,
 });
 
+const makeRecords = (start: number, end: number) =>
+  Array.from({ length: end - start + 1 }, (_, index) => makeRecord(start + index));
+
 afterEach(() => vi.restoreAllMocks());
 
 // Manual scheduler standing in for requestAnimationFrame.
@@ -49,11 +52,11 @@ describe("createStreamPublisher", () => {
     const publisher = createStreamPublisher<number, TestProgress>(emit);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
-    publisher.pushBatch([makeRecord(2)], 2, { done: false });
+    publisher.pushBatch(makeRecords(2, 65), 65, { done: false });
 
     expect(requestFrame).toHaveBeenCalledTimes(1);
 
-    publisher.pushBatch([makeRecord(3)], 3, { done: true });
+    publisher.pushBatch([makeRecord(66)], 66, { done: true });
 
     expect(cancelFrame).toHaveBeenCalledWith(42);
     expect(emit).toHaveBeenCalledTimes(2);
@@ -71,8 +74,9 @@ describe("createStreamPublisher", () => {
     expect(emit.mock.calls[0]![3]).toBeNull();
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
 
-    publisher.pushBatch([makeRecord(2)], 2, { done: false });
-    publisher.pushBatch([makeRecord(3)], 3, { done: false });
+    publisher.pushBatch(makeRecords(2, 33), 33, { done: false });
+    expect(scheduler.pendingCount()).toBe(0);
+    publisher.pushBatch(makeRecords(34, 65), 65, { done: false });
     expect(emit).toHaveBeenCalledTimes(1);
     expect(scheduler.pendingCount()).toBe(1);
 
@@ -82,8 +86,10 @@ describe("createStreamPublisher", () => {
     const [records, stats] = emit.mock.calls[1]!;
     expect(records).not.toBe(firstRecords);
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
-    expect((records as JsonlRecord[]).map((record) => record.lineNumber)).toEqual([1, 2, 3]);
-    expect(stats).toBe(3);
+    expect((records as JsonlRecord[]).map((record) => record.lineNumber)).toEqual(
+      makeRecords(1, 65).map((record) => record.lineNumber),
+    );
+    expect(stats).toBe(65);
     expect(emit.mock.calls[1]![3]).toEqual({ previousRecords: firstRecords });
   });
 
@@ -123,11 +129,30 @@ describe("createStreamPublisher", () => {
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
-    publisher.pushBatch([makeRecord(2)], 2, { done: false });
+    publisher.pushBatch(makeRecords(2, 65), 65, { done: false });
     publisher.cancel();
 
     scheduler.runFrame();
     expect(emit).toHaveBeenCalledTimes(1);
     expect(scheduler.pendingCount()).toBe(0);
+  });
+
+  it("keeps cumulative snapshot copies linear as records grow", () => {
+    const scheduler = makeScheduler();
+    const emit = vi.fn();
+    const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
+    const recordCount = 4096;
+
+    for (let lineNumber = 1; lineNumber <= recordCount; lineNumber += 1) {
+      publisher.pushBatch([makeRecord(lineNumber)], lineNumber, { done: false });
+      scheduler.runFrame();
+    }
+    publisher.flush();
+
+    const snapshotSizes = emit.mock.calls.map(([records]) => (records as JsonlRecord[]).length);
+    expect(snapshotSizes.at(-1)).toBe(recordCount);
+    expect(snapshotSizes.reduce((total, size) => total + size, 0)).toBeLessThanOrEqual(
+      recordCount * 2,
+    );
   });
 });

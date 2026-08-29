@@ -117,13 +117,13 @@ describe("useQueryInteraction", () => {
     );
 
     expect(query.current.snapshot.visibleRecords).toHaveLength(1);
-    expect(query.current.snapshot.recordsById).toHaveLength(1);
+    expect(query.current.snapshot.recordsById.size).toBe(1);
     expect(query.current.snapshot.fileOverview.total).toBe(1);
 
     rerender({ parseResult: nextResult });
 
     expect(query.current.snapshot.visibleRecords).toHaveLength(2);
-    expect(query.current.snapshot.recordsById).toHaveLength(2);
+    expect(query.current.snapshot.recordsById.size).toBe(2);
     expect(query.current.snapshot.fileOverview.total).toBe(2);
   });
 
