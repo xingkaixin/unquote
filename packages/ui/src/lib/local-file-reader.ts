@@ -188,16 +188,15 @@ export const readJsonlFileLines = async (
     lineNumber += 1;
     return !stopped;
   };
-  const processRawLine = (rawLine: string) =>
-    processLine(rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine);
 
   if (typeof file.stream !== "function") {
-    const text = await readFileText(file, () => undefined, signal);
-    for (const rawLine of text.split("\n")) {
-      if (stopped || signal?.aborted) {
-        break;
+    try {
+      const text = await readFileText(file, () => undefined, signal);
+      drainJsonlLines("", text, true, processLine);
+    } catch (error) {
+      if (!signal?.aborted) {
+        throw error;
       }
-      processRawLine(rawLine);
     }
     return;
   }
