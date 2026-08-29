@@ -51,14 +51,14 @@ const toolEvent: AgentTimelineEvent = {
       phase: "call",
       toolName: "shell",
       callId: "call-1",
-      conversationItem: toolCallItem,
+      conversationItemId: toolCallItem.id,
     },
     {
       kind: "tool-lifecycle",
       phase: "result",
       status: "completed",
       callId: "call-1",
-      conversationItem: toolResultItem,
+      conversationItemId: toolResultItem.id,
     },
   ],
 };

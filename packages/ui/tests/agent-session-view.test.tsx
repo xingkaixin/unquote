@@ -48,7 +48,7 @@ const session: AgentSession = {
         {
           kind: "model-output",
           role: "user",
-          conversationItem: userConversationItem,
+          conversationItemId: userConversationItem.id,
         },
       ],
     },

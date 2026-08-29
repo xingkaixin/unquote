@@ -87,12 +87,12 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
       {
         kind: "model-output",
         role: "user",
-        conversationItem: expect.objectContaining({ id: "conv-1-block-0" }),
+        conversationItemId: "conv-1-block-0",
       },
       {
         kind: "model-output",
         role: "assistant",
-        conversationItem: expect.objectContaining({ id: "conv-2-block-0" }),
+        conversationItemId: "conv-2-block-0",
       },
     ]);
     const trajectory = expectTrajectorySelectionsToResolve(session);
@@ -147,14 +147,14 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
       {
         kind: "model-output",
         role: "user",
-        conversationItem: expect.objectContaining({ id: "conv-1-user" }),
+        conversationItemId: "conv-1-user",
       },
     ]);
     expect(session.events[1]?.sessionEvidence).toEqual([
       {
         kind: "model-output",
         role: "assistant",
-        conversationItem: expect.objectContaining({ id: "conv-2-assistant" }),
+        conversationItemId: "conv-2-assistant",
       },
       {
         kind: "token-usage",
@@ -239,12 +239,12 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
         kind: "tool-lifecycle",
         phase: "result",
         status: "completed",
-        conversationItem: expect.objectContaining({ id: "conv-1-block-0" }),
+        conversationItemId: "conv-1-block-0",
       },
       {
         kind: "model-output",
         role: "assistant",
-        conversationItem: expect.objectContaining({ id: "conv-2-block-0" }),
+        conversationItemId: "conv-2-block-0",
       },
     ]);
     expect(expectTrajectorySelectionsToResolve(unscopedSession).turns).toEqual([]);
@@ -293,7 +293,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
       {
         kind: "model-output",
         role: "assistant",
-        conversationItem: expect.objectContaining({ id: "conv-2-block-0" }),
+        conversationItemId: "conv-2-block-0",
         turnId: "prompt-open",
       },
       {
@@ -312,7 +312,7 @@ describe("claudeTranscriptAdapter: turn-fallback", () => {
         kind: "tool-lifecycle",
         phase: "result",
         status: "completed",
-        conversationItem: expect.objectContaining({ id: "conv-3-block-0" }),
+        conversationItemId: "conv-3-block-0",
         turnId: "prompt-open",
       },
     ]);

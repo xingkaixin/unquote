@@ -66,7 +66,7 @@ export const modelOutput = (
 ): AgentSessionEvidence => ({
   kind: "model-output",
   role,
-  ...(conversationItem === undefined ? {} : { conversationItem }),
+  ...(conversationItem === undefined ? {} : { conversationItemId: conversationItem.id }),
 });
 
 export const toolCall = (
@@ -78,7 +78,7 @@ export const toolCall = (
   phase: "call",
   toolName,
   ...(callId === undefined ? {} : { callId }),
-  ...(conversationItem === undefined ? {} : { conversationItem }),
+  ...(conversationItem === undefined ? {} : { conversationItemId: conversationItem.id }),
 });
 
 export const toolResult = (
@@ -92,7 +92,7 @@ export const toolResult = (
   status,
   ...(callId === undefined ? {} : { callId }),
   ...(durationMs === undefined ? {} : { durationMs }),
-  ...(conversationItem === undefined ? {} : { conversationItem }),
+  ...(conversationItem === undefined ? {} : { conversationItemId: conversationItem.id }),
 });
 
 export const unknownToolResult = (callId?: string): AgentSessionEvidence =>

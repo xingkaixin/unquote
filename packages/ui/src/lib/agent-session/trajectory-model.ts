@@ -50,11 +50,11 @@ interface TrajectoryDraftState {
 
 const selectionFor = (
   event: AgentTimelineEvent,
-  conversationItem: AgentConversationItem | undefined,
-  canonicalConversationItems: ReadonlySet<AgentConversationItem>,
+  conversationItemId: string | undefined,
+  canonicalConversationItemById: ReadonlyMap<string, AgentConversationItem>,
 ): AgentCanonicalSelection => {
-  if (conversationItem && canonicalConversationItems.has(conversationItem)) {
-    return { kind: "conversation", id: conversationItem.id, recordId: event.recordId };
+  if (conversationItemId && canonicalConversationItemById.has(conversationItemId)) {
+    return { kind: "conversation", id: conversationItemId, recordId: event.recordId };
   }
   return { kind: "event", id: event.id, recordId: event.recordId };
 };
@@ -62,12 +62,12 @@ const selectionFor = (
 const itemIdFor = (event: AgentTimelineEvent, evidenceIndex: number) =>
   `${event.id}:evidence-${evidenceIndex}`;
 
-const conversationItemFor = (evidence: AgentSessionEvidence) => {
+const conversationItemIdFor = (evidence: AgentSessionEvidence) => {
   if (evidence.kind === "model-output") {
-    return evidence.conversationItem;
+    return evidence.conversationItemId;
   }
   return evidence.kind === "tool-lifecycle" && evidence.phase !== "completion"
-    ? evidence.conversationItem
+    ? evidence.conversationItemId
     : undefined;
 };
 
@@ -204,11 +204,11 @@ const collectEvidence = (
 ) => {
   for (const {
     evidence: evidenceList,
-    canonicalEvent: { event, conversationItemSet },
+    canonicalEvent: { event, conversationItemById },
   } of toolLifecycle.evidenceEvents) {
     let evidenceIndex = 0;
     for (const evidence of evidenceList) {
-      const selection = selectionFor(event, conversationItemFor(evidence), conversationItemSet);
+      const selection = selectionFor(event, conversationItemIdFor(evidence), conversationItemById);
       const source = warningSourceFor(event, selection);
       const turn = turns.observe(event, evidence, source);
       appendEvidence(state, tools, turns, evidence, {
