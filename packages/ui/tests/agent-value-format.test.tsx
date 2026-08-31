@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   formatAgentBlockValue,
-  formatAgentFieldValue,
   formatAgentPreviewValue,
   truncateBlockText,
   truncatePreview,
@@ -13,7 +12,6 @@ describe("agent value formatting", () => {
 
     expect(formatAgentBlockValue(value)).toBe(JSON.stringify(value, null, 2));
     expect(formatAgentPreviewValue(value)).toBe('{ "path": "/tmp", "flags": [ true, null ] }');
-    expect(formatAgentFieldValue(value)).toBe('{"path":"/tmp","flags":[true,null]}');
   });
 
   it("matches JSON primitive and escaping semantics", () => {
@@ -25,7 +23,6 @@ describe("agent value formatting", () => {
     };
 
     expect(formatAgentBlockValue(value)).toBe(JSON.stringify(value, null, 2));
-    expect(formatAgentFieldValue(value)).toBe(JSON.stringify(value));
   });
 
   it("bounds deeply nested values without recursing on the JavaScript stack", () => {
