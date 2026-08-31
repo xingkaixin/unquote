@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentTrajectoryModel } from "../src/lib/agent-session";
+import { createAgentSessionModel, createAgentTrajectoryModel } from "../src/lib/agent-session";
 import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import { trajectoryTurnId, parsedLine } from "./claude-adapter.support";
 
@@ -184,4 +184,89 @@ describe("claudeTranscriptAdapter: turn-closure", () => {
       ]),
     );
   });
+
+  it.each([
+    { firstPromptId: undefined, secondPromptId: undefined },
+    { firstPromptId: "prompt-first", secondPromptId: undefined },
+    { firstPromptId: undefined, secondPromptId: "prompt-second" },
+  ])(
+    "closes the previous turn when a prompt id is missing ($firstPromptId -> $secondPromptId)",
+    ({ firstPromptId, secondPromptId }) => {
+      const builder = claudeTranscriptAdapter.createBuilder();
+      builder.push(
+        parsedLine(
+          {
+            type: "user",
+            ...(firstPromptId === undefined ? {} : { promptId: firstPromptId }),
+            timestamp: 1_000,
+            message: { content: "First" },
+          },
+          1,
+        ),
+      );
+      builder.push(
+        parsedLine(
+          {
+            type: "assistant",
+            timestamp: 3_000,
+            message: { content: [{ type: "text", text: "Reply" }] },
+          },
+          2,
+        ),
+      );
+      builder.push(
+        parsedLine(
+          {
+            type: "user",
+            ...(secondPromptId === undefined ? {} : { promptId: secondPromptId }),
+            timestamp: 60_000,
+            message: { content: "Second" },
+          },
+          3,
+        ),
+      );
+
+      const model = createAgentSessionModel(builder.finish([]));
+      const trajectory = model.trajectory;
+      const firstTurnId =
+        firstPromptId === undefined
+          ? trajectoryTurnId("fallback-index", 1)
+          : trajectoryTurnId("evidence", firstPromptId);
+      const secondTurnId =
+        secondPromptId === undefined
+          ? trajectoryTurnId("fallback-index", 2)
+          : trajectoryTurnId("evidence", secondPromptId);
+
+      expect(model.turnCount).toBe(2);
+      expect(trajectory.turns).toEqual([
+        {
+          id: firstTurnId,
+          turnIndex: 1,
+          status: "completed",
+          startedAt: 1_000,
+          endedAt: 3_000,
+          durationMs: 2_000,
+        },
+        {
+          id: secondTurnId,
+          turnIndex: 2,
+          status: "running",
+          startedAt: 60_000,
+        },
+      ]);
+      expect(trajectory.items).toMatchObject([
+        { kind: "user", recordId: "record-1", turnId: firstTurnId, turnIndex: 1 },
+        { kind: "assistant", recordId: "record-2", turnId: firstTurnId, turnIndex: 1 },
+        { kind: "user", recordId: "record-3", turnId: secondTurnId, turnIndex: 2 },
+      ]);
+      expect(trajectory.warnings).toMatchObject([
+        {
+          kind: "open-turn",
+          recordId: "record-3",
+          turnId: secondPromptId ?? secondTurnId,
+          turnIndex: 2,
+        },
+      ]);
+    },
+  );
 });

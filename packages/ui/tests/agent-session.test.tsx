@@ -350,6 +350,26 @@ describe("agent session", () => {
     });
   });
 
+  it("closes detected Claude turns without prompt ids and preserves Record linkage", () => {
+    const session = createAgentSessionFromText(
+      [
+        '{"type":"user","uuid":"user-1","timestamp":1000,"message":{"content":"First"}}',
+        '{"type":"assistant","uuid":"assistant-1","timestamp":3000,"message":{"content":"Reply"}}',
+        '{"type":"user","uuid":"user-2","timestamp":60000,"message":{"content":"Second"}}',
+      ].join("\n"),
+    );
+
+    expect(session?.fileType).toBe("Claude Code");
+    const model = createAgentSessionModel(session!);
+    expect(model.trajectory.turns).toMatchObject([
+      { turnIndex: 1, status: "completed", endedAt: 3_000, durationMs: 2_000 },
+      { turnIndex: 2, status: "running" },
+    ]);
+    expect(
+      model.trajectory.items.map((item) => model.resolveDetail(item.selection)?.recordId),
+    ).toEqual(["record-1", "record-2", "record-3"]);
+  });
+
   it("links Claude tool results to tool calls", () => {
     const session = createAgentSessionFromText(
       [

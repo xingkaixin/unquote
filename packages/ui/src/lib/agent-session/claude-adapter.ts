@@ -368,16 +368,13 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
     }
 
     const lifecycle: AgentSessionEvidence[] = [];
-    if (
-      previous &&
-      !previous.closed &&
-      previous.turnId !== undefined &&
-      previous.lastTimestamp !== undefined
-    ) {
+    if (previous && !previous.closed && previous.lastTimestamp !== undefined) {
       lifecycle.push({
         kind: "turn-lifecycle",
         phase: "complete",
-        turnId: previous.turnId,
+        ...(previous.turnId === undefined
+          ? { turnIndex: previous.index }
+          : { turnId: previous.turnId }),
         timestamp: previous.lastTimestamp,
       });
     }

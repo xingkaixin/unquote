@@ -50,11 +50,16 @@ const syntheticTurnScope = (eventId: string): TrajectoryTurnScope => ({
 const trajectoryTurnId = (scope: TrajectoryTurnScope) =>
   JSON.stringify([scope.source, scope.value]);
 
+const trajectoryTurnIndexFor = (event: AgentTimelineEvent, evidence: AgentSessionEvidence) =>
+  (evidence.kind === "turn-lifecycle"
+    ? finiteTrajectoryTurnIndex(evidence.turnIndex)
+    : undefined) ?? finiteTrajectoryTurnIndex(event.turnIndex);
+
 const trajectoryTurnScopeFor = (
   event: AgentTimelineEvent,
   evidence: AgentSessionEvidence,
 ): TrajectoryTurnScope | null => {
-  const turnIndex = finiteTrajectoryTurnIndex(event.turnIndex);
+  const turnIndex = trajectoryTurnIndexFor(event, evidence);
   const scope = toolCorrelationScope(evidence.turnId, turnIndex);
   if (scope.source !== "anonymous") {
     return scope;
@@ -217,7 +222,7 @@ export const createTrajectoryTurnTracker = () => {
     evidence: AgentSessionEvidence,
     source: TrajectoryWarningSource,
   ) => {
-    const turnIndex = finiteTrajectoryTurnIndex(event.turnIndex);
+    const turnIndex = trajectoryTurnIndexFor(event, evidence);
     const scope = trajectoryTurnScopeFor(event, evidence);
     if (!scope) {
       return null;

@@ -47,6 +47,8 @@ interface AgentSessionEvidenceBase {
 export interface AgentTurnLifecycleEvidence extends AgentSessionEvidenceBase {
   kind: "turn-lifecycle";
   phase: "start" | "complete" | "failed" | "aborted";
+  // Target turn when a later event closes an earlier turn without an id.
+  turnIndex?: number;
   // Boundary moment stated by the adapter when it differs from the carrying
   // event's own timestamp, e.g. a turn closed retroactively by a later record.
   timestamp?: number;
