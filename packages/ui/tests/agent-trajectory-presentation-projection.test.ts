@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAgentSessionModel,
   type AgentSessionModel,
   type AgentTrajectoryItem,
   type AgentTrajectoryWarning,
 } from "../src/lib/agent-session";
+import { claudeTranscriptAdapter } from "../src/lib/agent-session/claude-adapter";
 import {
   createAgentTrajectoryPresentation,
   filterAgentTrajectoryPresentation,
@@ -18,6 +20,7 @@ import {
   turnFor,
   modelFor,
 } from "./agent-trajectory-presentation.support";
+import { parsedLine } from "./claude-adapter.support";
 
 describe("agent trajectory presentation: projection", () => {
   it("uses canonical event preview before label and falls back to label", () => {
@@ -38,6 +41,63 @@ describe("agent trajectory presentation: projection", () => {
       previewEvent,
       labelEvent,
     ]);
+  });
+
+  it("uses each Claude content block for its trajectory summary and search", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    const thinking = "I should inspect\nboth files.";
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-files",
+          message: { content: "Inspect files" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "assistant",
+          message: {
+            content: [
+              { type: "thinking", thinking },
+              {
+                type: "tool_use",
+                id: "read-first",
+                name: "Read",
+                input: { file_path: "first.json" },
+              },
+              {
+                type: "tool_use",
+                id: "read-second",
+                name: "Read",
+                input: { file_path: "second.json" },
+              },
+            ],
+          },
+        },
+        2,
+      ),
+    );
+    const presentation = createAgentTrajectoryPresentation(
+      createAgentSessionModel(builder.finish([])),
+    );
+
+    expect(presentation.items.map((item) => item.summary)).toEqual([
+      "Inspect files",
+      "I should inspect both files.",
+      '{ "file_path": "first.json" }',
+      '{ "file_path": "second.json" }',
+    ]);
+    expect(
+      filterAgentTrajectoryPresentation(presentation, { query: "second.json" }).visibleItems,
+    ).toMatchObject([{ item: { kind: "tool", callId: "read-second" } }]);
+    expect(
+      filterAgentTrajectoryPresentation(presentation, { query: "I should inspect both files." })
+        .visibleItems,
+    ).toMatchObject([{ item: { kind: "reasoning" } }]);
   });
 
   it("projects system activity into the activity lane and canonical kind filter", () => {
