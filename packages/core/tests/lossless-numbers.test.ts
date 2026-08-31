@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   formatResult,
   materializeNode,
@@ -138,6 +138,43 @@ describe("lossless JSON numbers", () => {
     expect(parseInput(source, { forcedFormat: "json" }).records[0]).toMatchObject({
       status: "failed",
     });
+  });
+
+  it.each(["{1:2}", "{-1:2}", "{1.5:2}", "{1e2:2}"])(
+    'rejects unquoted numeric object keys in the fallback "%s"',
+    (source) => {
+      expect(() => parseLosslessJsonFallback(source)).toThrow(SyntaxError);
+    },
+  );
+
+  it("preserves source syntax without native parse context", async () => {
+    const nativeParse = JSON.parse;
+    vi.resetModules();
+    const parse = vi.spyOn(JSON, "parse").mockImplementation((text, reviver) =>
+      nativeParse(
+        text,
+        reviver
+          ? function (key, value) {
+              return reviver.call(this, key, value);
+            }
+          : undefined,
+      ),
+    );
+
+    try {
+      const legacyParser = await import("../src/parser");
+      const source = '{"raw":"{1:2}","value":9007199254740993}';
+      expect(legacyParser.formatResult(legacyParser.parseInput(source), { indent: 0 })).toBe(
+        source,
+      );
+
+      const jsonl = legacyParser.parseInput(`${source}\n{1:2}`);
+      expect(jsonl.stats).toEqual({ total: 2, success: 1, failed: 1 });
+      expect(legacyParser.formatResult(jsonl)).toBe(`${source}\nnull`);
+    } finally {
+      parse.mockRestore();
+      vi.resetModules();
+    }
   });
 
   it("rejects an invalid exact-number node instead of emitting malformed JSON", () => {

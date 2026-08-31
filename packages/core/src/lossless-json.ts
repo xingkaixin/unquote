@@ -241,31 +241,12 @@ const toLosslessValue = (root: unknown, marker: string): LosslessJsonValue => {
   return converted.get(root)!;
 };
 
-const getNativeParseError = (input: string) => {
-  try {
-    JSON.parse(input);
-    return null;
-  } catch (error) {
-    return error;
-  }
-};
-
 export const parseLosslessJsonFallback = (input: string): LosslessJsonValue => {
+  // Replacing numbers can turn invalid numeric object keys into valid strings.
+  JSON.parse(input);
   const marker = chooseNumberMarker(input);
   const transformed = replaceNumbers(input, marker);
-
-  try {
-    return toLosslessValue(JSON.parse(transformed) as unknown, marker);
-  } catch (transformedError) {
-    if (transformed === input) {
-      throw transformedError;
-    }
-    const originalError = getNativeParseError(input);
-    if (originalError) {
-      throw originalError;
-    }
-    throw transformedError;
-  }
+  return toLosslessValue(JSON.parse(transformed) as unknown, marker);
 };
 
 const parseWithSourceContext = (input: string) =>
