@@ -74,17 +74,18 @@ export const useRecordPipeline = ({
   useLayoutEffect(() => {
     derivationStateRef.current = derivations.state;
   }, [derivations.state]);
+  const matchLineNumbers = searchResult?.matchLineNumbers ?? null;
   const visibleRecords = useMemo(
-    () => filterRecords(result.records, recordFilter, searchResult, recordInsights),
-    [recordFilter, recordInsights, result.records, searchResult],
+    () => filterRecords(result.records, recordFilter, matchLineNumbers, recordInsights),
+    [recordFilter, recordInsights, result.records, matchLineNumbers],
   );
   const visibleStats = useMemo(
     () => (recordFilter === "all" ? result.stats : getRecordStats(visibleRecords)),
     [recordFilter, result.stats, visibleRecords],
   );
   const searchVisibility = useMemo(
-    () => createSearchResultVisibility(searchResult, visibleRecords),
-    [searchResult, visibleRecords],
+    () => createSearchResultVisibility(matchLineNumbers, visibleRecords),
+    [matchLineNumbers, visibleRecords],
   );
   const searchProjection = useMemo(
     () => projectSearchResult(searchResult, searchVisibility, currentMatchIndex),

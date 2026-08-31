@@ -4,7 +4,7 @@ import { isWithinMainThreadBudget } from "./main-thread-budget";
 import { parseTextResult } from "./parse-text-result";
 import { startPerfMeasure } from "./perf";
 import { searchRecords } from "./record-search";
-import type { SearchOptions, SearchResultSet } from "./record-search";
+import type { SearchOptions, SearchResultSet, SearchResultWindow } from "./record-search";
 import type { SearchErrorKind } from "./search-lifecycle";
 import type { SourceRevision } from "./source-revision";
 import { createWorkerRequestRunner } from "./worker-lifecycle";
@@ -71,6 +71,7 @@ export interface SearchExecution {
 
 export interface SearchExecutionCallbacks {
   onComplete: (result: SearchResultSet | null) => void;
+  onWindowComplete: (window: SearchResultWindow) => void;
   onFailure: (errorKind: SearchErrorKind) => void;
 }
 
@@ -89,12 +90,19 @@ export const createSearchExecutor = (): SearchExecutor => {
   return {
     run(
       { sourceRevision, text, forcedFormat, sourceAccess, query, options, windowIndexes },
-      { onComplete, onFailure },
+      { onComplete, onWindowComplete, onFailure },
     ) {
       const finishRequestMeasure = startPerfMeasure("search:request");
       const fail = (errorKind: SearchErrorKind) => {
         finishRequestMeasure();
         onFailure(errorKind);
+      };
+      const complete = (result: SearchResultSet | null) => {
+        if (windowIndexes && result) {
+          onWindowComplete(result.window);
+        } else {
+          onComplete(result);
+        }
       };
 
       let workerRun: WorkerRun;
@@ -108,6 +116,8 @@ export const createSearchExecutor = (): SearchExecutor => {
           reportDiagnostic("search.worker", response.message);
           workerSourceRevision = null;
           onFailure("worker-error");
+        } else if (response.type === "window") {
+          onWindowComplete(response.window);
         } else {
           onComplete(response.result);
         }
@@ -135,7 +145,7 @@ export const createSearchExecutor = (): SearchExecutor => {
             .then((result) => {
               finishRequestMeasure();
               if (!fallbackController?.signal.aborted && workerRun.finish()) {
-                onComplete(result);
+                complete(result);
               }
             })
             .catch((error: unknown) => {
@@ -157,7 +167,7 @@ export const createSearchExecutor = (): SearchExecutor => {
         const searchResult = searchRecords(result.records, query, options, windowIndexes);
         workerRun.finish();
         finishRequestMeasure();
-        onComplete(searchResult);
+        complete(searchResult);
       };
 
       if (!workerRun.available) {

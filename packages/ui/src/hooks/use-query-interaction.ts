@@ -136,9 +136,10 @@ export const useQueryInteraction = ({
   });
 
   const pathResult = revisionsAligned && mode === "path" ? searchWorker.result : null;
+  const pathMatchLineNumbers = pathResult?.matchLineNumbers ?? null;
   const pathVisibility = useMemo(
-    () => createSearchResultVisibility(pathResult, pipeline.visibleRecords),
-    [pathResult, pipeline.visibleRecords],
+    () => createSearchResultVisibility(pathMatchLineNumbers, pipeline.visibleRecords),
+    [pathMatchLineNumbers, pipeline.visibleRecords],
   );
   const requestedPathIndex = mode === "path" ? state.modeState.currentIndex : 0;
   const pathProjection = useMemo(

@@ -3,7 +3,7 @@ import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseTextResult } from "../lib/parse-text-result";
 import type { SourceRevision } from "../lib/source-revision";
 import { createMemorySearch } from "../lib/memory-search";
-import type { SearchOptions, SearchResultSet } from "../lib/record-search";
+import type { SearchOptions, SearchResultSet, SearchResultWindow } from "../lib/record-search";
 
 type TextSearchSource =
   | {
@@ -38,6 +38,7 @@ export type SearchRequest =
 
 export type SearchWorkerResponse =
   | { type: "result"; requestId: number; result: SearchResultSet | null }
+  | { type: "window"; requestId: number; window: SearchResultWindow }
   | { type: "error"; requestId: number; message: string };
 
 type SearchSourceCache =
@@ -91,17 +92,21 @@ const searchFile = ({
 // the worker must not echo user input back through unrelated channels.
 const errorMessage = (error: unknown) => (error instanceof Error ? error.name : "search failed");
 
+const postResult = (request: SearchRequest, result: SearchResultSet | null) => {
+  const response: SearchWorkerResponse =
+    request.windowIndexes && result
+      ? { type: "window", requestId: request.requestId, window: result.window }
+      : { type: "result", requestId: request.requestId, result };
+  self.postMessage(response);
+};
+
 self.onmessage = (event: MessageEvent<SearchRequest>) => {
   const message = event.data;
 
   if (message.type === "search-text") {
     try {
       const result = searchText(message);
-      self.postMessage({
-        type: "result",
-        requestId: message.requestId,
-        result,
-      } satisfies SearchWorkerResponse);
+      postResult(message, result);
     } catch (error) {
       self.postMessage({
         type: "error",
@@ -114,11 +119,7 @@ self.onmessage = (event: MessageEvent<SearchRequest>) => {
 
   searchFile(message)
     .then((result) => {
-      self.postMessage({
-        type: "result",
-        requestId: message.requestId,
-        result,
-      } satisfies SearchWorkerResponse);
+      postResult(message, result);
     })
     .catch((error: unknown) => {
       self.postMessage({

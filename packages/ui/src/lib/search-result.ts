@@ -44,16 +44,16 @@ const visitVisibleMatchIndexes = (
 };
 
 export const createSearchResultVisibility = (
-  result: SearchResultSet | null,
+  matchLineNumbers: Float64Array | null,
   visibleRecords: readonly JsonlRecord[],
 ): SearchResultVisibility => {
-  if (!result) {
+  if (!matchLineNumbers) {
     return emptyVisibility;
   }
 
   let globalMatchIndexes: number[] | null = null;
   const matchCount = visitVisibleMatchIndexes(
-    result.matchLineNumbers,
+    matchLineNumbers,
     visibleRecords,
     (globalIndex, visibleIndex) => {
       if (!globalMatchIndexes && globalIndex !== visibleIndex) {

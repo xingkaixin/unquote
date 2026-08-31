@@ -123,9 +123,10 @@ export const useSearchWorker = (params: {
     windowRequest && hasSameSearchIdentity(windowRequest, searchIdentity)
       ? windowRequest.matchIndexes
       : undefined;
+  const canRequestWindow = hasSameSearchIdentity(state, searchIdentity) && state.result !== null;
   const requestWindow = useCallback(
     (matchIndexes: Float64Array) => {
-      if (matchIndexes.length === 0) {
+      if (!canRequestWindow || matchIndexes.length === 0) {
         return;
       }
       const nextIndexes = Float64Array.from(matchIndexes);
@@ -140,7 +141,7 @@ export const useSearchWorker = (params: {
         return { ...searchIdentity, matchIndexes: nextIndexes };
       });
     },
-    [searchIdentity],
+    [canRequestWindow, searchIdentity],
   );
 
   useEffect(() => () => executor.dispose(), [executor]);
@@ -148,10 +149,12 @@ export const useSearchWorker = (params: {
   useEffect(() => {
     if (!query) {
       executor.invalidate();
+      setWindowRequest(null);
       commitState(idleResult(searchIdentity));
       return;
     }
     if (!activeWindowIndexes) {
+      setWindowRequest(null);
       commitState(pendingResult(searchIdentity));
     }
 
@@ -169,6 +172,12 @@ export const useSearchWorker = (params: {
         },
         {
           onComplete: (result) => commitState(completedResult(searchIdentity, result)),
+          onWindowComplete: (resultWindow) =>
+            commitState((current) =>
+              hasSameSearchIdentity(current, searchIdentity) && current.result
+                ? { ...current, result: { ...current.result, window: resultWindow } }
+                : current,
+            ),
           onFailure: (errorKind) => commitState(failedResult(searchIdentity, errorKind)),
         },
       );
