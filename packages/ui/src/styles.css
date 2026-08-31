@@ -229,6 +229,29 @@ a,
   color: var(--foreground);
 }
 
+@media (min-width: 1024px) {
+  .uq-import-empty {
+    --import-art: url("./assets/import-background-light.webp");
+    /* Keep the 660px import column and a 20px margin clear of artwork. */
+    background-image:
+      linear-gradient(
+        90deg,
+        transparent calc(50% - 480px),
+        var(--background) calc(50% - 350px),
+        var(--background) calc(50% + 350px),
+        transparent calc(50% + 480px)
+      ),
+      var(--import-art);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+
+  .dark .uq-import-empty {
+    --import-art: url("./assets/import-background-dark.webp");
+  }
+}
+
 .uq-area::placeholder,
 .uq-search::placeholder {
   color: var(--color-text-tertiary);
