@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { isFullRecord, parseJsonlRecordLine } from "@unquote/core";
 import { FileJson2 } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
@@ -39,18 +40,17 @@ interface ToolField {
 // Tool arguments arrive as text that is truncated at the adapter boundary, so a
 // parse failure is expected and falls back to the raw block text.
 const parseToolFields = (text: string): ToolField[] | null => {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
+  // Only build field nodes; nested containers retain their original string values.
+  const record = parseJsonlRecordLine(text, 1, { maxDepth: 1 });
+  if (!isFullRecord(record)) {
+    return null;
+  }
+  const node = record.node;
+  if (node.kind !== "object" || node.rawString !== undefined || !node.children) {
     return null;
   }
 
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return null;
-  }
-
-  return Object.entries(parsed).map(([key, value]) => ({
+  return Object.entries(node.children).map(([key, value]) => ({
     key,
     value: formatAgentFieldValue(value),
   }));

@@ -234,8 +234,42 @@ describe("AgentConversationPane", () => {
     expect(screen.getByText("30")).toBeInTheDocument();
   });
 
+  it("preserves number lexemes in expanded tool fields and nested containers", () => {
+    const entries = [
+      buildEntry(1, {
+        type: "tool_use",
+        text: '{"id":9007199254740993,"huge":1e400,"minusZero":-0,"nested":{"values":[9007199254740993,1e400,-0]}}',
+      }),
+    ];
+
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getByText("9007199254740993")).toBeInTheDocument();
+    expect(screen.getByText("1e400")).toBeInTheDocument();
+    expect(screen.getByText("-0")).toBeInTheDocument();
+    expect(screen.getByText('{"values":[9007199254740993,1e400,-0]}')).toBeInTheDocument();
+  });
+
+  it("preserves JSON-looking string fields without expanding their contents", () => {
+    const payload = '{ "value": 9007199254740993, "nested": "{\\"ok\\":true}" }';
+    const entries = [buildEntry(1, { type: "tool_use", text: JSON.stringify({ payload }) })];
+
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getByText(payload, { normalizer: (text) => text })).toBeInTheDocument();
+  });
+
+  it("shows a JSON-encoded root string as raw text instead of a field table", () => {
+    const text = JSON.stringify('{"cmd":"echo hello"}');
+    const entries = [buildEntry(1, { type: "tool_use", text })];
+
+    renderPane(entries, { selectedConversationId: "item-1" });
+
+    expect(screen.getByText(text, { selector: "pre" })).toBeInTheDocument();
+  });
+
   it("bounds deeply nested field values when a tool card expands", () => {
-    const nestedValue = `${"[".repeat(2_000)}"ok"${"]".repeat(2_000)}`;
+    const nestedValue = `${"[".repeat(5_000)}"ok"${"]".repeat(5_000)}`;
     const entries = [
       buildEntry(1, {
         type: "tool_use",
@@ -246,7 +280,8 @@ describe("AgentConversationPane", () => {
     renderPane(entries, { selectedConversationId: "item-1" });
 
     expect(screen.getByText("payload")).toBeInTheDocument();
-    expect(screen.getByText(/\.\.\. \[truncated\]$/)).toBeInTheDocument();
+    const preview = screen.getByText(/\.\.\. \[truncated\]$/);
+    expect(preview.textContent!.length).toBeLessThanOrEqual(8_000 + "... [truncated]".length);
   });
 
   it("falls back to the raw text when the tool payload is not a JSON object", () => {

@@ -1,4 +1,9 @@
-import { DEFAULT_MAX_DEPTH, truncateAtCodePointBoundary } from "@unquote/core";
+import {
+  DEFAULT_MAX_DEPTH,
+  stringifyJsonNodeBounded,
+  truncateAtCodePointBoundary,
+  type JsonNode,
+} from "@unquote/core";
 
 const previewLimit = 160;
 const blockTextLimit = 8000;
@@ -23,8 +28,6 @@ type Frame =
       hasEntries: boolean;
       depth: number;
     };
-
-type Layout = "compact" | "pretty";
 
 interface Writer {
   append: (value: string) => boolean;
@@ -144,17 +147,13 @@ const writePrimitive = (writer: Writer, value: unknown) => {
   return false;
 };
 
-const containerPrefix = (layout: Layout, depth: number, hasEntries: boolean) => {
-  if (layout === "compact") {
-    return hasEntries ? "," : "";
-  }
-  return `${hasEntries ? "," : ""}\n${"  ".repeat(depth + 1)}`;
-};
+const containerPrefix = (depth: number, hasEntries: boolean) =>
+  `${hasEntries ? "," : ""}\n${"  ".repeat(depth + 1)}`;
 
-const containerSuffix = (layout: Layout, depth: number, hasEntries: boolean) =>
-  layout === "pretty" && hasEntries ? `\n${"  ".repeat(depth)}` : "";
+const containerSuffix = (depth: number, hasEntries: boolean) =>
+  hasEntries ? `\n${"  ".repeat(depth)}` : "";
 
-const serializeBounded = (value: unknown, layout: Layout, limit: number) => {
+const serializeBounded = (value: unknown, limit: number) => {
   const writer = createWriter(limit);
   const activeContainers = new Set<ContainerValue>();
   const stack: Frame[] = [{ type: "value", value, depth: 0 }];
@@ -219,7 +218,7 @@ const serializeBounded = (value: unknown, layout: Layout, limit: number) => {
 
     if (frame.type === "array") {
       if (frame.index >= frame.length) {
-        writer.append(containerSuffix(layout, frame.depth, frame.index > 0));
+        writer.append(containerSuffix(frame.depth, frame.index > 0));
         writer.append("]");
         activeContainers.delete(frame.value);
         continue;
@@ -232,7 +231,7 @@ const serializeBounded = (value: unknown, layout: Layout, limit: number) => {
         writer.truncate();
         continue;
       }
-      writer.append(containerPrefix(layout, frame.depth, frame.index > 0));
+      writer.append(containerPrefix(frame.depth, frame.index > 0));
       stack.push({ ...frame, index: frame.index + 1 });
       stack.push({ type: "value", value: item, depth: frame.depth + 1 });
       continue;
@@ -246,7 +245,7 @@ const serializeBounded = (value: unknown, layout: Layout, limit: number) => {
       continue;
     }
     if (nextKey.done) {
-      writer.append(containerSuffix(layout, frame.depth, frame.hasEntries));
+      writer.append(containerSuffix(frame.depth, frame.hasEntries));
       writer.append("}");
       activeContainers.delete(frame.value);
       continue;
@@ -263,9 +262,9 @@ const serializeBounded = (value: unknown, layout: Layout, limit: number) => {
       continue;
     }
 
-    writer.append(containerPrefix(layout, frame.depth, frame.hasEntries));
+    writer.append(containerPrefix(frame.depth, frame.hasEntries));
     writeJsonString(writer, nextKey.value);
-    writer.append(layout === "compact" ? ":" : ": ");
+    writer.append(": ");
     frame.hasEntries = true;
     stack.push({ type: "value", value: item, depth: frame.depth + 1 });
   }
@@ -288,15 +287,17 @@ export const formatAgentBlockValue = (value: unknown) => {
   if (value === undefined || value === null) {
     return "";
   }
-  return serializeBounded(value, "pretty", blockTextLimit);
+  return serializeBounded(value, blockTextLimit);
 };
 
 export const formatAgentPreviewValue = (value: unknown) =>
   truncatePreview(formatAgentBlockValue(value));
 
-export const formatAgentFieldValue = (value: unknown) => {
-  if (typeof value === "string") {
-    return truncateBlockText(value);
+export const formatAgentFieldValue = (node: JsonNode) => {
+  const stringValue = node.rawString ?? (node.kind === "string" ? node.value : undefined);
+  if (stringValue !== undefined) {
+    return truncateBlockText(stringValue);
   }
-  return serializeBounded(value, "compact", blockTextLimit);
+  const result = stringifyJsonNodeBounded(node, blockTextLimit, { indent: 0 });
+  return result.truncated ? `${result.text}${truncationSuffix}` : result.text;
 };
