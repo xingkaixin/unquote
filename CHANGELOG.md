@@ -5,6 +5,33 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.1] - 2026-08-31
+
+### Added
+
+- Added privacy-preserving, cookie-less visit tracking to the web app using self-hosted Umami, guarded by automated privacy boundary and bundle budget tests.
+- In-memory imports (paste and drop) now enforce an explicit size boundary with localized feedback when an input exceeds safe memory thresholds.
+
+### Changed
+
+- Large local JSONL export now streams and chunks record serialization, eliminating memory spikes and main-thread freezes during high-volume exports.
+- Local file record parsing and hydration now run off the main thread in dedicated, reusable Web Workers, keeping navigation and inspection responsive during heavy file operations.
+- Local JSONL line scanning and file access logic were unified across parsing and search paths, and obsolete file handles are explicitly released when switching or closing sources.
+- Agent conversation turns and trajectory event counts are now derived directly from parsed event streams and linked by conversation ID, reducing internal state complexity.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.1`.
+
+### Fixed
+
+- Claude Code turns without explicit prompt IDs now close correctly from subsequent event evidence instead of remaining indefinitely open.
+- Number fields inside Agent tool call arguments and results now retain their exact source lexemes without losing precision or mutating large integers.
+- The lossless JSON fallback parser now validates source syntax strictly, rejecting malformed input instead of producing invalid nodes.
+- Search-driven expansion and manual tree expansion controls are now unified, preventing state divergence and unexpected collapses when toggling nodes after a search.
+- Search match indexes are retained across result window updates, avoiding redundant re-indexing and keeping match navigation stable while scrolling.
+- JSONPath and jq query paths now evaluate against complete sources rather than partial preview records, preventing incomplete path match results.
+- Copy and export operations now strictly reject incomplete or unhydrated preview records, preventing corrupted or empty data output.
+- Trajectory detail previews now properly extract and format multi-part content blocks from assistant turns.
+- Microsoft Edge Add-ons Japanese store screenshots now use the standard PNG format required for store submissions.
+
 ## [1.2.0] - 2026-08-24
 
 ### Added
