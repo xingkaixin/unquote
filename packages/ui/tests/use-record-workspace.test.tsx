@@ -381,6 +381,109 @@ describe("useRecordWorkspace", () => {
     expect(workspace.current.model.scrollIntent).toBe(scrollIntent);
   });
 
+  it("closes a search-expanded path without retaining it after the search clears", async () => {
+    const sourceText = JSON.stringify({ payload: JSON.stringify({ target: true }) });
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+
+    act(() => workspace.current.testQuery.intent.changeToolbarQuery("target"));
+    await waitFor(() =>
+      expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(
+        new Set(["$.payload"]),
+      ),
+    );
+
+    act(() =>
+      workspace.current.model.intent.recordView.togglePath(result.records[0]!.id, "$.payload"),
+    );
+    expect(workspace.current.model.active.expandedStringifiedPaths.size).toBe(0);
+
+    act(() => workspace.current.testQuery.intent.clearToolbarQuery());
+    await waitFor(() => expect(workspace.current.testQuery.snapshot.searchStatus).toBe("idle"));
+    expect(workspace.current.model.active.expandedStringifiedPaths.size).toBe(0);
+  });
+
+  it("keeps a manually reopened search path expanded after the search clears", async () => {
+    const sourceText = JSON.stringify({ payload: JSON.stringify({ target: true }) });
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+
+    act(() => workspace.current.testQuery.intent.changeToolbarQuery("target"));
+    await waitFor(() => expect(workspace.current.model.active.expandedNestedCount).toBe(1));
+
+    act(() =>
+      workspace.current.model.intent.recordView.togglePath(result.records[0]!.id, "$.payload"),
+    );
+    act(() =>
+      workspace.current.model.intent.recordView.togglePath(result.records[0]!.id, "$.payload"),
+    );
+    act(() => workspace.current.testQuery.intent.clearToolbarQuery());
+
+    await waitFor(() => expect(workspace.current.testQuery.snapshot.searchStatus).toBe("idle"));
+    expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(new Set(["$.payload"]));
+  });
+
+  it("closes only the selected search path and reopens it for navigation or a new query", async () => {
+    const sourceText = JSON.stringify({
+      first: JSON.stringify({ target: "alpha" }),
+      second: JSON.stringify({ target: "beta" }),
+    });
+    const result = parseInput(sourceText, { forcedFormat: "jsonl" });
+    const { result: workspace } = renderHook(
+      () =>
+        useTestWorkspace({
+          sourceRevision: 0,
+          resultRevision: 0,
+          sourceText,
+          result,
+          recordAppend: null,
+        }),
+      { wrapper },
+    );
+    const recordId = result.records[0]!.id;
+
+    act(() => workspace.current.testQuery.intent.changeToolbarQuery("target"));
+    await waitFor(() =>
+      expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(
+        new Set(["$.first", "$.second"]),
+      ),
+    );
+
+    act(() => workspace.current.model.intent.recordView.togglePath(recordId, "$.first"));
+    expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(new Set(["$.second"]));
+
+    act(() => workspace.current.testQuery.intent.nextResult());
+    expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(
+      new Set(["$.first", "$.second"]),
+    );
+
+    act(() => workspace.current.model.intent.recordView.togglePath(recordId, "$.first"));
+    act(() => workspace.current.testQuery.intent.changeToolbarQuery("alpha"));
+    await waitFor(() =>
+      expect(workspace.current.model.active.expandedStringifiedPaths).toEqual(new Set(["$.first"])),
+    );
+  });
+
   it("keeps Collapse All authoritative until the search window changes", async () => {
     const sourceText = JSON.stringify({ payload: JSON.stringify({ target: true }) });
     const result = parseInput(sourceText, { forcedFormat: "jsonl" });

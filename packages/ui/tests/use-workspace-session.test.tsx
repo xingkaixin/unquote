@@ -162,7 +162,7 @@ describe("useWorkspaceSession", () => {
     }).records;
     const { result } = renderHook(() => useWorkspaceSession(0));
 
-    act(() => result.current.expandAll(records, new Map()));
+    act(() => result.current.expandAll(records));
 
     expect([...result.current.state.expandedPaths.get(records[0]!.id)!].sort()).toEqual([
       "$.payload",
@@ -175,9 +175,11 @@ describe("useWorkspaceSession", () => {
       forcedFormat: "jsonl",
     }).records;
     const { result } = renderHook(() => useWorkspaceSession(0));
-    const staleSeed = new Map([[records[0]!.id, new Set(["$.gone"])]]);
+    act(() =>
+      result.current.setSampleExpansions(0, [{ recordId: records[0]!.id, paths: ["$.gone"] }]),
+    );
 
-    act(() => result.current.expandAll(records, staleSeed));
+    act(() => result.current.expandAll(records));
 
     expect([...result.current.state.expandedPaths.get(records[0]!.id)!]).toEqual(["$.payload"]);
   });

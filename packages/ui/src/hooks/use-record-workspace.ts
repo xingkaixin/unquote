@@ -8,9 +8,7 @@ import type { PublishedSourceRevision } from "../lib/published-source";
 import {
   getExpandedStringifiedPaths,
   groupExpandedStringifiedPaths,
-  mergeExpandedStringifiedPaths,
 } from "../lib/record-expansion";
-import type { ExpandedStringifiedPathsByRecord } from "../lib/record-expansion";
 import { isCopyRecordCountAboveThreshold } from "../lib/record-export";
 import { recordContainsStringifiedJson } from "../lib/record-filter";
 import type { NestedFilterScope } from "../lib/record-filter";
@@ -48,22 +46,6 @@ interface RecordWorkspaceQuery {
   intent: Pick<QueryInteraction["intent"], "revealAllRecords" | "setFilter">;
 }
 
-const applySearchExpansionSuppressions = (
-  paths: ExpandedStringifiedPathsByRecord,
-  suppressions: ReadonlyMap<string, number>,
-  searchExpansionRevision: number,
-) => {
-  let projected: Map<string, ReadonlySet<string>> | null = null;
-  for (const [recordId, suppressedRevision] of suppressions) {
-    if (suppressedRevision !== searchExpansionRevision || !paths.has(recordId)) {
-      continue;
-    }
-    projected ??= new Map(paths);
-    projected.delete(recordId);
-  }
-  return projected ?? paths;
-};
-
 interface UseRecordWorkspaceParams {
   source: PublishedSourceRevision;
   result: ParseResult;
@@ -79,7 +61,6 @@ export const useRecordWorkspace = ({
 }: UseRecordWorkspaceParams) => {
   const { t } = useTranslation();
   const { sourceAccess, sourceRevision } = resolveSourceWork(source);
-  const workspace = useWorkspaceSession(sourceRevision);
   const localFileSource = useLocalFileSource(sourceAccess, sourceRevision);
   const {
     activeSearchMatch,
@@ -91,6 +72,16 @@ export const useRecordWorkspace = ({
     visibleMatches,
   } = query.snapshot;
   const queryMatches = visibleMatches ?? emptySearchMatches;
+  const groupedSearchExpandedPaths = useMemo(
+    () => groupExpandedStringifiedPaths(queryMatches),
+    [queryMatches],
+  );
+  const workspace = useWorkspaceSession(
+    sourceRevision,
+    groupedSearchExpandedPaths,
+    query.searchExpansionRevision,
+  );
+  const displayedExpandedPaths = workspace.displayedExpandedPaths;
   const selectionVisibility = useMemo<WorkspaceSelectionVisibility>(
     () => ({
       firstRecordId: visibleRecords[0]?.id ?? null,
@@ -110,33 +101,11 @@ export const useRecordWorkspace = ({
       ),
     [selectionVisibility, visibleRecordAppend, workspace.state.selection],
   );
-  const groupedSearchExpandedPaths = useMemo(
-    () => groupExpandedStringifiedPaths(queryMatches),
-    [queryMatches],
-  );
-  const projectedSearchExpandedPaths = useMemo(
-    () =>
-      applySearchExpansionSuppressions(
-        groupedSearchExpandedPaths,
-        workspace.state.searchExpansionSuppressions,
-        query.searchExpansionRevision,
-      ),
-    [
-      groupedSearchExpandedPaths,
-      query.searchExpansionRevision,
-      workspace.state.searchExpansionSuppressions,
-    ],
-  );
   useLayoutEffect(() => {
     if (query.navigation) {
       workspace.navigate(query.navigation.target);
     }
   }, [query.navigation, workspace.navigate]);
-  const displayedExpandedPaths = useMemo(
-    () =>
-      mergeExpandedStringifiedPaths(workspace.state.expandedPaths, projectedSearchExpandedPaths),
-    [projectedSearchExpandedPaths, workspace.state.expandedPaths],
-  );
   const activeRecord = projectedSelection.activeRecordId
     ? (recordsById.get(projectedSelection.activeRecordId) ?? null)
     : null;
@@ -228,21 +197,11 @@ export const useRecordWorkspace = ({
     ],
   );
   const expandAll = useCallback(() => {
-    workspace.expandAll(renderedActiveRecord ? [renderedActiveRecord] : [], displayedExpandedPaths);
-  }, [displayedExpandedPaths, renderedActiveRecord, workspace.expandAll]);
+    workspace.expandAll(renderedActiveRecord ? [renderedActiveRecord] : []);
+  }, [renderedActiveRecord, workspace.expandAll]);
   const collapseAll = useCallback(() => {
-    const recordIds = activeRecord ? [activeRecord.id] : [];
-    const searchExpansionRevision =
-      activeRecord && groupedSearchExpandedPaths.has(activeRecord.id)
-        ? query.searchExpansionRevision
-        : null;
-    workspace.collapseAll(recordIds, searchExpansionRevision);
-  }, [
-    activeRecord,
-    groupedSearchExpandedPaths,
-    query.searchExpansionRevision,
-    workspace.collapseAll,
-  ]);
+    workspace.collapseAll(activeRecord ? [activeRecord.id] : []);
+  }, [activeRecord, workspace.collapseAll]);
   const copySelectedValue = useCallback(() => {
     const selectedNodeCopy = selectedNode.copy;
     if (selectedNodeCopy.kind === "blocked") {
