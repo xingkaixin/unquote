@@ -119,10 +119,14 @@ describe("search worker", () => {
       options: defaultOptions,
       windowIndexes: Float64Array.from([128]),
     });
-    const result = scope.postMessage.mock.calls[1]![0].result;
+    const response = structuredClone(scope.postMessage.mock.calls[1]![0]);
     expect(nodeReads).toBe(1);
-    expect(result.total).toBe(500);
-    expect(result.window.matches).toMatchObject([{ recordId: "record-129" }]);
+    expect(Object.keys(response).sort()).toEqual(["requestId", "type", "window"]);
+    expect(response.type).toBe("window");
+    expect(response.requestId).toBe(2);
+    expect(Object.keys(response.window).sort()).toEqual(["matchIndexes", "matches"]);
+    expect(Array.from(response.window.matchIndexes)).toEqual([128]);
+    expect(response.window.matches).toMatchObject([{ recordId: "record-129" }]);
   });
 
   it("reuses parsed records for the same text across queries", async () => {
@@ -258,6 +262,25 @@ describe("search worker", () => {
     const [response] = workerScope.postMessage.mock.calls[0]!;
     expect(response).toMatchObject({ type: "result", requestId: 1 });
     expect(response.result.window.matches.length).toBeGreaterThan(0);
+
+    dispatch(workerScope, {
+      type: "search-file",
+      requestId: 2,
+      sourceRevision: 1,
+      file,
+      query: "world",
+      options: defaultOptions,
+      windowIndexes: Float64Array.from([0]),
+    });
+
+    await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(2));
+    const windowResponse = structuredClone(workerScope.postMessage.mock.calls[1]![0]);
+    expect(Object.keys(windowResponse).sort()).toEqual(["requestId", "type", "window"]);
+    expect(windowResponse.type).toBe("window");
+    expect(windowResponse.requestId).toBe(2);
+    expect(Object.keys(windowResponse.window).sort()).toEqual(["matchIndexes", "matches"]);
+    expect(Array.from(windowResponse.window.matchIndexes)).toEqual([0]);
+    expect(windowResponse.window.matches).toMatchObject([{ recordId: "record-2" }]);
   });
 
   it("reuses file access for windows within one source revision", async () => {

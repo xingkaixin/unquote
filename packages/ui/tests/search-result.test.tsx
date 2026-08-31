@@ -17,7 +17,12 @@ const project = (
   result: NonNullable<ReturnType<typeof searchRecords>>,
   records: ReturnType<typeof makeRecords>,
   currentIndex: number,
-) => projectSearchResult(result, createSearchResultVisibility(result, records), currentIndex);
+) =>
+  projectSearchResult(
+    result,
+    createSearchResultVisibility(result.matchLineNumbers, records),
+    currentIndex,
+  );
 
 describe("search result windows", () => {
   it("keeps rich matches bounded while retaining the exact total", () => {

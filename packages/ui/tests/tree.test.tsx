@@ -292,21 +292,24 @@ describe("tree paths", () => {
       '{"level":"info","payload":"{\\"nested\\":true}"}\n{"level":"error","message":"boom"}\nnot-json',
       { forcedFormat: "jsonl" },
     );
-    const matches = searchRecords(result.records, "boom", {
+    const matchLineNumbers = searchRecords(result.records, "boom", {
       syntax: "text",
       caseSensitive: false,
-    });
+    })!.matchLineNumbers;
 
     expect(
-      filterRecords(result.records, "matches", matches).map((record) => record.lineNumber),
+      filterRecords(result.records, "matches", matchLineNumbers).map((record) => record.lineNumber),
     ).toEqual([2]);
     expect(
-      filterRecords(result.records, "errors", matches).map((record) => record.lineNumber),
+      filterRecords(result.records, "errors", matchLineNumbers).map((record) => record.lineNumber),
     ).toEqual([3]);
     expect(
-      filterRecords(result.records, "nested", matches, createRecordInsightMap(result.records)).map(
-        (record) => record.lineNumber,
-      ),
+      filterRecords(
+        result.records,
+        "nested",
+        matchLineNumbers,
+        createRecordInsightMap(result.records),
+      ).map((record) => record.lineNumber),
     ).toEqual([1]);
   });
 

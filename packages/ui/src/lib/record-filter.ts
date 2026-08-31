@@ -1,7 +1,6 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { hasJsonNodeChildren, isParsed, isStringifiedNode } from "@unquote/core";
 import type { RecordInsight } from "./record-insight";
-import type { SearchResultSet } from "./record-search";
 
 export type RecordFilterMode =
   | "all"
@@ -50,7 +49,7 @@ const filterMatchedRecords = (records: JsonlRecord[], lineNumbers: Float64Array)
 export const filterRecords = (
   records: JsonlRecord[],
   mode: RecordFilterMode,
-  searchResult: SearchResultSet | null,
+  matchLineNumbers: Float64Array | null,
   insights: Pick<ReadonlyMap<string, RecordInsight>, "get"> = new Map(),
 ) => {
   if (mode === "all") {
@@ -58,7 +57,7 @@ export const filterRecords = (
   }
 
   if (mode === "matches") {
-    return filterMatchedRecords(records, searchResult?.matchLineNumbers ?? new Float64Array());
+    return filterMatchedRecords(records, matchLineNumbers ?? new Float64Array());
   }
 
   if (mode === "errors") {

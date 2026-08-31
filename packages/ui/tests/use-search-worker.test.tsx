@@ -13,7 +13,12 @@ import {
   createStreamingFileSourceRevision,
   createTextSourceRevision,
 } from "../src/lib/published-source";
-import type { SearchMatch, SearchOptions, SearchResultSet } from "../src/lib/record-search";
+import type {
+  SearchMatch,
+  SearchOptions,
+  SearchResultSet,
+  SearchResultWindow,
+} from "../src/lib/record-search";
 import { MockWorkerEvents } from "./helpers/mock-worker-events";
 
 const defaultOptions: SearchOptions = { syntax: "text", caseSensitive: false };
@@ -36,13 +41,15 @@ const resultStub = (recordId?: string): SearchResultSet => ({
   },
 });
 
-const windowResultStub = (matchIndex: number, recordId: string): SearchResultSet => ({
+const windowStub = (matchIndex: number, recordId: string): SearchResultWindow => ({
+  matchIndexes: Float64Array.from([matchIndex]),
+  matches: [matchStub(recordId)],
+});
+
+const indexedResultStub = (matchIndex: number, recordId: string): SearchResultSet => ({
   total: 200,
   matchLineNumbers: Float64Array.from({ length: 200 }, (_, index) => index + 1),
-  window: {
-    matchIndexes: Float64Array.from([matchIndex]),
-    matches: [matchStub(recordId)],
-  },
+  window: windowStub(matchIndex, recordId),
 });
 
 class MockWorker extends MockWorkerEvents {
@@ -79,6 +86,7 @@ interface RenderLogEntry {
   sourceFile: File | null;
   status: string;
   matches: string;
+  result: SearchResultSet | null;
 }
 let renderLog: RenderLogEntry[] = [];
 
@@ -119,6 +127,7 @@ const Probe = ({
     sourceFile,
     status: result.status,
     matches: result.result?.window.matches[0]?.recordId ?? "",
+    result: result.result,
   });
   return (
     <div>
@@ -198,7 +207,30 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("record-id")).toHaveTextContent("second");
   });
 
-  it("loads a requested window immediately from the cached source", async () => {
+  it.each(["pending", "error"] as const)(
+    "ignores window requests while the search is %s",
+    (status) => {
+      render(<Probe query="a" text="text" windowIndexes={Float64Array.from([128])} />);
+      const worker = MockWorker.instances[0]!;
+      if (status === "error") {
+        act(() => worker.respond({ type: "error", requestId: 1, message: "TypeError" }));
+      }
+
+      fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+
+      expect(MockWorker.instances).toHaveLength(1);
+      expect(worker.postMessage).toHaveBeenCalledTimes(1);
+      expect(worker.terminated).toBe(false);
+      expect(screen.getByTestId("status")).toHaveTextContent(status);
+      if (status === "pending") {
+        act(() => worker.respond({ type: "result", requestId: 1, result: resultStub("first") }));
+        expect(screen.getByTestId("status")).toHaveTextContent("complete");
+        expect(screen.getByTestId("record-id")).toHaveTextContent("first");
+      }
+    },
+  );
+
+  it("loads a requested window immediately while retaining the completed search index", async () => {
     render(
       <Probe
         query="a"
@@ -209,9 +241,8 @@ describe("useSearchWorker", () => {
     );
     await act(() => vi.advanceTimersByTimeAsync(250));
     const worker = MockWorker.instances[0]!;
-    act(() =>
-      worker.respond({ type: "result", requestId: 1, result: windowResultStub(0, "first") }),
-    );
+    const initialResult = indexedResultStub(0, "first");
+    act(() => worker.respond({ type: "result", requestId: 1, result: initialResult }));
 
     fireEvent.click(screen.getByRole("button", { name: "Load window" }));
 
@@ -227,11 +258,107 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("first");
 
-    act(() =>
-      worker.respond({ type: "result", requestId: 2, result: windowResultStub(128, "next") }),
-    );
+    const nextWindow = windowStub(128, "next");
+    act(() => worker.respond({ type: "window", requestId: 2, window: nextWindow }));
     expect(screen.getByTestId("record-id")).toHaveTextContent("next");
+    expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(initialResult.matchLineNumbers);
+    expect(renderLog.at(-1)?.result?.total).toBe(initialResult.total);
+    expect(renderLog.at(-1)?.result?.window).toBe(nextWindow);
   });
+
+  it("applies only the latest requested window without replacing the search index", () => {
+    const { rerender } = render(
+      <Probe query="a" text="text" windowIndexes={Float64Array.from([128])} />,
+    );
+    const staleWorker = MockWorker.instances[0]!;
+    const initialResult = indexedResultStub(0, "first");
+    act(() => staleWorker.respond({ type: "result", requestId: 1, result: initialResult }));
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+
+    rerender(<Probe query="a" text="text" windowIndexes={Float64Array.from([129])} />);
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+    const currentWorker = MockWorker.instances.at(-1)!;
+    expect(staleWorker.terminated).toBe(true);
+
+    act(() =>
+      currentWorker.respond({ type: "window", requestId: 2, window: windowStub(128, "stale") }),
+    );
+    expect(screen.getByTestId("record-id")).toHaveTextContent("first");
+
+    act(() =>
+      currentWorker.respond({ type: "window", requestId: 3, window: windowStub(129, "latest") }),
+    );
+    expect(screen.getByTestId("record-id")).toHaveTextContent("latest");
+    expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(initialResult.matchLineNumbers);
+    expect(renderLog.at(-1)?.result?.window.matchIndexes).toEqual(Float64Array.from([129]));
+  });
+
+  it.each([
+    ["query", "b", "text", 0],
+    ["source", "a", "different text", 1],
+  ])("ignores a previous window after the %s changes", (_label, query, text, sourceRevision) => {
+    const { rerender } = render(
+      <Probe query="a" text="text" windowIndexes={Float64Array.from([128])} />,
+    );
+    const staleWorker = MockWorker.instances[0]!;
+    act(() =>
+      staleWorker.respond({ type: "result", requestId: 1, result: indexedResultStub(0, "old") }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+
+    rerender(<Probe query={query} text={text} sourceRevision={sourceRevision} />);
+    const currentWorker = MockWorker.instances.at(-1)!;
+    expect(staleWorker.terminated).toBe(true);
+    act(() =>
+      currentWorker.respond({ type: "window", requestId: 2, window: windowStub(128, "stale") }),
+    );
+    expect(screen.getByTestId("status")).toHaveTextContent("pending");
+    expect(screen.getByTestId("record-id")).toBeEmptyDOMElement();
+
+    const currentResult = resultStub("fresh");
+    act(() => currentWorker.respond({ type: "result", requestId: 3, result: currentResult }));
+    act(() =>
+      staleWorker.respond({ type: "window", requestId: 2, window: windowStub(128, "stale") }),
+    );
+    expect(screen.getByTestId("record-id")).toHaveTextContent("fresh");
+    expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(currentResult.matchLineNumbers);
+  });
+
+  it.each(["b", ""])(
+    "requests a fresh index when returning from query %j to an old window request",
+    (intermediateQuery) => {
+      const { rerender } = render(
+        <Probe query="a" text="text" windowIndexes={Float64Array.from([128])} />,
+      );
+      const worker = MockWorker.instances[0]!;
+      act(() =>
+        worker.respond({ type: "result", requestId: 1, result: indexedResultStub(0, "first-a") }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+      act(() =>
+        worker.respond({ type: "window", requestId: 2, window: windowStub(128, "next-a") }),
+      );
+
+      rerender(<Probe query={intermediateQuery} text="text" />);
+      if (intermediateQuery) {
+        act(() => worker.respond({ type: "result", requestId: 3, result: resultStub("first-b") }));
+      }
+      rerender(<Probe query="a" text="text" />);
+
+      expect(worker.postMessage).toHaveBeenLastCalledWith({
+        type: "search-text",
+        requestId: 4,
+        source: { kind: "cached", sourceRevision: 0 },
+        query: "a",
+        options: defaultOptions,
+      });
+      act(() =>
+        worker.respond({ type: "result", requestId: 4, result: indexedResultStub(0, "fresh-a") }),
+      );
+      expect(screen.getByTestId("status")).toHaveTextContent("complete");
+      expect(screen.getByTestId("record-id")).toHaveTextContent("fresh-a");
+    },
+  );
 
   it("terminates a superseded worker and applies only the new query", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
@@ -407,6 +534,38 @@ describe("useSearchWorker", () => {
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+  });
+
+  it("retains the search index when the main-thread memory fallback loads a window", () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const text = Array.from({ length: 200 }, () => '{"value":"needle"}').join("\n");
+    render(<Probe query="needle" text={text} windowIndexes={Float64Array.from([128])} />);
+    const initialIndex = renderLog.at(-1)?.result?.matchLineNumbers;
+    expect(initialIndex).toHaveLength(200);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-129");
+    expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(initialIndex);
+  });
+
+  it("retains the search index when the main-thread file fallback loads a window", async () => {
+    Reflect.deleteProperty(globalThis, "Worker");
+    const initialResult = indexedResultStub(0, "first");
+    const nextResult = indexedResultStub(128, "next");
+    const search = vi.fn().mockResolvedValueOnce(initialResult).mockResolvedValueOnce(nextResult);
+    const access = { ...createLocalFileAccess(new File(["{}"], "payload.jsonl")), search };
+    render(
+      <Probe query="needle" text="" access={access} windowIndexes={Float64Array.from([128])} />,
+    );
+    await act(async () => undefined);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load window" }));
+    await act(async () => undefined);
+
+    expect(screen.getByTestId("record-id")).toHaveTextContent("next");
+    expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(initialResult.matchLineNumbers);
+    expect(renderLog.at(-1)?.result?.window).toBe(nextResult.window);
   });
 
   it("refuses regex search before entering the synchronous fallback", () => {

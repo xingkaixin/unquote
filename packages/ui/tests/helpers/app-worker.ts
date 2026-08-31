@@ -75,7 +75,11 @@ Object.assign(globalThis, {
             options as SearchOptions,
             windowIndexes ?? initialSearchWindowIndexes,
           );
-          this.respond({ type: "result", requestId, result });
+          this.respond(
+            windowIndexes && result
+              ? { type: "window", requestId, window: result.window }
+              : { type: "result", requestId, result },
+          );
         },
       );
     }
@@ -90,7 +94,11 @@ Object.assign(globalThis, {
         createLocalFileAccess(file)
           .search(query, options as SearchOptions, new AbortController().signal, windowIndexes)
           .then((result) => {
-            this.respond({ type: "result", requestId, result });
+            this.respond(
+              windowIndexes && result
+                ? { type: "window", requestId, window: result.window }
+                : { type: "result", requestId, result },
+            );
           })
           .catch(() => {
             this.respond({ type: "error", requestId, message: "search failed" });
