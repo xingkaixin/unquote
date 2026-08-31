@@ -309,7 +309,7 @@ export const UnquoteApp = ({
     </DeferredLoadBoundary>
   );
   const emptyState = (
-    <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
+    <div className="uq-import-empty flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
       <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
         <div className="flex flex-col gap-2.5">
           <span className="font-mono text-[11px] uppercase tracking-[var(--tracking-tag)] text-accent">
