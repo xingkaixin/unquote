@@ -85,10 +85,14 @@ const boundedNonEmptyText = (value: string | undefined) => {
   return text ? truncateTrajectoryDisplayText(text) : undefined;
 };
 
+const previewFor = (detail: AgentSessionDetail | null) =>
+  nonEmptyText(detail?.conversationItem?.block?.text)?.replace(/\s+/g, " ") ??
+  nonEmptyText(detail?.event.preview);
+
 const summaryFor = (item: AgentTrajectoryItem, detail: AgentSessionDetail | null) => {
   const event = detail?.event;
   const summary =
-    nonEmptyText(event?.preview) ??
+    previewFor(detail) ??
     nonEmptyText(event?.label) ??
     (item.kind === "tool" ? nonEmptyText(item.toolName) : undefined);
   return summary ? truncateTrajectoryDisplayText(summary) : "";
@@ -132,7 +136,7 @@ const searchTextFor = (
 ) => {
   const text = [
     detail?.event.label,
-    detail?.event.preview,
+    previewFor(detail),
     item.kind,
     item.status,
     item.kind === "tool" ? item.toolName : undefined,
