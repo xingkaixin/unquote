@@ -1,15 +1,16 @@
 import type { JsonlRecord } from "@unquote/core";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { AgentDetailSelection } from "../lib/agent-session";
 import { markPerf, measurePerfFn } from "../lib/perf";
 import type { QueryNavigationTarget } from "../lib/query-navigation";
 import {
   addExpandedStringifiedPaths,
-  clearExpandedStringifiedPaths,
+  collapseExpandedStringifiedPaths,
   getExpandedStringifiedPaths,
+  projectExpandedStringifiedPaths,
   replaceExpandedStringifiedPathsBatch,
-  toggleExpandedStringifiedPath,
   type ExpandedStringifiedPathsByRecord,
+  type StringifiedExpansionState,
 } from "../lib/record-expansion";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionUpdater } from "../lib/source-revision";
@@ -25,11 +26,10 @@ import { useSourceRevisionState } from "./use-source-revision-state";
 export type { SelectedPath } from "../lib/workspace-selection";
 
 const createExpandedPaths = (): ExpandedStringifiedPathsByRecord => new Map();
+const noSearchExpandedPaths: ExpandedStringifiedPathsByRecord = new Map();
 
-interface WorkspaceSessionValue {
+interface WorkspaceSessionValue extends StringifiedExpansionState {
   selection: ReturnType<typeof createInitialWorkspaceSelectionState>;
-  expandedPaths: ExpandedStringifiedPathsByRecord;
-  searchExpansionSuppressions: ReadonlyMap<string, number>;
 }
 
 const createWorkspaceSessionValue = (): WorkspaceSessionValue => ({
@@ -68,10 +68,24 @@ const collectAllStringifiedPaths = (record: JsonlRecord, seed: ReadonlySet<strin
   }
 };
 
-export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
+export const useWorkspaceSession = (
+  sourceRevision: SourceRevision,
+  searchExpandedPaths: ExpandedStringifiedPathsByRecord = noSearchExpandedPaths,
+  searchExpansionRevision = 0,
+) => {
   const [workspaceState, updateWorkspace, replaceWorkspaceForRevision] = useSourceRevisionState(
     sourceRevision,
     createWorkspaceSessionValue,
+  );
+  const { expandedPaths, searchExpansionSuppressions } = workspaceState;
+  const displayedExpandedPaths = useMemo(
+    () =>
+      projectExpandedStringifiedPaths(
+        { expandedPaths, searchExpansionSuppressions },
+        searchExpandedPaths,
+        searchExpansionRevision,
+      ),
+    [expandedPaths, searchExpandedPaths, searchExpansionRevision, searchExpansionSuppressions],
   );
   const dispatchSelection = useCallback(
     (action: WorkspaceSelectionAction) => {
@@ -150,61 +164,76 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
   );
 
   const expandAll = useCallback(
-    (records: readonly JsonlRecord[], displayedExpandedPaths: ExpandedStringifiedPathsByRecord) => {
-      setExpandedPaths((current) =>
-        measurePerfFn("expand:all:collect", () =>
+    (records: readonly JsonlRecord[]) => {
+      updateWorkspace((current) => {
+        const displayedPaths = projectExpandedStringifiedPaths(
+          current,
+          searchExpandedPaths,
+          searchExpansionRevision,
+        );
+        const expandedPaths = measurePerfFn("expand:all:collect", () =>
           replaceExpandedStringifiedPathsBatch(
-            current,
+            current.expandedPaths,
             records.map(
               (record) =>
                 [
                   record.id,
                   collectAllStringifiedPaths(
                     record,
-                    getExpandedStringifiedPaths(displayedExpandedPaths, record.id),
+                    getExpandedStringifiedPaths(displayedPaths, record.id),
                   ),
                 ] as const,
             ),
           ),
-        ),
-      );
+        );
+        return expandedPaths === current.expandedPaths ? current : { ...current, expandedPaths };
+      });
       markPerf("expand:all:set-state");
     },
-    [setExpandedPaths],
+    [searchExpandedPaths, searchExpansionRevision, updateWorkspace],
   );
 
   const collapseAll = useCallback(
-    (recordIds: readonly string[], searchExpansionRevision: number | null) => {
-      updateWorkspace((current) => {
-        const expandedPaths = clearExpandedStringifiedPaths(current.expandedPaths, recordIds);
-        let nextSuppressions: Map<string, number> | null = null;
-
-        if (searchExpansionRevision !== null) {
-          for (const recordId of recordIds) {
-            if (current.searchExpansionSuppressions.get(recordId) === searchExpansionRevision) {
-              continue;
-            }
-            nextSuppressions ??= new Map(current.searchExpansionSuppressions);
-            nextSuppressions.set(recordId, searchExpansionRevision);
-          }
-        }
-
-        const searchExpansionSuppressions = nextSuppressions ?? current.searchExpansionSuppressions;
-        return expandedPaths === current.expandedPaths &&
-          searchExpansionSuppressions === current.searchExpansionSuppressions
-          ? current
-          : { ...current, expandedPaths, searchExpansionSuppressions };
-      });
+    (recordIds: readonly string[]) => {
+      updateWorkspace((current) =>
+        collapseExpandedStringifiedPaths(
+          current,
+          recordIds,
+          "all",
+          searchExpandedPaths,
+          searchExpansionRevision,
+        ),
+      );
     },
-    [updateWorkspace],
+    [searchExpandedPaths, searchExpansionRevision, updateWorkspace],
   );
 
   const togglePath = useCallback(
     (recordId: string, path: string) => {
       markPerf("expand:path");
-      setExpandedPaths((current) => toggleExpandedStringifiedPath(current, recordId, path));
+      updateWorkspace((current) => {
+        const displayedPaths = projectExpandedStringifiedPaths(
+          current,
+          searchExpandedPaths,
+          searchExpansionRevision,
+        );
+        if (getExpandedStringifiedPaths(displayedPaths, recordId).has(path)) {
+          return collapseExpandedStringifiedPaths(
+            current,
+            [recordId],
+            new Set([path]),
+            searchExpandedPaths,
+            searchExpansionRevision,
+          );
+        }
+
+        return {
+          ...current,
+          expandedPaths: addExpandedStringifiedPaths(current.expandedPaths, recordId, [path]),
+        };
+      });
     },
-    [setExpandedPaths],
+    [searchExpandedPaths, searchExpansionRevision, updateWorkspace],
   );
 
   const clearScrollIntent = useCallback(
@@ -240,11 +269,11 @@ export const useWorkspaceSession = (sourceRevision: SourceRevision) => {
   );
 
   return {
+    displayedExpandedPaths,
     state: {
       sourceRevision,
       selection: workspaceState.selection,
       expandedPaths: workspaceState.expandedPaths,
-      searchExpansionSuppressions: workspaceState.searchExpansionSuppressions,
     },
     navigate,
     selectPath,

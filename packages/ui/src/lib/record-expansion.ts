@@ -1,5 +1,15 @@
 export type ExpandedStringifiedPathsByRecord = ReadonlyMap<string, ReadonlySet<string>>;
 
+interface SearchExpansionSuppression {
+  revision: number;
+  paths: ReadonlySet<string> | "all";
+}
+
+export interface StringifiedExpansionState {
+  expandedPaths: ExpandedStringifiedPathsByRecord;
+  searchExpansionSuppressions: ReadonlyMap<string, SearchExpansionSuppression>;
+}
+
 const noExpandedStringifiedPaths: ReadonlySet<string> = new Set();
 
 export const getExpandedStringifiedPaths = (
@@ -108,6 +118,29 @@ export const mergeExpandedStringifiedPaths = (
 ): ExpandedStringifiedPathsByRecord =>
   addExpandedStringifiedPathsBatch(pathsByRecord, additionalPathsByRecord);
 
+export const projectExpandedStringifiedPaths = (
+  { expandedPaths, searchExpansionSuppressions }: StringifiedExpansionState,
+  searchExpandedPaths: ExpandedStringifiedPathsByRecord,
+  searchExpansionRevision: number,
+) => {
+  let projected: Map<string, ReadonlySet<string>> | null = null;
+  for (const [recordId, paths] of searchExpandedPaths) {
+    const suppression = searchExpansionSuppressions.get(recordId);
+    if (suppression?.revision !== searchExpansionRevision) {
+      continue;
+    }
+
+    projected ??= new Map(searchExpandedPaths);
+    const suppressedPaths = suppression.paths;
+    if (suppressedPaths === "all") {
+      projected.delete(recordId);
+    } else {
+      projected.set(recordId, new Set([...paths].filter((path) => !suppressedPaths.has(path))));
+    }
+  }
+  return mergeExpandedStringifiedPaths(expandedPaths, projected ?? searchExpandedPaths);
+};
+
 export const replaceExpandedStringifiedPaths = (
   pathsByRecord: ExpandedStringifiedPathsByRecord,
   recordId: string,
@@ -115,33 +148,60 @@ export const replaceExpandedStringifiedPaths = (
 ): ExpandedStringifiedPathsByRecord =>
   replaceExpandedStringifiedPathsBatch(pathsByRecord, [[recordId, paths]]);
 
-export const toggleExpandedStringifiedPath = (
-  pathsByRecord: ExpandedStringifiedPathsByRecord,
-  recordId: string,
-  path: string,
-): ExpandedStringifiedPathsByRecord => {
-  const nextPaths = new Set(getExpandedStringifiedPaths(pathsByRecord, recordId));
-  if (nextPaths.has(path)) {
-    nextPaths.delete(path);
-  } else {
-    nextPaths.add(path);
-  }
-
-  return replaceExpandedStringifiedPaths(pathsByRecord, recordId, nextPaths);
-};
-
-export const clearExpandedStringifiedPaths = (
-  pathsByRecord: ExpandedStringifiedPathsByRecord,
-  recordIds: Iterable<string>,
-): ExpandedStringifiedPathsByRecord => {
-  let next: Map<string, ReadonlySet<string>> | null = null;
-
+export const collapseExpandedStringifiedPaths = <State extends StringifiedExpansionState>(
+  state: State,
+  recordIds: readonly string[],
+  paths: ReadonlySet<string> | "all",
+  searchExpandedPaths: ExpandedStringifiedPathsByRecord,
+  searchExpansionRevision: number,
+): State => {
+  const expandedPaths = replaceExpandedStringifiedPathsBatch(
+    state.expandedPaths,
+    recordIds.map((recordId) => [
+      recordId,
+      paths === "all"
+        ? []
+        : [...getExpandedStringifiedPaths(state.expandedPaths, recordId)].filter(
+            (path) => !paths.has(path),
+          ),
+    ]),
+  );
+  let nextSuppressions: Map<string, SearchExpansionSuppression> | null = null;
   for (const recordId of recordIds) {
-    if (pathsByRecord.has(recordId)) {
-      next ??= new Map(pathsByRecord);
-      next.delete(recordId);
+    const searchPaths = searchExpandedPaths.get(recordId);
+    if (!searchPaths) {
+      continue;
     }
-  }
+    const stored = state.searchExpansionSuppressions.get(recordId);
+    const current = stored?.revision === searchExpansionRevision ? stored.paths : undefined;
+    if (current === "all") {
+      continue;
+    }
 
-  return next ?? pathsByRecord;
+    let suppressedPaths: ReadonlySet<string> | "all" = "all";
+    if (paths !== "all") {
+      const nextPaths = new Set(current);
+      for (const path of paths) {
+        if (searchPaths.has(path)) {
+          nextPaths.add(path);
+        }
+      }
+      if (nextPaths.size === (current?.size ?? 0)) {
+        continue;
+      }
+      suppressedPaths = nextPaths;
+    }
+    nextSuppressions ??= new Map(state.searchExpansionSuppressions);
+    nextSuppressions.set(recordId, {
+      revision: searchExpansionRevision,
+      paths: suppressedPaths,
+    });
+  }
+  return expandedPaths === state.expandedPaths && !nextSuppressions
+    ? state
+    : {
+        ...state,
+        expandedPaths,
+        searchExpansionSuppressions: nextSuppressions ?? state.searchExpansionSuppressions,
+      };
 };
