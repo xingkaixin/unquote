@@ -247,7 +247,8 @@ describe("UnquoteApp", () => {
         "aria-checked",
         "false",
       );
-      await user.keyboard("{Escape}");
+      await user.click(screen.getByRole("menuitemradio", { name: "Light" }));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
 
       await user.click(screen.getByRole("button", { name: "Change language" }));
       expect(await screen.findByRole("menuitemradio", { name: "English" })).toHaveAttribute(
@@ -262,6 +263,8 @@ describe("UnquoteApp", () => {
         "aria-checked",
         "false",
       );
+      await user.click(screen.getByRole("menuitemradio", { name: "Japanese" }));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     });
 
     it("renders and parses input", async () => {
