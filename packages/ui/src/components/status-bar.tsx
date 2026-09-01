@@ -1,5 +1,6 @@
-import { Store } from "lucide-react";
+import { Newspaper, Store } from "lucide-react";
 import { useTranslation } from "../i18n/context";
+import type { Locale } from "../i18n/i18n";
 import { cn } from "../lib/utils";
 
 export interface StatusBarProps {
@@ -13,6 +14,7 @@ export interface StatusBarProps {
   sourceProgress: number | null;
   hasData: boolean;
   onClear: () => void;
+  changelogUrls?: Readonly<Record<Locale, string>>;
   chromeWebStoreUrl?: string;
   edgeAddonsUrl?: string;
 }
@@ -49,10 +51,12 @@ export const StatusBar = ({
   sourceProgress,
   hasData,
   onClear,
+  changelogUrls,
   chromeWebStoreUrl,
   edgeAddonsUrl,
 }: StatusBarProps) => {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
+  const changelogUrl = changelogUrls?.[locale];
   const progressPercent =
     typeof sourceProgress === "number"
       ? Math.max(0, Math.min(100, Math.round(sourceProgress * 100)))
@@ -121,6 +125,19 @@ export const StatusBar = ({
           <span className="hidden shrink-0 lg:inline">{t("status.hintPath")}</span>
           <span className="hidden shrink-0 lg:inline">{t("status.hintPalette")}</span>
         </>
+      ) : null}
+      {changelogUrl ? (
+        <a
+          href={changelogUrl}
+          aria-label={t("app.changelog")}
+          title={t("app.changelog")}
+          className="inline-flex items-center gap-1.5 text-text-tertiary hover:text-accent"
+        >
+          <Newspaper className="size-3" />
+          <span className="hidden sm:inline" aria-hidden="true">
+            {t("app.changelog")}
+          </span>
+        </a>
       ) : null}
       {chromeWebStoreUrl ? (
         <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />

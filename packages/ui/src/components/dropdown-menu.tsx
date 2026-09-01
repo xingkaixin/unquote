@@ -34,7 +34,8 @@ export const DropdownMenuItem = ({
 
 export const DropdownMenuRadioItem = ({
   className,
+  closeOnClick = true,
   ...props
 }: React.ComponentProps<typeof Menu.RadioItem>) => (
-  <Menu.RadioItem className={cn(itemClassName, className)} {...props} />
+  <Menu.RadioItem className={cn(itemClassName, className)} closeOnClick={closeOnClick} {...props} />
 );

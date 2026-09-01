@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const ja: Messages = {
   "app.tab.agent": "エージェント",
   "app.tab.trajectory": "軌跡",
+  "app.changelog": "更新履歴",
   "app.chrome": "Chrome 拡張機能",
   "app.edge": "Edge 拡張機能",
   "app.skipToContent": "メインコンテンツへスキップ",

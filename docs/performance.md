@@ -96,7 +96,11 @@ each surface:
 - total UI JavaScript includes every synchronous and on-demand UI chunk, but
   excludes parser/search workers and the separately budgeted extension
   background;
-- CSS includes all emitted stylesheets.
+- initial CSS includes the stylesheets referenced by that surface's built HTML.
+
+Static Web pages are measured separately because their styles are not downloaded
+with the application entry. Each static page has an 8,000 byte / 3,000 byte gzip
+CSS budget.
 
 The current Web build measures about 575 KiB / 185 KiB gzip for initial JS and
 712 KiB / 229 KiB gzip for all UI JS. The extension carries a small options-page
@@ -112,8 +116,8 @@ without changing the amount of JavaScript loaded by either surface.
 | Initial JavaScript gzip | 205,000 bytes |
 | Total UI JavaScript | 760,000 bytes |
 | Total UI JavaScript gzip | 250,000 bytes |
-| CSS | 38,000 bytes |
-| CSS gzip | 9,000 bytes |
+| Initial CSS | 38,000 bytes |
+| Initial CSS gzip | 9,000 bytes |
 
 ## Baseline
 

@@ -12,10 +12,15 @@ const createBuild = (webHtml: string) => {
   const root = mkdtempSync(join(tmpdir(), "unquote-bundle-budget-"));
   temporaryRoots.push(root);
   const files = {
-    "dist/web/index.html": webHtml,
+    "dist/web/index.html": `${webHtml}<link rel="stylesheet" href="/assets/index.css">`,
+    "dist/web/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
+    "dist/web/zh-CN/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
+    "dist/web/ja/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
     "dist/web/assets/index.js": "export {};",
     "dist/web/assets/index.css": "body {}",
-    "dist/extension/options.html": '<script src="./chunks/options.js"></script>',
+    "dist/web/assets/changelog.css": "body {}",
+    "dist/extension/options.html":
+      '<script src="./chunks/options.js"></script><link rel="stylesheet" href="./assets/options.css">',
     "dist/extension/chunks/options.js": "export {};",
     "dist/extension/assets/options.css": "body {}",
   };
@@ -63,5 +68,19 @@ describe("UI bundle budget", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("web initial JS 620001 bytes");
     expect(result.stderr).toContain("exceeds 620000 bytes");
+  });
+
+  it("budgets a static page stylesheet independently from the app", () => {
+    const root = createBuild('<script src="/assets/index.js"></script>');
+    writeFileSync(join(root, "dist/web/assets/changelog.css"), "a".repeat(8_001));
+
+    const result = runBudgetCheck(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("web changelog en CSS 8001 bytes");
+    expect(result.stderr).toContain("web changelog zh-CN CSS 8001 bytes");
+    expect(result.stderr).toContain("web changelog ja CSS 8001 bytes");
+    expect(result.stderr).toContain("exceeds 8000 bytes");
+    expect(result.stderr).not.toContain("web initial CSS 8001 bytes");
   });
 });

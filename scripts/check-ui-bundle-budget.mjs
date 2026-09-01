@@ -7,8 +7,13 @@ const budgets = {
   initialJsGzipBytes: 205_000,
   totalJsBytes: 760_000,
   totalJsGzipBytes: 250_000,
-  cssBytes: 38_000,
-  cssGzipBytes: 9_000,
+  initialCssBytes: 38_000,
+  initialCssGzipBytes: 9_000,
+};
+
+const staticPageBudgets = {
+  cssBytes: 8_000,
+  cssGzipBytes: 3_000,
 };
 
 const surfaces = [
@@ -21,7 +26,6 @@ const surfaces = [
       fileName.endsWith(".js") &&
       !fileName.includes("parser-worker-") &&
       !fileName.includes("search-worker-"),
-    cssDirectory: "dist/web/assets",
   },
   {
     name: "extension",
@@ -29,7 +33,24 @@ const surfaces = [
     html: "dist/extension/options.html",
     jsDirectory: "dist/extension/chunks",
     includeJs: (fileName) => fileName.endsWith(".js"),
-    cssDirectory: "dist/extension/assets",
+  },
+];
+
+const staticPages = [
+  {
+    name: "web changelog en",
+    root: "dist/web",
+    html: "dist/web/changelog/index.html",
+  },
+  {
+    name: "web changelog zh-CN",
+    root: "dist/web",
+    html: "dist/web/zh-CN/changelog/index.html",
+  },
+  {
+    name: "web changelog ja",
+    root: "dist/web",
+    html: "dist/web/ja/changelog/index.html",
   },
 ];
 
@@ -74,12 +95,10 @@ const checkBudget = (surfaceName, metric, actual, budget) => {
 for (const surface of surfaces) {
   const initialJsFiles = assetPathsFromHtml(surface, ".js");
   const allJsFiles = assetPathsFromDirectory(surface.jsDirectory, surface.includeJs);
-  const cssFiles = assetPathsFromDirectory(surface.cssDirectory, (fileName) =>
-    fileName.endsWith(".css"),
-  );
+  const initialCssFiles = assetPathsFromHtml(surface, ".css");
   const initialJs = measure(initialJsFiles);
   const totalJs = measure(allJsFiles);
-  const css = measure(cssFiles);
+  const initialCss = measure(initialCssFiles);
 
   if (initialJsFiles.length === 0) {
     failures.push(`${surface.name} has no initial JavaScript assets`);
@@ -87,22 +106,36 @@ for (const surface of surfaces) {
   if (allJsFiles.length === 0) {
     failures.push(`${surface.name} has no UI JavaScript assets`);
   }
-  if (cssFiles.length === 0) {
-    failures.push(`${surface.name} has no CSS assets`);
+  if (initialCssFiles.length === 0) {
+    failures.push(`${surface.name} has no initial CSS assets`);
   }
 
   console.log(
     `${surface.name}: initial JS ${formatBytes(initialJs.bytes)}, ${formatBytes(initialJs.gzipBytes)} gzipped; ` +
       `total UI JS ${formatBytes(totalJs.bytes)}, ${formatBytes(totalJs.gzipBytes)} gzipped; ` +
-      `CSS ${formatBytes(css.bytes)}, ${formatBytes(css.gzipBytes)} gzipped`,
+      `initial CSS ${formatBytes(initialCss.bytes)}, ${formatBytes(initialCss.gzipBytes)} gzipped`,
   );
 
   checkBudget(surface.name, "initial JS", initialJs.bytes, budgets.initialJsBytes);
   checkBudget(surface.name, "initial JS gzip", initialJs.gzipBytes, budgets.initialJsGzipBytes);
   checkBudget(surface.name, "total UI JS", totalJs.bytes, budgets.totalJsBytes);
   checkBudget(surface.name, "total UI JS gzip", totalJs.gzipBytes, budgets.totalJsGzipBytes);
-  checkBudget(surface.name, "CSS", css.bytes, budgets.cssBytes);
-  checkBudget(surface.name, "CSS gzip", css.gzipBytes, budgets.cssGzipBytes);
+  checkBudget(surface.name, "initial CSS", initialCss.bytes, budgets.initialCssBytes);
+  checkBudget(surface.name, "initial CSS gzip", initialCss.gzipBytes, budgets.initialCssGzipBytes);
+}
+
+for (const page of staticPages) {
+  const cssFiles = assetPathsFromHtml(page, ".css");
+  const css = measure(cssFiles);
+
+  if (cssFiles.length === 0) {
+    failures.push(`${page.name} has no CSS assets`);
+  }
+
+  console.log(`${page.name}: CSS ${formatBytes(css.bytes)}, ${formatBytes(css.gzipBytes)} gzipped`);
+
+  checkBudget(page.name, "CSS", css.bytes, staticPageBudgets.cssBytes);
+  checkBudget(page.name, "CSS gzip", css.gzipBytes, staticPageBudgets.cssGzipBytes);
 }
 
 if (failures.length > 0) {

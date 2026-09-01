@@ -150,6 +150,25 @@ describe("UnquoteApp", () => {
       }
     });
 
+    it("renders the configured product updates link", () => {
+      render(
+        <I18nProvider>
+          <UnquoteApp
+            changelogUrls={{
+              en: "/changelog/",
+              "zh-CN": "/zh-CN/changelog/",
+              ja: "/ja/changelog/",
+            }}
+          />
+        </I18nProvider>,
+      );
+
+      expect(screen.getByRole("link", { name: "Product updates" })).toHaveAttribute(
+        "href",
+        "/changelog/",
+      );
+    });
+
     it("exposes command options and restores focus when the palette closes", async () => {
       const user = userEvent.setup();
       render(
@@ -228,7 +247,8 @@ describe("UnquoteApp", () => {
         "aria-checked",
         "false",
       );
-      await user.keyboard("{Escape}");
+      await user.click(screen.getByRole("menuitemradio", { name: "Light" }));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
 
       await user.click(screen.getByRole("button", { name: "Change language" }));
       expect(await screen.findByRole("menuitemradio", { name: "English" })).toHaveAttribute(
@@ -243,6 +263,8 @@ describe("UnquoteApp", () => {
         "aria-checked",
         "false",
       );
+      await user.click(screen.getByRole("menuitemradio", { name: "Japanese" }));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     });
 
     it("renders and parses input", async () => {
