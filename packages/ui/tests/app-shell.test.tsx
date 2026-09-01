@@ -150,6 +150,25 @@ describe("UnquoteApp", () => {
       }
     });
 
+    it("renders the configured product updates link", () => {
+      render(
+        <I18nProvider>
+          <UnquoteApp
+            changelogUrls={{
+              en: "/changelog/",
+              "zh-CN": "/zh-CN/changelog/",
+              ja: "/ja/changelog/",
+            }}
+          />
+        </I18nProvider>,
+      );
+
+      expect(screen.getByRole("link", { name: "Product updates" })).toHaveAttribute(
+        "href",
+        "/changelog/",
+      );
+    });
+
     it("exposes command options and restores focus when the palette closes", async () => {
       const user = userEvent.setup();
       render(

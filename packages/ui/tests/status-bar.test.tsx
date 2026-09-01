@@ -174,4 +174,21 @@ describe("StatusBar summary", () => {
       expect(link).toHaveAttribute("rel", "noreferrer");
     }
   });
+
+  it.each([
+    { locale: "en", label: "Product updates", href: "/changelog/" },
+    { locale: "zh-CN", label: "更新日志", href: "/zh-CN/changelog/" },
+    { locale: "ja", label: "更新履歴", href: "/ja/changelog/" },
+  ])("renders the configured product updates link in $locale", ({ locale, label, href }) => {
+    localStorage.setItem("unquote-locale", locale);
+    renderBar({
+      changelogUrls: {
+        en: "/changelog/",
+        "zh-CN": "/zh-CN/changelog/",
+        ja: "/ja/changelog/",
+      },
+    });
+
+    expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href);
+  });
 });

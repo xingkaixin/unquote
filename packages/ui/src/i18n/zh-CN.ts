@@ -3,6 +3,7 @@ import type { Messages } from "./en";
 export const zhCN: Messages = {
   "app.tab.agent": "Agent",
   "app.tab.trajectory": "轨迹",
+  "app.changelog": "更新日志",
   "app.chrome": "Chrome 插件",
   "app.edge": "Edge 插件",
   "app.skipToContent": "跳到主要内容",

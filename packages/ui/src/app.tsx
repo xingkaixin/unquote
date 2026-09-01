@@ -7,6 +7,7 @@ import type { SourceSampleOption } from "./components/source-import-panel";
 import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
+import type { Locale } from "./i18n/i18n";
 import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
 import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
 import { useOutputView } from "./hooks/use-output-view";
@@ -50,12 +51,14 @@ type ActiveOverlay = "import" | "command" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
+  changelogUrls?: Readonly<Record<Locale, string>>;
   chromeWebStoreUrl?: string;
   edgeAddonsUrl?: string;
 }
 
 export const UnquoteApp = ({
   initialInput = "",
+  changelogUrls,
   chromeWebStoreUrl,
   edgeAddonsUrl,
 }: UnquoteAppProps) => {
@@ -391,6 +394,7 @@ export const UnquoteApp = ({
           sourceProgress={operation.kind === "reading" ? operation.progress : null}
           hasData={hasData}
           onClear={() => handleSourceChange("")}
+          {...(changelogUrls ? { changelogUrls } : {})}
           {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
           {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
         />

@@ -1,6 +1,7 @@
 export const en = {
   "app.tab.agent": "Agent",
   "app.tab.trajectory": "Trajectory",
+  "app.changelog": "Product updates",
   "app.chrome": "Chrome Extension",
   "app.edge": "Edge Extension",
   "app.skipToContent": "Skip to main content",
