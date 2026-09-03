@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isFullRecord, parseJsonlRecordLine } from "@unquote/core";
-import { FileJson2 } from "lucide-react";
+import FileCodeIcon from "@phosphor-icons/core/regular/file-code.svg?react";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
@@ -162,7 +162,7 @@ const ConversationTurn = ({
           aria-label={t("agent.openInJsonl")}
           onClick={() => onOpenRecord(event.recordId)}
         >
-          <FileJson2 className="size-3.5" />
+          <FileCodeIcon className="size-3.5" />
         </Button>
       </div>
       {block?.type === "tool_use" || block?.type === "tool_result" ? (

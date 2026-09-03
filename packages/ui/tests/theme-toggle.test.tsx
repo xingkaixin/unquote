@@ -6,22 +6,18 @@ import { I18nProvider } from "../src/i18n/context";
 
 afterEach(cleanup);
 
-const icons = {
-  system: "lucide-monitor",
-  light: "lucide-sun",
-  dark: "lucide-moon",
-} as const;
+const themes = ["system", "light", "dark"] as const;
 
 describe("ThemeToggle", () => {
-  it.each(Object.entries(icons))("renders the %s theme icon", (theme, iconClass) => {
+  it.each(themes)("renders the %s theme icon", (theme) => {
     render(
       <I18nProvider>
-        <ThemeToggle theme={theme as keyof typeof icons} onChange={vi.fn()} />
+        <ThemeToggle theme={theme} onChange={vi.fn()} />
       </I18nProvider>,
     );
 
     expect(screen.getByRole("button", { name: "Switch theme" }).querySelector("svg")).toHaveClass(
-      iconClass,
+      "size-4",
     );
   });
 

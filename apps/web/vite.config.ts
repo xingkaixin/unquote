@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import svgr from "vite-plugin-svgr";
 import { renderChangelogPage } from "./src/changelog-page.ts";
 import { isChangelogLocale } from "./src/changelog-routes.ts";
 
@@ -25,7 +26,17 @@ const changelogPagesPlugin = {
 } satisfies Plugin;
 
 export default defineConfig({
-  plugins: [changelogPagesPlugin, react(), tailwindcss()],
+  plugins: [
+    changelogPagesPlugin,
+    svgr({
+      svgrOptions: {
+        plugins: ["@svgr/plugin-svgo", "@svgr/plugin-jsx"],
+        svgoConfig: { plugins: ["preset-default", "removeXMLNS"] },
+      },
+    }),
+    react(),
+    tailwindcss(),
+  ],
   build: {
     outDir: "../../dist/web",
     emptyOutDir: true,

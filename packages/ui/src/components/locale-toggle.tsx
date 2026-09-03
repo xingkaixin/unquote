@@ -1,4 +1,4 @@
-import { Languages } from "lucide-react";
+import TranslateIcon from "@phosphor-icons/core/regular/translate.svg?react";
 import { useTranslation } from "../i18n/context";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ export const LocaleToggle = () => {
       <DropdownMenuTrigger
         render={
           <Button size="sm" className="uq-icon-button h-7 w-7 px-0" aria-label={t("locale.toggle")}>
-            <Languages className="size-4" />
+            <TranslateIcon className="size-4" />
           </Button>
         }
       />

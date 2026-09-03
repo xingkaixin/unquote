@@ -1,4 +1,9 @@
-import { Bot, Brain, FileJson, TerminalSquare, UserRound, Wrench } from "lucide-react";
+import BrainIcon from "@phosphor-icons/core/regular/brain.svg?react";
+import FileCodeIcon from "@phosphor-icons/core/regular/file-code.svg?react";
+import RobotIcon from "@phosphor-icons/core/regular/robot.svg?react";
+import TerminalWindowIcon from "@phosphor-icons/core/regular/terminal-window.svg?react";
+import UserIcon from "@phosphor-icons/core/regular/user.svg?react";
+import WrenchIcon from "@phosphor-icons/core/regular/wrench.svg?react";
 import type { ComponentType } from "react";
 import type { useTranslation } from "../i18n/context";
 import type { Locale, MessageKey } from "../i18n/i18n";
@@ -30,17 +35,17 @@ export const roleConfig = (
 ): RoleConfig => {
   switch (role) {
     case "user":
-      return { label: t("agent.role.user"), icon: UserRound };
+      return { label: t("agent.role.user"), icon: UserIcon };
     case "assistant":
-      return { label: t("agent.role.assistant"), icon: Bot };
+      return { label: t("agent.role.assistant"), icon: RobotIcon };
     case "thinking":
-      return { label: t("agent.role.thinking"), icon: Brain };
+      return { label: t("agent.role.thinking"), icon: BrainIcon };
     case "tool_call":
-      return { label: t("agent.role.toolCall"), icon: Wrench };
+      return { label: t("agent.role.toolCall"), icon: WrenchIcon };
     case "tool_result":
-      return { label: t("agent.role.toolResult"), icon: TerminalSquare };
+      return { label: t("agent.role.toolResult"), icon: TerminalWindowIcon };
     case "system":
-      return { label: t("agent.role.system"), icon: FileJson };
+      return { label: t("agent.role.system"), icon: FileCodeIcon };
   }
 };
 

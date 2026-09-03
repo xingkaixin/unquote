@@ -1,18 +1,16 @@
-import {
-  Activity,
-  Braces,
-  CaseSensitive,
-  CircleAlert,
-  Filter,
-  MessageSquareText,
-  Regex,
-  Search,
-  SearchCheck,
-  Sparkles,
-  Wrench,
-  X,
-} from "lucide-react";
 import { Dialog } from "@base-ui/react/dialog";
+import AsteriskIcon from "@phosphor-icons/core/regular/asterisk.svg?react";
+import BracketsCurlyIcon from "@phosphor-icons/core/regular/brackets-curly.svg?react";
+import ChatTextIcon from "@phosphor-icons/core/regular/chat-text.svg?react";
+import FunnelIcon from "@phosphor-icons/core/regular/funnel.svg?react";
+import ListMagnifyingGlassIcon from "@phosphor-icons/core/regular/list-magnifying-glass.svg?react";
+import MagnifyingGlassIcon from "@phosphor-icons/core/regular/magnifying-glass.svg?react";
+import PulseIcon from "@phosphor-icons/core/regular/pulse.svg?react";
+import SparkleIcon from "@phosphor-icons/core/regular/sparkle.svg?react";
+import TextAaIcon from "@phosphor-icons/core/regular/text-aa.svg?react";
+import WarningCircleIcon from "@phosphor-icons/core/regular/warning-circle.svg?react";
+import WrenchIcon from "@phosphor-icons/core/regular/wrench.svg?react";
+import XIcon from "@phosphor-icons/core/regular/x.svg?react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NestedFilterScope, RecordFilterMode } from "../lib/record-filter";
 import { isPathLikeQuery } from "../lib/query-interaction";
@@ -46,7 +44,7 @@ interface CommandAction {
   id: string;
   label: MessageKey;
   hint?: string;
-  icon: typeof Search;
+  icon: typeof MagnifyingGlassIcon;
   active?: boolean;
   run: () => void;
 }
@@ -54,15 +52,15 @@ interface CommandAction {
 const filterOptions: Array<{
   mode: RecordFilterMode;
   label: MessageKey;
-  icon: typeof Search;
+  icon: typeof MagnifyingGlassIcon;
 }> = [
-  { mode: "all", label: "filter.all", icon: Filter },
-  { mode: "matches", label: "filter.matches", icon: SearchCheck },
-  { mode: "errors", label: "filter.errors", icon: CircleAlert },
-  { mode: "nested", label: "filter.nested", icon: Sparkles },
-  { mode: "tool", label: "filter.tools", icon: Wrench },
-  { mode: "message", label: "filter.messages", icon: MessageSquareText },
-  { mode: "events", label: "filter.events", icon: Activity },
+  { mode: "all", label: "filter.all", icon: FunnelIcon },
+  { mode: "matches", label: "filter.matches", icon: ListMagnifyingGlassIcon },
+  { mode: "errors", label: "filter.errors", icon: WarningCircleIcon },
+  { mode: "nested", label: "filter.nested", icon: SparkleIcon },
+  { mode: "tool", label: "filter.tools", icon: WrenchIcon },
+  { mode: "message", label: "filter.messages", icon: ChatTextIcon },
+  { mode: "events", label: "filter.events", icon: PulseIcon },
 ];
 
 export const CommandPalette = ({
@@ -167,7 +165,7 @@ export const CommandPalette = ({
           >
             <Dialog.Title className="sr-only">{t("command.palette")}</Dialog.Title>
             <div className="flex items-center gap-2 border-b border-border bg-surface-100 px-[18px] py-4 focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-accent">
-              <Search className="size-4 shrink-0 text-text-tertiary" />
+              <MagnifyingGlassIcon className="size-4 shrink-0 text-text-tertiary" />
               <input
                 ref={inputRef}
                 role="combobox"
@@ -218,7 +216,7 @@ export const CommandPalette = ({
                     className="uq-icon-button h-7 w-7 px-0"
                     aria-label={t("command.close")}
                   >
-                    <X className="size-3.5" />
+                    <XIcon className="size-3.5" />
                   </Button>
                 }
               />
@@ -236,7 +234,7 @@ export const CommandPalette = ({
                 className="h-7 gap-1.5"
                 onClick={() => onJqChange(!jq)}
               >
-                <Braces className="size-3.5" />
+                <BracketsCurlyIcon className="size-3.5" />
                 {t("search.jq")}
               </Button>
               <Button
@@ -246,7 +244,7 @@ export const CommandPalette = ({
                 className="h-7 gap-1.5"
                 onClick={() => onRegexChange(!regex)}
               >
-                <Regex className="size-3.5" />
+                <AsteriskIcon className="size-3.5" />
                 {t("search.regex")}
               </Button>
               <Button
@@ -256,7 +254,7 @@ export const CommandPalette = ({
                 className="h-7 gap-1.5"
                 onClick={() => onCaseSensitiveChange(!caseSensitive)}
               >
-                <CaseSensitive className="size-3.5" />
+                <TextAaIcon className="size-3.5" />
                 {t("search.caseSensitive")}
               </Button>
               <Button variant="secondary" size="sm" className="ml-auto h-7" onClick={runPrimary}>

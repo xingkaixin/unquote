@@ -210,7 +210,9 @@ but virtual and non-virtual paths must remain visually equivalent.
 
 ## Icons
 
-Use `lucide-react` only. Standard sizes are:
+Use regular-weight SVGs from `@phosphor-icons/core` only. Import them with the `?react` suffix so
+the shared SVGR build transform emits React components containing only the selected weight.
+Standard sizes are:
 
 - `size-3` for inline micro-actions;
 - `size-3.5` for most controls;
@@ -255,7 +257,7 @@ Before merging a visual change:
 
 1. Reuse an existing semantic token or explain why a new role is required.
 2. Update `packages/ui/src/styles.css` and this document together when token intent changes.
-3. Use shared components and `lucide-react` rather than local replacements.
+3. Use shared components and `@phosphor-icons/core` rather than local replacements.
 4. Check light mode, dark mode, keyboard focus, coarse-pointer targets, and reduced motion.
 5. Run `pnpm check`; add focused UI tests when behavior or accessibility changes.
 

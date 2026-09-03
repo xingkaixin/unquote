@@ -32,6 +32,7 @@
     "build:safari": "turbo run build:safari --filter=@unquote/extension && node scripts/sync-safari-extension.mjs"
   },
   "devDependencies": {
+    "@svgr/plugin-svgo": "^8.1.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.0",
@@ -46,6 +47,7 @@
     "oxlint": "^1.79.0",
     "turbo": "^2.10.11",
     "typescript": "^7.0.2",
+    "vite-plugin-svgr": "^5.2.0",
     "vitest": "^4.1.11",
     "wrangler": "4.124.0"
   },

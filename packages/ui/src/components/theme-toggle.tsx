@@ -1,4 +1,6 @@
-import { Monitor, Moon, Sun } from "lucide-react";
+import MonitorIcon from "@phosphor-icons/core/regular/monitor.svg?react";
+import MoonIcon from "@phosphor-icons/core/regular/moon.svg?react";
+import SunIcon from "@phosphor-icons/core/regular/sun.svg?react";
 import { useTranslation } from "../i18n/context";
 import {
   DropdownMenu,
@@ -17,11 +19,11 @@ export interface ThemeToggleProps {
 const ThemeIcon = ({ theme }: { theme: "system" | "light" | "dark" }) => {
   switch (theme) {
     case "dark":
-      return <Moon className="size-4" />;
+      return <MoonIcon className="size-4" />;
     case "light":
-      return <Sun className="size-4" />;
+      return <SunIcon className="size-4" />;
     case "system":
-      return <Monitor className="size-4" />;
+      return <MonitorIcon className="size-4" />;
   }
 };
 
@@ -39,15 +41,15 @@ export const ThemeToggle = ({ theme, onChange }: ThemeToggleProps) => {
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup value={theme} onValueChange={(value) => onChange(value)}>
           <DropdownMenuRadioItem value="light">
-            <Sun className="mr-2 size-3.5" />
+            <SunIcon className="mr-2 size-3.5" />
             {t("theme.light")}
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">
-            <Moon className="mr-2 size-3.5" />
+            <MoonIcon className="mr-2 size-3.5" />
             {t("theme.dark")}
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system">
-            <Monitor className="mr-2 size-3.5" />
+            <MonitorIcon className="mr-2 size-3.5" />
             {t("theme.system")}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

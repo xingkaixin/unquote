@@ -1,4 +1,7 @@
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import CaretDownIcon from "@phosphor-icons/core/regular/caret-down.svg?react";
+import CaretUpIcon from "@phosphor-icons/core/regular/caret-up.svg?react";
+import MagnifyingGlassIcon from "@phosphor-icons/core/regular/magnifying-glass.svg?react";
+import XIcon from "@phosphor-icons/core/regular/x.svg?react";
 import { useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import { Button } from "./button";
@@ -39,7 +42,7 @@ export const SearchField = ({
         onSubmitQuery(inputRef.current?.value ?? query);
       }}
     >
-      <Search className="size-3.5 shrink-0 text-text-tertiary" />
+      <MagnifyingGlassIcon className="size-3.5 shrink-0 text-text-tertiary" />
       <input
         aria-label={t("search.inputLabel")}
         data-benchmark-action="search-input"
@@ -67,7 +70,7 @@ export const SearchField = ({
           }}
           aria-label={t("search.clear")}
         >
-          <X className="size-3" />
+          <XIcon className="size-3" />
         </button>
       ) : null}
       {hasMatches ? (
@@ -85,7 +88,7 @@ export const SearchField = ({
           disabled={!hasMatches}
           aria-label={t("search.prev")}
         >
-          <ChevronUp className="size-3" />
+          <CaretUpIcon className="size-3" />
         </Button>
         <Button
           type="button"
@@ -96,7 +99,7 @@ export const SearchField = ({
           disabled={!hasMatches}
           aria-label={t("search.next")}
         >
-          <ChevronDown className="size-3" />
+          <CaretDownIcon className="size-3" />
         </Button>
       </div>
     </form>

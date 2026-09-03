@@ -1,4 +1,7 @@
-import { Braces, ClipboardCopy, Download, List } from "lucide-react";
+import BracketsCurlyIcon from "@phosphor-icons/core/regular/brackets-curly.svg?react";
+import ClipboardTextIcon from "@phosphor-icons/core/regular/clipboard-text.svg?react";
+import DownloadSimpleIcon from "@phosphor-icons/core/regular/download-simple.svg?react";
+import ListBulletsIcon from "@phosphor-icons/core/regular/list-bullets.svg?react";
 import { useTranslation } from "../i18n/context";
 import { isOutputView, type OutputView } from "../lib/output-view";
 import type { ThemeToggleProps } from "./theme-toggle";
@@ -141,19 +144,19 @@ export const AppHeader = ({
         />
         <DropdownMenuContent align="end">
           <DropdownMenuItem className="text-[11px]" title={copyHint} onClick={onCopyJsonl}>
-            <List className="mr-2 size-3.5" />
+            <ListBulletsIcon className="mr-2 size-3.5" />
             {t("toolbar.copyJsonl")}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-[11px]" title={copyHint} onClick={onCopyFormattedJson}>
-            <ClipboardCopy className="mr-2 size-3.5" />
+            <ClipboardTextIcon className="mr-2 size-3.5" />
             {t("toolbar.copyFormattedJson")}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-[11px]" onClick={onExportJsonl}>
-            <Download className="mr-2 size-3.5" />
+            <DownloadSimpleIcon className="mr-2 size-3.5" />
             {t("toolbar.exportJsonl")}
           </DropdownMenuItem>
           <DropdownMenuItem className="text-[11px]" onClick={onExportFormattedJson}>
-            <Braces className="mr-2 size-3.5" />
+            <BracketsCurlyIcon className="mr-2 size-3.5" />
             {t("toolbar.exportJson")}
           </DropdownMenuItem>
         </DropdownMenuContent>

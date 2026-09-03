@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import WarningIcon from "@phosphor-icons/core/regular/warning.svg?react";
 import { useTranslation } from "../i18n/context";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
@@ -20,7 +20,7 @@ export const DeferredLoadError = ({ onRetry, className }: DeferredLoadErrorProps
       )}
     >
       <div className="flex max-w-md flex-col items-center gap-3">
-        <TriangleAlert aria-hidden="true" className="size-4 text-warning" />
+        <WarningIcon aria-hidden="true" className="size-4 text-warning" />
         <div className="space-y-1">
           <h2 className="m-0 text-[14px] font-semibold text-text-primary">
             {t("deferredLoad.title")}
