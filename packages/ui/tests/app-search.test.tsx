@@ -166,9 +166,11 @@ describe("UnquoteApp", () => {
         </I18nProvider>,
       );
 
-      await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
+      const commandsButton = screen.getAllByRole("button", { name: /Commands/i })[0]!;
+      await waitFor(() => expect(commandsButton).toBeEnabled());
+      await user.click(commandsButton);
       // Enable regex, then jq — jq must turn regex off.
-      const regexButton = screen.getByRole("button", { name: /^Regex$/i });
+      const regexButton = await screen.findByRole("button", { name: /^Regex$/i });
       expect(regexButton).toHaveAttribute("aria-pressed", "false");
       await user.click(regexButton);
       expect(regexButton).toHaveAttribute("aria-pressed", "true");

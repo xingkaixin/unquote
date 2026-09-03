@@ -53,7 +53,8 @@ presentation used by the web and extension apps. Its public entry points are def
   `src/lib/` according to ownership.
 - Use Tailwind CSS v4 utilities and the tokens in `src/styles.css`. Use an arbitrary value only
   when no existing token or utility represents the required value.
-- Use `lucide-react` for interface icons. The normal sizes are `size-3`, `size-3.5`, and `size-4`.
+- Use regular-weight SVGs from `@phosphor-icons/core` for interface icons. Import them with the
+  `?react` suffix. The normal sizes are `size-3`, `size-3.5`, and `size-4`.
 - Keep dark mode on the `.dark` class applied to `<html>`.
 - Add every new translation key to `src/i18n/en.ts`, `src/i18n/zh-CN.ts`, and `src/i18n/ja.ts`.
   `en.ts` defines the canonical message schema.

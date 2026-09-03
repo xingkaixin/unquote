@@ -1,5 +1,6 @@
 import { defineConfig } from "wxt";
 import tailwindcss from "@tailwindcss/vite";
+import svgr from "vite-plugin-svgr";
 import { createExtensionManifest } from "./src/distribution";
 
 export default defineConfig({
@@ -12,7 +13,15 @@ export default defineConfig({
     disabled: true,
   },
   vite: () => ({
-    plugins: [tailwindcss()],
+    plugins: [
+      svgr({
+        svgrOptions: {
+          plugins: ["@svgr/plugin-svgo", "@svgr/plugin-jsx"],
+          svgoConfig: { plugins: ["preset-default", "removeXMLNS"] },
+        },
+      }),
+      tailwindcss(),
+    ],
   }),
   manifest: ({ browser }) => createExtensionManifest(browser),
 });

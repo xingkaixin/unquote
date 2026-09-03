@@ -1,4 +1,5 @@
-import { Newspaper, Store } from "lucide-react";
+import NewspaperIcon from "@phosphor-icons/core/regular/newspaper.svg?react";
+import StorefrontIcon from "@phosphor-icons/core/regular/storefront.svg?react";
 import { useTranslation } from "../i18n/context";
 import type { Locale } from "../i18n/i18n";
 import { cn } from "../lib/utils";
@@ -33,7 +34,7 @@ const ExtensionStoreLink = ({ href, label }: ExtensionStoreLinkProps) => (
     title={label}
     className="inline-flex items-center gap-1.5 text-text-tertiary hover:text-accent"
   >
-    <Store className="size-3" />
+    <StorefrontIcon className="size-3" />
     <span className="hidden sm:inline" aria-hidden="true">
       {label}
     </span>
@@ -133,7 +134,7 @@ export const StatusBar = ({
           title={t("app.changelog")}
           className="inline-flex items-center gap-1.5 text-text-tertiary hover:text-accent"
         >
-          <Newspaper className="size-3" />
+          <NewspaperIcon className="size-3" />
           <span className="hidden sm:inline" aria-hidden="true">
             {t("app.changelog")}
           </span>

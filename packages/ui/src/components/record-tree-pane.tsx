@@ -1,5 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
+import ArrowsInLineVerticalIcon from "@phosphor-icons/core/regular/arrows-in-line-vertical.svg?react";
+import ArrowsOutLineVerticalIcon from "@phosphor-icons/core/regular/arrows-out-line-vertical.svg?react";
+import CopyIcon from "@phosphor-icons/core/regular/copy.svg?react";
 import { useEffect } from "react";
 import { useTranslation } from "../i18n/context";
 import { parseTreePath } from "../lib/path-codec";
@@ -71,7 +73,7 @@ export const RecordTreePane = ({
           className="h-6 gap-1.5 rounded-sm px-2.5"
           onClick={onExpandAll}
         >
-          <ChevronsUpDown className="size-3" />
+          <ArrowsOutLineVerticalIcon className="size-3" />
           {t("toolbar.expandAll")}
         </Button>
         <Button
@@ -82,7 +84,7 @@ export const RecordTreePane = ({
           disabled={expandedNestedCount === 0}
           onClick={onCollapseAll}
         >
-          <ChevronsDownUp className="size-3" />
+          <ArrowsInLineVerticalIcon className="size-3" />
           {t("toolbar.collapseAll")}
         </Button>
         <Button
@@ -92,7 +94,7 @@ export const RecordTreePane = ({
           aria-label={t("tree.copyRecord")}
           onClick={() => actions.copyRecord(record)}
         >
-          <Copy className="size-3.5" />
+          <CopyIcon className="size-3.5" />
         </Button>
       </div>
       <JsonTree

@@ -1,4 +1,6 @@
-import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import ArrowCounterClockwiseIcon from "@phosphor-icons/core/regular/arrow-counter-clockwise.svg?react";
+import MagnifyingGlassMinusIcon from "@phosphor-icons/core/regular/magnifying-glass-minus.svg?react";
+import MagnifyingGlassPlusIcon from "@phosphor-icons/core/regular/magnifying-glass-plus.svg?react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentTrajectoryItemKind } from "../lib/agent-session";
@@ -335,7 +337,7 @@ export const AgentTrajectoryOverview = ({
                   disabled={controlsDisabled}
                   onClick={() => zoom(ZOOM_FACTOR)}
                 >
-                  <ZoomIn className="size-3.5" aria-hidden="true" />
+                  <MagnifyingGlassPlusIcon className="size-3.5" aria-hidden="true" />
                 </Button>
               }
             />
@@ -353,7 +355,7 @@ export const AgentTrajectoryOverview = ({
                   disabled={controlsDisabled}
                   onClick={() => zoom(1 / ZOOM_FACTOR)}
                 >
-                  <ZoomOut className="size-3.5" aria-hidden="true" />
+                  <MagnifyingGlassMinusIcon className="size-3.5" aria-hidden="true" />
                 </Button>
               }
             />
@@ -371,7 +373,7 @@ export const AgentTrajectoryOverview = ({
                   disabled={controlsDisabled}
                   onClick={reset}
                 >
-                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  <ArrowCounterClockwiseIcon className="size-3.5" aria-hidden="true" />
                 </Button>
               }
             />

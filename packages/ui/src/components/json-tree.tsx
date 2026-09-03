@@ -1,5 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
-import { ChevronRight, Copy, FileWarning } from "lucide-react";
+import CaretRightIcon from "@phosphor-icons/core/regular/caret-right.svg?react";
+import CopyIcon from "@phosphor-icons/core/regular/copy.svg?react";
+import FileXIcon from "@phosphor-icons/core/regular/file-x.svg?react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -221,7 +223,7 @@ export const JsonTree = memo(function JsonTree({
               className="h-7 px-2 text-[11px]"
               onClick={() => actions.copyRawLine(record)}
             >
-              <Copy className="size-3" />
+              <CopyIcon className="size-3" />
               {t("error.copyRawLine")}
             </Button>
             <Button
@@ -230,7 +232,7 @@ export const JsonTree = memo(function JsonTree({
               className="h-7 px-2 text-[11px]"
               onClick={() => actions.copyError(record)}
             >
-              <Copy className="size-3" />
+              <CopyIcon className="size-3" />
               {t("error.copyDetails")}
             </Button>
           </div>
@@ -238,7 +240,7 @@ export const JsonTree = memo(function JsonTree({
         <div className="flex flex-col gap-2 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
             <span className="inline-flex items-center gap-1 text-error">
-              <FileWarning className="size-3" />
+              <FileXIcon className="size-3" />
               {t("error.parseFailed")}
             </span>
             {errorMeta ? (
@@ -496,7 +498,7 @@ const RowItem = memo(function RowItem({
             aria-hidden="true"
             className="relative mr-1.5 mt-[3px] inline-flex size-[15px] shrink-0 items-center justify-center border border-accent bg-accent/10 text-accent before:absolute before:-inset-[5px] before:content-['']"
           >
-            <ChevronRight
+            <CaretRightIcon
               className={`uq-motion-transform size-2.5 transition-transform ${source.expanded ? "rotate-90" : ""}`}
             />
           </span>

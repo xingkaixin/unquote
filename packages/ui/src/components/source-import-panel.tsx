@@ -1,6 +1,6 @@
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileJson2 } from "lucide-react";
+import FileCodeIcon from "@phosphor-icons/core/regular/file-code.svg?react";
 import { useTranslation } from "../i18n/context";
 import { cn } from "../lib/utils";
 import { detectSourceFormat } from "../lib/source-detect";
@@ -351,7 +351,7 @@ export const SourceImportPanel = ({
                 onSampleSelect(sample);
               }}
             >
-              <FileJson2 className="size-3" />
+              <FileCodeIcon className="size-3" />
               <span>{sample.label}</span>
             </Button>
           ))}
