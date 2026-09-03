@@ -96,7 +96,7 @@ git rev-parse v0.5.0^{}
 - 用户可见功能、入口、限制或行为变化
 - 对外描述已经过期或遗漏发布重点
 
-更新 `AGENTS.md` 的条件：
+更新适用范围内最近的 `AGENTS.md` 的条件：
 
 - 架构模块、关键文件职责、脚本、测试入口或约束变化
 - 某个旧产品行为已经移除，继续保留会误导后续实现
@@ -108,8 +108,9 @@ git rev-parse v0.5.0^{}
 文档更新后至少检查：
 
 ```sh
-git diff -- CHANGELOG.md CHANGELOG_zh-CN.md README.md AGENTS.md docs/release-guide.md
-rg -n "$PREV_VERSION|$VERSION|release" CHANGELOG.md CHANGELOG_zh-CN.md README.md AGENTS.md docs
+git diff -- CHANGELOG.md CHANGELOG_zh-CN.md README.md '**/AGENTS.md' docs/release-guide.md
+rg -n "$PREV_VERSION|$VERSION|release" CHANGELOG.md CHANGELOG_zh-CN.md README.md AGENTS.md \
+  apps/*/AGENTS.md packages/*/AGENTS.md docs
 ```
 
 如果发布包含代码、性能或大文件路径改动，运行：
