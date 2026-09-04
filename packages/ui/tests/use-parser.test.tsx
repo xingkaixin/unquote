@@ -39,7 +39,7 @@ const failedRecord = (lineNumber: number, summary: string): ParseResult["records
 class MockWorker extends MockWorkerEvents {
   static instances: MockWorker[] = [];
   static failConstruction = false;
-  static failJsonlEnrichment = false;
+  static failJsonlParsing = false;
   static holdFileReads = false;
   // 1-based index of the first postMessage call that should throw.
   static postMessageFailsFrom: number | null = null;
@@ -91,7 +91,7 @@ class MockWorker extends MockWorkerEvents {
     if (payload.type === "start-jsonl") {
       return;
     }
-    if (payload.type === "jsonl-chunk" && payload.done && MockWorker.failJsonlEnrichment) {
+    if (payload.type === "jsonl-chunk" && payload.done && MockWorker.failJsonlParsing) {
       setTimeout(() => {
         this.respond({
           type: "error",
@@ -237,7 +237,7 @@ describe("useParser", () => {
     localStorage.clear();
     MockWorker.instances = [];
     MockWorker.failConstruction = false;
-    MockWorker.failJsonlEnrichment = false;
+    MockWorker.failJsonlParsing = false;
     MockWorker.holdFileReads = false;
     MockWorker.postMessageFailsFrom = null;
     Object.assign(globalThis, { Worker: MockWorker });
@@ -377,28 +377,35 @@ describe("useParser", () => {
       payload: { session_id: "main-thread-session" },
     });
 
+    const parse = vi.spyOn(JSON, "parse");
     render(<Probe input={input} forcedFormat="jsonl" />);
-    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("stats")).toHaveTextContent("0");
 
     await act(() => vi.dynamicImportSettled());
 
     expect(screen.getByTestId("agent-session")).toHaveTextContent("present");
+    expect(screen.getByTestId("stats")).toHaveTextContent("1");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(parse.mock.calls.filter(([text]) => text === input)).toHaveLength(1);
+    parse.mockRestore();
   });
 
-  it("keeps the completed mount result while a Worker enriches JSONL input", async () => {
+  it("uses worker records without parsing Agent input during the initial render", async () => {
     const input = JSON.stringify({
       type: "session_meta",
       payload: { session_id: "mount-session" },
     });
 
+    const parse = vi.spyOn(JSON, "parse");
     render(
       <StrictMode>
         <Probe input={input} forcedFormat="jsonl" />
       </StrictMode>,
     );
-    expect(screen.getByTestId("stats")).toHaveTextContent("1");
-    expect(screen.getByTestId("progress")).toHaveTextContent("done");
+    expect(screen.getByTestId("stats")).toHaveTextContent("0");
+    expect(screen.getByTestId("progress")).toHaveTextContent("pending");
+    expect(parse.mock.calls.filter(([text]) => text === input)).toHaveLength(0);
+    parse.mockRestore();
 
     await act(() => vi.advanceTimersByTimeAsync(121));
     await act(() => vi.runOnlyPendingTimersAsync());
@@ -408,24 +415,25 @@ describe("useParser", () => {
         worker.messages.some((message) => message.type === "start-jsonl"),
       ),
     ).toBe(true);
-    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("stats")).toHaveTextContent("2");
+    expect(screen.getByTestId("records")).toHaveTextContent("new-1,new-2");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
   });
 
-  it("keeps the completed mount result when Agent enrichment fails", async () => {
-    MockWorker.failJsonlEnrichment = true;
+  it("reports initial Agent parsing failures through the normal error path", async () => {
+    MockWorker.failJsonlParsing = true;
     const input = JSON.stringify({
       type: "session_meta",
-      payload: { session_id: "failed-enrichment" },
+      payload: { session_id: "failed-parsing" },
     });
 
     render(<Probe input={input} forcedFormat="jsonl" />);
     await act(() => vi.runAllTimersAsync());
 
-    expect(screen.getByTestId("stats")).toHaveTextContent("1");
+    expect(screen.getByTestId("stats")).toHaveTextContent("0");
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
     expect(screen.getByTestId("agent-session")).toHaveTextContent("absent");
-    expect(toastMocks.error).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledWith("Failed to read file");
   });
 
   it("parses a file on the main thread and ignores an obsolete read", async () => {

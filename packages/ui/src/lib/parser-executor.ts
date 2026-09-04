@@ -100,7 +100,6 @@ export interface ParserExecution {
   input: string;
   forcedFormat: "json" | "jsonl" | undefined;
   sourceFile: File | null;
-  reuseInitialResult: boolean;
   commit: (update: ParserStateUpdate) => void;
   onReadError: () => void;
   onTooLarge: () => void;
@@ -123,7 +122,6 @@ export const createParserExecutor = (): ParserExecutor => {
       input,
       forcedFormat,
       sourceFile,
-      reuseInitialResult,
       commit,
       onReadError,
       onTooLarge,
@@ -131,12 +129,6 @@ export const createParserExecutor = (): ParserExecutor => {
     }) {
       const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
         commit({ sourceRevision, result, agentSession, progress, recordAppend: null });
-      };
-      const applyAgentEnrichment = ({
-        agentSession,
-        progress,
-      }: Pick<ParsedText, "agentSession" | "progress">) => {
-        commit((current) => ({ ...current, sourceRevision, agentSession, progress }));
       };
       const reportUnparsedSource = (report: () => void) => {
         commit({
@@ -181,11 +173,7 @@ export const createParserExecutor = (): ParserExecutor => {
         void parseTextOnMainThread(input, forcedFormat, onAgentSessionDetected)
           .then((parsed) => {
             if (run.finish()) {
-              if (reuseInitialResult) {
-                applyAgentEnrichment(parsed);
-              } else {
-                applyParsedText(parsed);
-              }
+              applyParsedText(parsed);
             }
           })
           .catch((error: unknown) => {
@@ -216,9 +204,7 @@ export const createParserExecutor = (): ParserExecutor => {
           window.clearTimeout(chunkTimeoutId);
         }
         publisher.cancel();
-        if (!reuseInitialResult) {
-          reportUnparsedSource(onReadError);
-        }
+        reportUnparsedSource(onReadError);
       };
 
       let workerRun: WorkerRun;
@@ -261,9 +247,6 @@ export const createParserExecutor = (): ParserExecutor => {
           return;
         }
         if (message.type === "batch") {
-          if (reuseInitialResult) {
-            return;
-          }
           if (!publisher.hasPublished()) {
             markPerf("parse:first-batch");
             measurePerf("parse:first-batch", "parse:start", "parse:first-batch");
@@ -277,34 +260,24 @@ export const createParserExecutor = (): ParserExecutor => {
 
         publisher.flush();
         if (message.type === "error") {
-          if (!reuseInitialResult) {
-            reportDiagnostic("parser.worker", message.error);
-            markPerf("parse:error");
-            measurePerf("parse:error", "parse:start", "parse:error");
-            commit((current) => ({
-              sourceRevision,
-              result: { ...current.result, format: "jsonl", stats: message.stats },
-              agentSession: null,
-              progress: message.progress,
-              recordAppend: current.recordAppend,
-            }));
-            onReadError();
-          }
+          reportDiagnostic("parser.worker", message.error);
+          markPerf("parse:error");
+          measurePerf("parse:error", "parse:start", "parse:error");
+          commit((current) => ({
+            sourceRevision,
+            result: { ...current.result, format: "jsonl", stats: message.stats },
+            agentSession: null,
+            progress: message.progress,
+            recordAppend: current.recordAppend,
+          }));
+          onReadError();
           return;
         }
 
         markPerf("parse:complete");
         measurePerf("parse:complete", "parse:start", "parse:complete");
         if (message.type === "complete-result") {
-          if (reuseInitialResult) {
-            applyAgentEnrichment(message);
-          } else {
-            applyParsedText(message);
-          }
-          return;
-        }
-        if (reuseInitialResult) {
-          applyAgentEnrichment(message);
+          applyParsedText(message);
           return;
         }
         commit((current) => ({
@@ -323,26 +296,21 @@ export const createParserExecutor = (): ParserExecutor => {
         return () => void workerRun.cancel();
       }
 
-      if (!reuseInitialResult) {
-        commit(pendingParserSnapshot(sourceRevision, forcedFormat, sourceFile !== null));
-      }
+      commit(pendingParserSnapshot(sourceRevision, forcedFormat, sourceFile !== null));
       markPerf("parse:start");
-      const timeoutId = window.setTimeout(
-        () => {
-          if (sourceFile) {
-            post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
-          } else if (shouldStreamJsonl(input, forcedFormat)) {
-            postJsonlChunks();
-          } else {
-            post(
-              forcedFormat
-                ? { type: "parse", requestId: workerRun.requestId, input, forcedFormat }
-                : { type: "parse", requestId: workerRun.requestId, input },
-            );
-          }
-        },
-        reuseInitialResult ? 0 : 120,
-      );
+      const timeoutId = window.setTimeout(() => {
+        if (sourceFile) {
+          post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
+        } else if (shouldStreamJsonl(input, forcedFormat)) {
+          postJsonlChunks();
+        } else {
+          post(
+            forcedFormat
+              ? { type: "parse", requestId: workerRun.requestId, input, forcedFormat }
+              : { type: "parse", requestId: workerRun.requestId, input },
+          );
+        }
+      }, 120);
 
       return () => {
         window.clearTimeout(timeoutId);
