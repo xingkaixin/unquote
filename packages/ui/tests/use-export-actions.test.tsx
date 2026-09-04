@@ -1,3 +1,5 @@
+import { SourceReadLimitError } from "../src/lib/local-file-reader";
+import { copyBytesLimit } from "../src/lib/record-export";
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -298,4 +300,19 @@ describe("useExportActions", () => {
     expect(copySignal?.aborted).toBe(true);
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
+});
+
+it("passes the source budget to hydration and reports oversized reads as blocked copies", async () => {
+  const getFullRecords = vi.fn().mockRejectedValue(new SourceReadLimitError());
+  const { result } = renderActions({ getFullRecords });
+  await act(async () => {
+    await result.current.onCopyJsonl();
+  });
+  expect(getFullRecords).toHaveBeenCalledWith(
+    validRecords,
+    expect.any(AbortSignal),
+    copyBytesLimit,
+  );
+  expect(toastMocks.warning).toHaveBeenCalledOnce();
+  expect(toastMocks.error).not.toHaveBeenCalled();
 });

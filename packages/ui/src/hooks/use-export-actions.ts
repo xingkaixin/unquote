@@ -43,6 +43,7 @@ export const useExportActions = ({
   resolveRecords,
   sourceAccess,
   format,
+  isCopyBlocked,
   sourceRevision,
 }: UseExportActionsParams) => {
   const { t } = useTranslation();
@@ -134,10 +135,7 @@ export const useExportActions = ({
             outputFormat,
             async (record) => {
               const resolved = await resolveRecords([record], signal, copyBytesLimit);
-              if (!resolved[0]) {
-                throw new Error(`Record line ${record.lineNumber} was not found`);
-              }
-              return resolved[0];
+              return resolved[0] ?? record;
             },
             signal,
           );
@@ -154,21 +152,27 @@ export const useExportActions = ({
             return null;
           }
           reportDiagnostic("copy.resolve-records", error);
-          toast.error(t("input.readFailed"));
+          toast.error(t(error instanceof TypeError ? "copy.failed" : "input.readFailed"));
           return null;
         }
       }),
     [copyText, resolveRecords, t],
   );
 
-  const onCopyJsonl = useCallback(
-    () => copyRecords(visibleRecords, "jsonl"),
-    [copyRecords, visibleRecords],
-  );
-  const onCopyFormattedJson = useCallback(
-    () => copyRecords(visibleRecords, format === "json" ? "json" : "array"),
-    [copyRecords, format, visibleRecords],
-  );
+  const onCopyJsonl = useCallback(() => {
+    if (isCopyBlocked) {
+      toast.warning(t("toolbar.copyBlocked"));
+      return;
+    }
+    return copyRecords(visibleRecords, "jsonl");
+  }, [copyRecords, isCopyBlocked, t, visibleRecords]);
+  const onCopyFormattedJson = useCallback(() => {
+    if (isCopyBlocked) {
+      toast.warning(t("toolbar.copyBlocked"));
+      return;
+    }
+    return copyRecords(visibleRecords, format === "json" ? "json" : "array");
+  }, [copyRecords, format, isCopyBlocked, t, visibleRecords]);
 
   const onExportJsonl = useCallback(() => {
     exportWithBuilder(createJsonlPartsBuilder(), "jsonl", "application/jsonl;charset=utf-8");
