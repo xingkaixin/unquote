@@ -37,9 +37,10 @@
 
 ## 开发
 
-需要 Node.js 24 和 pnpm 11.20.0。仓库通过 `.node-version` 固定 Node 主版本，pnpm 版本由 `packageManager` 固定。
+需要 [mise](https://mise.jdx.dev/)。仓库通过 `mise.toml` 固定 Node.js 24.20.0 和 pnpm 11.25.0。
 
 ```bash
+mise install
 pnpm install --frozen-lockfile
 pnpm dev
 ```
