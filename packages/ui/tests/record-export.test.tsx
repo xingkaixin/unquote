@@ -1,3 +1,4 @@
+import { formatResolvedRecordsForCopy } from "../src/lib/record-export";
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { describe, expect, it, vi } from "vitest";
@@ -209,5 +210,40 @@ describe("record-export", () => {
       document.querySelector('a[download="payload.jsonl"]')?.remove();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("bounded copy hydration", () => {
+  it("stops resolving records when the output exceeds the budget", async () => {
+    const records = recordsFrom('"first"\n"second"\n"third"', "jsonl");
+    const resolved: string[] = [];
+    const text = await formatResolvedRecordsForCopy(
+      records,
+      "jsonl",
+      async (record) => {
+        resolved.push(record.id);
+        return record;
+      },
+      new AbortController().signal,
+      8,
+    );
+    expect(text).toBeNull();
+    expect(resolved).toEqual([records[0]!.id, records[1]!.id]);
+  });
+
+  it.each(["jsonl", "array", "json"] as const)("preserves %s formatting", async (format) => {
+    const records = recordsFrom('{"n":9007199254740993}\n{"s":"中文"}', "jsonl");
+    const expected =
+      format === "jsonl"
+        ? formatRecordsAsJsonlForCopy(records)
+        : formatRecordsAsJsonForCopy(records, format === "array" ? "jsonl" : "json");
+    await expect(
+      formatResolvedRecordsForCopy(
+        records,
+        format,
+        async (record) => record,
+        new AbortController().signal,
+      ),
+    ).resolves.toBe(expected);
   });
 });

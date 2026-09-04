@@ -185,6 +185,51 @@ export const formatRecordsAsJsonForCopy = (
   return writer.append("\n]") ? writer.finish() : null;
 };
 
+export const formatResolvedRecordsForCopy = async (
+  records: JsonlRecord[],
+  format: "json" | "jsonl" | "array",
+  resolve: (record: JsonlRecord) => Promise<JsonlRecord | null>,
+  signal: AbortSignal,
+  byteLimit = copyBytesLimit,
+): Promise<string | null> => {
+  if (isCopyRecordCountAboveThreshold(records.length)) {
+    return null;
+  }
+  const writer = new CopyPayloadWriter(byteLimit);
+  if (format === "array" && !writer.append(records.length ? "[\n" : "[]")) {
+    return null;
+  }
+  for (let index = 0; index < records.length; index += 1) {
+    signal.throwIfAborted();
+    const record = await resolve(records[index]!);
+    signal.throwIfAborted();
+    if (!record) {
+      return null;
+    }
+    const separator = format === "array" ? ",\n" : "\n";
+    if (index > 0 && !writer.append(separator)) {
+      return null;
+    }
+    const appended =
+      format === "array"
+        ? appendIndentedRecord(writer, record)
+        : appendRecord(writer, record, format === "json" ? 2 : 0);
+    if (!appended) {
+      return null;
+    }
+    if (format === "json") {
+      break;
+    }
+  }
+  if (format === "array" && records.length && !writer.append("\n]")) {
+    return null;
+  }
+  if (format === "json" && !records.length && !writer.append("null")) {
+    return null;
+  }
+  return writer.finish();
+};
+
 // Yield the main thread so a long stringify doesn't freeze the UI (toasts,
 // spinners stay live). Resolves on the next macrotask.
 export const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));

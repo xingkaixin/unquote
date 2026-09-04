@@ -1,3 +1,5 @@
+import { readJsonlLinesByNumber, SourceReadLimitError } from "../src/lib/local-file-reader";
+import { createStreamFile } from "./helpers/stub-file";
 import { describe, expect, it } from "vitest";
 import { readJsonlFileLines } from "../src/lib/local-file-reader";
 
@@ -58,4 +60,26 @@ describe("local JSONL line reading", () => {
 
     expect(events).toEqual(["start:first", "end:first", "start:second", "end:second"]);
   });
+});
+
+it("rejects oversized requested lines before collecting the full source", async () => {
+  const { file } = createStreamFile('"中文"\n"second"', "bounded.jsonl");
+  const bytes = new TextEncoder().encode('"中文"\n"second"');
+  Object.defineProperty(file, "slice", {
+    value: (start: number, end: number) => ({
+      stream: () =>
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes.slice(start, end));
+            controller.close();
+          },
+        }),
+    }),
+  });
+  await expect(readJsonlLinesByNumber(file, new Set([1]), undefined, 7)).rejects.toBeInstanceOf(
+    SourceReadLimitError,
+  );
+  await expect(readJsonlLinesByNumber(file, new Set([1]), undefined, 8)).resolves.toEqual(
+    new Map([[1, '"中文"']]),
+  );
 });

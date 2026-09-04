@@ -3,6 +3,7 @@ import type { JsonlRecord } from "@unquote/core";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
+import { SourceReadLimitError } from "../lib/local-file-reader";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import {
   addRecordsToBuilder,
@@ -11,8 +12,8 @@ import {
   createJsonlPartsBuilder,
   downloadBlob,
   exportChunkSize,
-  formatRecordsAsJsonForCopy,
-  formatRecordsAsJsonlForCopy,
+  copyBytesLimit,
+  formatResolvedRecordsForCopy,
   yieldToMain,
 } from "../lib/record-export";
 import type { ExportPartsBuilder } from "../lib/record-export";
@@ -23,7 +24,11 @@ export type LocalFileExportAccess = Pick<LocalFileAccess, "readRecordText" | "st
 
 interface UseExportActionsParams {
   visibleRecords: JsonlRecord[];
-  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
+  resolveRecords: (
+    records: JsonlRecord[],
+    signal?: AbortSignal,
+    maxBytes?: number,
+  ) => Promise<JsonlRecord[]>;
   sourceAccess: LocalFileExportAccess | null;
   format: "json" | "jsonl";
   isCopyBlocked: boolean;
@@ -121,61 +126,53 @@ export const useExportActions = ({
     [buildExportParts, t],
   );
 
-  // Copy actions are invoked fire-and-forget from onClick, so a rejected file
-  // read would become an unhandled rejection — surface it here instead.
-  const resolveCopyRecords = useCallback(
-    async (records: JsonlRecord[], signal: AbortSignal) => {
-      try {
-        return await resolveRecords(records, signal);
-      } catch (error) {
-        if (signal.aborted || isAbortError(error)) {
+  const copyRecords = useCallback(
+    (records: JsonlRecord[], outputFormat: "json" | "jsonl" | "array") =>
+      copyText(async (signal) => {
+        try {
+          const text = await formatResolvedRecordsForCopy(
+            records,
+            outputFormat,
+            async (record) => {
+              const resolved = await resolveRecords([record], signal, copyBytesLimit);
+              return resolved[0] ?? record;
+            },
+            signal,
+          );
+          if (text === null) {
+            toast.warning(t("toolbar.copyBlocked"));
+          }
+          return text;
+        } catch (error) {
+          if (signal.aborted || isAbortError(error)) {
+            return null;
+          }
+          if (error instanceof SourceReadLimitError) {
+            toast.warning(t("toolbar.copyBlocked"));
+            return null;
+          }
+          reportDiagnostic("copy.resolve-records", error);
+          toast.error(t(error instanceof TypeError ? "copy.failed" : "input.readFailed"));
           return null;
         }
-        reportDiagnostic("copy.resolve-records", error);
-        toast.error(t("input.readFailed"));
-        return null;
-      }
-    },
-    [resolveRecords, t],
+      }),
+    [copyText, resolveRecords, t],
   );
 
-  const acceptCopyPayload = useCallback(
-    (text: string | null) => {
-      if (text === null) {
-        toast.warning(t("toolbar.copyBlocked"));
-      }
-      return text;
-    },
-    [t],
-  );
-
-  const onCopyJsonl = useCallback(async () => {
+  const onCopyJsonl = useCallback(() => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    await copyText(async (signal) => {
-      const records = await resolveCopyRecords(visibleRecords, signal);
-      if (!records) {
-        return null;
-      }
-      return acceptCopyPayload(formatRecordsAsJsonlForCopy(records));
-    });
-  }, [acceptCopyPayload, copyText, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
-
-  const onCopyFormattedJson = useCallback(async () => {
+    return copyRecords(visibleRecords, "jsonl");
+  }, [copyRecords, isCopyBlocked, t, visibleRecords]);
+  const onCopyFormattedJson = useCallback(() => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
       return;
     }
-    await copyText(async (signal) => {
-      const records = await resolveCopyRecords(visibleRecords, signal);
-      if (!records) {
-        return null;
-      }
-      return acceptCopyPayload(formatRecordsAsJsonForCopy(records, format));
-    });
-  }, [acceptCopyPayload, copyText, format, isCopyBlocked, resolveCopyRecords, t, visibleRecords]);
+    return copyRecords(visibleRecords, format === "json" ? "json" : "array");
+  }, [copyRecords, format, isCopyBlocked, t, visibleRecords]);
 
   const onExportJsonl = useCallback(() => {
     exportWithBuilder(createJsonlPartsBuilder(), "jsonl", "application/jsonl;charset=utf-8");
@@ -186,16 +183,8 @@ export const useExportActions = ({
   }, [exportWithBuilder, format]);
 
   const onCopyRecord = useCallback(
-    (record: JsonlRecord) =>
-      copyText(async (signal) => {
-        const records = await resolveCopyRecords([record], signal);
-        if (!records) {
-          return null;
-        }
-        const [copyRecord = record] = records;
-        return acceptCopyPayload(formatRecordsAsJsonForCopy([copyRecord], "json"));
-      }),
-    [acceptCopyPayload, copyText, resolveCopyRecords],
+    (record: JsonlRecord) => copyRecords([record], "json"),
+    [copyRecords],
   );
 
   const onCopyRawLine = useCallback(

@@ -12,7 +12,11 @@ export type LocalFileRecordAccess = Pick<LocalFileAccess, "readRecords" | "resol
 export interface LocalFileSource {
   resolveRecord: (record: JsonlRecord) => JsonlRecord;
   requestFullRecord: (record: JsonlRecord) => void;
-  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
+  resolveRecords: (
+    records: JsonlRecord[],
+    signal?: AbortSignal,
+    maxBytes?: number,
+  ) => Promise<JsonlRecord[]>;
 }
 
 interface FullRecordScope extends SourceRevisionOwned {
@@ -221,9 +225,9 @@ export const useLocalFileSource = (
   );
 
   const resolveRecords = useCallback(
-    async (records: JsonlRecord[], signal?: AbortSignal) => {
+    async (records: JsonlRecord[], signal?: AbortSignal, maxBytes?: number) => {
       signal?.throwIfAborted();
-      return access ? access.resolveRecords(records, signal) : records;
+      return access ? access.resolveRecords(records, signal, maxBytes) : records;
     },
     [access],
   );

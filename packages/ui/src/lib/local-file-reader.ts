@@ -292,10 +292,17 @@ export const readJsonlFileLines = async (
   }
 };
 
+export class SourceReadLimitError extends Error {
+  constructor() {
+    super("Source read exceeds the byte limit");
+  }
+}
+
 export const readJsonlLinesByNumber = async (
   file: File,
   lineNumbers: Set<number>,
   signal?: AbortSignal,
+  maxBytes = Number.POSITIVE_INFINITY,
 ) => {
   const lines = new Map<number, string>();
   if (lineNumbers.size === 0) {
@@ -313,6 +320,9 @@ export const readJsonlLinesByNumber = async (
   const slicedFile = file.slice(scanRange.start.byteOffset, scanRange.end?.byteOffset ?? file.size);
 
   if (typeof slicedFile.stream !== "function") {
+    if (file.size > maxBytes) {
+      throw new SourceReadLimitError();
+    }
     await readJsonlFileLines(
       file,
       (line, lineNumber) => {
@@ -330,6 +340,7 @@ export const readJsonlLinesByNumber = async (
   let lineNumber = scanRange.start.lineNumber;
   let absoluteOffset = scanRange.start.byteOffset;
   let lineChunks: Uint8Array[] = [];
+  let collectedBytes = 0;
   let stopped = false;
   let readerCanceled = false;
   const decoder = new TextDecoder();
@@ -365,7 +376,11 @@ export const readJsonlLinesByNumber = async (
   // requested lines alone: skipped lines advance the counters and nothing else.
   const collectLineBytes = (bytes: Uint8Array) => {
     if (lineNumbers.has(lineNumber)) {
-      lineChunks.push(bytes);
+      collectedBytes += bytes.byteLength;
+      if (collectedBytes > maxBytes) {
+        throw new SourceReadLimitError();
+      }
+      lineChunks.push(bytes.slice());
     }
   };
 
@@ -410,6 +425,7 @@ export const readJsonlLinesByNumber = async (
       absoluteOffset += value.byteLength;
     }
   } catch (error) {
+    stopped = true;
     if (!signal?.aborted) {
       throw error;
     }
