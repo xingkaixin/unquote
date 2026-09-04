@@ -24,20 +24,16 @@ export interface UseParserOptions {
 export const useParser = ({ source, onAgentSessionDetected }: UseParserOptions) => {
   const { text: input, forcedFormat, sourceAccess, sourceRevision } = resolveSourceWork(source);
   const { t } = useTranslation();
-  const [mountParse] = useState(() => {
-    if (sourceAccess || !isWithinMainThreadBudget(input.length)) {
-      return null;
-    }
-    return {
-      sourceRevision,
-      input,
-      forcedFormat,
-      parsed: parseInitialText(input, forcedFormat),
-    };
-  });
+  const [synchronousSource] = useState(() =>
+    !sourceAccess &&
+    isWithinMainThreadBudget(input.length) &&
+    (forcedFormat === "json" || !mightContainAgentSession(input))
+      ? source
+      : null,
+  );
   const [parserState, setParserState] = useState<ParserSnapshot>(() =>
-    mountParse
-      ? { sourceRevision, ...mountParse.parsed, recordAppend: null }
+    synchronousSource
+      ? { sourceRevision, ...parseInitialText(input, forcedFormat), recordAppend: null }
       : pendingParserSnapshot(sourceRevision, forcedFormat, sourceAccess !== null),
   );
   const commitParserState = useEffectEvent((update: ParserStateUpdate) => {
@@ -57,15 +53,7 @@ export const useParser = ({ source, onAgentSessionDetected }: UseParserOptions) 
   const [executor] = useState(createParserExecutor);
 
   useEffect(() => {
-    const reuseInitialResult =
-      mountParse?.sourceRevision === sourceRevision &&
-      mountParse.input === input &&
-      mountParse.forcedFormat === forcedFormat &&
-      !sourceAccess;
-    if (
-      reuseInitialResult &&
-      (mountParse.parsed.result.format !== "jsonl" || !mightContainAgentSession(input))
-    ) {
+    if (source === synchronousSource) {
       return;
     }
 
@@ -74,13 +62,12 @@ export const useParser = ({ source, onAgentSessionDetected }: UseParserOptions) 
       input,
       forcedFormat,
       sourceFile: sourceAccess?.getFile() ?? null,
-      reuseInitialResult,
       commit: commitParserState,
       onReadError: reportFileReadError,
       onTooLarge: reportInputTooLarge,
       onAgentSessionDetected: reportAgentSessionDetected,
     });
-  }, [executor, forcedFormat, input, mountParse, sourceAccess, sourceRevision]);
+  }, [executor, forcedFormat, input, source, sourceAccess, sourceRevision, synchronousSource]);
 
   useEffect(() => () => executor.dispose(), [executor]);
 
