@@ -23,6 +23,7 @@ export const en = {
   "copy.failed": "Copy failed",
   "toolbar.exporting": "Exporting…",
   "toolbar.exportDone": "File exported",
+  "toolbar.exportTooLarge": "Export exceeds 64 MiB. Filter fewer records and try again.",
   "toolbar.exportFailed": "Export failed",
   "toolbar.export": "Export",
   "toolbar.exportJsonl": "Export JSONL",

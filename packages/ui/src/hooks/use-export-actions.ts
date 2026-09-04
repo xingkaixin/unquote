@@ -12,6 +12,7 @@ import {
   createJsonlPartsBuilder,
   downloadBlob,
   exportChunkSize,
+  ExportSizeLimitError,
   copyBytesLimit,
   formatResolvedRecordsForCopy,
   yieldToMain,
@@ -115,7 +116,13 @@ export const useExportActions = ({
       void operation.catch((error: unknown) => {
         if (!isAbortError(error)) {
           reportDiagnostic("export.build", error);
-          toast.error(t("toolbar.exportFailed"));
+          toast.error(
+            t(
+              error instanceof ExportSizeLimitError
+                ? "toolbar.exportTooLarge"
+                : "toolbar.exportFailed",
+            ),
+          );
         }
       });
       toast.promise(operation, {

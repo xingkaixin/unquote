@@ -6,6 +6,7 @@ import {
   addRecordsToBuilder,
   copyRecordLimit,
   createExportFilename,
+  ExportSizeLimitError,
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
   downloadBlob,
@@ -245,5 +246,30 @@ describe("bounded copy hydration", () => {
         new AbortController().signal,
       ),
     ).resolves.toBe(expected);
+  });
+});
+
+describe("export byte budget", () => {
+  it.each(["json", "jsonl", "array"] as const)(
+    "counts Unicode and formatting in %s exports",
+    async (format) => {
+      const records = recordsFrom('{"text":"中文"}\n{"n":9007199254740993}', "jsonl");
+      const input = format === "json" ? records.slice(0, 1) : records;
+      const create = (limit: number) =>
+        format === "jsonl"
+          ? createJsonlPartsBuilder(limit)
+          : createJsonPartsBuilder(format === "json" ? "json" : "jsonl", limit);
+      const text = (await addRecordsToBuilder(create(1000), input)).join("");
+      const bytes = new TextEncoder().encode(text).length;
+      await expect(addRecordsToBuilder(create(bytes), input)).resolves.toEqual(expect.any(Array));
+      await expect(addRecordsToBuilder(create(bytes - 1), input)).rejects.toBeInstanceOf(
+        ExportSizeLimitError,
+      );
+    },
+  );
+
+  it("rejects a single oversized value during bounded serialization", () => {
+    const record = recordsFrom('"' + "x".repeat(1000) + '"', "json")[0]!;
+    expect(() => createJsonlPartsBuilder(10).bodyFor(record)).toThrow(ExportSizeLimitError);
   });
 });
