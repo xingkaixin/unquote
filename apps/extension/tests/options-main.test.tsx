@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { claimSelectionHandoffMessageType } from "../src/selection-handoff";
 
 const mocks = vi.hoisted(() => {
@@ -34,18 +34,15 @@ const handoffId = "00000000-0000-4000-8000-000000000001";
 const rootElement = {} as Element;
 
 describe("extension options entrypoint", () => {
-  beforeAll(async () => {
+  afterAll(() => vi.unstubAllGlobals());
+
+  it("claims the URL handoff once and renders it as UnquoteApp initial input", async () => {
     vi.stubGlobal("document", { getElementById: vi.fn(() => rootElement) });
     vi.stubGlobal("window", { location: { search: `?handoff=${handoffId}` } });
     mocks.sendMessage.mockResolvedValue("selected input");
 
     await import("../entrypoints/options/main");
     await vi.waitFor(() => expect(mocks.render).toHaveBeenCalledOnce());
-  });
-
-  afterAll(() => vi.unstubAllGlobals());
-
-  it("claims the URL handoff once and renders it as UnquoteApp initial input", () => {
     expect(mocks.initializeThemePreference).toHaveBeenCalledOnce();
     expect(mocks.createRoot).toHaveBeenCalledWith(rootElement);
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
