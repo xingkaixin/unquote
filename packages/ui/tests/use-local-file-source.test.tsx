@@ -480,7 +480,7 @@ describe("useLocalFileSource", () => {
     const controller = new AbortController();
 
     await expect(result.current.resolveRecords(records, controller.signal)).resolves.toBe(records);
-    expect(resolveRecords).toHaveBeenCalledWith(records, controller.signal);
+    expect(resolveRecords).toHaveBeenCalledWith(records, controller.signal, undefined);
 
     controller.abort();
     await expect(result.current.resolveRecords(records, controller.signal)).rejects.toMatchObject({

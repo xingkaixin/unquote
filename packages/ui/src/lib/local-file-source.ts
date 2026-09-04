@@ -18,7 +18,11 @@ export interface LocalFileAccess {
     lineNumbers: ReadonlySet<number>,
     signal?: AbortSignal,
   ) => Promise<Map<number, JsonlRecord>>;
-  resolveRecords: (records: JsonlRecord[], signal?: AbortSignal) => Promise<JsonlRecord[]>;
+  resolveRecords: (
+    records: JsonlRecord[],
+    signal?: AbortSignal,
+    maxBytes?: number,
+  ) => Promise<JsonlRecord[]>;
   streamRecords: (
     lineNumbers: ReadonlySet<number>,
     onRecord: (record: JsonlRecord) => void | Promise<void>,
@@ -51,11 +55,15 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
     getFile: () => file,
     readText: (onProgress, signal) => readFileText(file, onProgress, signal),
     readRecords,
-    resolveRecords: async (records, signal) => {
-      const resolved = await readRecords(
+    resolveRecords: async (records, signal, maxBytes) => {
+      signal?.throwIfAborted();
+      const lines = await readJsonlLinesByNumber(
+        file,
         new Set(records.map((record) => record.lineNumber)),
         signal,
+        maxBytes,
       );
+      const resolved = await recordParser.parse(lines, signal);
       return records.map((record) => {
         const full = resolved.get(record.lineNumber);
         if (!full) {
