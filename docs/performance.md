@@ -260,3 +260,8 @@ room within the 256 MiB heap budget for UTF-16 strings, Blob construction, and t
 current record. Serialization stops at the remaining output budget. Oversized
 exports fail without downloading a partial file; users can filter fewer records.
 This output cap is not a bound on the AST size of an individual source record.
+
+Full-record hydration uses one worker per local-file access. Overlapping parse
+batches queue in request order; queued cancellation and disposal reject without
+starting another worker. The 15-second parse timeout begins when a batch starts,
+and the idle worker is released after 30 seconds.
