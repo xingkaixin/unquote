@@ -91,7 +91,7 @@ describe("requested record parsing", () => {
     await expect(first).rejects.toMatchObject({ name: "AbortError" });
     expect(firstWorker.terminate).toHaveBeenCalledOnce();
     expect(latestWorker().terminate).not.toHaveBeenCalled();
-    complete();
+    complete(2);
     await expect(second).resolves.toEqual(expected);
   });
 
@@ -191,5 +191,39 @@ describe("requested record parsing", () => {
 
     await expect(active).rejects.toMatchObject({ name: "AbortError" });
     await expect(parser.parse(lines)).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("queues overlapping batches on one worker", async () => {
+    const requests = Array.from({ length: 5 }, () => parser.parse(lines));
+    const worker = latestWorker();
+    for (let index = 0; index < requests.length; index += 1) {
+      expect(ControlledWorker.instances).toEqual([worker]);
+      expect(worker.postMessage).toHaveBeenCalledTimes(index + 1);
+      complete(index + 1);
+      await expect(requests[index]).resolves.toEqual(expected);
+    }
+  });
+
+  it("cancels queued work without posting it or interrupting the active batch", async () => {
+    const active = parser.parse(lines);
+    const controller = new AbortController();
+    const queued = parser.parse(lines, controller.signal);
+    controller.abort();
+    await expect(queued).rejects.toMatchObject({ name: "AbortError" });
+    expect(latestWorker().postMessage).toHaveBeenCalledOnce();
+    expect(latestWorker().terminate).not.toHaveBeenCalled();
+    complete();
+    await expect(active).resolves.toEqual(expected);
+    expect(latestWorker().postMessage).toHaveBeenCalledOnce();
+  });
+
+  it("rejects queued batches on disposal without spawning workers", async () => {
+    const requests = [parser.parse(lines), parser.parse(lines), parser.parse(lines)];
+    parser.dispose();
+    for (const request of requests) {
+      await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    }
+    expect(ControlledWorker.instances).toHaveLength(1);
+    expect(latestWorker().postMessage).toHaveBeenCalledOnce();
   });
 });

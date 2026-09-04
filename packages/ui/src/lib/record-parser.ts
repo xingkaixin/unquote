@@ -2,7 +2,7 @@ import { parseJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
 import type { RecordParserRequest, RecordParserResponse } from "../worker/record-parser-worker";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
-import { createWorkerRequestRunner, type WorkerRequestRunner } from "./worker-lifecycle";
+import { createWorkerRequestRunner } from "./worker-lifecycle";
 
 export const recordParserTimeoutMs = 15_000;
 export const recordParserIdleTimeoutMs = 30_000;
@@ -10,13 +10,6 @@ export const recordParserIdleTimeoutMs = 30_000;
 export interface RecordParser {
   parse: (lines: Map<number, string>, signal?: AbortSignal) => Promise<Map<number, JsonlRecord>>;
   dispose: () => void;
-}
-
-interface RecordParserSlot {
-  runner: WorkerRequestRunner;
-  busy: boolean;
-  cancelActive: ((reason: unknown) => void) | null;
-  idleTimeoutId: number | null;
 }
 
 const parserAbortError = () => new DOMException("Full record parser disposed", "AbortError");
@@ -41,35 +34,24 @@ const createRecordParserRunner = () =>
   );
 
 export const createRecordParser = (): RecordParser => {
-  const slots: RecordParserSlot[] = [];
+  const runner = createRecordParserRunner();
+  const pending = new Set<() => void>();
   let disposed = false;
+  let busy = false;
+  let cancelActive: ((reason: unknown) => void) | null = null;
+  let idleTimeoutId: number | null = null;
 
-  const acquireSlot = () => {
-    let slot = slots.find((candidate) => !candidate.busy);
-    if (!slot) {
-      slot = {
-        runner: createRecordParserRunner(),
-        busy: false,
-        cancelActive: null,
-        idleTimeoutId: null,
-      };
-      slots.push(slot);
-    }
-    if (slot.idleTimeoutId !== null) {
-      window.clearTimeout(slot.idleTimeoutId);
-      slot.idleTimeoutId = null;
-    }
-    slot.busy = true;
-    return slot;
-  };
-
-  const releaseSlot = (slot: RecordParserSlot) => {
-    slot.busy = false;
-    slot.cancelActive = null;
-    if (!disposed) {
-      slot.idleTimeoutId = window.setTimeout(() => {
-        slot.idleTimeoutId = null;
-        slot.runner.dispose();
+  const release = () => {
+    busy = false;
+    cancelActive = null;
+    if (disposed) return;
+    const next = pending.values().next().value;
+    if (next) {
+      next();
+    } else {
+      idleTimeoutId = window.setTimeout(() => {
+        idleTimeoutId = null;
+        runner.dispose();
       }, recordParserIdleTimeoutMs);
     }
   };
@@ -85,7 +67,26 @@ export const createRecordParser = (): RecordParser => {
       return Promise.resolve(new Map());
     }
 
-    const slot = acquireSlot();
+    if (busy) {
+      return new Promise((resolve, reject) => {
+        const start = () => {
+          pending.delete(start);
+          signal?.removeEventListener("abort", abort);
+          parse(lines, signal).then(resolve, reject);
+        };
+        const abort = () => {
+          pending.delete(start);
+          reject(signal?.reason);
+        };
+        pending.add(start);
+        signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
+    if (idleTimeoutId !== null) {
+      window.clearTimeout(idleTimeoutId);
+      idleTimeoutId = null;
+    }
+    busy = true;
     return new Promise<Map<number, JsonlRecord>>((resolve, reject) => {
       let settled = false;
       let abort: (() => void) | undefined;
@@ -98,11 +99,11 @@ export const createRecordParser = (): RecordParser => {
         if (abort) {
           signal?.removeEventListener("abort", abort);
         }
-        releaseSlot(slot);
+        release();
         complete();
       };
 
-      const run = slot.runner.begin<RecordParserResponse>({
+      const run = runner.begin<RecordParserResponse>({
         onMessage: ({ data }) => {
           if (data.requestId !== run.requestId || !run.finish()) {
             return;
@@ -121,7 +122,7 @@ export const createRecordParser = (): RecordParser => {
           settle(() => reject(reason));
         }
       };
-      slot.cancelActive = cancel;
+      cancelActive = cancel;
       abort = () => cancel(signal?.reason);
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) {
@@ -156,15 +157,13 @@ export const createRecordParser = (): RecordParser => {
         return;
       }
       disposed = true;
-      for (const slot of slots) {
-        if (slot.idleTimeoutId !== null) {
-          window.clearTimeout(slot.idleTimeoutId);
-          slot.idleTimeoutId = null;
-        }
-        slot.cancelActive?.(parserAbortError());
-        slot.runner.dispose();
+      if (idleTimeoutId !== null) {
+        window.clearTimeout(idleTimeoutId);
+        idleTimeoutId = null;
       }
-      slots.length = 0;
+      cancelActive?.(parserAbortError());
+      for (const start of pending) start();
+      runner.dispose();
     },
   };
 };
