@@ -25,6 +25,8 @@ export const ja: Messages = {
   "copy.failed": "コピーに失敗しました",
   "toolbar.exporting": "エクスポート中…",
   "toolbar.exportDone": "ファイルをエクスポートしました",
+  "toolbar.exportTooLarge":
+    "エクスポート内容が64 MiBを超えています。レコードを絞り込んで再試行してください。",
   "toolbar.exportFailed": "エクスポートに失敗しました",
   "toolbar.export": "エクスポート",
   "toolbar.exportJsonl": "JSONL をエクスポート",

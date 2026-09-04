@@ -24,6 +24,7 @@ export const zhCN: Messages = {
   "copy.failed": "复制失败",
   "toolbar.exporting": "导出中…",
   "toolbar.exportDone": "文件已导出",
+  "toolbar.exportTooLarge": "导出内容超过 64 MiB，请筛选更少的记录后重试。",
   "toolbar.exportFailed": "导出失败",
   "toolbar.export": "导出",
   "toolbar.exportJsonl": "导出 JSONL",

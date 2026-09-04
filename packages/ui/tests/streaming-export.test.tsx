@@ -24,6 +24,7 @@ import type { LocalFileExportAccess } from "../src/hooks/use-export-actions";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
 import type { LocalFileAccess } from "../src/lib/local-file-source";
 import {
+  ExportSizeLimitError,
   addRecordsToBuilder,
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
@@ -402,4 +403,22 @@ describe("streaming export", () => {
     expect(resolveRecords).not.toHaveBeenCalled();
     expect(peakLiveRecords).toBe(1);
   });
+});
+
+it("does not download an oversized export and explains the size limit", async () => {
+  const { result } = renderExport({
+    visibleRecords: fullRecords(['{"id":1}']),
+    sourceAccess: {
+      readRecordText: vi.fn(),
+      streamRecords: vi.fn().mockRejectedValue(new ExportSizeLimitError()),
+    },
+  });
+  result.current.onExportJsonl();
+  await act(async () => {
+    await toastMocks.promise.mock.calls.at(-1)![0].catch(() => undefined);
+  });
+  expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
+  expect(toastMocks.error).toHaveBeenCalledWith(
+    "Export exceeds 64 MiB. Filter fewer records and try again.",
+  );
 });

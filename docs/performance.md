@@ -246,3 +246,17 @@ projection p50 under 50 ms, Trajectory ready p50 under 100 ms, item selection
 ready p50 under 60 ms, and Trajectory DOM nodes under 1400. Use
 `benchmark:case4-fixture -- --rows=100000` for local 100k-row stress runs; the
 100k fixture is intentionally generated locally instead of committed.
+
+
+## Copy and export payload limits
+
+Copy resolves one record at a time and stops at 20,000,000 UTF-8 output bytes or
+5,000 records. Each local record read is capped at 20,000,000 source bytes before
+parsing. Without Blob streaming, the whole file must fit this read budget.
+
+Export retains serialized parts until the Blob download is created, so it is
+capped at 64 MiB of UTF-8 output, including formatting and separators. This leaves
+room within the 256 MiB heap budget for UTF-16 strings, Blob construction, and the
+current record. Serialization stops at the remaining output budget. Oversized
+exports fail without downloading a partial file; users can filter fewer records.
+This output cap is not a bound on the AST size of an individual source record.

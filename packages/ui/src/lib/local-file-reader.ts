@@ -281,6 +281,7 @@ export const readJsonlFileLines = async (
       await finishQueuedLines();
     }
   } catch (error) {
+    stopped = true;
     if (!signal?.aborted) {
       throw error;
     }

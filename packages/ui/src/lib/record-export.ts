@@ -1,9 +1,7 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
-import { isPreviewRecord, stringifyJsonNode, stringifyJsonNodeBounded } from "@unquote/core";
+import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
 import { materializeRecord } from "./tree";
 
-// Copy builds one giant string and hands it to the clipboard API, which freezes
-// the main thread on large data. Export streams via Blob(parts[]) and is safe.
 export const copyRecordLimit = 5000;
 export const copyBytesLimit = 20_000_000;
 export const isCopyRecordCountAboveThreshold = (recordCount: number) =>
@@ -74,9 +72,6 @@ const copyNodeFor = (record: JsonlRecord): JsonNode => {
     },
   };
 };
-
-const formatRecord = (record: JsonlRecord, indent = 0) =>
-  stringifyJsonNode(copyNodeFor(record), { indent });
 
 class CopyPayloadWriter {
   private readonly chunks: string[] = [];
@@ -248,48 +243,88 @@ export interface ExportPartsBuilder {
   finish: () => BlobPart[];
 }
 
-// Stream-friendly: each record stringifies to its own BlobPart so the engine
-// concatenates buffers directly instead of one giant JS string.
-export const createJsonlPartsBuilder = (): ExportPartsBuilder => {
-  const parts: BlobPart[] = [];
-  return {
-    bodyFor: (record) => formatRecord(record),
-    addBody: (body) => {
-      if (parts.length > 0) {
-        parts.push("\n");
-      }
-      parts.push(body);
-    },
-    finish: () => parts,
-  };
-};
+export const exportBytesLimit = 64 * 1024 * 1024;
 
-// JSONL-as-JSON-array: stringify each record on its own and indent it to the
-// array's nesting, instead of handing JSON.stringify one 300MB+ value — that
-// single synchronous call can't be interrupted and freezes the tab.
-export const createJsonPartsBuilder = (format: "json" | "jsonl"): ExportPartsBuilder => {
-  const bodyFor = (record: JsonlRecord) => formatRecord(record, 2);
-
-  if (format === "json") {
-    let first: string | null = null;
-    return {
-      bodyFor,
-      addBody: (body) => {
-        first ??= body;
-      },
-      finish: () => [first ?? "null"],
-    };
+export class ExportSizeLimitError extends Error {
+  constructor() {
+    super("Export exceeds the byte limit");
   }
+}
 
+const createExportPartsBuilder = (
+  format: "json" | "jsonl" | "array",
+  byteLimit: number,
+): ExportPartsBuilder => {
   const parts: BlobPart[] = [];
+  let remainingBytes = normalizedByteLimit(byteLimit);
+  let count = 0;
+  const requireBytes = (value: string) => {
+    const bytes = utf8ByteLengthWithin(value, remainingBytes);
+    if (bytes === null) {
+      throw new ExportSizeLimitError();
+    }
+    return bytes;
+  };
+  const append = (value: string) => {
+    remainingBytes -= requireBytes(value);
+    if (value) {
+      parts.push(value);
+    }
+  };
   return {
-    bodyFor: (record) => `  ${bodyFor(record).replace(/\n/g, "\n  ")}`,
-    addBody: (body) => {
-      parts.push(parts.length === 0 ? "[\n" : ",\n", body);
+    bodyFor(record) {
+      const serialized = boundedRecordText(record, format === "jsonl" ? 0 : 2, remainingBytes);
+      if (serialized.truncated) {
+        throw new ExportSizeLimitError();
+      }
+      if (format === "array") {
+        let indentationBytes = 2;
+        for (const character of serialized.text) {
+          if (character === "\n") indentationBytes += 2;
+        }
+        if (
+          indentationBytes > remainingBytes ||
+          utf8ByteLengthWithin(serialized.text, remainingBytes - indentationBytes) === null
+        ) {
+          throw new ExportSizeLimitError();
+        }
+      }
+      const body =
+        format === "array" ? `  ${serialized.text.replace(/\n/g, "\n  ")}` : serialized.text;
+      requireBytes(body);
+      return body;
     },
-    finish: () => (parts.length === 0 ? ["[]"] : [...parts, "\n]"]),
+    addBody(body) {
+      if (format === "json" && count > 0) {
+        return;
+      }
+      const prefix = format === "array" ? (count === 0 ? "[\n" : ",\n") : count > 0 ? "\n" : "";
+      append(prefix);
+      append(body);
+      count += 1;
+    },
+    finish() {
+      const suffix =
+        format === "array"
+          ? count === 0
+            ? "[]"
+            : "\n]"
+          : format === "json" && count === 0
+            ? "null"
+            : "";
+      requireBytes(suffix);
+      return suffix ? [...parts, suffix] : parts;
+    },
   };
 };
+
+export const createJsonlPartsBuilder = (byteLimit = exportBytesLimit): ExportPartsBuilder =>
+  createExportPartsBuilder("jsonl", byteLimit);
+
+export const createJsonPartsBuilder = (
+  format: "json" | "jsonl",
+  byteLimit = exportBytesLimit,
+): ExportPartsBuilder => createExportPartsBuilder(format === "json" ? "json" : "array", byteLimit);
 
 // Chunked with main-thread yields so an "Exporting…" toast stays responsive.
 export const addRecordBodiesToBuilder = async (
