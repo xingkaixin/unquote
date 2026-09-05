@@ -8,7 +8,7 @@ import { createRecordInsightMap } from "../src/lib/record-insight";
 import { searchRecords } from "../src/lib/record-search";
 import type { SearchResultSet } from "../src/lib/record-search";
 import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
-import { resolveTreePath, resolveTreePathMatches } from "../src/lib/tree-path";
+import { resolveTreePath } from "../src/lib/tree-path";
 
 const oversizedMatchCount = 130_000;
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
@@ -28,23 +28,6 @@ describe("tree paths", () => {
     expect(resolved.target.sourceState).toBe("inside-stringified");
     expect(resolved.target.stringifiedPathChain).toEqual(["$.payload"]);
     expect(resolved.target.node.value).toBe(1);
-  });
-
-  it("resolves exact paths across all JSONL records", () => {
-    const result = parseInput(
-      '{"payload":{"type":"request"}}\n{"payload":{"type":"response"}}\n{"meta":{"type":"skip"}}',
-    );
-    const resolved = resolveTreePathMatches(result.records, "$.payload.type");
-
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) {
-      return;
-    }
-
-    expect(resolved.targets).toEqual([
-      { recordId: "record-1", pathText: "$.payload.type" },
-      { recordId: "record-2", pathText: "$.payload.type" },
-    ]);
   });
 
   it("projects only the fields the renderer, virtualizer, and selection read", () => {

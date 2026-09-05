@@ -24,15 +24,6 @@ export type ResolveTreePathResult =
   | { ok: true; target: ResolvedTreePath }
   | { ok: false; reason: "invalid" | "not-found" };
 
-export interface TreePathMatch {
-  recordId: string;
-  pathText: string;
-}
-
-export type ResolveTreePathMatchesResult =
-  | { ok: true; targets: TreePathMatch[] }
-  | { ok: false; reason: "invalid" | "not-found" };
-
 const getRecordSearchOrder = (records: JsonlRecord[], preferredRecordId?: string) => {
   if (!preferredRecordId) {
     return records;
@@ -166,24 +157,4 @@ export const resolveTreePath = (
   }
 
   return { ok: false, reason: "not-found" };
-};
-
-export const resolveTreePathMatches = (
-  records: JsonlRecord[],
-  selector: string,
-): ResolveTreePathMatchesResult => {
-  const requestedSegments = parseTreePath(selector);
-  if (!requestedSegments) {
-    return { ok: false, reason: "invalid" };
-  }
-
-  const pathText = formatJsonPath(requestedSegments);
-  const targets: TreePathMatch[] = [];
-  for (const record of records) {
-    if (findPathNodeInRecord(record, requestedSegments)) {
-      targets.push({ recordId: record.id, pathText });
-    }
-  }
-
-  return targets.length > 0 ? { ok: true, targets } : { ok: false, reason: "not-found" };
 };
