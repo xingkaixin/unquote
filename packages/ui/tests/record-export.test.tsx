@@ -10,9 +10,6 @@ import {
   createJsonPartsBuilder,
   createJsonlPartsBuilder,
   downloadBlob,
-  formatRecordsAsJsonForCopy,
-  formatRecordsAsJsonlForCopy,
-  getCopyValue,
   isCopyRecordCountAboveThreshold,
   isCopyTextAboveThreshold,
 } from "../src/lib/record-export";
@@ -32,62 +29,75 @@ describe("record-export", () => {
     "rejects unresolved previews of %s in copy and export formats",
     async (source) => {
       const record = parsePreviewJsonlRecordLine(source, 1);
-      expect(() => getCopyValue(record)).toThrow(TypeError);
-      expect(() => formatRecordsAsJsonForCopy([record], "json")).toThrow(TypeError);
-      expect(() => formatRecordsAsJsonlForCopy([record])).toThrow(TypeError);
+      await expect(
+        formatResolvedRecordsForCopy(
+          [record],
+          "json",
+          async (record) => record,
+          new AbortController().signal,
+        ),
+      ).rejects.toThrow(TypeError);
       await expect(buildJsonParts([record], "jsonl")).rejects.toThrow(TypeError);
       await expect(buildJsonlParts([record])).rejects.toThrow(TypeError);
     },
   );
-
-  it("getCopyValue returns the materialized value for a parsed record", () => {
-    const [record] = recordsFrom('{"a":1,"b":"x"}', "json");
-    expect(getCopyValue(record!)).toEqual({ a: 1, b: "x" });
-  });
-
-  it("getCopyValue returns an error shape for a failed record", () => {
-    const [record] = recordsFrom("{bad}", "jsonl");
-    const value = getCopyValue(record!) as Record<string, unknown>;
-    expect(value.error).toBeTruthy();
-    expect(value.lineNumber).toBe(1);
-  });
-
-  it("getCopyValue preserves required failed-record diagnostics", () => {
-    const [failed] = recordsFrom("{bad}", "jsonl");
-
-    expect(getCopyValue(failed!)).toMatchObject({
-      error: failed?.error,
-      rawLine: failed?.rawLine,
-    });
-  });
 
   it("blocks copy only above the record threshold", () => {
     expect(isCopyRecordCountAboveThreshold(copyRecordLimit)).toBe(false);
     expect(isCopyRecordCountAboveThreshold(copyRecordLimit + 1)).toBe(true);
   });
 
-  it("formats copy payloads within budget", () => {
+  it("preserves failed-record diagnostics in copy payloads", async () => {
     const records = recordsFrom('{"a":1}\n{bad}', "jsonl");
-    const jsonl = formatRecordsAsJsonlForCopy(records);
-    const json = formatRecordsAsJsonForCopy(records, "jsonl");
-
-    expect(jsonl?.split("\n").map((line) => JSON.parse(line))).toEqual(records.map(getCopyValue));
-    expect(JSON.parse(json!)).toEqual(records.map(getCopyValue));
-    expect(formatRecordsAsJsonForCopy([], "json")).toBe("null");
+    const failed = records[1]!;
+    const text = await formatResolvedRecordsForCopy(
+      records,
+      "array",
+      async (record) => record,
+      new AbortController().signal,
+    );
+    expect(JSON.parse(text!)).toEqual([
+      { a: 1 },
+      {
+        lineNumber: 2,
+        error: failed.error,
+        line: failed.errorMeta!.line,
+        column: failed.errorMeta!.column,
+        rawLine: "{bad}",
+        context: failed.errorMeta!.context,
+        summary: failed.summary,
+      },
+    ]);
   });
 
-  it("checks the final UTF-8 payload at an inclusive byte limit", () => {
+  it("checks the final UTF-8 payload at an inclusive byte limit", async () => {
     const records = recordsFrom('{"emoji":"😀"}', "json");
     const text = JSON.stringify({ emoji: "😀" }, null, 2);
     const byteLength = new TextEncoder().encode(text).byteLength;
 
-    expect(formatRecordsAsJsonForCopy(records, "json", byteLength)).toBe(text);
-    expect(formatRecordsAsJsonForCopy(records, "json", byteLength - 1)).toBeNull();
+    await expect(
+      formatResolvedRecordsForCopy(
+        records,
+        "json",
+        async (record) => record,
+        new AbortController().signal,
+        byteLength,
+      ),
+    ).resolves.toBe(text);
+    await expect(
+      formatResolvedRecordsForCopy(
+        records,
+        "json",
+        async (record) => record,
+        new AbortController().signal,
+        byteLength - 1,
+      ),
+    ).resolves.toBeNull();
     expect(isCopyTextAboveThreshold(text, byteLength)).toBe(false);
     expect(isCopyTextAboveThreshold(text, byteLength - 1)).toBe(true);
   });
 
-  it("stops serializing a Record when the copy budget is exhausted", () => {
+  it("stops serializing a Record when the copy budget is exhausted", async () => {
     const children: Record<string, JsonNode> = {
       payload: { kind: "string", value: "x".repeat(100) },
     };
@@ -105,22 +115,48 @@ describe("record-export", () => {
       node: { kind: "object", children },
     };
 
-    expect(formatRecordsAsJsonlForCopy([record], 20)).toBeNull();
+    await expect(
+      formatResolvedRecordsForCopy(
+        [record],
+        "jsonl",
+        async (record) => record,
+        new AbortController().signal,
+        20,
+      ),
+    ).resolves.toBeNull();
   });
 
   it("preserves unsafe number lexemes in every export shape", async () => {
     const records = recordsFrom('{"large":9007199254740993}\n{"exponent":1e400}', "jsonl");
 
-    expect(formatRecordsAsJsonlForCopy(records)).toBe(
-      '{"large":9007199254740993}\n{"exponent":1e400}',
+    const copied = await formatResolvedRecordsForCopy(
+      records,
+      "array",
+      async (record) => record,
+      new AbortController().signal,
     );
-    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toContain("9007199254740993");
-    expect(formatRecordsAsJsonForCopy(records, "jsonl")).toContain("1e400");
+    expect(copied).toContain("9007199254740993");
+    expect(copied).toContain("1e400");
     await expect(buildJsonlParts(records)).resolves.toEqual([
       '{"large":9007199254740993}',
       "\n",
       '{"exponent":1e400}',
     ]);
+  });
+
+  it.each([
+    ["json", "null"],
+    ["jsonl", ""],
+    ["array", "[]"],
+  ] as const)("copies an empty %s collection", async (format, expected) => {
+    await expect(
+      formatResolvedRecordsForCopy(
+        [],
+        format,
+        async (record) => record,
+        new AbortController().signal,
+      ),
+    ).resolves.toBe(expected);
   });
 
   it("formats empty JSON and JSONL collections", async () => {
@@ -234,10 +270,11 @@ describe("bounded copy hydration", () => {
 
   it.each(["jsonl", "array", "json"] as const)("preserves %s formatting", async (format) => {
     const records = recordsFrom('{"n":9007199254740993}\n{"s":"中文"}', "jsonl");
-    const expected =
-      format === "jsonl"
-        ? formatRecordsAsJsonlForCopy(records)
-        : formatRecordsAsJsonForCopy(records, format === "array" ? "jsonl" : "json");
+    const expected = {
+      jsonl: '{"n":9007199254740993}\n{"s":"中文"}',
+      array: '[\n  {\n    "n": 9007199254740993\n  },\n  {\n    "s": "中文"\n  }\n]',
+      json: '{\n  "n": 9007199254740993\n}',
+    }[format];
     await expect(
       formatResolvedRecordsForCopy(
         records,

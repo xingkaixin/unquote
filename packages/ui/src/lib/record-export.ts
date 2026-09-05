@@ -1,6 +1,5 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
-import { materializeRecord } from "./tree";
 
 export const copyRecordLimit = 5000;
 export const copyBytesLimit = 20_000_000;
@@ -34,22 +33,6 @@ const utf8ByteLengthWithin = (value: string, byteLimit: number) => {
 
 export const isCopyTextAboveThreshold = (text: string, byteLimit = copyBytesLimit) =>
   utf8ByteLengthWithin(text, normalizedByteLimit(byteLimit)) === null;
-
-export const getCopyValue = (record: JsonlRecord) => {
-  if (record.status !== "failed") {
-    return materializeRecord(record);
-  }
-
-  return {
-    lineNumber: record.lineNumber,
-    error: record.error,
-    line: record.errorMeta.line,
-    column: record.errorMeta.column,
-    rawLine: record.rawLine,
-    context: record.errorMeta.context,
-    summary: record.summary,
-  };
-};
 
 const copyNodeFor = (record: JsonlRecord): JsonNode => {
   if (isPreviewRecord(record)) {
@@ -132,52 +115,6 @@ const appendIndentedRecord = (writer: CopyPayloadWriter, record: JsonlRecord) =>
     start = newline + 1;
   }
   return true;
-};
-
-export const formatRecordsAsJsonlForCopy = (
-  records: JsonlRecord[],
-  byteLimit = copyBytesLimit,
-): string | null => {
-  if (isCopyRecordCountAboveThreshold(records.length)) {
-    return null;
-  }
-  const writer = new CopyPayloadWriter(byteLimit);
-  for (let index = 0; index < records.length; index += 1) {
-    if ((index > 0 && !writer.append("\n")) || !appendRecord(writer, records[index]!, 0)) {
-      return null;
-    }
-  }
-  return writer.finish();
-};
-
-export const formatRecordsAsJsonForCopy = (
-  records: JsonlRecord[],
-  format: "json" | "jsonl",
-  byteLimit = copyBytesLimit,
-): string | null => {
-  const writer = new CopyPayloadWriter(byteLimit);
-  if (format === "json") {
-    const record = records[0];
-    if (!record) {
-      return writer.append("null") ? writer.finish() : null;
-    }
-    return appendRecord(writer, record, 2) ? writer.finish() : null;
-  }
-  if (isCopyRecordCountAboveThreshold(records.length)) {
-    return null;
-  }
-  if (records.length === 0) {
-    return writer.append("[]") ? writer.finish() : null;
-  }
-  if (!writer.append("[\n")) {
-    return null;
-  }
-  for (let index = 0; index < records.length; index += 1) {
-    if ((index > 0 && !writer.append(",\n")) || !appendIndentedRecord(writer, records[index]!)) {
-      return null;
-    }
-  }
-  return writer.append("\n]") ? writer.finish() : null;
 };
 
 export const formatResolvedRecordsForCopy = async (
