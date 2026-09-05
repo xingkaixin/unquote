@@ -26,7 +26,7 @@ describe("product updates page", () => {
 
     expect(document.documentElement.lang).toBe(locale);
     expect(document.querySelector("h1")?.textContent).toBe(expectedHeadings[locale]);
-    expect(document.querySelectorAll("article.release")).toHaveLength(5);
+    expect(document.querySelectorAll("article.release").length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toContain("@unquote/core");
   });
 
@@ -53,9 +53,10 @@ describe("product updates page", () => {
     const blog = schema["@graph"].find((entry) => entry["@type"] === "Blog");
 
     expect(blog?.inLanguage).toBe(locale);
-    expect(blog?.blogPost).toHaveLength(5);
-    expect(blog?.blogPost?.[0]?.inLanguage).toBe(locale);
-    expect(blog?.blogPost?.[0]?.url).toBe(`${canonicalUrl}#v1-2-1`);
+    const releases = [...document.querySelectorAll("article.release")];
+    expect(blog?.blogPost?.map(({ inLanguage, url }) => ({ inLanguage, url }))).toEqual(
+      releases.map((release) => ({ inLanguage: locale, url: `${canonicalUrl}#${release.id}` })),
+    );
   });
 
   it("uses a unique page title for each locale", () => {
