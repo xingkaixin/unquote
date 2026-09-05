@@ -1,6 +1,6 @@
 import { createLocalFileAccess } from "../lib/local-file-source";
 import type { LocalFileAccess } from "../lib/local-file-source";
-import { parseTextResult } from "../lib/parse-text-result";
+import { parseInput } from "@unquote/core";
 import type { SourceRevision } from "../lib/source-revision";
 import { createMemorySearch } from "../lib/memory-search";
 import type { SearchOptions, SearchResultSet, SearchResultWindow } from "../lib/record-search";
@@ -59,7 +59,10 @@ const searchForSource = (source: TextSearchSource) => {
     return sourceCache.search;
   }
 
-  const result = parseTextResult(source.text, source.forcedFormat);
+  const result = parseInput(
+    source.text,
+    source.forcedFormat ? { forcedFormat: source.forcedFormat } : {},
+  );
   const search = createMemorySearch(result.records);
   sourceCache = { kind: "memory", sourceRevision: source.sourceRevision, search };
   return search;

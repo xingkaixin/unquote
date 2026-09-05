@@ -1,5 +1,5 @@
 import { cleanup } from "@testing-library/react";
-import { parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
+import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, vi } from "vitest";
 import type { SearchOptions } from "../../src/lib/record-search";
@@ -66,22 +66,20 @@ Object.assign(globalThis, {
       options: unknown,
       windowIndexes?: Float64Array,
     ) {
-      Promise.all([import("../../src/lib/parse-text"), import("../../src/lib/record-search")]).then(
-        ([{ parseTextResult }, { searchRecords }]) => {
-          const parsed = parseTextResult(text, forcedFormat);
-          const result = searchRecords(
-            parsed.records,
-            query,
-            options as SearchOptions,
-            windowIndexes ?? initialSearchWindowIndexes,
-          );
-          this.respond(
-            windowIndexes && result
-              ? { type: "window", requestId, window: result.window }
-              : { type: "result", requestId, result },
-          );
-        },
-      );
+      import("../../src/lib/record-search").then(({ searchRecords }) => {
+        const parsed = parseInput(text, forcedFormat ? { forcedFormat } : {});
+        const result = searchRecords(
+          parsed.records,
+          query,
+          options as SearchOptions,
+          windowIndexes ?? initialSearchWindowIndexes,
+        );
+        this.respond(
+          windowIndexes && result
+            ? { type: "window", requestId, window: result.window }
+            : { type: "result", requestId, result },
+        );
+      });
     }
     completeSearchFile(
       requestId: number,

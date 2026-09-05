@@ -57,7 +57,7 @@ describe("search worker", () => {
     vi.restoreAllMocks();
     vi.doUnmock("../src/lib/record-search");
     vi.doUnmock("../src/lib/local-file-source");
-    vi.doUnmock("../src/lib/parse-text-result");
+    vi.doUnmock("@unquote/core");
   });
 
   it("finds matches in text input", async () => {
@@ -99,7 +99,10 @@ describe("search worker", () => {
         },
       });
     }
-    vi.doMock("../src/lib/parse-text-result", () => ({ parseTextResult: () => parsed }));
+    vi.doMock("@unquote/core", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@unquote/core")>()),
+      parseInput: () => parsed,
+    }));
     const scope = await loadWorker();
     dispatch(scope, {
       type: "search-text",

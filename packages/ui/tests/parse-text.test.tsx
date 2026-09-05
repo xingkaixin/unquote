@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseText, parseTextResult } from "../src/lib/parse-text";
+import { parseText } from "../src/lib/parse-text";
 
 describe("parse text", () => {
   it("applies an optional forced format through one interface", () => {
     const input = '{"first":1}\n{"second":2}';
 
-    expect(parseTextResult(input).format).toBe("jsonl");
-    expect(parseTextResult(input, "json").format).toBe("json");
+    expect(parseText(input).result.format).toBe("jsonl");
+    expect(parseText(input, { forcedFormat: "json" }).result.format).toBe("json");
   });
 
   it("returns the parsed result, agent session, and completed progress", () => {
