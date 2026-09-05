@@ -5,6 +5,28 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.2] - 2026-09-05
+
+### Added
+
+- Added localized product updates pages in English, Simplified Chinese, and Japanese, with direct navigation from the status bar.
+- Added theme-aware backgrounds to the import panel and empty state.
+
+### Changed
+
+- Migrated UI icons across the application to Phosphor Icons for a unified visual hierarchy.
+- Standardized runtime management on `mise` and upgraded Vitest to version 5, decoupling release verification from hardcoded version checks.
+- Cleaned up internal architecture boundaries by scoping module guidance, removing unused path query and expansion helpers, and eliminating the intermediate parse text forwarding layer.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.2`.
+
+### Fixed
+
+- Buffered export operations now enforce an explicit byte payload ceiling with localized error feedback, preventing memory exhaustion and tab crashes during heavy exports.
+- Copying unhydrated records from local files bounds memory hydration before parsing, preventing runaway memory allocations on oversized lines.
+- Full-record Web Worker parsing and search requests are now serialized, preventing worker contention and task queuing under heavy loads.
+- Initial Agent session inputs are now parsed only once during ingestion instead of repeating across view initialization, improving first-render responsiveness and memory usage.
+- Dropdown radio menus now close automatically upon selecting an option.
+
 ## [1.2.1] - 2026-08-31
 
 ### Added

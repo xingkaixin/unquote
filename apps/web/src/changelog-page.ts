@@ -89,6 +89,19 @@ const changelogCopy = {
     versionPrefix: "Version",
     releases: [
       {
+        version: "1.2.2",
+        date: "2026-09-05",
+        dateLabel: "September 5, 2026",
+        title: "Safer export limits, faster agent starts, and unified icons",
+        summary:
+          "Heavy exports now protect memory limits with clear feedback, Agent sessions reach their first view with less duplicate parsing, and icons are unified across the interface.",
+        highlights: [
+          "Buffered exports and unhydrated copy actions enforce explicit memory limits instead of freezing the tab.",
+          "Initial Agent session inputs parse once during load, making long logs faster to open.",
+          "Icons across the app are migrated to Phosphor Icons, and the import panel gains theme-aware backgrounds.",
+        ],
+      },
+      {
         version: "1.2.1",
         date: "2026-08-31",
         dateLabel: "August 31, 2026",
@@ -201,6 +214,19 @@ const changelogCopy = {
     latestSummary: "更新说明只关注用户可以感知的变化，不罗列背后的实现细节。",
     versionPrefix: "版本",
     releases: [
+      {
+        version: "1.2.2",
+        date: "2026-09-05",
+        dateLabel: "2026 年 9 月 5 日",
+        title: "更安全的导出上限、更快的 Agent 启动与统一的图标",
+        summary:
+          "大文件导出增加内存保护与清晰反馈，Agent 会话减少重复解析加快首屏呈现，全界面图标统一规范。",
+        highlights: [
+          "缓冲导出与未水合记录复制增加显式内存上限，避免大体积操作卡死标签页。",
+          "Agent 会话初始输入改为仅解析一次，加快大日志的打开速度与首屏渲染。",
+          "界面图标统一迁移至 Phosphor 图标库，导入面板新增适配明暗主题的背景装饰。",
+        ],
+      },
       {
         version: "1.2.1",
         date: "2026-08-31",
@@ -318,6 +344,19 @@ const changelogCopy = {
     latestSummary: "実装の詳細ではなく、ユーザーが実感できる変化を中心にまとめています。",
     versionPrefix: "バージョン",
     releases: [
+      {
+        version: "1.2.2",
+        date: "2026-09-05",
+        dateLabel: "2026年9月5日",
+        title: "より安全なエクスポート上限、Agent 起動の高速化、アイコンの統一",
+        summary:
+          "大きなエクスポートにメモリ保護と明確なフィードバックを追加し、Agent セッションの重複解析を削減して初期表示を高速化し、UI 全体のアイコンを統一しました。",
+        highlights: [
+          "バッファ付きエクスポートと未ハイドレーション行のコピーに明示的なメモリ制限を設け、タブのフリーズを防ぎます。",
+          "Agent セッションの初期入力を1回のみ解析するように改善し、大きなログの初回表示を高速化しました。",
+          "アプリ全体のアイコンを Phosphor Icons に移行し、インポート画面にテーマ連動の背景を追加しました。",
+        ],
+      },
       {
         version: "1.2.1",
         date: "2026-08-31",
