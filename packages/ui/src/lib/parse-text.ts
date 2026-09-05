@@ -1,11 +1,7 @@
-import type { ParseResult } from "@unquote/core";
+import type { ParseOptions, ParseResult } from "@unquote/core";
 import { parseInputForIngestion } from "@unquote/core/ingestion";
 import type { AgentSession } from "./agent-session";
 import { createJsonlIngestion } from "./jsonl-ingestion";
-import type { ForcedFormat } from "./parse-text-result";
-
-export { parseTextResult } from "./parse-text-result";
-export type { ForcedFormat } from "./parse-text-result";
 
 export interface ParserProgress {
   elapsedMs: number;
@@ -19,7 +15,7 @@ export interface ParsedText {
 }
 
 interface ParseTextOptions {
-  forcedFormat?: ForcedFormat | undefined;
+  forcedFormat?: ParseOptions["forcedFormat"];
   fileName?: string | undefined;
   onAgentSessionDetected?: (() => void) | undefined;
 }

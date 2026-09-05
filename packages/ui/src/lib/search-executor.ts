@@ -1,7 +1,7 @@
 import type { LocalFileAccess } from "./local-file-source";
 import { reportDiagnostic } from "./diagnostics";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
-import { parseTextResult } from "./parse-text-result";
+import { parseInput } from "@unquote/core";
 import { startPerfMeasure } from "./perf";
 import { searchRecords } from "./record-search";
 import type { SearchOptions, SearchResultSet, SearchResultWindow } from "./record-search";
@@ -163,7 +163,7 @@ export const createSearchExecutor = (): SearchExecutor => {
           return;
         }
 
-        const result = parseTextResult(text, forcedFormat);
+        const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
         const searchResult = searchRecords(result.records, query, options, windowIndexes);
         workerRun.finish();
         finishRequestMeasure();
