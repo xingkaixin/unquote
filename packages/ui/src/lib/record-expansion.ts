@@ -141,13 +141,6 @@ export const projectExpandedStringifiedPaths = (
   return mergeExpandedStringifiedPaths(expandedPaths, projected ?? searchExpandedPaths);
 };
 
-export const replaceExpandedStringifiedPaths = (
-  pathsByRecord: ExpandedStringifiedPathsByRecord,
-  recordId: string,
-  paths: Iterable<string>,
-): ExpandedStringifiedPathsByRecord =>
-  replaceExpandedStringifiedPathsBatch(pathsByRecord, [[recordId, paths]]);
-
 export const collapseExpandedStringifiedPaths = <State extends StringifiedExpansionState>(
   state: State,
   recordIds: readonly string[],

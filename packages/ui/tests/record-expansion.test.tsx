@@ -4,7 +4,6 @@ import {
   addExpandedStringifiedPathsBatch,
   groupExpandedStringifiedPaths,
   mergeExpandedStringifiedPaths,
-  replaceExpandedStringifiedPaths,
   replaceExpandedStringifiedPathsBatch,
   type ExpandedStringifiedPathsByRecord,
   type ExpansionEntry,
@@ -83,18 +82,8 @@ const countMapConstructions = <T,>(run: () => T) => {
 const buildEntries = (count: number, pathsFor: (index: number) => string[]): ExpansionEntry[] =>
   Array.from({ length: count }, (_, index) => [`record-${index}`, pathsFor(index)] as const);
 
-const applySequentially = (
-  base: ExpandedStringifiedPathsByRecord,
-  entries: ExpansionEntry[],
-  apply: (
-    current: ExpandedStringifiedPathsByRecord,
-    recordId: string,
-    paths: Iterable<string>,
-  ) => ExpandedStringifiedPathsByRecord,
-) => entries.reduce((current, [recordId, paths]) => apply(current, recordId, paths), base);
-
 describe("batch expansion writes", () => {
-  it("matches sequential single-record writes", () => {
+  it("replaces or adds paths while preserving untouched records", () => {
     const base = new Map<string, ReadonlySet<string>>([
       ["record-0", new Set(["$.kept"])],
       ["record-1", new Set(["$.replaced"])],
@@ -107,12 +96,17 @@ describe("batch expansion writes", () => {
       ["record-9", []],
     ];
 
-    expect(serialize(replaceExpandedStringifiedPathsBatch(base, entries))).toEqual(
-      serialize(applySequentially(base, entries, replaceExpandedStringifiedPaths)),
-    );
-    expect(serialize(addExpandedStringifiedPathsBatch(base, entries))).toEqual(
-      serialize(applySequentially(base, entries, addExpandedStringifiedPaths)),
-    );
+    expect(serialize(replaceExpandedStringifiedPathsBatch(base, entries))).toEqual([
+      ["record-0", ["$.kept"]],
+      ["record-1", ["$.payload", "$.payload.nested"]],
+      ["record-2", ["$.arguments"]],
+    ]);
+    expect(serialize(addExpandedStringifiedPathsBatch(base, entries))).toEqual([
+      ["record-0", ["$.kept"]],
+      ["record-1", ["$.replaced", "$.payload", "$.payload.nested"]],
+      ["record-9", ["$.untouched"]],
+      ["record-2", ["$.arguments"]],
+    ]);
   });
 
   it("returns the original map when no entry changes anything", () => {
