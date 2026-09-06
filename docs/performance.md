@@ -114,8 +114,8 @@ without changing the amount of JavaScript loaded by either surface.
 |---|---:|
 | Initial JavaScript | 620,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 780,000 bytes |
-| Total UI JavaScript gzip | 255,000 bytes |
+| Total UI JavaScript | 820,000 bytes |
+| Total UI JavaScript gzip | 270,000 bytes |
 | Initial CSS | 38,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
@@ -266,4 +266,15 @@ batches queue in request order; queued cancellation and disposal reject without
 starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
 
-Problem excerpt export loads on demand. It selects at most 1,000 records, reads at most 8 MiB of preview source lines and caps generated content at 8 MiB / 50,000 visited nodes per record. Redaction yields every 250 visited nodes. The Markdown preview displays 10,000 characters per page. Total UI budgets accommodate the lazy report dialog at 780 KB / 255 KB gzip; initial JavaScript budgets remain unchanged.
+
+## Local analysis workspaces
+
+Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 820,000 bytes / 270,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 800 KB / 259 KB gzip.
+
+Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page.
+
+Record tables display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration batches contain 64 records and at most 4 MiB. Scans yield between batches and reject cancellation before publication or download.
+
+Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
+
+Problem excerpt export selects at most 1,000 records, reads at most 8 MiB of preview source lines and caps content at 8 MiB / 50,000 visited nodes per record. Redaction yields every 250 visited nodes. Markdown previews display 10,000 characters per page.

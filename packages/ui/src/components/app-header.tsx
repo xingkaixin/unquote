@@ -22,6 +22,8 @@ export interface AppHeaderProps {
   enabled: boolean;
   sourceName: string | null;
   onOpenImport: () => void;
+  onOpenTable?: (() => void) | undefined;
+  onOpenDiff?: () => void;
   outputView: OutputView | null;
   jsonTabLabel: string;
   onOutputViewChange: (view: OutputView) => void;
@@ -41,6 +43,8 @@ export const AppHeader = ({
   enabled,
   sourceName,
   onOpenImport,
+  onOpenTable,
+  onOpenDiff,
   outputView,
   jsonTabLabel,
   onOutputViewChange,
@@ -134,6 +138,14 @@ export const AppHeader = ({
           {t("source.change")}
         </span>
       </button>
+      <Button variant="outline" size="sm" disabled={!enabled || !onOpenTable} onClick={onOpenTable}>
+        {t("table.title")}
+      </Button>
+      {onOpenDiff ? (
+        <Button variant="outline" size="sm" onClick={onOpenDiff}>
+          {t("diff.title")}
+        </Button>
+      ) : null}
       <LocaleToggle />
       <ThemeToggle theme={theme} onChange={onThemeChange} />
       <DropdownMenu>

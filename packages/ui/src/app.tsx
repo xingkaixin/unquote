@@ -53,7 +53,19 @@ const RecordReportDialog = lazy(() =>
   })),
 );
 
-type ActiveOverlay = "import" | "command" | "report" | null;
+const RecordTableDialog = lazy(() =>
+  import("./components/record-table-dialog").then(({ RecordTableDialog }) => ({
+    default: RecordTableDialog,
+  })),
+);
+
+const JsonDiffDialog = lazy(() =>
+  import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => ({
+    default: JsonDiffDialog,
+  })),
+);
+
+type ActiveOverlay = "import" | "command" | "diff" | "table" | "report" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -358,6 +370,12 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setActiveOverlay("import")}
+          onOpenTable={
+            progress.done && resultRevision === source.sourceRevision
+              ? () => setActiveOverlay("table")
+              : undefined
+          }
+          onOpenDiff={() => setActiveOverlay("diff")}
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
@@ -423,6 +441,25 @@ export const UnquoteApp = ({
                   source={source}
                   records={resultRevision === source.sourceRevision ? result.records : []}
                   activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
+                  onClose={() => setActiveOverlay(null)}
+                />
+              ) : null}
+              {activeOverlay === "table" ? (
+                <RecordTableDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
+                  onOpenRecord={handleOpenRecord}
+                  onClose={() => setActiveOverlay(null)}
+                />
+              ) : null}
+              {activeOverlay === "diff" ? (
+                <JsonDiffDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  activeRecord={recordWorkspace.model.active.record}
                   onClose={() => setActiveOverlay(null)}
                 />
               ) : null}

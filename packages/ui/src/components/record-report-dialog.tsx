@@ -73,7 +73,7 @@ export const RecordReportDialog = ({
       <Dialog.Portal>
         <Dialog.Backdrop className="uq-dialog-backdrop fixed inset-0 z-50 bg-[var(--overlay)]" />
         <Dialog.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
-          <Dialog.Popup className="flex max-h-full w-full max-w-[960px] flex-col overflow-hidden rounded-xl border border-border-medium bg-surface-100 text-text-primary shadow-[var(--shadow-panel)]">
+          <Dialog.Popup className="flex max-h-full w-full max-w-[860px] flex-col overflow-hidden rounded-xl border border-border-medium bg-surface-100 text-text-primary shadow-[var(--shadow-panel)]">
             <div className="flex items-center justify-between border-b border-border p-4">
               <Dialog.Title className="text-sm font-semibold">{t("report.title")}</Dialog.Title>
               <Dialog.Close
