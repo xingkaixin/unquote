@@ -47,7 +47,13 @@ const RecordWorkspace = lazy(() =>
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-type ActiveOverlay = "import" | "command" | null;
+const RecordTableDialog = lazy(() =>
+  import("./components/record-table-dialog").then(({ RecordTableDialog }) => ({
+    default: RecordTableDialog,
+  })),
+);
+
+type ActiveOverlay = "import" | "command" | "table" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -219,7 +225,7 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.model.active.selectedPath || activeOverlay === "command") {
+        if (!recordWorkspace.model.active.selectedPath || activeOverlay !== null) {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -352,6 +358,11 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setActiveOverlay("import")}
+          onOpenTable={
+            progress.done && resultRevision === source.sourceRevision
+              ? () => setActiveOverlay("table")
+              : undefined
+          }
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
@@ -405,6 +416,16 @@ export const UnquoteApp = ({
                 <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
                   {importPanel("h-[220px]")}
                 </ImportDialog>
+              ) : null}
+              {activeOverlay === "table" ? (
+                <RecordTableDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
+                  onOpenRecord={handleOpenRecord}
+                  onClose={() => setActiveOverlay(null)}
+                />
               ) : null}
               {activeOverlay === "command" ? (
                 <CommandPalette

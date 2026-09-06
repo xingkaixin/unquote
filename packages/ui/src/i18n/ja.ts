@@ -1,6 +1,35 @@
 import type { Messages } from "./en";
 
 export const ja: Messages = {
+  "table.title": "レコード表",
+  "table.description":
+    "JSON パスを最大 12 列まで選択します。すべての条件を満たすレコードを表示します。文字列化されたフィールドも含めて全件走査し、無効な行は別に集計します。",
+  "table.column": "列 {count}",
+  "table.path": "フィールドパス",
+  "table.condition": "条件",
+  "table.value": "値",
+  "table.any": "すべて",
+  "table.equals": "等しい",
+  "table.contains": "文字列を含む",
+  "table.greater": "数値がより大きい",
+  "table.less": "数値がより小さい",
+  "table.missing": "フィールドなし",
+  "table.remove": "列を削除",
+  "table.add": "列を追加",
+  "table.scan": "適用して走査",
+  "table.cancel": "キャンセル",
+  "table.export": "CSV を書き出す",
+  "table.progress": "{count} / {total} 件を走査済み",
+  "table.summary": "{count} 件一致 · {total} 件走査 · 無効な {failed} 行を除外",
+  "table.csvHint":
+    "長い値はプレビュー表示ですが CSV は完全な値です。欠落と空文字は空欄になります。数式のような文字列にはアポストロフィを付加します。精度を保つには数値列をテキストとして取り込んでください。",
+  "table.limit":
+    "処理上限（12 列、10 万件、結果 20 MiB、セル 64 KiB、読込バッチ 4 MiB）を超えました。列または入力を減らしてください。不完全な結果は書き出していません。",
+  "table.failed": "走査できません。パスと数値条件を確認するか、入力を小さくしてください。",
+  "table.line": "元の行",
+  "table.previous": "前へ",
+  "table.next": "次へ",
+
   "app.tab.agent": "エージェント",
   "app.tab.trajectory": "軌跡",
   "app.changelog": "更新履歴",
