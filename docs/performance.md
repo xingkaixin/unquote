@@ -267,3 +267,5 @@ starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
 
 Record tables load on demand, display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration batches contain 64 records and at most 4 MiB. The scan yields between batches and rejects cancellation before publication or download. Total UI budget allows the lazy table workspace (780 KB / 255 KB gzip), with existing initial JavaScript and stylesheet limits unchanged. The measured extension total is 773,880 bytes / 249,601 bytes gzip.
+
+Field profiles reuse each table scan and update fixed-size counters for the selected columns before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; an aborted or failed scan publishes no profile.

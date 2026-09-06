@@ -1,6 +1,21 @@
 import type { Messages } from "./en";
 
 export const zhCN: Messages = {
+  "profile.title": "字段体检",
+  "profile.description":
+    "所选字段在全部有效源记录中的精确统计，不受筛选条件影响。空字符串同时计入字符串类型。点击计数会替换当前条件并显示对应记录；类型差异不直接认定为错误。",
+  "profile.present": "出现率",
+  "profile.missing": "缺失",
+  "profile.null": "null",
+  "profile.empty": "空字符串",
+  "profile.string": "字符串",
+  "profile.number": "数字",
+  "profile.boolean": "布尔值",
+  "profile.object": "对象",
+  "profile.array": "数组",
+  "table.kind": "类型等于",
+  "table.empty": "空字符串",
+
   "table.title": "记录表格",
   "table.description":
     "选择最多 12 个 JSON 路径作为列，所有条件同时满足时保留记录。扫描全部源记录及字符串化嵌套字段；无效 JSON 行单独计数。",

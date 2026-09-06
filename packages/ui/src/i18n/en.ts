@@ -1,4 +1,19 @@
 export const en = {
+  "profile.title": "Field profile",
+  "profile.description":
+    "Exact counts for the selected columns across all valid source records, before filters. Empty strings also count as strings. Click a count to replace current conditions and show those records; variation alone does not mean an error.",
+  "profile.present": "Present",
+  "profile.missing": "Missing",
+  "profile.null": "Null",
+  "profile.empty": "Empty string",
+  "profile.string": "String",
+  "profile.number": "Number",
+  "profile.boolean": "Boolean",
+  "profile.object": "Object",
+  "profile.array": "Array",
+  "table.kind": "Type equals",
+  "table.empty": "Empty string",
+
   "table.title": "Record table",
   "table.description":
     "Choose up to 12 JSON paths as columns. All conditions must match. Scans all source records, including nested stringified fields; failed JSON lines are counted separately.",

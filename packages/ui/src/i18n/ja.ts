@@ -1,6 +1,21 @@
 import type { Messages } from "./en";
 
 export const ja: Messages = {
+  "profile.title": "フィールド概況",
+  "profile.description":
+    "フィルター適用前の有効な全レコードにおける選択フィールドの正確な集計です。空文字も文字列に含まれます。件数を押すと条件を置換して対象を表示します。型の違いだけではエラーと判定しません。",
+  "profile.present": "出現率",
+  "profile.missing": "欠落",
+  "profile.null": "null",
+  "profile.empty": "空文字",
+  "profile.string": "文字列",
+  "profile.number": "数値",
+  "profile.boolean": "真偽値",
+  "profile.object": "オブジェクト",
+  "profile.array": "配列",
+  "table.kind": "型が等しい",
+  "table.empty": "空文字",
+
   "table.title": "レコード表",
   "table.description":
     "JSON パスを最大 12 列まで選択します。すべての条件を満たすレコードを表示します。文字列化されたフィールドも含めて全件走査し、無効な行は別に集計します。",
