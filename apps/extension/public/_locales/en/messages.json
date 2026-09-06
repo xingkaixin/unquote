@@ -10,5 +10,8 @@
   },
   "openUnquote": {
     "message": "Open Unquote"
+  },
+  "selectionImportFailed": {
+    "message": "Could not import the selected text. Return to the original page to copy and paste it, or open the file directly."
   }
 }

@@ -35,12 +35,16 @@ guide before changing one of these areas:
 
 ## Workflow
 
+- Safari builds are experimental. Exclude Safari-specific compatibility, packaging, and
+  distribution from routine reviews and validation unless the user explicitly requests Safari
+  work. This policy takes precedence over Safari verification requirements in scoped guides.
 - Use pnpm workspace scripts instead of reconstructing build commands from package internals.
 - Run the smallest checks that cover the change while iterating. Run `pnpm check` before handing
   off a code change that can affect production behavior.
 - Run `pnpm benchmark` for parser, search, virtualization, Agent-session, or large-file changes
   that can affect the release performance budgets documented in `docs/performance.md`.
-- Run `pnpm build:safari` when extension packaging or Safari distribution behavior changes.
+- Run `pnpm build:safari` only when explicitly requested Safari work affects packaging or
+  distribution behavior.
 - Add or update tests when they protect changed observable behavior, a regression boundary, or a
   fragile platform contract. Follow the scoped guide for test entry points.
 
@@ -48,4 +52,4 @@ guide before changing one of these areas:
 
 `pnpm-workspace.yaml` pins esbuild to 0.28.2 because tsup 8.5.1 still requests the vulnerable
 `^0.27.0` line. Do not remove the override until tsup accepts a patched esbuild. Verify a proposed
-removal with `pnpm audit`, `pnpm check`, and `pnpm build:safari`.
+removal with `pnpm audit` and `pnpm check`.

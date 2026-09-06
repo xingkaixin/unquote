@@ -10,5 +10,8 @@
   },
   "openUnquote": {
     "message": "打开 Unquote"
+  },
+  "selectionImportFailed": {
+    "message": "未能导入选中文本，请返回原页面复制后粘贴，或直接打开文件。"
   }
 }

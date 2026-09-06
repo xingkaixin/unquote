@@ -1,4 +1,8 @@
-import { claimSelectionHandoffMessageType, getHandoffIdFromSearch } from "./selection-handoff";
+import {
+  claimSelectionHandoffMessageType,
+  getHandoffIdFromSearch,
+  handoffQueryParameter,
+} from "./selection-handoff";
 
 export interface OptionsRuntimeMessenger {
   sendMessage(message: unknown): Promise<unknown>;
@@ -10,7 +14,7 @@ export const claimOptionsInitialInput = async (
 ) => {
   const handoffId = getHandoffIdFromSearch(search);
   if (!handoffId) {
-    return "";
+    return new URLSearchParams(search).has(handoffQueryParameter) ? null : "";
   }
 
   try {
@@ -18,8 +22,8 @@ export const claimOptionsInitialInput = async (
       type: claimSelectionHandoffMessageType,
       handoffId,
     });
-    return typeof response === "string" ? response : "";
+    return typeof response === "string" && response.length > 0 ? response : null;
   } catch {
-    return "";
+    return null;
   }
 };
