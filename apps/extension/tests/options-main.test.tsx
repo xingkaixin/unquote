@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { toast } from "sonner";
 import React, { act } from "react";
 import type { ReactNode } from "react";
 import type { Root } from "react-dom/client";
@@ -11,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   getMessage: vi.fn(() => "Import failed. Please paste or open a file."),
   sendMessage: vi.fn<(message: unknown) => Promise<unknown>>(),
 }));
+
+vi.mock("sonner", async (importOriginal) => importOriginal());
 
 vi.mock("react-dom/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("react-dom/client")>();
@@ -52,6 +55,11 @@ const warningCount = () => document.querySelectorAll("[data-sonner-toast]").leng
 const input = () => document.querySelector("textarea")?.value;
 
 const openPage = async () => {
+  // Module mocks survive resetModules; a real reload starts with an empty toast store.
+  await act(async () => {
+    toast.dismiss();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
   vi.resetModules();
   await act(async () => {
     await import("../entrypoints/options/main");
