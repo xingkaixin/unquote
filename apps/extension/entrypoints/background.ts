@@ -59,7 +59,7 @@ export default defineBackground(() => {
     }
 
     const handoffId = await handoffs.create(selection);
-    await openOptionsPage(handoffId ?? undefined);
+    await openOptionsPage(handoffId ?? "failed");
   });
 
   browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {

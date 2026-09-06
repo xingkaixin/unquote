@@ -10,5 +10,8 @@
   },
   "openUnquote": {
     "message": "Unquote を開く"
+  },
+  "selectionImportFailed": {
+    "message": "選択したテキストを読み込めませんでした。元のページに戻ってコピーして貼り付けるか、ファイルを直接開いてください。"
   }
 }

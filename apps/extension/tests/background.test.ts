@@ -209,6 +209,7 @@ describe("extension background", () => {
 
     await mocks.listeners.onContextMenuClick?.({ menuItemId: menuId, selectionText: "payload" });
 
-    expect(getOpenedUrl().searchParams.has("handoff")).toBe(false);
+    expect(getOpenedUrl().searchParams.get("handoff")).toBe("failed");
+    expect(getOpenedUrl().href).not.toContain("payload");
   });
 });
