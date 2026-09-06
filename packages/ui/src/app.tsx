@@ -53,7 +53,13 @@ const RecordTableDialog = lazy(() =>
   })),
 );
 
-type ActiveOverlay = "import" | "command" | "table" | null;
+const JsonDiffDialog = lazy(() =>
+  import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => ({
+    default: JsonDiffDialog,
+  })),
+);
+
+type ActiveOverlay = "import" | "command" | "diff" | "table" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -363,6 +369,7 @@ export const UnquoteApp = ({
               ? () => setActiveOverlay("table")
               : undefined
           }
+          onOpenDiff={() => setActiveOverlay("diff")}
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
           onOutputViewChange={setOutputView}
@@ -424,6 +431,15 @@ export const UnquoteApp = ({
                   records={resultRevision === source.sourceRevision ? result.records : []}
                   selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
                   onOpenRecord={handleOpenRecord}
+                  onClose={() => setActiveOverlay(null)}
+                />
+              ) : null}
+              {activeOverlay === "diff" ? (
+                <JsonDiffDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  activeRecord={recordWorkspace.model.active.record}
                   onClose={() => setActiveOverlay(null)}
                 />
               ) : null}
