@@ -114,8 +114,8 @@ without changing the amount of JavaScript loaded by either surface.
 |---|---:|
 | Initial JavaScript | 620,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 780,000 bytes |
-| Total UI JavaScript gzip | 255,000 bytes |
+| Total UI JavaScript | 800,000 bytes |
+| Total UI JavaScript gzip | 260,000 bytes |
 | Initial CSS | 38,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
@@ -267,3 +267,6 @@ starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
 
 Record tables load on demand, display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration batches contain 64 records and at most 4 MiB. The scan yields between batches and rejects cancellation before publication or download. Total UI budget allows the lazy table workspace (780 KB / 255 KB gzip), with existing initial JavaScript and stylesheet limits unchanged. The measured extension total is 773,880 bytes / 249,601 bytes gzip.
+Structured comparison adds a lazy dialog and reuses the record parser. The measured extension total is approximately 771 KB / 249 KB gzip. Its total UI budget is 780 KB / 255 KB gzip; initial JavaScript budgets remain unchanged. Comparison inputs are capped at 512 KiB each, node visits at 50,000 and differences at 5,000, with cooperative yielding and 50 displayed differences per page.
+
+The combined comparison and table workspace uses a total UI budget of 800,000 bytes / 260,000 bytes gzip. Feature-specific measurements above were taken before integration.
