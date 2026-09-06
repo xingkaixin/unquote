@@ -1,6 +1,27 @@
 import type { Messages } from "./en";
 
 export const ja: Messages = {
+  "report.title": "問題の抜粋を書き出す",
+  "report.description":
+    "元の行とマスクするフィールドを選び、ローカルレポートを確認してから保存します。関連するツール呼び出しと結果の行も選択できます。",
+  "report.lines": "元の行番号（カンマ区切りの番号または範囲）",
+  "report.paths": "マスクするパス（1 行に 1 つ）",
+  "report.redactionHint":
+    "展開した各レコードの指定パスの値全体を置換します。他のフィールドとメモはそのままです。機密情報の自動検出は行いません。",
+  "report.notes": "メモ",
+  "report.preview": "プレビューを作成",
+  "report.building": "作成中…",
+  "report.cancel": "キャンセル",
+  "report.markdown": "Markdown を保存",
+  "report.jsonl": "JSONL を保存",
+  "report.summary": "{count} 件のレコード · {redacted} 個の値をマスク",
+  "report.limit":
+    "上限（1,000 件、内容 8 MiB、各レコード 5 万ノード）を超えたか、不完全なノードがあります。抜粋を小さくしてください。",
+  "report.failed":
+    "レポートを作成できません。パスと元の行番号を確認してください。無効な JSON や存在しない行は含められません。",
+  "report.previous": "前へ",
+  "report.next": "次へ",
+
   "app.tab.agent": "エージェント",
   "app.tab.trajectory": "軌跡",
   "app.changelog": "更新履歴",

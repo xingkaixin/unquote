@@ -47,7 +47,13 @@ const RecordWorkspace = lazy(() =>
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-type ActiveOverlay = "import" | "command" | null;
+const RecordReportDialog = lazy(() =>
+  import("./components/record-report-dialog").then(({ RecordReportDialog }) => ({
+    default: RecordReportDialog,
+  })),
+);
+
+type ActiveOverlay = "import" | "command" | "report" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -219,7 +225,7 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.model.active.selectedPath || activeOverlay === "command") {
+        if (!recordWorkspace.model.active.selectedPath || activeOverlay !== null) {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -374,6 +380,11 @@ export const UnquoteApp = ({
           onCopyFormattedJson={recordWorkspace.toolbar.copyFormattedJson}
           onExportJsonl={recordWorkspace.toolbar.exportJsonl}
           onExportFormattedJson={recordWorkspace.toolbar.exportFormattedJson}
+          onOpenReport={
+            progress.done && resultRevision === source.sourceRevision
+              ? () => setActiveOverlay("report")
+              : undefined
+          }
         />
 
         <main
@@ -405,6 +416,15 @@ export const UnquoteApp = ({
                 <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
                   {importPanel("h-[220px]")}
                 </ImportDialog>
+              ) : null}
+              {activeOverlay === "report" ? (
+                <RecordReportDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
+                  onClose={() => setActiveOverlay(null)}
+                />
               ) : null}
               {activeOverlay === "command" ? (
                 <CommandPalette

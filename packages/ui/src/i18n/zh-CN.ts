@@ -1,6 +1,26 @@
 import type { Messages } from "./en";
 
 export const zhCN: Messages = {
+  "report.title": "导出问题片段",
+  "report.description":
+    "选择源行、脱敏字段并预览本地报告后下载。可通过选择关联行，带上工具调用和结果。",
+  "report.lines": "源行号（逗号分隔的行号或范围）",
+  "report.paths": "脱敏路径，每行一个",
+  "report.redactionHint":
+    "路径应用于每条展开后的记录，替换该路径的整个值。其他字段和备注保持原样，不会自动检测敏感信息。",
+  "report.notes": "备注",
+  "report.preview": "生成预览",
+  "report.building": "正在生成…",
+  "report.cancel": "取消",
+  "report.markdown": "下载 Markdown",
+  "report.jsonl": "下载 JSONL",
+  "report.summary": "{count} 条记录 · 已脱敏 {redacted} 个值",
+  "report.limit":
+    "报告超出限制（1000 条记录、8 MiB 内容或每条记录 5 万节点），或存在未完整展开的节点。请选择更小的片段。",
+  "report.failed": "无法生成报告，请检查路径和源行号；无法包含无效 JSON 或不存在的行。",
+  "report.previous": "上一页",
+  "report.next": "下一页",
+
   "app.tab.agent": "Agent",
   "app.tab.trajectory": "轨迹",
   "app.changelog": "更新日志",

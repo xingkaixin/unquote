@@ -114,8 +114,8 @@ without changing the amount of JavaScript loaded by either surface.
 |---|---:|
 | Initial JavaScript | 620,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 760,000 bytes |
-| Total UI JavaScript gzip | 250,000 bytes |
+| Total UI JavaScript | 780,000 bytes |
+| Total UI JavaScript gzip | 255,000 bytes |
 | Initial CSS | 38,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
@@ -265,3 +265,5 @@ Full-record hydration uses one worker per local-file access. Overlapping parse
 batches queue in request order; queued cancellation and disposal reject without
 starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
+
+Problem excerpt export loads on demand. It selects at most 1,000 records, reads at most 8 MiB of preview source lines and caps generated content at 8 MiB / 50,000 visited nodes per record. Redaction yields every 250 visited nodes. The Markdown preview displays 10,000 characters per page. Total UI budgets accommodate the lazy report dialog at 780 KB / 255 KB gzip; initial JavaScript budgets remain unchanged.

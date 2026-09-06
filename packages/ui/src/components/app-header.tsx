@@ -34,6 +34,7 @@ export interface AppHeaderProps {
   onCopyFormattedJson: () => void;
   onExportJsonl: () => void;
   onExportFormattedJson: () => void;
+  onOpenReport?: (() => void) | undefined;
 }
 
 export const AppHeader = ({
@@ -52,6 +53,7 @@ export const AppHeader = ({
   onCopyFormattedJson,
   onExportJsonl,
   onExportFormattedJson,
+  onOpenReport,
 }: AppHeaderProps) => {
   const { t } = useTranslation();
   const shortcut = navigator.platform.toLowerCase().includes("mac") ? "⌘K" : "Ctrl K";
@@ -143,6 +145,11 @@ export const AppHeader = ({
           }
         />
         <DropdownMenuContent align="end">
+          {onOpenReport ? (
+            <DropdownMenuItem className="text-[11px]" onClick={onOpenReport}>
+              {t("report.title")}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem className="text-[11px]" title={copyHint} onClick={onCopyJsonl}>
             <ListBulletsIcon className="mr-2 size-3.5" />
             {t("toolbar.copyJsonl")}
