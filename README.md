@@ -37,7 +37,7 @@
 
 ## 开发
 
-需要 [mise](https://mise.jdx.dev/)。仓库通过 `mise.toml` 固定 Node.js 24.20.0 和 pnpm 11.25.0。
+需要 [mise](https://mise.jdx.dev/)。仓库通过 `mise.toml` 固定 Node.js 24.20.0 和 pnpm 12.3.4。
 
 ```bash
 mise install
