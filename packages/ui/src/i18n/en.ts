@@ -1,4 +1,24 @@
 export const en = {
+  "report.title": "Export problem excerpt",
+  "report.description":
+    "Select source lines, redact fields and preview a local report before downloading. Include related tool calls and results by selecting their lines.",
+  "report.lines": "Source lines (comma-separated numbers or ranges)",
+  "report.paths": "Redact paths, one per line",
+  "report.redactionHint":
+    "Paths are applied to each expanded record and replace the entire selected value. Other fields and your notes remain unchanged. No automatic secret detection is performed.",
+  "report.notes": "Notes",
+  "report.preview": "Build preview",
+  "report.building": "Building…",
+  "report.cancel": "Cancel",
+  "report.markdown": "Download Markdown",
+  "report.jsonl": "Download JSONL",
+  "report.summary": "{count} records · {redacted} values redacted",
+  "report.limit":
+    "Report exceeds its limit (1,000 records, 8 MiB of content or 50,000 nodes per record), or contains incomplete nodes. Select a smaller excerpt.",
+  "report.failed":
+    "Could not build the report. Check paths and source line numbers; invalid JSON and missing lines cannot be included.",
+  "report.previous": "Previous",
+  "report.next": "Next",
   "profile.title": "Field profile",
   "profile.description":
     "Exact counts for the selected columns across all valid source records, before filters. Empty strings also count as strings. Click a count to replace current conditions and show those records; variation alone does not mean an error.",

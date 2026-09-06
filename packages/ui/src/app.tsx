@@ -47,6 +47,12 @@ const RecordWorkspace = lazy(() =>
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
+const RecordReportDialog = lazy(() =>
+  import("./components/record-report-dialog").then(({ RecordReportDialog }) => ({
+    default: RecordReportDialog,
+  })),
+);
+
 const RecordTableDialog = lazy(() =>
   import("./components/record-table-dialog").then(({ RecordTableDialog }) => ({
     default: RecordTableDialog,
@@ -59,7 +65,7 @@ const JsonDiffDialog = lazy(() =>
   })),
 );
 
-type ActiveOverlay = "import" | "command" | "diff" | "table" | null;
+type ActiveOverlay = "import" | "command" | "diff" | "table" | "report" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -392,6 +398,11 @@ export const UnquoteApp = ({
           onCopyFormattedJson={recordWorkspace.toolbar.copyFormattedJson}
           onExportJsonl={recordWorkspace.toolbar.exportJsonl}
           onExportFormattedJson={recordWorkspace.toolbar.exportFormattedJson}
+          onOpenReport={
+            progress.done && resultRevision === source.sourceRevision
+              ? () => setActiveOverlay("report")
+              : undefined
+          }
         />
 
         <main
@@ -423,6 +434,15 @@ export const UnquoteApp = ({
                 <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
                   {importPanel("h-[220px]")}
                 </ImportDialog>
+              ) : null}
+              {activeOverlay === "report" ? (
+                <RecordReportDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
+                  onClose={() => setActiveOverlay(null)}
+                />
               ) : null}
               {activeOverlay === "table" ? (
                 <RecordTableDialog
