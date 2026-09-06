@@ -1,3 +1,4 @@
+import { FieldProfiles } from "./field-profiles";
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
@@ -17,7 +18,16 @@ interface RecordTableDialogProps {
 }
 const fieldClass =
   "min-w-0 rounded-md border border-border-medium bg-surface-50 p-2 font-mono text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-accent";
-const operators: TableOperator[] = ["any", "equals", "contains", "greater", "less", "missing"];
+const operators: TableOperator[] = [
+  "any",
+  "equals",
+  "contains",
+  "greater",
+  "less",
+  "missing",
+  "kind",
+  "empty",
+];
 
 export const RecordTableDialog = ({
   source,
@@ -66,12 +76,12 @@ export const RecordTableDialog = ({
       if (!controller.signal.aborted) setBusy(false);
     }
   };
-  const scan = () => {
+  const scan = (nextColumns = columns) => {
     setResult(null);
     setProgress(0);
     setPage(0);
     return execute(async (signal) => {
-      const next = await scanRecordTable(source, records, columns, signal, (count) => {
+      const next = await scanRecordTable(source, records, nextColumns, signal, (count) => {
         if (!signal.aborted) setProgress(count);
       });
       signal.throwIfAborted();
@@ -145,7 +155,11 @@ export const RecordTableDialog = ({
                       <input
                         id={`table-value-${index}`}
                         className={fieldClass}
-                        disabled={column.operator === "any" || column.operator === "missing"}
+                        disabled={
+                          column.operator === "any" ||
+                          column.operator === "missing" ||
+                          column.operator === "empty"
+                        }
                         value={column.value}
                         onChange={(event) => update(index, { value: event.target.value })}
                       />
@@ -220,6 +234,26 @@ export const RecordTableDialog = ({
                       failed: result.failed,
                     })}
                   </p>
+                  <FieldProfiles
+                    columns={result.columns}
+                    profiles={result.profiles}
+                    onSelect={(index, kind) => {
+                      const nextColumns = result.columns.map((column, i): TableColumn => ({
+                        ...column,
+                        operator:
+                          i !== index
+                            ? "any"
+                            : kind === "missing"
+                              ? "missing"
+                              : kind === "empty"
+                                ? "empty"
+                                : "kind",
+                        value: i === index ? kind : "",
+                      }));
+                      setColumns(nextColumns);
+                      void scan(nextColumns);
+                    }}
+                  />
                   <p className="text-xs text-text-tertiary">{t("table.csvHint")}</p>
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-left font-mono text-xs">

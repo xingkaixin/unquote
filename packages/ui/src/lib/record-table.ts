@@ -1,3 +1,5 @@
+import { addFieldObservation, createFieldProfile } from "./field-profile";
+import type { FieldProfile } from "./field-profile";
 import { hasJsonNodeChildren, stringifyJsonNodeWithLimits } from "@unquote/core";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { parseTreePath } from "./path-codec";
@@ -10,7 +12,15 @@ export const tableBytesLimit = 20 * 1024 * 1024;
 const tableCellBytesLimit = 64 * 1024;
 const tableRecordBytesLimit = 4 * 1024 * 1024;
 
-export type TableOperator = "any" | "equals" | "contains" | "greater" | "less" | "missing";
+export type TableOperator =
+  | "any"
+  | "equals"
+  | "contains"
+  | "greater"
+  | "less"
+  | "missing"
+  | "kind"
+  | "empty";
 export interface TableColumn {
   path: string;
   operator: TableOperator;
@@ -28,6 +38,7 @@ export interface TableRow {
 export interface TableResult {
   columns: TableColumn[];
   rows: TableRow[];
+  profiles: FieldProfile[];
   scanned: number;
   failed: number;
 }
@@ -82,6 +93,10 @@ export const compareTableNumbers = (left: string, right: string) => {
 
 export const tableCellMatches = (cell: TableCell, column: TableColumn) => {
   switch (column.operator) {
+    case "kind":
+      return cell.kind === column.value;
+    case "empty":
+      return cell.kind === "string" && cell.text === "";
     case "any":
       return true;
     case "missing":
@@ -113,12 +128,18 @@ export const scanRecordTable = async (
   const paths = columns.map((column) => {
     const path = parseTreePath(column.path);
     if (!path) throw new Error("invalid-path");
+    if (
+      column.operator === "kind" &&
+      !["null", "string", "number", "boolean", "object", "array", "missing"].includes(column.value)
+    )
+      throw new Error("invalid-kind");
     if (column.operator === "greater" || column.operator === "less") decimalParts(column.value);
     return path;
   });
   const result: TableResult = {
     columns: columns.map((column) => ({ ...column })),
     rows: [],
+    profiles: columns.map(createFieldProfile),
     scanned: 0,
     failed: 0,
   };
@@ -143,6 +164,7 @@ export const scanRecordTable = async (
       }
       if (record.status !== "full") throw new Error("table-incomplete");
       const cells = paths.map((path) => cellForNode(resolveCellNode(record.node, path)));
+      cells.forEach((cell, index) => addFieldObservation(result.profiles[index]!, cell));
       if (!cells.every((cell, index) => tableCellMatches(cell, columns[index]!))) continue;
       bytes += cells.reduce((size, cell) => size + encoder.encode(cell.text).byteLength + 64, 64);
       if (bytes > tableBytesLimit || result.rows.length >= tableRowLimit)
