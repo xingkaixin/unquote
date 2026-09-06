@@ -22,6 +22,7 @@ export interface AppHeaderProps {
   enabled: boolean;
   sourceName: string | null;
   onOpenImport: () => void;
+  onOpenTable?: (() => void) | undefined;
   onOpenDiff?: () => void;
   outputView: OutputView | null;
   jsonTabLabel: string;
@@ -41,6 +42,7 @@ export const AppHeader = ({
   enabled,
   sourceName,
   onOpenImport,
+  onOpenTable,
   onOpenDiff,
   outputView,
   jsonTabLabel,
@@ -134,6 +136,9 @@ export const AppHeader = ({
           {t("source.change")}
         </span>
       </button>
+      <Button variant="outline" size="sm" disabled={!enabled || !onOpenTable} onClick={onOpenTable}>
+        {t("table.title")}
+      </Button>
       {onOpenDiff ? (
         <Button variant="outline" size="sm" onClick={onOpenDiff}>
           {t("diff.title")}

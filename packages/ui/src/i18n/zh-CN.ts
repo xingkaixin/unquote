@@ -1,6 +1,34 @@
 import type { Messages } from "./en";
 
 export const zhCN: Messages = {
+  "table.title": "记录表格",
+  "table.description":
+    "选择最多 12 个 JSON 路径作为列，所有条件同时满足时保留记录。扫描全部源记录及字符串化嵌套字段；无效 JSON 行单独计数。",
+  "table.column": "第 {count} 列",
+  "table.path": "字段路径",
+  "table.condition": "条件",
+  "table.value": "值",
+  "table.any": "任意值",
+  "table.equals": "等于",
+  "table.contains": "文本包含",
+  "table.greater": "数字大于",
+  "table.less": "数字小于",
+  "table.missing": "字段缺失",
+  "table.remove": "移除列",
+  "table.add": "添加列",
+  "table.scan": "应用并扫描",
+  "table.cancel": "取消",
+  "table.export": "导出 CSV",
+  "table.progress": "已扫描 {count} / {total} 条记录",
+  "table.summary": "{count} 条匹配 · 已扫描 {total} 条 · 跳过 {failed} 条无效记录",
+  "table.csvHint":
+    "长值显示预览，CSV 保留完整值。缺失字段和空字符串均导出为空单元格。类似公式的字符串会添加单引号前缀；在电子表格中请将数字列按文本导入，以保留精度。",
+  "table.limit":
+    "超出表格处理限制（12 列、10 万条匹配、20 MiB 结果、单元格 64 KiB 或读取批次 4 MiB）。请减少列或源数据。未导出不完整结果。",
+  "table.failed": "无法扫描，请检查字段路径和数字条件，或选择较小的数据源。",
+  "table.line": "源行号",
+  "table.previous": "上一页",
+  "table.next": "下一页",
   "diff.title": "比较 JSON",
   "diff.description":
     "在本地比较展开后的 JSON。忽略对象键顺序；数组按位置比较，数字保留原始写法。每份输入最多 512 KiB；长值显示预览。",

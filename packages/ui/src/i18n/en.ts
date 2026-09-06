@@ -1,4 +1,33 @@
 export const en = {
+  "table.title": "Record table",
+  "table.description":
+    "Choose up to 12 JSON paths as columns. All conditions must match. Scans all source records, including nested stringified fields; failed JSON lines are counted separately.",
+  "table.column": "Column {count}",
+  "table.path": "Field path",
+  "table.condition": "Condition",
+  "table.value": "Value",
+  "table.any": "Any value",
+  "table.equals": "Equals",
+  "table.contains": "Text contains",
+  "table.greater": "Number greater than",
+  "table.less": "Number less than",
+  "table.missing": "Missing field",
+  "table.remove": "Remove column",
+  "table.add": "Add column",
+  "table.scan": "Apply and scan",
+  "table.cancel": "Cancel",
+  "table.export": "Export CSV",
+  "table.progress": "Scanned {count} / {total} records",
+  "table.summary": "{count} matches · {total} scanned · {failed} invalid lines skipped",
+  "table.csvHint":
+    "Long cells show previews; CSV contains complete values. Missing fields and empty strings export as empty cells. Formula-like strings are prefixed with an apostrophe. Import numeric columns as text in spreadsheets to preserve precision.",
+  "table.limit":
+    "Table exceeds its processing limit (12 columns, 100,000 matches, 20 MiB results, 64 KiB per cell or 4 MiB per read batch). Narrow the columns or source. No partial result was exported.",
+  "table.failed":
+    "Could not scan. Check field paths and numeric conditions, or choose a smaller source.",
+  "table.line": "Source line",
+  "table.previous": "Previous",
+  "table.next": "Next",
   "diff.title": "Compare JSON",
   "diff.description":
     "Compare expanded JSON locally. Object key order is ignored; arrays use positions and numbers retain source spelling. Up to 512 KiB per input; long values show a preview.",

@@ -47,13 +47,19 @@ const RecordWorkspace = lazy(() =>
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
+const RecordTableDialog = lazy(() =>
+  import("./components/record-table-dialog").then(({ RecordTableDialog }) => ({
+    default: RecordTableDialog,
+  })),
+);
+
 const JsonDiffDialog = lazy(() =>
   import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => ({
     default: JsonDiffDialog,
   })),
 );
 
-type ActiveOverlay = "import" | "command" | "diff" | null;
+type ActiveOverlay = "import" | "command" | "diff" | "table" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
@@ -358,6 +364,11 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setActiveOverlay("import")}
+          onOpenTable={
+            progress.done && resultRevision === source.sourceRevision
+              ? () => setActiveOverlay("table")
+              : undefined
+          }
           onOpenDiff={() => setActiveOverlay("diff")}
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
@@ -412,6 +423,16 @@ export const UnquoteApp = ({
                 <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
                   {importPanel("h-[220px]")}
                 </ImportDialog>
+              ) : null}
+              {activeOverlay === "table" ? (
+                <RecordTableDialog
+                  key={source.sourceRevision}
+                  source={source}
+                  records={resultRevision === source.sourceRevision ? result.records : []}
+                  selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
+                  onOpenRecord={handleOpenRecord}
+                  onClose={() => setActiveOverlay(null)}
+                />
               ) : null}
               {activeOverlay === "diff" ? (
                 <JsonDiffDialog
