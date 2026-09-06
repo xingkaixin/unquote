@@ -114,8 +114,8 @@ without changing the amount of JavaScript loaded by either surface.
 |---|---:|
 | Initial JavaScript | 620,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 760,000 bytes |
-| Total UI JavaScript gzip | 250,000 bytes |
+| Total UI JavaScript | 780,000 bytes |
+| Total UI JavaScript gzip | 255,000 bytes |
 | Initial CSS | 38,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
@@ -265,3 +265,5 @@ Full-record hydration uses one worker per local-file access. Overlapping parse
 batches queue in request order; queued cancellation and disposal reject without
 starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
+
+Structured comparison adds a lazy dialog and reuses the record parser. The measured extension total is approximately 771 KB / 249 KB gzip. Its total UI budget is 780 KB / 255 KB gzip; initial JavaScript budgets remain unchanged. Comparison inputs are capped at 512 KiB each, node visits at 50,000 and differences at 5,000, with cooperative yielding and 50 displayed differences per page.
