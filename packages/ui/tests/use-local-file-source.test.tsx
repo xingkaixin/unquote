@@ -472,6 +472,20 @@ describe("useLocalFileSource", () => {
     expect(full[0]?.lineNumber).toBe(2);
   });
 
+  it("reuses browsed full records during copy resolution", async () => {
+    const file = makeStreamedFile('{"a":1}');
+    const access = accessFor(file)!;
+    const read = vi.spyOn(access, "readRecords");
+    const { result } = renderHook(() => useLocalFileSource(access, 0), { wrapper });
+    const preview = makePreviewRecord(1);
+    act(() => result.current.requestFullRecord(preview));
+    await waitFor(() => expect(result.current.resolveRecord(preview).status).toBe("full"));
+    const cached = result.current.resolveRecord(preview);
+    const full = await result.current.resolveRecords([preview]);
+    expect(full[0]).toBe(cached);
+    expect(read).toHaveBeenCalledOnce();
+  });
+
   it("forwards caller cancellation while resolving records", async () => {
     const resolveRecords = vi.fn(async (records) => records);
     const access: LocalFileRecordAccess = { resolveRecords, readRecords: vi.fn() };
@@ -479,7 +493,9 @@ describe("useLocalFileSource", () => {
     const records = [makePreviewRecord(1)];
     const controller = new AbortController();
 
-    await expect(result.current.resolveRecords(records, controller.signal)).resolves.toBe(records);
+    await expect(result.current.resolveRecords(records, controller.signal)).resolves.toEqual(
+      records,
+    );
     expect(resolveRecords).toHaveBeenCalledWith(records, controller.signal, undefined);
 
     controller.abort();

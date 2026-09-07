@@ -21,6 +21,9 @@ import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 import { useCopyToClipboard } from "./use-copy-to-clipboard";
 
+// Multi-record reads fit the UTF-16 main-thread parser budget; single records keep the copy limit.
+const copyBatchReadBytesLimit = 256 * 1024;
+
 export type LocalFileExportAccess = Pick<LocalFileAccess, "readRecordText" | "streamRecords">;
 
 interface UseExportActionsParams {
@@ -140,10 +143,12 @@ export const useExportActions = ({
           const text = await formatResolvedRecordsForCopy(
             records,
             outputFormat,
-            async (record) => {
-              const resolved = await resolveRecords([record], signal, copyBytesLimit);
-              return resolved[0] ?? record;
-            },
+            (records) =>
+              resolveRecords(
+                records,
+                signal,
+                records.length > 1 ? copyBatchReadBytesLimit : copyBytesLimit,
+              ),
             signal,
           );
           if (text === null) {
