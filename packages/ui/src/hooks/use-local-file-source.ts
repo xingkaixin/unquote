@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
+import { cacheFullRecords, type FullRecordCacheEntries } from "../lib/full-record-cache";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { belongsToSourceRevision } from "../lib/source-revision";
 import type { SourceRevision, SourceRevisionOwned } from "../lib/source-revision";
@@ -31,11 +32,10 @@ interface FullRecordScope extends SourceRevisionOwned {
 }
 
 interface FullRecordCache extends SourceRevisionOwned {
-  recordsByLine: Map<number, JsonlRecord>;
+  recordsByLine: FullRecordCacheEntries;
 }
 
-const emptyFullRecordsByLine: ReadonlyMap<number, JsonlRecord> = new Map();
-const fullRecordCacheLimit = 500;
+const emptyFullRecordsByLine: FullRecordCacheEntries = new Map();
 
 const createFullRecordScope = (
   access: LocalFileRecordAccess | null,
@@ -138,34 +138,8 @@ export const useLocalFileSource = (
             );
             const currentRecords = currentCacheBelongsToScope
               ? current.recordsByLine
-              : new Map<number, JsonlRecord>();
-            let next = currentRecords;
-            for (const lineNumber of batch) {
-              const fullRecord = records.get(lineNumber);
-              if (!fullRecord || next.has(lineNumber)) {
-                continue;
-              }
-              if (next === currentRecords) {
-                next = new Map(currentRecords);
-              }
-              next.set(lineNumber, fullRecord);
-            }
-            // Eviction is FIFO, not LRU: `Map.keys()` yields insertion order and
-            // the cache is only written when a Full Record resolves. Reads never
-            // move a repeatedly viewed record to the back. That is a
-            // deliberate trade — making it a true LRU would mean touching the
-            // cache from the read path, which is a pure lookup today and would
-            // otherwise re-render the whole record list on every scroll. Under
-            // one-directional scrolling the two policies agree; the cost of the
-            // difference is one extra scan when scrolling back past the limit,
-            // after which the record is re-inserted at the back.
-            while (next.size > fullRecordCacheLimit) {
-              const firstInserted = next.keys().next().value;
-              if (typeof firstInserted !== "number") {
-                break;
-              }
-              next.delete(firstInserted);
-            }
+              : emptyFullRecordsByLine;
+            const next = cacheFullRecords(currentRecords, records.values());
             if (currentCacheBelongsToScope && next === current.recordsByLine) {
               return current;
             }
@@ -220,7 +194,7 @@ export const useLocalFileSource = (
   );
 
   const resolveRecord = useCallback(
-    (record: JsonlRecord) => fullRecordsByLine.get(record.lineNumber) ?? record,
+    (record: JsonlRecord) => fullRecordsByLine.get(record.lineNumber)?.record ?? record,
     [fullRecordsByLine],
   );
 
