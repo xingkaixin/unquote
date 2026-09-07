@@ -57,7 +57,7 @@ export const en = {
   "table.csvHint":
     "Long cells show previews; CSV contains complete values. Missing fields and empty strings export as empty cells. Formula-like strings are prefixed with an apostrophe. Import numeric columns as text in spreadsheets to preserve precision.",
   "table.limit":
-    "Table exceeds its processing limit (12 columns, 100,000 matches, 20 MiB results, 64 KiB per cell or 4 MiB per read batch). Narrow the columns or source. No partial result was exported.",
+    "Table exceeds its processing limit (12 columns, 100,000 matches, 20 MiB results, 64 KiB per cell or 4 MiB per local record). Narrow the columns or source. No partial result was exported.",
   "table.failed":
     "Could not scan. Check field paths and numeric conditions, or choose a smaller source.",
   "table.line": "Source line",

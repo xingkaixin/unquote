@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { parseInput } from "@unquote/core";
+import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@unquote/core";
+import { readJsonlLinesByNumber, SourceReadLimitError } from "../src/lib/local-file-reader";
 import { compareTableNumbers, exportTableCsv, scanRecordTable } from "../src/lib/record-table";
 import {
   createStreamingFileSourceRevision,
@@ -85,4 +86,86 @@ it("hydrates preview records before filtering and rejects a cancelled scan", asy
       () => {},
     ),
   ).rejects.toThrow();
+});
+
+const localTableSource = (lines: string[]) => {
+  const file = new File([lines.join("\n")], "table.jsonl");
+  const resolveRecords = vi.fn<LocalFileAccess["resolveRecords"]>(
+    async (records, signal, maxBytes) => {
+      const selected = await readJsonlLinesByNumber(
+        file,
+        new Set(records.map((record) => record.lineNumber)),
+        signal,
+        maxBytes,
+      );
+      return [...selected].map(([lineNumber, line]) => parseJsonlRecordLine(line, lineNumber));
+    },
+  );
+  return {
+    source: createStreamingFileSourceRevision(
+      1,
+      { resolveRecords } as unknown as LocalFileAccess,
+      "jsonl",
+    ),
+    records: lines.map((line, index) => parsePreviewJsonlRecordLine(line, index + 1)),
+    resolveRecords,
+  };
+};
+
+it("shrinks oversized hydration batches without losing rows or double-counting profiles", async () => {
+  const lines = Array.from({ length: 64 }, (_, id) =>
+    JSON.stringify({ id, padding: "x".repeat(70 * 1024) }),
+  );
+  lines.push("invalid");
+  const { source, records } = localTableSource(lines);
+  const progress: number[] = [];
+  const result = await scanRecordTable(
+    source,
+    records,
+    [{ path: "$.id", operator: "any", value: "" }],
+    new AbortController().signal,
+    (count) => progress.push(count),
+  );
+  expect(result).toEqual(await scan(lines.join("\n"), "$.id"));
+  expect(result.rows).toHaveLength(64);
+  expect(result.profiles[0]?.total).toBe(64);
+  expect(result.failed).toBe(1);
+  expect(progress).toEqual([32, 64, 65]);
+});
+
+it("reports a limit when a single local record cannot fit the read budget", async () => {
+  const { source, records } = localTableSource([
+    JSON.stringify({ id: 1, padding: "x".repeat(4 * 1024 * 1024) }),
+  ]);
+  await expect(
+    scanRecordTable(
+      source,
+      records,
+      [{ path: "$.id", operator: "any", value: "" }],
+      new AbortController().signal,
+      () => {},
+    ),
+  ).rejects.toThrow(RangeError);
+});
+
+it.each(["cancel", "read-error"])("does not retry hydration after %s", async (kind) => {
+  const { source, records, resolveRecords } = localTableSource(['{"id":1}', '{"id":2}']);
+  const controller = new AbortController();
+  const failure = new Error("read failed");
+  resolveRecords.mockImplementation(async () => {
+    if (kind === "cancel") {
+      controller.abort();
+      throw new SourceReadLimitError();
+    }
+    throw failure;
+  });
+  const pending = scanRecordTable(
+    source,
+    records,
+    [{ path: "$.id", operator: "any", value: "" }],
+    controller.signal,
+    () => {},
+  );
+  await expect(pending).rejects.toBe(kind === "cancel" ? controller.signal.reason : failure);
+  expect(resolveRecords).toHaveBeenCalledOnce();
 });

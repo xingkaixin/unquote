@@ -6,6 +6,7 @@ import { parseTreePath } from "./path-codec";
 import type { TreePathSegment } from "./path-codec";
 import type { PublishedSourceRevision } from "./published-source";
 import { yieldToMain } from "./record-export";
+import { SourceReadLimitError } from "./local-file-reader";
 
 export const tableRowLimit = 100_000;
 export const tableBytesLimit = 20 * 1024 * 1024;
@@ -145,14 +146,23 @@ export const scanRecordTable = async (
   };
   const encoder = new TextEncoder();
   let bytes = 0;
-  for (let offset = 0; offset < records.length; offset += 64) {
+  let batchSize = 64;
+  for (let offset = 0; offset < records.length;) {
     signal.throwIfAborted();
-    const batch = records.slice(offset, offset + 64);
+    const batch = records.slice(offset, offset + batchSize);
     const previews = batch.filter((record) => record.status === "preview");
-    const resolved =
-      previews.length && source.kind === "local-file"
-        ? await source.access.resolveRecords(previews, signal, tableRecordBytesLimit)
-        : [];
+    let resolved: JsonlRecord[] = [];
+    if (previews.length && source.kind === "local-file") {
+      try {
+        resolved = await source.access.resolveRecords(previews, signal, tableRecordBytesLimit);
+      } catch (error) {
+        signal.throwIfAborted();
+        if (!(error instanceof SourceReadLimitError)) throw error;
+        if (batch.length === 1) throw new RangeError("table-record-limit");
+        batchSize = Math.max(1, Math.floor(batch.length / 2));
+        continue;
+      }
+    }
     const byId = new Map(resolved.map((record) => [record.id, record]));
     for (const candidate of batch) {
       signal.throwIfAborted();
@@ -171,6 +181,7 @@ export const scanRecordTable = async (
         throw new RangeError("table-result-limit");
       result.rows.push({ recordId: record.id, lineNumber: record.lineNumber, cells });
     }
+    offset += batch.length;
     onProgress(result.scanned);
     await yieldToMain();
   }
