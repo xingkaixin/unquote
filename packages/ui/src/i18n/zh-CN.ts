@@ -81,6 +81,7 @@ export const zhCN: Messages = {
   "diff.path": "路径 / 变化",
   "diff.added": "新增",
   "diff.removed": "删除",
+  "diff.truncated": "内容节选，部分内容已省略",
   "diff.changed": "值变化",
   "diff.type": "类型变化",
   "diff.previous": "上一页",

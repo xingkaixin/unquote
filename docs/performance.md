@@ -283,7 +283,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 820,000 bytes / 270,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 800 KB / 259 KB gzip.
 
-Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page.
+Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 
 Record tables display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration starts with 64 records and halves batches that exceed the 4 MiB read budget. Successful batches are processed before the next read; a single record that exceeds the budget is rejected. Scans yield between batches and reject cancellation before publication or download.
 

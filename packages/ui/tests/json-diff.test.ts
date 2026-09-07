@@ -15,7 +15,14 @@ describe("structured JSON comparison", () => {
       node(JSON.stringify({ body: JSON.stringify({ id: 1 }) })),
       node('{"body":{"id":2}}'),
     );
-    expect(changes).toEqual([{ path: "$.body.id", kind: "changed", before: "1", after: "2" }]);
+    expect(changes).toEqual([
+      {
+        path: "$.body.id",
+        kind: "changed",
+        before: { text: "1", truncated: false },
+        after: { text: "2", truncated: false },
+      },
+    ]);
   });
   it("preserves numeric spelling, large integers, missing values and types", async () => {
     const changes = await compareJsonNodes(
@@ -28,8 +35,8 @@ describe("structured JSON comparison", () => {
       ["$.gone", "removed"],
       ["$.added", "added"],
     ]);
-    expect(changes[0]?.after).toBe("9007199254740993");
-    expect(changes[1]?.before).toBe("1.0");
+    expect(changes[0]?.after.text).toBe("9007199254740993");
+    expect(changes[1]?.before.text).toBe("1.0");
   });
   it("compares arrays by position and ignores only exact path subtrees", async () => {
     expect(
@@ -59,5 +66,46 @@ describe("structured JSON comparison", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(compareJsonNodes(node("{}"), node("{}"), [], controller.signal)).rejects.toThrow();
+  });
+});
+
+it("shows the first differing part of long scalar values instead of identical prefixes", async () => {
+  const prefix = "x".repeat(1200);
+  const [change] = await compareJsonNodes(
+    node(JSON.stringify(prefix + "A")),
+    node(JSON.stringify(prefix + "B")),
+  );
+  expect(change?.before.text).toContain('A"');
+  expect(change?.after.text).toContain('B"');
+  expect(change?.before.truncated).toBe(true);
+  expect(change?.after.truncated).toBe(true);
+  expect(change?.before.text.length).toBeLessThanOrEqual(1002);
+});
+
+it("keeps Unicode intact in excerpts and shows differences after escaped content", async () => {
+  const prefix = "😀\n".repeat(400);
+  const [change] = await compareJsonNodes(
+    node(JSON.stringify(prefix + "😀" + prefix)),
+    node(JSON.stringify(prefix + "😁" + prefix)),
+  );
+  expect(change?.before.text).toContain("😀");
+  expect(change?.after.text).toContain("😁");
+  expect(() => encodeURI(change!.before.text)).not.toThrow();
+  expect(() => encodeURI(change!.after.text)).not.toThrow();
+  expect(change?.before.text.length).toBeLessThanOrEqual(1002);
+});
+
+it("marks truncated added, removed and type-changed values explicitly", async () => {
+  const value = "x".repeat(1200);
+  const changes = await compareJsonNodes(
+    node(JSON.stringify({ removed: value, type: value })),
+    node(JSON.stringify({ added: value, type: 1 })),
+  );
+  expect(changes.find((change) => change.kind === "added")?.after.truncated).toBe(true);
+  expect(changes.find((change) => change.kind === "removed")?.before.truncated).toBe(true);
+  expect(changes.find((change) => change.kind === "type")?.before.truncated).toBe(true);
+  expect(changes.find((change) => change.kind === "type")?.after).toEqual({
+    text: "1",
+    truncated: false,
   });
 });

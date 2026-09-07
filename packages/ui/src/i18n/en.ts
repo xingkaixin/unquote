@@ -82,6 +82,7 @@ export const en = {
   "diff.path": "Path / change",
   "diff.added": "Added",
   "diff.removed": "Removed",
+  "diff.truncated": "Excerpt — some content omitted",
   "diff.changed": "Value changed",
   "diff.type": "Type changed",
   "diff.previous": "Previous",
