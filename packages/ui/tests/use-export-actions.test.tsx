@@ -72,6 +72,31 @@ describe("useExportActions", () => {
     expect(toastMocks.error).toHaveBeenCalledWith("Copy failed");
   });
 
+  it("copies complete error details from a bounded failed preview", async () => {
+    const line = '{"message":"' + "a".repeat(1024) + '"';
+    const preview = parsePreviewJsonlRecordLine(line, 1);
+    const full = parseInput(line, { forcedFormat: "jsonl" }).records;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { result } = renderActions({ getFullRecords: vi.fn(async () => full) });
+    await act(async () => {
+      await result.current.onCopyRecordError(preview);
+    });
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(line));
+  });
+
+  it("does not copy unresolved failed previews", async () => {
+    const preview = parsePreviewJsonlRecordLine("x".repeat(1024), 1);
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { result } = renderActions();
+    await act(async () => {
+      await result.current.onCopyRecord(preview);
+      await result.current.onCopyRecordError(preview);
+    });
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
   it("keeps action references stable while inputs are unchanged", () => {
     const { result, rerender } = renderActions();
     const actions = result.current;

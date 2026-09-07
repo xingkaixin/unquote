@@ -215,21 +215,29 @@ export const useExportActions = ({
   );
 
   const onCopyRecordError = useCallback(
-    (record: JsonlRecord) => {
-      const message = record.error ?? t("error.parseFailed");
-      const errorMeta = record.errorMeta;
-      const details = errorMeta
-        ? [
-            t("error.message", { message }),
-            t("error.location", { line: errorMeta.line, column: errorMeta.column }),
-            `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
-            `${t("error.context")}:\n${errorMeta.context}`,
-          ].join("\n")
-        : t("error.message", { message });
+    (candidate: JsonlRecord) =>
+      copyText(async (signal) => {
+        const record =
+          candidate.status === "failed" && candidate.rawLineTruncated
+            ? (await resolveRecords([candidate], signal, copyBytesLimit))[0]
+            : candidate;
+        if (!record || (record.status === "failed" && record.rawLineTruncated)) {
+          throw new TypeError("Cannot copy incomplete error details");
+        }
+        const message = record.error ?? t("error.parseFailed");
+        const errorMeta = record.errorMeta;
+        const details = errorMeta
+          ? [
+              t("error.message", { message }),
+              t("error.location", { line: errorMeta.line, column: errorMeta.column }),
+              `${t("error.rawLine")}:\n${errorMeta.rawLine}`,
+              `${t("error.context")}:\n${errorMeta.context}`,
+            ].join("\n")
+          : t("error.message", { message });
 
-      return copyText(() => details);
-    },
-    [copyText, t],
+        return details;
+      }),
+    [copyText, resolveRecords, t],
   );
 
   return useMemo(

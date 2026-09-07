@@ -257,6 +257,28 @@ describe("parseInput", () => {
     );
   });
 
+  it("bounds failed previews while preserving full error source and identity", () => {
+    const line = '{"message":"' + "a".repeat(1024 * 1024) + '"';
+    const full = parseJsonlRecordLine(line, 7);
+    for (const preview of [
+      parsePreviewJsonlRecordLine(line, 7),
+      parsePreviewJsonlRecordLineWithValue(line, 7).record,
+    ]) {
+      expect(preview).toMatchObject({
+        status: "failed",
+        id: full.id,
+        lineNumber: 7,
+        rawLineTruncated: true,
+      });
+      expect(preview.errorMeta?.line).toBe(full.errorMeta?.line);
+      expect(preview.errorMeta?.column).toBe(full.errorMeta?.column);
+      expect(JSON.stringify(preview).length).toBeLessThan(2500);
+    }
+    expect(full.rawLine).toBe(line);
+    expect(full).not.toHaveProperty("rawLineTruncated");
+    expect(parsePreviewJsonlRecordLine("{bad}", 7)).toEqual(parseJsonlRecordLine("{bad}", 7));
+  });
+
   it("returns parsed JSONL values with full and preview records", () => {
     const line = '{"event":"two","count":2}';
     const full = parseJsonlRecordLineWithValue(line, 7);

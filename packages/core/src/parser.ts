@@ -113,22 +113,34 @@ export const parseJsonlRecordLine = (
 ): FullJsonlRecord | FailedJsonlRecord =>
   parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)).record;
 
+const parsePreviewLine = (line: string, lineNumber: number) => {
+  const result = parseJsonlRecordLineWith(line, lineNumber, (value) =>
+    createPreviewJsonlRecord(value, lineNumber),
+  );
+  if (result.record.status !== "failed" || line.length <= 512) return result;
+  const record = result.record;
+  const rawLine = `${truncateAtCodePointBoundary(line, 512)}…`;
+  return {
+    record: {
+      ...record,
+      error: truncateAtCodePointBoundary(record.error, 512),
+      rawLine,
+      rawLineTruncated: true as const,
+      errorMeta: { ...record.errorMeta, rawLine },
+    },
+  };
+};
+
 export const parsePreviewJsonlRecordLineWithValue = (
   line: string,
   lineNumber: number,
 ): JsonlRecordLineResult<PreviewJsonlRecord> =>
-  withApproximateValue(
-    parseJsonlRecordLineWith(line, lineNumber, (value) =>
-      createPreviewJsonlRecord(value, lineNumber),
-    ),
-  );
+  withApproximateValue(parsePreviewLine(line, lineNumber));
 
 export const parsePreviewJsonlRecordLine = (
   line: string,
   lineNumber: number,
-): PreviewJsonlRecord | FailedJsonlRecord =>
-  parseJsonlRecordLineWith(line, lineNumber, (value) => createPreviewJsonlRecord(value, lineNumber))
-    .record;
+): PreviewJsonlRecord | FailedJsonlRecord => parsePreviewLine(line, lineNumber).record;
 
 type StrictJsonlAttempt<TLine> =
   | {
