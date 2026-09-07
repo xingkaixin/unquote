@@ -282,7 +282,7 @@ Comparison, record tables, field profiles and problem excerpt export are loaded 
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page.
 
-Record tables display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration batches contain 64 records and at most 4 MiB. Scans yield between batches and reject cancellation before publication or download.
+Record tables display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration starts with 64 records and halves batches that exceed the 4 MiB read budget. Successful batches are processed before the next read; a single record that exceeds the budget is rejected. Scans yield between batches and reject cancellation before publication or download.
 
 Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
 
