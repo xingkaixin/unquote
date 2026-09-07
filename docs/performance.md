@@ -295,3 +295,7 @@ Failed local-file previews retain at most 512 source characters plus an ellipsis
 with bounded error text and context. Record identity and error coordinates remain
 exact. Copy and export resolve the complete source line; an unresolved truncated
 error cannot be serialized as complete data.
+
+Table filters and field profiles read nodes before display serialization. Only
+matching rows serialize cells under the cell budget, so an excluded oversized
+value cannot fail a query merely because it is too large to display.

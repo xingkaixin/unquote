@@ -92,29 +92,45 @@ export const compareTableNumbers = (left: string, right: string) => {
   return (first === second ? 0 : first > second ? 1 : -1) * a.sign;
 };
 
-export const tableCellMatches = (cell: TableCell, column: TableColumn) => {
+const tableNodeMatches = (node: JsonNode | undefined, column: TableColumn) => {
   switch (column.operator) {
     case "kind":
-      return cell.kind === column.value;
+      return (node?.kind ?? "missing") === column.value;
     case "empty":
-      return cell.kind === "string" && cell.text === "";
+      return node?.kind === "string" && node.value === "";
     case "any":
       return true;
     case "missing":
-      return cell.kind === "missing";
+      return node === undefined;
     case "contains":
-      return cell.kind === "string" && cell.text.includes(column.value);
-    case "equals":
-      return (
-        cell.kind !== "missing" &&
-        (cell.kind === "number"
-          ? numberPattern.test(column.value) && compareTableNumbers(cell.text, column.value) === 0
-          : cell.text === column.value)
-      );
+      return node?.kind === "string" && node.value.includes(column.value);
+    case "equals": {
+      if (!node) return false;
+      if (node.kind === "number") {
+        return (
+          numberPattern.test(column.value) &&
+          compareTableNumbers(node.rawValue ?? String(node.value), column.value) === 0
+        );
+      }
+      if (node.kind !== "object" && node.kind !== "array")
+        return String(node.value) === column.value;
+      const serialized = stringifyJsonNodeWithLimits(node, {
+        maxCharacters: column.value.length + 1,
+        maxNodes: 20_000,
+      });
+      if (serialized.nodeLimitExceeded) throw new RangeError("table-cell-limit");
+      return serialized.complete && serialized.text === column.value;
+    }
     case "greater":
-      return cell.kind === "number" && compareTableNumbers(cell.text, column.value) > 0;
+      return (
+        node?.kind === "number" &&
+        compareTableNumbers(node.rawValue ?? String(node.value), column.value) > 0
+      );
     case "less":
-      return cell.kind === "number" && compareTableNumbers(cell.text, column.value) < 0;
+      return (
+        node?.kind === "number" &&
+        compareTableNumbers(node.rawValue ?? String(node.value), column.value) < 0
+      );
   }
 };
 
@@ -173,9 +189,10 @@ export const scanRecordTable = async (
         continue;
       }
       if (record.status !== "full") throw new Error("table-incomplete");
-      const cells = paths.map((path) => cellForNode(resolveCellNode(record.node, path)));
-      cells.forEach((cell, index) => addFieldObservation(result.profiles[index]!, cell));
-      if (!cells.every((cell, index) => tableCellMatches(cell, columns[index]!))) continue;
+      const nodes = paths.map((path) => resolveCellNode(record.node, path));
+      nodes.forEach((node, index) => addFieldObservation(result.profiles[index]!, node));
+      if (!nodes.every((node, index) => tableNodeMatches(node, columns[index]!))) continue;
+      const cells = nodes.map(cellForNode);
       bytes += cells.reduce((size, cell) => size + encoder.encode(cell.text).byteLength + 64, 64);
       if (bytes > tableBytesLimit || result.rows.length >= tableRowLimit)
         throw new RangeError("table-result-limit");
