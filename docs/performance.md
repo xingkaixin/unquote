@@ -250,9 +250,10 @@ ready p50 under 60 ms, and Trajectory DOM nodes under 1400. Use
 
 ## Copy and export payload limits
 
-Copy resolves one record at a time and stops at 20,000,000 UTF-8 output bytes or
-5,000 records. Each local record read is capped at 20,000,000 source bytes before
-parsing. Without Blob streaming, the whole file must fit this read budget.
+Copy resolves batches of up to 64 records and stops at 20,000,000 UTF-8 output
+bytes or 5,000 records. Multi-record reads are capped at 256 KiB of source bytes
+and halve the batch on overflow; a single record may use up to 20,000,000 source
+bytes before parsing. Already full records, including browse-cache hits, are reused. Without Blob streaming, the whole file must fit this read budget.
 
 Export retains serialized parts until the Blob download is created, so it is
 capped at 64 MiB of UTF-8 output, including formatting and separators. This leaves

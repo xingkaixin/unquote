@@ -201,9 +201,9 @@ export const useLocalFileSource = (
   const resolveRecords = useCallback(
     async (records: JsonlRecord[], signal?: AbortSignal, maxBytes?: number) => {
       signal?.throwIfAborted();
-      return access ? access.resolveRecords(records, signal, maxBytes) : records;
+      return access ? access.resolveRecords(records.map(resolveRecord), signal, maxBytes) : records;
     },
-    [access],
+    [access, resolveRecord],
   );
 
   return {

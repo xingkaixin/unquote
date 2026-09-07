@@ -1,3 +1,4 @@
+import { formatResolvedRecordsForCopy } from "../src/lib/record-export";
 import { parsePreviewJsonlRecordLine } from "@unquote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
@@ -50,6 +51,33 @@ const fixedWidthJsonlLine = (lineNumber: number) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe("locating a JSONL line by number", () => {
+  it("bounds bulk-copy I/O after browsing the end of a file", async () => {
+    const contents = Array.from({ length: 5000 }, (_, index) =>
+      JSON.stringify({ index, text: "a".repeat(220) }),
+    ).join("\n");
+    const { file, scans } = makeChunkedFile(contents, 65_536);
+    const access = createLocalFileAccess(file);
+    try {
+      await access.readRecords(new Set([5000]));
+      scans.length = 0;
+      const records = contents
+        .split("\n")
+        .map((line, index) => parsePreviewJsonlRecordLine(line, index + 1));
+      const signal = new AbortController().signal;
+      const text = await formatResolvedRecordsForCopy(
+        records,
+        "jsonl",
+        (batch) => access.resolveRecords(batch, signal, 256 * 1024),
+        signal,
+      );
+      expect(text).toBe(contents);
+      expect(scans.length).toBeLessThan(100);
+      expect(scans.reduce((bytes, scan) => bytes + scan.bytesRead, 0)).toBeLessThan(file.size * 4);
+    } finally {
+      access.dispose();
+    }
+  });
+
   it("bounds repeated scans across distant hydration targets", async () => {
     const contents = Array.from({ length: 100_000 }, (_, index) =>
       fixedWidthJsonlLine(index + 1),

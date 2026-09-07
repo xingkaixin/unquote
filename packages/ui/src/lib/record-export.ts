@@ -1,3 +1,4 @@
+import { SourceReadLimitError } from "./local-file-reader";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
 
@@ -120,7 +121,7 @@ const appendIndentedRecord = (writer: CopyPayloadWriter, record: JsonlRecord) =>
 export const formatResolvedRecordsForCopy = async (
   records: JsonlRecord[],
   format: "json" | "jsonl" | "array",
-  resolve: (record: JsonlRecord) => Promise<JsonlRecord | null>,
+  resolve: (records: JsonlRecord[]) => Promise<JsonlRecord[]>,
   signal: AbortSignal,
   byteLimit = copyBytesLimit,
 ): Promise<string | null> => {
@@ -131,10 +132,28 @@ export const formatResolvedRecordsForCopy = async (
   if (format === "array" && !writer.append(records.length ? "[\n" : "[]")) {
     return null;
   }
+  let batch: JsonlRecord[] = [];
+  let batchStart = 0;
   for (let index = 0; index < records.length; index += 1) {
     signal.throwIfAborted();
-    const record = await resolve(records[index]!);
+    if (index >= batchStart + batch.length) {
+      let batchSize = format === "json" ? 1 : 64;
+      batchStart = index;
+      while (true) {
+        const candidates = records.slice(index, index + batchSize);
+        try {
+          const resolved = await resolve(candidates);
+          batch = candidates.map((record, offset) => resolved[offset] ?? record);
+          break;
+        } catch (error) {
+          signal.throwIfAborted();
+          if (!(error instanceof SourceReadLimitError) || candidates.length === 1) throw error;
+          batchSize = Math.max(1, Math.floor(candidates.length / 2));
+        }
+      }
+    }
     signal.throwIfAborted();
+    const record = batch[index - batchStart];
     if (!record) {
       return null;
     }

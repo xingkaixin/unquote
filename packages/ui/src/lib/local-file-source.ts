@@ -57,14 +57,21 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
     readRecords,
     resolveRecords: async (records, signal, maxBytes) => {
       signal?.throwIfAborted();
+      const incomplete = records.filter(
+        (record) =>
+          record.status === "preview" || (record.status === "failed" && record.rawLineTruncated),
+      );
+      if (!incomplete.length) return records;
       const lines = await readJsonlLinesByNumber(
         file,
-        new Set(records.map((record) => record.lineNumber)),
+        new Set(incomplete.map((record) => record.lineNumber)),
         signal,
         maxBytes,
       );
       const resolved = await recordParser.parse(lines, signal);
       return records.map((record) => {
+        if (record.status !== "preview" && !(record.status === "failed" && record.rawLineTruncated))
+          return record;
         const full = resolved.get(record.lineNumber);
         if (!full) {
           throw new Error(`Record line ${record.lineNumber} was not found`);

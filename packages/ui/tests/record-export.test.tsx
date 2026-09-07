@@ -1,3 +1,4 @@
+import { SourceReadLimitError } from "../src/lib/local-file-reader";
 import { formatResolvedRecordsForCopy } from "../src/lib/record-export";
 import { parseInput, parsePreviewJsonlRecordLine } from "@unquote/core";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
@@ -251,21 +252,44 @@ describe("record-export", () => {
 });
 
 describe("bounded copy hydration", () => {
-  it("stops resolving records when the output exceeds the budget", async () => {
+  it("stops copying when the output exceeds the budget", async () => {
     const records = recordsFrom('"first"\n"second"\n"third"', "jsonl");
     const resolved: string[] = [];
     const text = await formatResolvedRecordsForCopy(
       records,
       "jsonl",
-      async (record) => {
-        resolved.push(record.id);
-        return record;
+      async (batch) => {
+        resolved.push(...batch.map((record) => record.id));
+        return batch;
       },
       new AbortController().signal,
       8,
     );
     expect(text).toBeNull();
-    expect(resolved).toEqual([records[0]!.id, records[1]!.id]);
+    expect(resolved).toEqual(records.map((record) => record.id));
+  });
+
+  it("splits oversized reads and preserves every record in order", async () => {
+    const records = recordsFrom("1\n2\n3", "jsonl");
+    const result = await formatResolvedRecordsForCopy(
+      records,
+      "jsonl",
+      async (batch) => {
+        if (batch.length > 1) throw new SourceReadLimitError();
+        return batch;
+      },
+      new AbortController().signal,
+    );
+    expect(result).toBe("1\n2\n3");
+  });
+
+  it("stops before requesting another batch after exceeding the output limit", async () => {
+    const records = recordsFrom(Array.from({ length: 100 }, () => '"payload"').join("\n"), "jsonl");
+    const resolve = vi.fn(async (batch: JsonlRecord[]) => batch);
+    await expect(
+      formatResolvedRecordsForCopy(records, "jsonl", resolve, new AbortController().signal, 10),
+    ).resolves.toBeNull();
+    expect(resolve).toHaveBeenCalledOnce();
   });
 
   it.each(["jsonl", "array", "json"] as const)("preserves %s formatting", async (format) => {
