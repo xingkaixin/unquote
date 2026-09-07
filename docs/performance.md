@@ -269,6 +269,13 @@ starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.
 
 
+Browse-time Full Records use FIFO eviction at 500 records or 32 MiB of estimated
+retained data, reserving most of the 256 MiB heap budget for parsing and views.
+The estimate includes UTF-16 strings, raw stringified JSON, truncated lossless
+values, and object/property overhead; it is not an engine heap measurement.
+One oversized record remains available for display until another record is loaded,
+so browsing does not repeatedly hydrate a record that can never enter the cache.
+
 ## Local analysis workspaces
 
 Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 820,000 bytes / 270,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 800 KB / 259 KB gzip.
