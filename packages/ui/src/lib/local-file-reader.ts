@@ -1,5 +1,4 @@
 import { parseJsonlRecordLine } from "@unquote/core";
-import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 
 const lineCheckpointLimit = 64;
