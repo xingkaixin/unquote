@@ -198,6 +198,9 @@ export const useExportActions = ({
     (record: JsonlRecord) =>
       copyText(async (signal) => {
         if (!sourceAccess) {
+          if (record.status === "failed" && record.rawLineTruncated) {
+            throw new TypeError("Cannot copy an incomplete raw line");
+          }
           return record.status === "failed" ? record.rawLine : record.summary;
         }
         try {

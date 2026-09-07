@@ -93,6 +93,7 @@ describe("useExportActions", () => {
     await act(async () => {
       await result.current.onCopyRecord(preview);
       await result.current.onCopyRecordError(preview);
+      await result.current.onCopyRawLine(preview);
     });
     expect(writeText).not.toHaveBeenCalled();
   });
