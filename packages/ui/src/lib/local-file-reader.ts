@@ -1,5 +1,4 @@
 import { parseJsonlRecordLine } from "@unquote/core";
-import type { JsonlRecord } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 
 const lineCheckpointLimit = 64;
@@ -448,36 +447,5 @@ export const readJsonlRecordsByLine = async (
   const lines = await readJsonlLinesByNumber(file, lineNumbers, signal);
   return new Map(
     [...lines].map(([lineNumber, line]) => [lineNumber, parseJsonlRecordLine(line, lineNumber)]),
-  );
-};
-
-/**
- * Parses the requested lines in file order and hands each Full Record to the
- * caller immediately, so only one record's AST is live at a time. Unlike
- * `resolveRecords`, nothing is accumulated here — the caller decides what to
- * keep.
- */
-export const streamJsonlRecords = async (
-  file: File,
-  lineNumbers: ReadonlySet<number>,
-  onRecord: (record: JsonlRecord) => void | Promise<void>,
-  signal?: AbortSignal,
-) => {
-  if (lineNumbers.size === 0) {
-    return;
-  }
-
-  let remaining = lineNumbers.size;
-  await readJsonlFileLines(
-    file,
-    async (line, lineNumber) => {
-      if (!lineNumbers.has(lineNumber)) {
-        return true;
-      }
-      await onRecord(parseJsonlRecordLine(line, lineNumber));
-      remaining -= 1;
-      return remaining > 0;
-    },
-    signal,
   );
 };
