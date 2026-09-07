@@ -261,7 +261,9 @@ current record. Serialization stops at the remaining output budget. Oversized
 exports fail without downloading a partial file; users can filter fewer records.
 This output cap is not a bound on the AST size of an individual source record.
 
-Full-record hydration uses one worker per local-file access. Overlapping parse
+Full-record hydration and streaming export share one worker per local-file access.
+Export awaits parsing and consumption of each record before requesting the next.
+Without a worker, the same 512 KiB main-thread input budget applies. Overlapping parse
 batches queue in request order; queued cancellation and disposal reject without
 starting another worker. The 15-second parse timeout begins when a batch starts,
 and the idle worker is released after 30 seconds.

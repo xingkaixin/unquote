@@ -1,6 +1,6 @@
 import { stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import { readFileText, readJsonlLinesByNumber, streamJsonlRecords } from "./local-file-reader";
+import { readFileText, readJsonlFileLines, readJsonlLinesByNumber } from "./local-file-reader";
 import { createRecordParser } from "./record-parser";
 import { createLocalFileSearch } from "./local-file-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
@@ -72,8 +72,26 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
         return full;
       });
     },
-    streamRecords: (lineNumbers, onRecord, signal) =>
-      streamJsonlRecords(file, lineNumbers, onRecord, signal),
+    streamRecords: async (lineNumbers, onRecord, signal) => {
+      signal?.throwIfAborted();
+      if (lineNumbers.size === 0) return;
+      let remaining = lineNumbers.size;
+      await readJsonlFileLines(
+        file,
+        async (line, lineNumber) => {
+          if (!lineNumbers.has(lineNumber)) return true;
+          const records = await recordParser.parse(new Map([[lineNumber, line]]), signal);
+          signal?.throwIfAborted();
+          const record = records.get(lineNumber);
+          if (!record) throw new Error(`Record line ${lineNumber} was not found`);
+          await onRecord(record);
+          remaining -= 1;
+          return remaining > 0;
+        },
+        signal,
+      );
+      signal?.throwIfAborted();
+    },
     readRecordText: async (record, signal) => {
       const resolved = (await readRecords(new Set([record.lineNumber]), signal)).get(
         record.lineNumber,
