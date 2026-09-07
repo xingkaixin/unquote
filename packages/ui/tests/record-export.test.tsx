@@ -269,6 +269,48 @@ describe("bounded copy hydration", () => {
     expect(resolved).toEqual(records.map((record) => record.id));
   });
 
+  it("handles cancellation from a browser task between copy slices", async () => {
+    vi.useFakeTimers();
+    const clock = vi.spyOn(performance, "now").mockReturnValueOnce(0).mockReturnValue(20);
+    const controller = new AbortController();
+    const records = recordsFrom("1\n2\n3", "jsonl");
+    try {
+      setTimeout(() => controller.abort(), 0);
+      const copying = formatResolvedRecordsForCopy(
+        records,
+        "jsonl",
+        async (batch) => batch,
+        controller.signal,
+      );
+      const rejected = expect(copying).rejects.toMatchObject({ name: "AbortError" });
+      await vi.runAllTimersAsync();
+      await rejected;
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves exact output across multiple browser-task yields", async () => {
+    vi.useFakeTimers();
+    let elapsed = 0;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => (elapsed += 10));
+    const records = recordsFrom('{"n":9007199254740993}\n{"s":"中文"}', "jsonl");
+    try {
+      const copying = formatResolvedRecordsForCopy(
+        records,
+        "jsonl",
+        async (batch) => batch,
+        new AbortController().signal,
+      );
+      await vi.runAllTimersAsync();
+      await expect(copying).resolves.toBe('{"n":9007199254740993}\n{"s":"中文"}');
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("splits oversized reads and preserves every record in order", async () => {
     const records = recordsFrom("1\n2\n3", "jsonl");
     const result = await formatResolvedRecordsForCopy(

@@ -4,6 +4,7 @@ import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
 
 export const copyRecordLimit = 5000;
 export const copyBytesLimit = 20_000_000;
+const copySliceMs = 8;
 export const isCopyRecordCountAboveThreshold = (recordCount: number) =>
   recordCount > copyRecordLimit;
 
@@ -134,6 +135,7 @@ export const formatResolvedRecordsForCopy = async (
   }
   let batch: JsonlRecord[] = [];
   let batchStart = 0;
+  let yieldAt = performance.now() + copySliceMs;
   for (let index = 0; index < records.length; index += 1) {
     signal.throwIfAborted();
     if (index >= batchStart + batch.length) {
@@ -167,6 +169,11 @@ export const formatResolvedRecordsForCopy = async (
         : appendRecord(writer, record, format === "json" ? 2 : 0);
     if (!appended) {
       return null;
+    }
+    if (performance.now() >= yieldAt) {
+      await yieldToMain();
+      signal.throwIfAborted();
+      yieldAt = performance.now() + copySliceMs;
     }
     if (format === "json") {
       break;
