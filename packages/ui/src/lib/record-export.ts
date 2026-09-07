@@ -35,7 +35,7 @@ export const isCopyTextAboveThreshold = (text: string, byteLimit = copyBytesLimi
   utf8ByteLengthWithin(text, normalizedByteLimit(byteLimit)) === null;
 
 const copyNodeFor = (record: JsonlRecord): JsonNode => {
-  if (isPreviewRecord(record)) {
+  if (isPreviewRecord(record) || (record.status === "failed" && record.rawLineTruncated)) {
     throw new TypeError("Cannot export a preview record; load the full record first");
   }
   if (record.status !== "failed") {

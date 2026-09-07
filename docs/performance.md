@@ -287,3 +287,8 @@ Record tables display 50 rows per page and retain at most 100,000 matching rows 
 Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
 
 Problem excerpt export selects at most 1,000 records, reads at most 8 MiB of preview source lines and caps content at 8 MiB / 50,000 visited nodes per record. Redaction yields every 250 visited nodes. Markdown previews display 10,000 characters per page.
+
+Failed local-file previews retain at most 512 source characters plus an ellipsis,
+with bounded error text and context. Record identity and error coordinates remain
+exact. Copy and export resolve the complete source line; an unresolved truncated
+error cannot be serialized as complete data.

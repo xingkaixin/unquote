@@ -205,6 +205,7 @@ export interface FailedJsonlRecord extends JsonlRecordBase {
   error: string;
   errorMeta: ParseErrorMeta;
   rawLine: string;
+  rawLineTruncated?: true;
 }
 
 export type ParsedJsonlRecord = FullJsonlRecord | PreviewJsonlRecord;
