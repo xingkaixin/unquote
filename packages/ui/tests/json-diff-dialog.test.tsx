@@ -40,3 +40,30 @@ it("compares pasted JSON and clears stale results when inputs change", async () 
     await screen.findByText("No differences under these comparison rules."),
   ).toBeInTheDocument();
 });
+
+it("labels excerpts and displays the differing suffix of long values", async () => {
+  render(
+    <I18nProvider>
+      <JsonDiffDialog
+        source={createTextSourceRevision(1, "", "auto")}
+        records={[]}
+        activeRecord={null}
+        onClose={vi.fn()}
+      />
+    </I18nProvider>,
+  );
+  await screen.findByRole("dialog");
+  const prefix = "x".repeat(1200);
+  fireEvent.change(screen.getByRole("textbox", { name: "Before" }), {
+    target: { value: JSON.stringify({ value: prefix + "A" }) },
+  });
+  fireEvent.change(screen.getByRole("textbox", { name: "After" }), {
+    target: { value: JSON.stringify({ value: prefix + "B" }) },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Compare" }));
+  expect(await screen.findByText("1 differences")).toBeInTheDocument();
+  expect(screen.getAllByText("Excerpt — some content omitted")).toHaveLength(2);
+  const cells = screen.getAllByRole("cell");
+  expect(cells[0]).toHaveTextContent('A"');
+  expect(cells[1]).toHaveTextContent('B"');
+});

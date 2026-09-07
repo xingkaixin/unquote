@@ -252,12 +252,16 @@ export const JsonDiffDialog = ({ source, records, activeRecord, onClose }: JsonD
                                 {t(`diff.${change.kind}`)}
                               </span>
                             </th>
-                            <td className="border-b border-border p-2 align-top">
-                              <pre className="whitespace-pre-wrap break-all">{change.before}</pre>
-                            </td>
-                            <td className="border-b border-border p-2 align-top">
-                              <pre className="whitespace-pre-wrap break-all">{change.after}</pre>
-                            </td>
+                            {[change.before, change.after].map((value, index) => (
+                              <td key={index} className="border-b border-border p-2 align-top">
+                                <pre className="whitespace-pre-wrap break-all">{value.text}</pre>
+                                {value.truncated ? (
+                                  <span className="mt-1 block text-text-secondary">
+                                    {t("diff.truncated")}
+                                  </span>
+                                ) : null}
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>

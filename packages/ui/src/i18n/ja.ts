@@ -82,6 +82,7 @@ export const ja: Messages = {
   "diff.path": "パス / 変更",
   "diff.added": "追加",
   "diff.removed": "削除",
+  "diff.truncated": "抜粋（一部の内容は省略されています）",
   "diff.changed": "値の変更",
   "diff.type": "型の変更",
   "diff.previous": "前へ",
