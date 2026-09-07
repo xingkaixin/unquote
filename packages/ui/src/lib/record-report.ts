@@ -1,3 +1,4 @@
+import { SourceReadLimitError } from "./local-file-reader";
 import { hasJsonNodeChildren, stringifyJsonNodeWithLimits } from "@unquote/core";
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { appendJsonPathSegment, formatJsonPath, isPathWithin, parseTreePath } from "./path-codec";
@@ -124,23 +125,21 @@ export const buildRecordReport = async (
     (path, index, all) =>
       !all.some((other, i) => i !== index && other !== path && isPathWithin(path, other)),
   );
-  const previews = selected.filter((record) => record.status === "preview");
-  const full =
-    previews.length && source.kind === "local-file"
-      ? await source.access.resolveRecords(previews, signal, reportBytesLimit)
-      : [];
-  signal.throwIfAborted();
-  const resolved = new Map(full.map((record) => [record.id, record]));
   const encoder = new TextEncoder();
   let bytes = encoder.encode(notes).byteLength;
   if (bytes > reportBytesLimit) throw new RangeError("report-limit");
   const bodies: string[] = [];
   const sections: string[] = [];
   let redacted = 0;
-  for (const candidate of selected) {
+  const appendRecord = async (record: JsonlRecord) => {
     signal.throwIfAborted();
-    const record = resolved.get(candidate.id) ?? candidate;
-    if (record.status !== "full") throw new Error("invalid-record");
+    const expected = selected[bodies.length];
+    if (
+      record.status !== "full" ||
+      record.id !== expected?.id ||
+      record.lineNumber !== expected.lineNumber
+    )
+      throw new Error("invalid-record");
     const sanitized = await redactReportNode(record.node, paths, signal);
     const body = stringifyJsonNodeWithLimits(sanitized.node, {
       maxBytes: reportBytesLimit - bytes,
@@ -152,8 +151,26 @@ export const buildRecordReport = async (
     bodies.push(body.text);
     sections.push(`## Line ${record.lineNumber}\n\n${fenced(body.text, "json")}`);
     await yieldToMain();
+    signal.throwIfAborted();
+  };
+  if (source.kind === "local-file") {
+    try {
+      await source.access.streamRecords(
+        new Set(selected.map((record) => record.lineNumber)),
+        appendRecord,
+        signal,
+        reportBytesLimit,
+      );
+    } catch (error) {
+      signal.throwIfAborted();
+      if (error instanceof SourceReadLimitError) throw new RangeError("report-limit");
+      throw error;
+    }
+  } else {
+    for (const record of selected) await appendRecord(record);
   }
   signal.throwIfAborted();
+  if (bodies.length !== selected.length) throw new Error("missing-lines");
   return {
     markdown: `# Unquote report\n\n${notes ? `## Notes\n\n${fenced(notes, "text")}\n\n` : ""}${sections.join("\n\n")}\n`,
     jsonl: bodies.join("\n") + "\n",
