@@ -1,6 +1,11 @@
 import { stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import { readFileText, readJsonlFileLines, readJsonlLinesByNumber } from "./local-file-reader";
+import {
+  readFileText,
+  readJsonlFileLines,
+  readJsonlLinesByNumber,
+  SourceReadLimitError,
+} from "./local-file-reader";
 import { createRecordParser } from "./record-parser";
 import { createLocalFileSearch } from "./local-file-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
@@ -27,6 +32,7 @@ export interface LocalFileAccess {
     lineNumbers: ReadonlySet<number>,
     onRecord: (record: JsonlRecord) => void | Promise<void>,
     signal?: AbortSignal,
+    maxBytes?: number,
   ) => Promise<void>;
   readRecordText: (record: JsonlRecord, signal?: AbortSignal) => Promise<string>;
   readRecordTextByLine: (lineNumber: number, signal?: AbortSignal) => Promise<string>;
@@ -79,14 +85,20 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
         return full;
       });
     },
-    streamRecords: async (lineNumbers, onRecord, signal) => {
+    streamRecords: async (lineNumbers, onRecord, signal, maxBytes) => {
       signal?.throwIfAborted();
       if (lineNumbers.size === 0) return;
       let remaining = lineNumbers.size;
+      let readBytes = 0;
+      const encoder = new TextEncoder();
       await readJsonlFileLines(
         file,
         async (line, lineNumber) => {
           if (!lineNumbers.has(lineNumber)) return true;
+          if (maxBytes !== undefined) {
+            readBytes += encoder.encode(line).byteLength;
+            if (readBytes > maxBytes) throw new SourceReadLimitError();
+          }
           const records = await recordParser.parse(new Map([[lineNumber, line]]), signal);
           signal?.throwIfAborted();
           const record = records.get(lineNumber);

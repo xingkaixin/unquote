@@ -1,7 +1,15 @@
-import { expect, it } from "vitest";
-import { parseInput, stringifyJsonNode } from "@unquote/core";
+// @vitest-environment jsdom
+import { expect, it, vi } from "vitest";
+import { parseInput, parsePreviewJsonlRecordLine, stringifyJsonNode } from "@unquote/core";
 import { buildRecordReport, selectReportRecords } from "../src/lib/record-report";
-import { createTextSourceRevision } from "../src/lib/published-source";
+import {
+  createStreamingFileSourceRevision,
+  createTextSourceRevision,
+} from "../src/lib/published-source";
+
+import { createLocalFileAccess } from "../src/lib/local-file-source";
+import { SourceReadLimitError } from "../src/lib/local-file-reader";
+import { createStreamFile } from "./helpers/stub-file";
 
 const report = (text: string, selection = "1", paths = "", notes = "") =>
   buildRecordReport(
@@ -71,4 +79,77 @@ it("rejects aborted work and preserves explicit null values", async () => {
     ),
   ).rejects.toThrow();
   expect((await report('{"v":null}')).jsonl).toBe('{"v":null}\n');
+});
+
+it("streams selected local records in source order without bulk hydration", async () => {
+  const text = '{"token":"secret","id":9007199254740993}\n{"skip":true}\n{"token":"last"}';
+  const { file } = createStreamFile(text);
+  const access = createLocalFileAccess(file);
+  const bulk = vi.spyOn(access, "resolveRecords");
+  try {
+    const result = await buildRecordReport(
+      createStreamingFileSourceRevision(1, access, "jsonl"),
+      text.split("\n").map((line, index) => parsePreviewJsonlRecordLine(line, index + 1)),
+      "3,1",
+      "$.token",
+      "",
+      new AbortController().signal,
+    );
+    expect(result).toEqual(await report(text, "3,1", "$.token"));
+    expect(bulk).not.toHaveBeenCalled();
+  } finally {
+    access.dispose();
+  }
+});
+
+it("enforces a cumulative UTF-8 budget on selected streamed lines before parsing", async () => {
+  const line = '{"v":"中"}';
+  const { file } = createStreamFile(`${line}\n{"skipped":"${"x".repeat(100)}"}\n${line}`);
+  const access = createLocalFileAccess(file);
+  const bytes = new TextEncoder().encode(line).byteLength * 2;
+  const received = vi.fn();
+  try {
+    await access.streamRecords(new Set([1, 3]), received, undefined, bytes);
+    expect(received.mock.calls.map(([record]) => record.lineNumber)).toEqual([1, 3]);
+    received.mockClear();
+    await expect(
+      access.streamRecords(new Set([1, 3]), received, undefined, bytes - 1),
+    ).rejects.toThrow(SourceReadLimitError);
+    expect(received).toHaveBeenCalledTimes(1);
+  } finally {
+    access.dispose();
+  }
+});
+
+it("does not return a partial report when local streaming fails or is cancelled", async () => {
+  const { file } = createStreamFile("{}\n{}");
+  const access = createLocalFileAccess(file);
+  const records = [parsePreviewJsonlRecordLine("{}", 1), parsePreviewJsonlRecordLine("{}", 2)];
+  const source = createStreamingFileSourceRevision(1, access, "jsonl");
+  const controller = new AbortController();
+  const stream = access.streamRecords;
+  const streamed = vi
+    .spyOn(access, "streamRecords")
+    .mockImplementation(async (lines, consume, signal, maxBytes) => {
+      await stream(
+        lines,
+        async (record) => {
+          await consume(record);
+          controller.abort();
+        },
+        signal,
+        maxBytes,
+      );
+    });
+  try {
+    await expect(
+      buildRecordReport(source, records, "1-2", "", "", controller.signal),
+    ).rejects.toThrow();
+    streamed.mockRejectedValue(new SourceReadLimitError());
+    await expect(
+      buildRecordReport(source, records, "1-2", "", "", new AbortController().signal),
+    ).rejects.toThrow(new RangeError("report-limit"));
+  } finally {
+    access.dispose();
+  }
 });
