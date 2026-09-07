@@ -169,3 +169,56 @@ it.each(["cancel", "read-error"])("does not retry hydration after %s", async (ki
   await expect(pending).rejects.toBe(kind === "cancel" ? controller.signal.reason : failure);
   expect(resolveRecords).toHaveBeenCalledOnce();
 });
+
+it("filters before formatting oversized cells while profiling all records", async () => {
+  const text = [
+    { level: "debug", payload: "x".repeat(70_000) },
+    { level: "error", payload: "small" },
+  ]
+    .map((record) => JSON.stringify(record))
+    .join("\n");
+  const result = await scanRecordTable(
+    createTextSourceRevision(1, text, "jsonl"),
+    parseInput(text, { forcedFormat: "jsonl" }).records,
+    [
+      { path: "$.payload", operator: "any", value: "" },
+      { path: "$.level", operator: "equals", value: "error" },
+    ],
+    new AbortController().signal,
+    () => {},
+  );
+  expect(result.rows.map((row) => row.lineNumber)).toEqual([2]);
+  expect(result.rows[0]?.cells[0]?.text).toBe("small");
+  expect(result.profiles[0]?.counts.string).toBe(2);
+});
+
+it.each([
+  ["equals", "small"],
+  ["contains", "small"],
+  ["empty", ""],
+  ["missing", ""],
+  ["kind", "number"],
+] as const)("evaluates %s without formatting an oversized string", async (operator, value) => {
+  const text = JSON.stringify({ payload: "x".repeat(70_000) });
+  const result = await scanRecordTable(
+    createTextSourceRevision(1, text, "jsonl"),
+    parseInput(text).records,
+    [{ path: "$.payload", operator, value }],
+    new AbortController().signal,
+    () => {},
+  );
+  expect(result.rows).toEqual([]);
+  expect(result.profiles[0]?.counts.string).toBe(1);
+});
+
+it("compares containers without imposing the display byte limit", async () => {
+  const result = await scan(
+    JSON.stringify({ v: { payload: "x".repeat(70_000) } }),
+    "$.v",
+    "equals",
+    "{}",
+  );
+  expect(result.rows).toEqual([]);
+  expect(result.profiles[0]?.counts.object).toBe(1);
+  expect((await scan('{"v":{"a":1}}', "$.v", "equals", '{"a":1}')).rows).toHaveLength(1);
+});
