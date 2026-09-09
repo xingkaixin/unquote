@@ -310,3 +310,27 @@ a,
     transform: none;
   }
 }
+
+.uq-fluid-hover {
+  position: relative;
+  isolation: isolate;
+}
+
+.uq-fluid-hover > [data-slot="fluid-hover-highlight"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--color-surface-200);
+  border-radius: var(--radius-md);
+  opacity: 0;
+  z-index: -1;
+}
+
+.uq-fluid-hover [data-fluid-hover-active]:not([data-active]) {
+  color: var(--color-text-primary);
+}
+
+.uq-fluid-hover[data-hovering] [data-fluid-hover-item]:not([data-active]) {
+  background-color: transparent;
+}

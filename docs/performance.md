@@ -116,7 +116,7 @@ without changing the amount of JavaScript loaded by either surface.
 | Initial JavaScript gzip | 205,000 bytes |
 | Total UI JavaScript | 820,000 bytes |
 | Total UI JavaScript gzip | 270,000 bytes |
-| Initial CSS | 38,000 bytes |
+| Initial CSS | 39,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
 ## Baseline
@@ -299,3 +299,15 @@ error cannot be serialized as complete data.
 Table filters and field profiles read nodes before display serialization. Only
 matching rows serialize cells under the cell budget, so an excluded oversized
 value cannot fail a query merely because it is too large to display.
+
+## Fluid hover integration
+
+Fixed menus and output tabs share one decorative hover highlight. Motion uses
+Framer Motion’s native mini entry point and the fast, non-bouncing spring from
+Fluid Functionalism. Click targets and keyboard navigation remain with Base UI;
+virtualized records and trajectories do not use this effect.
+
+The measured initial JavaScript increase is approximately 13.4 KiB (5.2 KiB gzip),
+within the existing JavaScript budgets. Shared hover styles add approximately
+0.5 KiB of CSS. The initial CSS budget moves from 38,000 to 39,000 bytes because
+the previous build used 37,974 bytes. The gzip CSS limit remains 9,000 bytes.

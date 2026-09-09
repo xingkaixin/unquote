@@ -93,3 +93,11 @@ Object.assign(globalThis, {
 });
 
 Object.assign(window, { ResizeObserver: globalThis.ResizeObserver });
+
+// jsdom has no Web Animations API; browser checks cover the actual motion.
+vi.mock("framer-motion/dom/mini", () => ({
+  animate: vi.fn((element: HTMLElement, styles: Record<string, string | number>) => {
+    Object.assign(element.style, styles);
+    return { stop: vi.fn() };
+  }),
+}));

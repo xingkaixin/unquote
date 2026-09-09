@@ -1,4 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
+import { FluidHover } from "./fluid-hover";
 import { cn } from "../lib/utils";
 
 export const DropdownMenu = Menu.Root;
@@ -7,6 +8,7 @@ export const DropdownMenuRadioGroup = Menu.RadioGroup;
 export const DropdownMenuContent = ({
   className,
   align,
+  children,
   ...props
 }: React.ComponentProps<typeof Menu.Popup> &
   Pick<React.ComponentProps<typeof Menu.Positioner>, "align">) => (
@@ -18,18 +20,20 @@ export const DropdownMenuContent = ({
           className,
         )}
         {...props}
-      />
+      >
+        <FluidHover>{children}</FluidHover>
+      </Menu.Popup>
     </Menu.Positioner>
   </Menu.Portal>
 );
 const itemClassName =
-  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono uq-text-11 uppercase tracking-[0.08em] text-text-secondary outline-none hover:bg-surface-200 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
+  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono uq-text-11 uppercase tracking-[0.08em] text-text-secondary outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
 
 export const DropdownMenuItem = ({
   className,
   ...props
 }: React.ComponentProps<typeof Menu.Item>) => (
-  <Menu.Item className={cn(itemClassName, className)} {...props} />
+  <Menu.Item data-fluid-hover-item className={cn(itemClassName, className)} {...props} />
 );
 
 export const DropdownMenuRadioItem = ({
@@ -37,5 +41,10 @@ export const DropdownMenuRadioItem = ({
   closeOnClick = true,
   ...props
 }: React.ComponentProps<typeof Menu.RadioItem>) => (
-  <Menu.RadioItem className={cn(itemClassName, className)} closeOnClick={closeOnClick} {...props} />
+  <Menu.RadioItem
+    data-fluid-hover-item
+    className={cn(itemClassName, className)}
+    closeOnClick={closeOnClick}
+    {...props}
+  />
 );

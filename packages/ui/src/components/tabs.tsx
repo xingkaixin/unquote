@@ -1,10 +1,12 @@
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
+import { FluidHover } from "./fluid-hover";
 import { cn } from "../lib/utils";
 
 export const Tabs = TabsPrimitive.Root;
 
 export const TabsList = ({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) => (
   <TabsPrimitive.List
@@ -13,7 +15,9 @@ export const TabsList = ({
       className,
     )}
     {...props}
-  />
+  >
+    <FluidHover axis="x">{children}</FluidHover>
+  </TabsPrimitive.List>
 );
 
 export const TabsTrigger = ({
@@ -21,6 +25,7 @@ export const TabsTrigger = ({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Tab>) => (
   <TabsPrimitive.Tab
+    data-fluid-hover-item
     className={cn(
       "inline-flex items-center rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-text-secondary outline-none transition-[color,background-color] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent data-active:bg-accent data-active:text-white",
       className,
