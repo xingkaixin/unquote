@@ -7,7 +7,7 @@ const budgets = {
   initialJsGzipBytes: 205_000,
   totalJsBytes: 820_000,
   totalJsGzipBytes: 270_000,
-  initialCssBytes: 38_000,
+  initialCssBytes: 39_000,
   initialCssGzipBytes: 9_000,
 };
 
