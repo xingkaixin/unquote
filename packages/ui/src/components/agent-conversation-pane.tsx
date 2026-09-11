@@ -17,7 +17,9 @@ import { formatEventMeta, formatTimestamp, roleConfig } from "./agent-session-fo
 import { Button } from "./button";
 
 export const conversationVirtualizationThreshold = 160;
+
 const conversationItemEstimateSize = 96;
+
 const conversationItemGap = 24;
 
 const statusLabel: Record<AgentToolStatus, MessageKey> = {

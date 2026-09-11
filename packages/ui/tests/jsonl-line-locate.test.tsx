@@ -45,6 +45,7 @@ const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY)
 
 const jsonlLines = (count: number) =>
   Array.from({ length: count }, (_, index) => `{"i":${index + 1}}`);
+
 const fixedWidthJsonlLine = (lineNumber: number) =>
   `{"i":"${String(lineNumber).padStart(6, "0")}"}`;
 

@@ -64,6 +64,7 @@ export type ParserWorkerResponse =
     };
 
 const batchSize = 64;
+
 let latestRequestId = 0;
 
 const elapsed = (startedAt: number) => Number((performance.now() - startedAt).toFixed(2));

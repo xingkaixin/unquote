@@ -88,6 +88,7 @@ interface RenderLogEntry {
   matches: string;
   result: SearchResultSet | null;
 }
+
 let renderLog: RenderLogEntry[] = [];
 
 const Probe = ({

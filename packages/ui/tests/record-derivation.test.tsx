@@ -6,6 +6,7 @@ import type { RecordInsight } from "../src/lib/record-insight";
 // deriveRecord's whole point is to walk each record once instead of twice, so
 // the traversal is wrapped here to make the call count observable.
 const walkCalls = { count: 0 };
+
 vi.mock("../src/lib/field-extraction", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/lib/field-extraction")>();
   return {
@@ -20,7 +21,9 @@ vi.mock("../src/lib/field-extraction", async (importOriginal) => {
 });
 
 const { createFileOverview } = await import("../src/lib/file-overview");
+
 const { createRecordInsightMap } = await import("../src/lib/record-insight");
+
 const { createRecordDerivationState, deriveRecord, updateRecordDerivations } =
   await import("../src/lib/record-derivation");
 

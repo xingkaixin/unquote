@@ -15,6 +15,7 @@ interface SourceLocation {
 }
 
 const contextLineLength = 160;
+
 const contextLineRadius = 80;
 
 export const getErrorMessage = (error: unknown) =>

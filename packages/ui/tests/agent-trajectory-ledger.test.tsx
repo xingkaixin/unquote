@@ -20,8 +20,11 @@ import {
 } from "../src/components/agent-trajectory-format";
 
 const scrollToIndex = vi.fn();
+
 let containerScrolls: number[] = [];
+
 let latestGetItemKey: ((index: number) => unknown) | undefined;
+
 let latestEstimateSize: ((index: number) => number) | undefined;
 
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
@@ -45,6 +48,7 @@ const {
   trajectoryLedgerRowEstimateSize,
   trajectoryLedgerVirtualizationThreshold,
 } = await import("../src/components/agent-trajectory-ledger");
+
 const { I18nProvider } = await import("../src/i18n/context");
 
 const selectionFor = (id: string): AgentCanonicalSelection => ({

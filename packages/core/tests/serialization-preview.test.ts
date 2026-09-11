@@ -16,6 +16,7 @@ const previews: JsonNode[] = [
   { kind: "string", value: "partial", valueLength: 100 },
   { kind: "string", value: '{"value":1}', stringifiedPreview: true },
 ];
+
 const serializers = [
   stringifyJsonNode,
   materializeNode,

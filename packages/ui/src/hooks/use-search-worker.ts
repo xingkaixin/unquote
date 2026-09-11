@@ -57,16 +57,19 @@ const idleResult = (identity: SearchIdentity): SearchWorkerState => ({
   status: "idle",
   errorKind: null,
 });
+
 const pendingResult = (identity: SearchIdentity): SearchWorkerState => ({
   ...identity,
   result: null,
   status: "pending",
   errorKind: null,
 });
+
 const completedResult = (
   identity: SearchIdentity,
   result: SearchResultSet | null,
 ): SearchWorkerState => ({ ...identity, result, status: "complete", errorKind: null });
+
 const failedResult = (identity: SearchIdentity, errorKind: SearchErrorKind): SearchWorkerState => ({
   ...identity,
   result: null,

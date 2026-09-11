@@ -84,6 +84,7 @@ const measure = (files) =>
   );
 
 const formatBytes = (bytes) => `${bytes} bytes (${(bytes / 1024).toFixed(1)} KiB)`;
+
 const failures = [];
 
 const checkBudget = (surfaceName, metric, actual, budget) => {

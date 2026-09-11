@@ -31,8 +31,11 @@ export interface AgentToolLifecycleOccurrence<TEvidence extends AgentToolLifecyc
 }
 
 type AgentToolCallOccurrence = AgentToolLifecycleOccurrence<AgentToolCallEvidence>;
+
 type AgentToolResultOccurrence = AgentToolLifecycleOccurrence<AgentToolResultEvidence>;
+
 type AgentToolCompletionOccurrence = AgentToolLifecycleOccurrence<AgentToolCompletionEvidence>;
+
 export type AgentToolLifecycleResolution = ToolCorrelationResolution<
   AgentToolCallOccurrence,
   AgentToolResultOccurrence,

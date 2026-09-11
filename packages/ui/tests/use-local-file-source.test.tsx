@@ -14,7 +14,9 @@ const toastMocks = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
+
 const accessCache = new WeakMap<File, LocalFileAccess>();
+
 const accessFor = (file: File | null) => {
   if (!file) {
     return null;

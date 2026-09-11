@@ -1,6 +1,7 @@
 export type Theme = "system" | "light" | "dark";
 
 export const themeStorageKey = "unquote-theme";
+
 export const themeMediaQuery = "(prefers-color-scheme: dark)";
 
 const themeColors = {

@@ -37,8 +37,11 @@ import { RangeSlider } from "./range-slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const ZOOM_FACTOR = 2;
+
 const SVG_HEIGHT = 3;
+
 const BUCKET_SEGMENT_INSET = 0.15;
+
 // Above this many visible items the chart falls back to aggregated buckets so
 // the DOM stays bounded for large sessions. Typical sessions run a few hundred
 // items, so they get per-event spans; the trajectory DOM budget in
@@ -98,10 +101,12 @@ const laneEntries = Object.entries(laneDefinitions) as [
   AgentTrajectoryLane,
   (typeof laneDefinitions)[AgentTrajectoryLane],
 ][];
+
 const itemChartEntries = Object.entries(itemChartDefinitions) as [
   AgentTrajectoryItemKind,
   ChartVisualDefinition,
 ][];
+
 const chartEntries = Object.entries(chartDefinitions) as [ChartColorKey, ChartVisualDefinition][];
 
 const colorKeysForLane = (lane: AgentTrajectoryLane): readonly ChartColorKey[] => {

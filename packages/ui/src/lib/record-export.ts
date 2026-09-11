@@ -3,8 +3,11 @@ import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
 
 export const copyRecordLimit = 5000;
+
 export const copyBytesLimit = 20_000_000;
+
 const copySliceMs = 8;
+
 export const isCopyRecordCountAboveThreshold = (recordCount: number) =>
   recordCount > copyRecordLimit;
 

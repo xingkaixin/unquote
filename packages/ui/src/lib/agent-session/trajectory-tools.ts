@@ -61,8 +61,11 @@ interface ToolOccurrenceBase<TEvidence extends ToolLifecycleEvidence> {
 }
 
 type ToolCallOccurrence = ToolOccurrenceBase<AgentToolCallEvidence>;
+
 type ToolResultOccurrence = ToolOccurrenceBase<AgentToolResultEvidence>;
+
 type ToolCompletionOccurrence = ToolOccurrenceBase<AgentToolCompletionEvidence>;
+
 type ToolTerminalOccurrence = ToolResultOccurrence | ToolCompletionOccurrence;
 
 type ToolGroup = ToolCorrelationGroup<
@@ -70,6 +73,7 @@ type ToolGroup = ToolCorrelationGroup<
   ToolResultOccurrence,
   ToolCompletionOccurrence
 >;
+
 type ToolResolution = ToolCorrelationResolution<
   ToolCallOccurrence,
   ToolResultOccurrence,

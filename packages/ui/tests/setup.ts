@@ -28,6 +28,7 @@ Object.defineProperty(navigator, "clipboard", {
 });
 
 const storage = new Map<string, string>();
+
 const localStorageStub = {
   get length() {
     return storage.size;
@@ -65,6 +66,7 @@ for (const method of ["setPointerCapture", "releasePointerCapture"] as const) {
     value: vi.fn(),
   });
 }
+
 Object.defineProperty(Element.prototype, "hasPointerCapture", {
   configurable: true,
   value: vi.fn(() => false),

@@ -7,6 +7,7 @@ import { cn } from "../lib/utils";
 // Adapted from https://www.fluidfunctionalism.com/docs/fluid-hover for fixed
 // Base UI menus and tabs. Clicks and keyboard focus remain with the primitives.
 const travel = { type: spring, duration: 0.08, bounce: 0 };
+
 const itemSelector = "[data-fluid-hover-item]";
 
 export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis?: "x" | "y" }) {

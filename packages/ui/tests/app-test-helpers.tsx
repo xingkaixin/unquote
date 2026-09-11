@@ -7,8 +7,11 @@ import { I18nProvider, useTranslation } from "../src/i18n/context";
 import "./helpers/app-worker";
 
 const maxTransferStringLength = 4096;
+
 const commandInputPlaceholder = "Search text, or enter $.path to jump...";
+
 const inputFormatLabel = "Input format";
+
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
 
 const useDesktopViewport = () => {
@@ -22,6 +25,7 @@ const LocaleProbe = () => {
   const { setLocale, t } = useTranslation();
   return <button onClick={() => setLocale("zh-CN")}>{t("status.clear")}</button>;
 };
+
 const codexRolloutSource = [
   JSON.stringify({
     timestamp: "2026-06-06T13:44:06.579Z",

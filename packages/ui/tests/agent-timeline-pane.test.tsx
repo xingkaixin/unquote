@@ -8,6 +8,7 @@ import { I18nProvider } from "../src/i18n/context";
 import type { AgentTimelineEvent } from "../src/lib/agent-session";
 
 const scrollViewportHeight = 600;
+
 const measuredRowHeight = 54;
 
 const buildEvent = (index: number): AgentTimelineEvent => ({
@@ -42,6 +43,7 @@ const renderPane = (
 };
 
 const timelineButtons = () => screen.getAllByRole("button", { name: /^Timeline:/ });
+
 const timelineItem = (button: HTMLElement) => button.closest<HTMLElement>("[role='listitem']")!;
 
 // jsdom has no layout engine: the virtualizer reads the scroll container's

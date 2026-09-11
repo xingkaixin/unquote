@@ -16,7 +16,9 @@ const getArgValue = (name, fallback) => {
 };
 
 const rows = Number(getArgValue("rows", "5000"));
+
 const outputName = getArgValue("out", `case4-${Math.round(rows / 1000)}K-rows.jsonl`);
+
 const force = process.argv.includes("--force");
 
 if (!Number.isSafeInteger(rows) || rows <= 0) {
@@ -24,6 +26,7 @@ if (!Number.isSafeInteger(rows) || rows <= 0) {
 }
 
 const outputPath = path.resolve(__dirname, outputName);
+
 if (!outputPath.startsWith(__dirname)) {
   throw new Error("--out must stay inside the benchmark directory");
 }
@@ -59,6 +62,7 @@ const makeRecord = (index) => {
 };
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+
 const stream = fs.createWriteStream(outputPath, { encoding: "utf8" });
 
 for (let index = 0; index < rows; index += 1) {
@@ -66,10 +70,12 @@ for (let index = 0; index < rows; index += 1) {
 }
 
 stream.end();
+
 await new Promise((resolve, reject) => {
   stream.on("finish", resolve);
   stream.on("error", reject);
 });
 
 const size = fs.statSync(outputPath).size;
+
 console.log(`${path.relative(__dirname, outputPath)}: ${rows} records, ${size} bytes`);

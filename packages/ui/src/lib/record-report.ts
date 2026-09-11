@@ -6,7 +6,9 @@ import type { PublishedSourceRevision } from "./published-source";
 import { yieldToMain } from "./record-export";
 
 export const reportBytesLimit = 8 * 1024 * 1024;
+
 export const reportRecordLimit = 1000;
+
 const reportNodeLimit = 50_000;
 
 export interface RecordReport {

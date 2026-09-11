@@ -29,6 +29,7 @@ vi.mock("react-dom/client", async (importOriginal) => {
     },
   };
 });
+
 vi.mock("@unquote/ui", async () => {
   const { Toaster } = await import("sonner");
   return {
@@ -41,17 +42,23 @@ vi.mock("@unquote/ui", async () => {
     ),
   };
 });
+
 vi.mock("@unquote/ui/styles.css", () => ({}));
+
 vi.mock("@unquote/ui/theme-preference", () => ({
   initializeThemePreference: mocks.initializeThemePreference,
 }));
+
 vi.mock("wxt/browser", () => ({
   browser: { runtime: { sendMessage: mocks.sendMessage }, i18n: { getMessage: mocks.getMessage } },
 }));
 
 const handoffId = "00000000-0000-4000-8000-000000000001";
+
 const warningText = "Import failed. Please paste or open a file.";
+
 const warningCount = () => document.querySelectorAll("[data-sonner-toast]").length;
+
 const input = () => document.querySelector("textarea")?.value;
 
 const openPage = async () => {

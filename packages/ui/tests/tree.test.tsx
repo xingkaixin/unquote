@@ -11,6 +11,7 @@ import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
 import { resolveTreePath } from "../src/lib/tree-path";
 
 const oversizedMatchCount = 130_000;
+
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
 describe("tree paths", () => {

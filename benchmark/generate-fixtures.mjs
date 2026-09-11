@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const generators = [
   "generate-agent-fixture.mjs",
   "generate-case2-fixtures.mjs",

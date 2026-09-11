@@ -1,6 +1,7 @@
 import type { JsonNode } from "@unquote/core";
 
 export type FieldProfileKind = JsonNode["kind"] | "missing" | "empty";
+
 export interface FieldProfile {
   total: number;
   present: number;

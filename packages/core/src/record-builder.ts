@@ -12,6 +12,7 @@ import type {
 import { truncateAtCodePointBoundary } from "./utils.js";
 
 const maxPreviewStringLength = 160;
+
 const summaryKeys = ["timestamp", "type", "action", "event", "name", "message"] as const;
 
 const summarizeLosslessPrimitive = (value: LosslessJsonValue) => {

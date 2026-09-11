@@ -14,6 +14,7 @@ interface RecordReportDialogProps {
   activeLine: number;
   onClose: () => void;
 }
+
 const fieldClass =
   "w-full rounded-md border border-border-medium bg-surface-50 p-2 font-mono text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-accent";
 

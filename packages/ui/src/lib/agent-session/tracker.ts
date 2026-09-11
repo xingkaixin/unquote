@@ -10,9 +10,13 @@ import type {
 import type { AgentParseWarning } from "./session-types";
 
 const detectionLineLimit = 80;
+
 const earlyDetectionLineCount = 20;
+
 const confidentDetectionScore = 0.75;
+
 const finalDetectionScore = 0.5;
+
 const parseWarningDetailLimit = 100;
 
 const adapters: AgentSessionAdapter[] = [codexRolloutAdapter, claudeTranscriptAdapter];

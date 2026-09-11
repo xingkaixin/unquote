@@ -8,7 +8,9 @@ import { appendJsonPathSegment, formatJsonPath, isPathWithin, parseTreePath } fr
 import { yieldToMain } from "./record-export";
 
 export const diffInputBytes = 512 * 1024;
+
 const diffNodeLimit = 50_000;
+
 const diffChangeLimit = 5_000;
 
 interface DiffValue {

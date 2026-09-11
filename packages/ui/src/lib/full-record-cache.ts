@@ -1,6 +1,7 @@
 import type { JsonlRecord } from "@unquote/core";
 
 export const fullRecordCacheBytesLimit = 32 * 1024 * 1024;
+
 const fullRecordCacheCountLimit = 500;
 
 interface CachedRecord {

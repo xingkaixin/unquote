@@ -28,17 +28,21 @@ const loadAgentOutput = () =>
   import("./components/agent-output").then(({ AgentOutput }) => ({
     default: AgentOutput,
   }));
+
 const AgentOutput = lazy(loadAgentOutput);
+
 const CommandPalette = lazy(() =>
   import("./components/command-palette").then(({ CommandPalette }) => ({
     default: CommandPalette,
   })),
 );
+
 const ImportDialog = lazy(() =>
   import("./components/import-dialog").then(({ ImportDialog }) => ({
     default: ImportDialog,
   })),
 );
+
 const RecordWorkspace = lazy(() =>
   import("./components/record-workspace").then(({ RecordWorkspace }) => ({
     default: RecordWorkspace,

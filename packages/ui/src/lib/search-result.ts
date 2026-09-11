@@ -17,6 +17,7 @@ export interface SearchResultVisibility {
 }
 
 const emptyWindowIndexes = new Float64Array();
+
 const emptyVisibility: SearchResultVisibility = {
   globalMatchIndexes: null,
   matchCount: 0,

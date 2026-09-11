@@ -6,6 +6,7 @@ import type { SearchOptions } from "../../src/lib/record-search";
 import { MockWorkerEvents } from "./mock-worker-events";
 
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
+
 let initialSearchWindowIndexes: Float64Array | undefined;
 
 export const setInitialSearchWindowIndexes = (indexes: Float64Array | undefined) => {

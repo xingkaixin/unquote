@@ -33,6 +33,7 @@ export type Locale = keyof typeof localeRegistry;
 const keysOf = <T extends object>(value: T) => Object.keys(value) as Array<keyof T>;
 
 export const supportedLocales = Object.freeze(keysOf(localeRegistry));
+
 const defaultLocale: Locale = "en";
 
 const isLocale = (value: string): value is Locale => Object.hasOwn(localeRegistry, value);

@@ -11,9 +11,11 @@ const toastMocks = vi.hoisted(() => ({
   promise: vi.fn((promise: Promise<unknown>) => promise),
   warning: vi.fn(),
 }));
+
 const exportMocks = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
+
 vi.mock("../src/lib/record-export", async () => ({
   ...(await vi.importActual<typeof import("../src/lib/record-export")>("../src/lib/record-export")),
   downloadBlob: exportMocks.downloadBlob,
@@ -34,6 +36,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{childr
 
 const previewRecords = (lines: string[]) =>
   lines.map((line, index) => parsePreviewJsonlRecordLine(line, index + 1));
+
 const fullRecords = (lines: string[]) =>
   parseInput(lines.join("\n"), { forcedFormat: "jsonl" }).records;
 

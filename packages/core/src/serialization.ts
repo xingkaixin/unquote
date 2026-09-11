@@ -164,6 +164,7 @@ const normalizedOptionalLimit = (limit: number | undefined) =>
   limit === undefined ? undefined : normalizedMaxLength(limit);
 
 const textEncoder = new TextEncoder();
+
 const stringChunkSize = 16_384;
 
 const utf8Width = (value: string, index: number) => {

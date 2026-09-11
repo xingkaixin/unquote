@@ -7,6 +7,7 @@ const icons = {
 // Safari has no clipboardRead permission. Clipboard file paste already
 // feature-detects navigator.clipboard.read, so it degrades on its own.
 const basePermissions = ["alarms", "contextMenus", "storage"] as const;
+
 const clipboardPermission = "clipboardRead";
 
 export const safariBrowserTarget = "safari";

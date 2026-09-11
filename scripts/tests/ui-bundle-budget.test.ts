@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const script = fileURLToPath(new URL("../check-ui-bundle-budget.mjs", import.meta.url));
+
 const temporaryRoots: string[] = [];
 
 const createBuild = (webHtml: string) => {

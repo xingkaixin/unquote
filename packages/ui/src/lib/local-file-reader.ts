@@ -2,6 +2,7 @@ import { parseJsonlRecordLine } from "@unquote/core";
 import { drainJsonlLines } from "./jsonl-lines";
 
 const lineCheckpointLimit = 64;
+
 // Origin + byte buckets + the furthest scanned newline stay within this limit.
 // Byte buckets bound repeated I/O; line-count spacing cannot when records vary in size.
 const checkpointByteBucketCount = lineCheckpointLimit - 1;

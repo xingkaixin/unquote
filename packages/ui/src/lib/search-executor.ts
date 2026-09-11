@@ -14,7 +14,9 @@ import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worke
 type LocalFileSearchAccess = Pick<LocalFileAccess, "getFile" | "search" | "size">;
 
 export const searchWorkerTimeoutMs = 5000;
+
 export const largeFileSearchWorkerTimeoutMs = 15_000;
+
 const largeFileSearchBytes = 1_000_000;
 
 const buildSearchRequest = (

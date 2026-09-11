@@ -17,6 +17,7 @@ import {
 } from "./agent-trajectory-format";
 
 export const trajectoryLedgerVirtualizationThreshold = 160;
+
 export const trajectoryLedgerRowEstimateSize = 72;
 
 const trajectoryLedgerOverscan = 8;

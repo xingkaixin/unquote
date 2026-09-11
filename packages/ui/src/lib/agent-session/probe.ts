@@ -1,10 +1,14 @@
 import { drainJsonlLines } from "../jsonl-lines";
 
 const probeLineLimit = 80;
+
 const codexEnvelopePattern =
   /"type"\s*:\s*"(?:session_meta|event_msg|response_item|turn_context|compacted)"/;
+
 const claudeTranscriptTypePattern = /"type"\s*:\s*"(?:user|assistant)"/;
+
 const uuidPattern = /"uuid"\s*:/;
+
 const messagePattern = /"message"\s*:/;
 
 const mightBeAgentLine = (line: string) =>

@@ -6,8 +6,11 @@ import {
 } from "@unquote/core";
 
 const previewLimit = 160;
+
 const blockTextLimit = 8000;
+
 const truncationSuffix = "... [truncated]";
+
 const workItemsPerCharacter = 2;
 
 type ContainerValue = unknown[] | Record<string, unknown>;

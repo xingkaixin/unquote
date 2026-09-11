@@ -26,6 +26,7 @@ import { useSourceRevisionState } from "./use-source-revision-state";
 export type { SelectedPath } from "../lib/workspace-selection";
 
 const createExpandedPaths = (): ExpandedStringifiedPathsByRecord => new Map();
+
 const noSearchExpandedPaths: ExpandedStringifiedPathsByRecord = new Map();
 
 interface WorkspaceSessionValue extends StringifiedExpansionState {

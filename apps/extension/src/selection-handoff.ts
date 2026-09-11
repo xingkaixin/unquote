@@ -1,10 +1,15 @@
 export const claimSelectionHandoffMessageType = "unquote:claim-selection-handoff";
+
 export const handoffQueryParameter = "handoff";
+
 export const selectionHandoffTtlMs = 5 * 60 * 1000;
+
 export const selectionHandoffCleanupAlarmName = "unquote:selection-handoff-cleanup";
 
 const cleanupRetryMs = 30 * 1000;
+
 const handoffKeyPrefix = "unquote:selection-handoff:";
+
 const handoffIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface SelectionHandoff {

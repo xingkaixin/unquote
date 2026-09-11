@@ -16,6 +16,7 @@ const recordsFor = (value: unknown) =>
 // A string label is rendered as JSON, so the visible window is the truncated
 // value plus its opening quote.
 const maxVisibleStringRanges = maxStringValueLabelLength + 1;
+
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
 const matchesForPattern = (value: unknown, pattern: RegExp, options = defaultOptions) => {

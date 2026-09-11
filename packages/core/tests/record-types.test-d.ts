@@ -8,6 +8,7 @@ import type {
 } from "../src";
 
 declare const node: FullJsonNode;
+
 declare const previewNode: PreviewJsonNode;
 
 const base = {
@@ -74,13 +75,17 @@ const _failedWithoutDiagnostics: JsonlRecord = { ...base, status: "failed", node
 const _failedWithNode: JsonlRecord = { ...failed, node };
 
 const _objectNode: JsonNode = { kind: "object", children: {} };
+
 const _arrayNode: JsonNode = { kind: "array", children: [] };
+
 const _stringNode: JsonNode = { kind: "string", value: "value" };
+
 const _truncatedNode: JsonNode = {
   kind: "object",
   value: { type: "object", entries: { nested: true } },
   truncated: true,
 };
+
 const _previewNode: JsonNode = {
   kind: "array",
   childCount: 3,

@@ -23,6 +23,7 @@ import { useSearchWorker } from "./use-search-worker";
 import { useSourceRevisionState } from "./use-source-revision-state";
 
 export const memorySearchDebounceMs = 120;
+
 export const localFileSearchDebounceMs = 250;
 
 export type { QueryNavigationTarget } from "../lib/query-navigation";

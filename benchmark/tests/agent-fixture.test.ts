@@ -31,9 +31,13 @@ const stressOptions = {
 };
 
 const defaultFixtureBytes = 1_131_587;
+
 const defaultFixtureSha256 = "736464c2ba397a5b6e88e016f9b51162243fa11e76d008122417b57096d2fa4e";
+
 const stressFixtureBytes = 1_119_670;
+
 const stressFixtureSha256 = "11a5baf70e544d20c86d5b978f0198ee651274e34d72c544e5aba054f2d2ab87";
+
 const sha256 = (contents: string) => createHash("sha256").update(contents).digest("hex");
 
 const expectNonSensitiveFixture = (contents: string) => {

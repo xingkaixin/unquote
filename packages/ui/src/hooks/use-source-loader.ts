@@ -18,9 +18,11 @@ import { detectSourceFormat, sourceDetectionProbeByteBudget } from "../lib/sourc
 import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceStreamBytes = 1_000_000;
+
 // Full JSON parsing keeps source and parsed representations live together.
 // Reserve three quarters of the 256 MiB release heap budget for that expansion.
 export const maxInMemorySourceBytes = 64 * 1024 * 1024;
+
 const sourceDetectionFileProbeBytes = sourceDetectionProbeByteBudget + 1;
 
 interface ReadingSourceOperation {

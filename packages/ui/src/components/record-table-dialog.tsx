@@ -16,8 +16,10 @@ interface RecordTableDialogProps {
   onOpenRecord: (id: string) => void;
   onClose: () => void;
 }
+
 const fieldClass =
   "min-w-0 rounded-md border border-border-medium bg-surface-50 p-2 font-mono text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-accent";
+
 const operators: TableOperator[] = [
   "any",
   "equals",

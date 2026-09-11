@@ -17,9 +17,13 @@ const toastMocks = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 const originalClipboard = navigator.clipboard;
+
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
+
 const validRecord = parseInput('{"ok":true}', { forcedFormat: "json" }).records[0]!;
+
 const validRecords = [validRecord];
+
 const failedRecord = parseInput("{bad}", { forcedFormat: "jsonl" }).records[0]!;
 
 afterEach(() => {

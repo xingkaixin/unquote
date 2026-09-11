@@ -1,5 +1,7 @@
 type ExplicitTurnScope = { readonly source: "evidence"; readonly value: string };
+
 type FallbackTurnScope = { readonly source: "fallback-index"; readonly value: number };
+
 type AnonymousTurnScope = { readonly source: "anonymous" };
 
 export type ToolCorrelationScope = ExplicitTurnScope | FallbackTurnScope | AnonymousTurnScope;

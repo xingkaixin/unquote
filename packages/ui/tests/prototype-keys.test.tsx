@@ -11,6 +11,7 @@ const source = [
 ].join("");
 
 const records = parseInput(source, { forcedFormat: "jsonl" }).records;
+
 const defaultOptions = { syntax: "text", caseSensitive: false } as const;
 
 describe("tree paths for keys that shadow prototype members", () => {

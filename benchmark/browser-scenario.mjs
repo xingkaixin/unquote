@@ -1,7 +1,9 @@
 // @ts-check
 
 const benchmarkTimeoutMs = 30_000;
+
 const expandableRowTimeoutMs = 10_000;
+
 const expandPathScrollSteps = 40;
 
 const selectors = {

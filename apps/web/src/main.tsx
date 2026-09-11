@@ -8,10 +8,12 @@ import { clearLegacySourceHash } from "./legacy-source-hash";
 
 const CHROME_WEB_STORE_URL =
   "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
+
 const EDGE_ADDONS_URL =
   "https://microsoftedge.microsoft.com/addons/detail/amdbhljchamjbhknbamkcemccmelegdp";
 
 initializeThemePreference();
+
 clearLegacySourceHash(window.location, window.history);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

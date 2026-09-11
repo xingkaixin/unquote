@@ -81,17 +81,20 @@ const healthyAgentMetrics = (): Record<string, unknown> => ({
 });
 
 const plainFixturePath = "benchmark/case2-1MB.jsonl";
+
 const benchmarkGateFixtures = [
   agentSessionFixturePath,
   agentSessionStressFixturePath,
   plainFixturePath,
 ].map((path) => ({ path, scenario: benchmarkScenarioFor(path) }));
+
 const trajectoryBudgetValues: Record<string, number> = Object.fromEntries(
   expectedAgentTrajectoryRenderBudgetContract.map(({ budgetKey, defaultBudget }) => [
     budgetKey,
     defaultBudget,
   ]),
 );
+
 const benchmarkGateBudgets = {
   ...budgets,
   agentSessionReadyMsP50: 600,
@@ -99,6 +102,7 @@ const benchmarkGateBudgets = {
   agentTrajectoryBuildMsP50: 50,
   ...trajectoryBudgetValues,
 };
+
 const healthyBenchmarkGateRender = (): Record<string, Record<string, unknown>> => ({
   [agentSessionFixturePath]: healthyAgentMetrics(),
   [agentSessionStressFixturePath]: healthyAgentMetrics(),

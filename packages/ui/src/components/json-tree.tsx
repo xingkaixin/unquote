@@ -23,6 +23,7 @@ import type { TreeRow } from "../lib/tree";
 import { Button } from "./button";
 
 const virtualizationRowThreshold = 180;
+
 const rowEstimateSize = 24;
 
 interface JsonTreeProps {

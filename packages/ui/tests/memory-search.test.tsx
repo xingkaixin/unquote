@@ -5,6 +5,7 @@ import { searchRecords, searchResultWindowSize } from "../src/lib/record-search"
 import type { SearchOptions } from "../src/lib/record-search";
 
 const textOptions: SearchOptions = { syntax: "text", caseSensitive: false };
+
 const recordsFrom = (text: string) => parseInput(text, { forcedFormat: "jsonl" }).records;
 
 const measuredRecords = (count = 200) => {

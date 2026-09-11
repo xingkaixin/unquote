@@ -7,6 +7,7 @@ import { I18nProvider } from "../src/i18n/context";
 import { createTextSourceRevision } from "../src/lib/published-source";
 
 afterEach(cleanup);
+
 it("filters selected columns and returns a matching row to its canonical record", async () => {
   const user = userEvent.setup();
   const text = '{"price":10}\n{"price":20}';

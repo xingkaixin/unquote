@@ -356,4 +356,5 @@ export const en = {
 // en is the canonical schema: the key set and Messages type derive from it, so
 // every locale catalog stays in sync without a separate interface.
 export type Messages = Record<keyof typeof en, string>;
+
 export type MessageKey = keyof typeof en;

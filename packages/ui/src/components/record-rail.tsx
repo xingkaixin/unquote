@@ -12,6 +12,7 @@ import type { RecordInsight, RecordInsightKind } from "../lib/record-insight";
 import { resolveRecordScrollIndex, type ScrollIntent } from "../lib/scroll-intent";
 
 export const recordRailVirtualizationThreshold = 160;
+
 // Rows are three truncated lines, so the virtualizer runs without measuring
 // them — which only holds while the rendered row is exactly this tall.
 export const railRowHeight = 86;

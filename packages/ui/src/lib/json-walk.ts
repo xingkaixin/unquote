@@ -29,6 +29,7 @@ interface JsonWalkMetadata {
 }
 
 export type JsonWalkContext = JsonWalkValue & JsonWalkMetadata;
+
 export type JsonNodeVisitor = (ctx: JsonWalkContext) => boolean | void;
 
 export const maxStringValueLabelLength = 512;

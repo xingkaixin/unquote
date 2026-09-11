@@ -6,6 +6,7 @@ import { resolveTreePath } from "./tree-path";
 import type { SelectedPath } from "./workspace-selection";
 
 export const inspectorNodeLimit = 2000;
+
 export const inspectorCharLimit = 20_000;
 
 type SelectedNodeCopy = { kind: "available"; format: () => string } | { kind: "blocked" };

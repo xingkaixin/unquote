@@ -6,6 +6,7 @@ import type {
 } from "./types.js";
 
 const markerBase = "\0unquote:number";
+
 const jsonNumberPattern = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 
 interface JsonParseContext {

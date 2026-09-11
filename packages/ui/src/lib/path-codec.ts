@@ -6,6 +6,7 @@ export interface TreePathSegment {
 }
 
 const safeIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
 const arrayIndexPattern = /^(0|[1-9]\d*)$/;
 
 const quotePathKey = (key: string) => JSON.stringify(key);

@@ -104,15 +104,19 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("wxt/browser", () => ({ browser: mocks.browser }));
+
 vi.mock("wxt/utils/define-background", () => ({
   defineBackground: (setup: () => void) => setup(),
 }));
 
 await import("../entrypoints/background");
+
 await vi.waitFor(() => expect(mocks.browser.storage.session.get).toHaveBeenCalledWith(null));
+
 const startupSweepRan = mocks.browser.storage.session.get.mock.calls.length > 0;
 
 const menuId = "unquote-open-selection";
+
 const getOpenedUrl = () => {
   const call = mocks.browser.tabs.create.mock.calls.at(0);
   if (!call) {

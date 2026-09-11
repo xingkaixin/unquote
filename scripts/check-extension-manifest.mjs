@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 
 const artifact = "dist/extension/manifest.json";
+
 const manifest = JSON.parse(readFileSync(artifact, "utf8"));
+
 const options = manifest.options_ui;
 
 if (options?.page !== "options.html" || options.open_in_tab !== true) {

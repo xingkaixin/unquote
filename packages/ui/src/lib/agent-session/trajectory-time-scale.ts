@@ -15,7 +15,9 @@ import {
 // axis compresses it — high enough that ordinary pauses between sparse events
 // never fold — and it then occupies this much of the compressed width.
 const TIME_SCALE_GAP_MIN_FRACTION = 0.25;
+
 const TIME_SCALE_GAP_MIN_MS = 60_000;
+
 const TIME_SCALE_GAP_COMPRESSED_FRACTION = 0.03;
 
 export interface TrajectoryTimeScale {

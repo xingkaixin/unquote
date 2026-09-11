@@ -5,6 +5,7 @@ export type SourceDetection =
   | { kind: "invalid" };
 
 export const sourceDetectionProbeByteBudget = 64 * 1024;
+
 export const sourceDetectionLineBudget = 40;
 
 const parses = (text: string) => {

@@ -5,6 +5,7 @@ import { isWithinMainThreadBudget } from "./main-thread-budget";
 import { createWorkerRequestRunner } from "./worker-lifecycle";
 
 export const recordParserTimeoutMs = 15_000;
+
 export const recordParserIdleTimeoutMs = 30_000;
 
 export interface RecordParser {

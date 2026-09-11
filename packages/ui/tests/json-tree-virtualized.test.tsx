@@ -9,6 +9,7 @@ import type { ScrollIntent } from "../src/lib/scroll-intent";
 // virtualizer instead of spreading it: its methods are instance properties and
 // a spread would silently drop the ones the component still needs.
 const scrollToIndex = vi.fn();
+
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
@@ -24,11 +25,15 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 const { JsonTree } = await import("../src/components/json-tree");
+
 const { I18nProvider } = await import("../src/i18n/context");
 
 const rowCount = 200;
+
 const recordId = "record-1";
+
 const viewportHeight = 600;
+
 const measuredElements: Element[] = [];
 
 interface WideTreeOptions {
@@ -80,6 +85,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
 beforeEach(() => {
   scrollToIndex.mockClear();
   measuredElements.length = 0;

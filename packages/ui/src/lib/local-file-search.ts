@@ -7,7 +7,9 @@ import { hasSameSearch, materializeSearchWindow, requestSearchWindow } from "./s
 import type { SearchCache } from "./search-window";
 
 const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
+
 const numericLabelPattern = /^[\d.eE+-]+$/;
+
 const containerLabelPattern = /^[\d[\]{}]+$/;
 
 const buildRawLineProbe = (

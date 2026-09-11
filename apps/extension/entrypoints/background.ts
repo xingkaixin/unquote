@@ -9,8 +9,11 @@ import {
 } from "../src/selection-handoff";
 
 const OPEN_MENU_ID = "unquote-open-selection";
+
 const handoffStorage = browser.storage.session as unknown as HandoffSessionStorage;
+
 const handoffAlarms = browser.alarms as unknown as HandoffAlarms;
+
 const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
 
 const openOptionsPage = async (handoffId?: string) => {

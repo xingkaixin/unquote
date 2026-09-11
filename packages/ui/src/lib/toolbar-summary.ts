@@ -5,6 +5,7 @@ import type { QueryInteractionState } from "./query-interaction";
 import type { SearchErrorKind, SearchStatus } from "./search-lifecycle";
 
 type Translator = ReturnType<typeof createTranslator>;
+
 type RecordFilter = QueryInteractionState["recordFilter"];
 
 export type ParseProgress = Pick<ParserProgress, "done" | "elapsedMs">;
