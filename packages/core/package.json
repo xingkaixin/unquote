@@ -30,6 +30,6 @@
     "test": "vitest run -c vitest.config.ts"
   },
   "devDependencies": {
-    "tsup": "^8.5.0"
+    "tsup": "^8.5.1"
   }
 }

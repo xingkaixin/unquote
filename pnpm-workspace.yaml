@@ -4,6 +4,9 @@ packages:
 
 overrides:
   esbuild: 0.28.2
+  # React 19.3 exceeds the current UI JavaScript bundle budgets.
+  react: ~19.2.8
+  react-dom: ~19.2.8
   # Miniflare pins a sharp release affected by GHSA-rgj7-g3m4-5g8c.
   miniflare>sharp: 0.35.4
 
