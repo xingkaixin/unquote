@@ -1,5 +1,7 @@
 export type JsonKind = "object" | "array" | "string" | "number" | "boolean" | "null";
+
 export type JsonPrimitive = string | number | boolean | null;
+
 export type JsonContainerKind = "object" | "array";
 
 export interface LosslessJsonObjectValue {
@@ -139,6 +141,7 @@ export type JsonContainerNode =
   | PreviewJsonArrayNode;
 
 export type JsonNodeWithChildren = JsonObjectNode | JsonArrayNode;
+
 export type TruncatedJsonNode = TruncatedJsonObjectNode | TruncatedJsonArrayNode;
 
 export type FullJsonNode =
@@ -209,6 +212,7 @@ export interface FailedJsonlRecord extends JsonlRecordBase {
 }
 
 export type ParsedJsonlRecord = FullJsonlRecord | PreviewJsonlRecord;
+
 export type JsonlRecord = ParsedJsonlRecord | FailedJsonlRecord;
 
 export interface ParseStats {

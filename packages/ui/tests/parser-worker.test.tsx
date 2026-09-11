@@ -1,7 +1,8 @@
+import type { ParserRequest } from "../src/worker/parser-worker";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 interface WorkerScope {
-  onmessage: ((event: MessageEvent) => void) | null;
+  onmessage: ((event: MessageEvent<ParserRequest>) => void) | null;
   postMessage: ReturnType<typeof vi.fn>;
 }
 
@@ -12,8 +13,8 @@ const loadWorker = async () => {
   return workerScope;
 };
 
-const dispatch = (workerScope: WorkerScope, data: unknown) => {
-  workerScope.onmessage?.({ data } as MessageEvent);
+const dispatch = (workerScope: WorkerScope, data: ParserRequest) => {
+  workerScope.onmessage?.(new MessageEvent("message", { data }));
 };
 
 describe("parser worker dispatch", () => {
@@ -81,6 +82,8 @@ describe("parser worker dispatch", () => {
       read: vi.fn().mockRejectedValue(new Error("read failed")),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "broken.jsonl",
       stream: () => ({
@@ -107,6 +110,8 @@ describe("parser worker dispatch", () => {
   });
 
   it("posts an error when decoder stream setup fails", async () => {
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "broken.jsonl",
       stream: () => ({
@@ -137,6 +142,8 @@ describe("parser worker dispatch", () => {
         .mockResolvedValueOnce({ value: undefined, done: true }),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "preview.jsonl",
       stream: () => ({
@@ -185,6 +192,8 @@ describe("parser worker dispatch", () => {
         .mockResolvedValueOnce({ value: undefined, done: true }),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "variants.jsonl",
       stream: () => ({
@@ -235,6 +244,8 @@ describe("parser worker dispatch", () => {
         .mockResolvedValueOnce({ value: undefined, done: true }),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "single-parse.jsonl",
       stream: () => ({
@@ -326,6 +337,8 @@ describe("parser worker dispatch", () => {
       ),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "old.jsonl",
       stream: () => ({
@@ -346,6 +359,7 @@ describe("parser worker dispatch", () => {
   });
 
   it("cancels a stale reader without posting its rejection", async () => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     let rejectRead: ((error: unknown) => void) | undefined;
     const reader = {
       read: vi.fn(
@@ -356,6 +370,8 @@ describe("parser worker dispatch", () => {
       ),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
+    // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "old.jsonl",
       stream: () => ({
@@ -376,6 +392,7 @@ describe("parser worker dispatch", () => {
   });
 
   it("turns a throwing request into a terminal error response", async () => {
+    // oxlint-disable-next-line anti-slop/no-module-mocking -- Inject an otherwise unreachable parser failure to verify the worker terminal response.
     vi.doMock("../src/lib/parse-text", async () => ({
       ...(await vi.importActual<typeof import("../src/lib/parse-text")>("../src/lib/parse-text")),
       parseText: () => {
@@ -402,6 +419,7 @@ describe("parser worker dispatch", () => {
   it("reports the streamed progress collected before a JSONL request throws", async () => {
     const jsonlLines =
       await vi.importActual<typeof import("../src/lib/jsonl-lines")>("../src/lib/jsonl-lines");
+    // oxlint-disable-next-line anti-slop/no-module-mocking -- Inject a mid-stream failure to verify accumulated progress and terminal error handling.
     vi.doMock("../src/lib/jsonl-lines", () => ({
       ...jsonlLines,
       drainJsonlLines: vi

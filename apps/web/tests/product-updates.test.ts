@@ -43,6 +43,7 @@ describe("product updates page", () => {
     );
 
     const schemaText = document.querySelector('script[type="application/ld+json"]')?.textContent;
+    // SAFETY: The page fixture emits this JSON-LD schema; the assertions below verify its fields.
     const schema = JSON.parse(schemaText ?? "") as {
       "@graph": Array<{
         "@type": string;

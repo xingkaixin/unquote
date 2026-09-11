@@ -3,9 +3,13 @@ import { parseInput, parseJsonlRecordLine, parsePreviewJsonlRecordLine } from "@
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { afterEach, vi } from "vitest";
 import type { SearchOptions } from "../../src/lib/record-search";
+import type { ParserRequest } from "../../src/worker/parser-worker";
+import type { RecordParserRequest } from "../../src/worker/record-parser-worker";
+import type { SearchRequest } from "../../src/worker/search-worker";
 import { MockWorkerEvents } from "./mock-worker-events";
 
 const defaultMatchMedia = vi.mocked(window.matchMedia).getMockImplementation()!;
+
 let initialSearchWindowIndexes: Float64Array | undefined;
 
 export const setInitialSearchWindowIndexes = (indexes: Float64Array | undefined) => {
@@ -63,7 +67,7 @@ Object.assign(globalThis, {
       text: string,
       forcedFormat: "json" | "jsonl" | undefined,
       query: string,
-      options: unknown,
+      options: SearchOptions,
       windowIndexes?: Float64Array,
     ) {
       import("../../src/lib/record-search").then(({ searchRecords }) => {
@@ -71,7 +75,7 @@ Object.assign(globalThis, {
         const result = searchRecords(
           parsed.records,
           query,
-          options as SearchOptions,
+          options,
           windowIndexes ?? initialSearchWindowIndexes,
         );
         this.respond(
@@ -85,12 +89,12 @@ Object.assign(globalThis, {
       requestId: number,
       file: File,
       query: string,
-      options: unknown,
+      options: SearchOptions,
       windowIndexes?: Float64Array,
     ) {
       import("../../src/lib/local-file-source").then(({ createLocalFileAccess }) => {
         createLocalFileAccess(file)
-          .search(query, options as SearchOptions, new AbortController().signal, windowIndexes)
+          .search(query, options, new AbortController().signal, windowIndexes)
           .then((result) => {
             this.respond(
               windowIndexes && result
@@ -118,28 +122,9 @@ Object.assign(globalThis, {
         });
       });
     }
-    postMessage(payload: {
-      type?: "parse" | "start-jsonl" | "jsonl-chunk" | "file-jsonl" | "search-text" | "search-file";
-      requestId: number;
-      lines?: Map<number, string>;
-      input?: string;
-      forcedFormat?: "json" | "jsonl";
-      chunk?: string;
-      done?: boolean;
-      file?: File;
-      source?:
-        | {
-            kind: "content";
-            sourceRevision: number;
-            text: string;
-            forcedFormat?: "json" | "jsonl";
-          }
-        | { kind: "cached"; sourceRevision: number };
-      query?: string;
-      options?: unknown;
-      windowIndexes?: Float64Array;
-    }) {
-      if (this.isRecordParser && payload.lines) {
+    postMessage(payload: ParserRequest | SearchRequest | RecordParserRequest) {
+      if ("lines" in payload) {
+        if (!this.isRecordParser) return;
         const records = new Map(
           [...payload.lines].map(([number, line]) => [number, parseJsonlRecordLine(line, number)]),
         );

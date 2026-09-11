@@ -99,6 +99,7 @@ describe("record-export", () => {
   });
 
   it("stops serializing a Record when the copy budget is exhausted", async () => {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The fixture adds child getters after initialization to verify cooperative export traversal.
     const children: Record<string, JsonNode> = {
       payload: { kind: "string", value: "x".repeat(100) },
     };

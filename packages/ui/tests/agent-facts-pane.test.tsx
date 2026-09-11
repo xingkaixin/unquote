@@ -12,6 +12,7 @@ const toolCallItem = {
   role: "tool_call",
   block: { type: "tool_use", text: "{}" },
 } as const;
+
 const toolResultItem = {
   id: "conversation-2",
   role: "tool_result",

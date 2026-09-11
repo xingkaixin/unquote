@@ -13,6 +13,7 @@ import type { RecordInsight } from "../src/lib/record-insight";
 import type { ScrollIntent } from "../src/lib/scroll-intent";
 
 const scrollViewportHeight = 600;
+
 const measuredRowHeight = railRowHeight;
 
 const buildRecords = (count: number, failedIndexes: Set<number> = new Set()): JsonlRecord[] => {
@@ -81,7 +82,7 @@ beforeEach(() => {
     x: 0,
     y: 0,
     toJSON: () => {},
-  } as DOMRect);
+  });
 });
 
 afterEach(() => {
@@ -150,6 +151,6 @@ describe("RecordRail", () => {
 
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    expect((scrollIntoView.mock.instances[0] as HTMLElement).dataset.recordId).toBe("record-4");
+    expect(scrollIntoView.mock.instances[0]).toHaveAttribute("data-record-id", "record-4");
   });
 });

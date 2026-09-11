@@ -6,8 +6,8 @@ import { createLocalFileAccess } from "../src/lib/local-file-source";
 const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY) => {
   const chunks: Uint8Array[] = [];
   const scans: Array<{ start: number; bytesRead: number }> = [];
-  const makeFile = (bytes: Uint8Array, absoluteStart: number): File => {
-    const file = new File([bytes.buffer as ArrayBuffer], "payload.jsonl", {
+  const makeFile = (bytes: Uint8Array<ArrayBuffer>, absoluteStart: number): File => {
+    const file = new File([bytes.buffer], "payload.jsonl", {
       type: "application/jsonl",
     });
     Object.defineProperty(file, "stream", {
@@ -45,6 +45,7 @@ const makeChunkedFile = (contents: string, chunkSize = Number.POSITIVE_INFINITY)
 
 const jsonlLines = (count: number) =>
   Array.from({ length: count }, (_, index) => `{"i":${index + 1}}`);
+
 const fixedWidthJsonlLine = (lineNumber: number) =>
   `{"i":"${String(lineNumber).padStart(6, "0")}"}`;
 

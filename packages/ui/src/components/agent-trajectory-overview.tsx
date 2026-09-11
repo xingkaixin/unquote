@@ -37,8 +37,11 @@ import { RangeSlider } from "./range-slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const ZOOM_FACTOR = 2;
+
 const SVG_HEIGHT = 3;
+
 const BUCKET_SEGMENT_INSET = 0.15;
+
 // Above this many visible items the chart falls back to aggregated buckets so
 // the DOM stays bounded for large sessions. Typical sessions run a few hundred
 // items, so they get per-event spans; the trajectory DOM budget in
@@ -94,14 +97,19 @@ const chartDefinitions = {
   error: { strokeClass: "stroke-error", fillClass: "bg-error" },
 } satisfies Record<ChartColorKey, ChartVisualDefinition>;
 
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const laneEntries = Object.entries(laneDefinitions) as [
   AgentTrajectoryLane,
   (typeof laneDefinitions)[AgentTrajectoryLane],
 ][];
+
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const itemChartEntries = Object.entries(itemChartDefinitions) as [
   AgentTrajectoryItemKind,
   ChartVisualDefinition,
 ][];
+
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const chartEntries = Object.entries(chartDefinitions) as [ChartColorKey, ChartVisualDefinition][];
 
 const colorKeysForLane = (lane: AgentTrajectoryLane): readonly ChartColorKey[] => {

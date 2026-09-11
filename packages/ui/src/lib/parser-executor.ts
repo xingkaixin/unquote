@@ -150,6 +150,7 @@ export const createParserExecutor = (): ParserExecutor => {
                 applyParsedText(parsed);
               }
             })
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
             .catch((error: unknown) => {
               if (run.finish()) {
                 reportDiagnostic("parser.main-thread-file", error);
@@ -176,6 +177,7 @@ export const createParserExecutor = (): ParserExecutor => {
               applyParsedText(parsed);
             }
           })
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
           .catch((error: unknown) => {
             if (run.finish()) {
               reportDiagnostic("parser.main-thread-text", error);

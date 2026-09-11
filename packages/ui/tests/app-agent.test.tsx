@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { UnquoteApp } from "../src/app";
 import { I18nProvider } from "../src/i18n/context";
 import * as agentSession from "../src/lib/agent-session/model";
+import type { SearchOptions } from "../src/lib/record-search";
 import {
   createInitialWorkspaceSelectionState,
   reduceWorkspaceSelection,
@@ -325,7 +326,7 @@ describe("UnquoteApp", () => {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       expect(
         scrollIntoView.mock.instances.some(
-          (element) => (element as HTMLElement).dataset.recordId === "record-4",
+          (element) => element instanceof HTMLElement && element.dataset.recordId === "record-4",
         ),
       ).toBe(true);
 
@@ -447,7 +448,7 @@ describe("UnquoteApp", () => {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       expect(
         scrollIntoView.mock.instances.some(
-          (element) => (element as HTMLElement).dataset.recordId === "record-3",
+          (element) => element instanceof HTMLElement && element.dataset.recordId === "record-3",
         ),
       ).toBe(true);
 
@@ -481,11 +482,13 @@ describe("UnquoteApp", () => {
           text: string,
           forcedFormat: "json" | "jsonl" | undefined,
           query: string,
-          options: unknown,
+          options: SearchOptions,
           windowIndexes?: Float64Array,
         ): void;
       }
 
+      // SAFETY: AppTestSuite installs AppWorkerStub, whose completeSearch method is deliberately delayed in this race test.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- AppTestSuite installs AppWorkerStub; this race test delays its completeSearch method.
       const searchWorker = (globalThis.Worker as unknown as { prototype: SearchWorkerPrototype })
         .prototype;
       const completeSearch = searchWorker.completeSearch;

@@ -46,6 +46,7 @@ const line2 = {
 };
 
 const escapedLine = String.raw`{"escaped":"quo\u0074e","solidus":"a\/b","lineBreak":"line\nbreak","small":0.0000001,"left":true,"right":false}`;
+
 const fixture = [JSON.stringify(line1), JSON.stringify(line2), escapedLine].join("\n");
 
 // SearchMatch order is not guaranteed to be identical between the two search

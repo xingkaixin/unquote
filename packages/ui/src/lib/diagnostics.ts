@@ -4,9 +4,11 @@ export interface DiagnosticError {
   readonly stack?: string;
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 const unknownErrorName = (error: unknown) =>
   error === null ? "null" : Array.isArray(error) ? "array" : typeof error;
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 export const serializeDiagnosticError = (error: unknown): DiagnosticError => {
   if (error instanceof Error) {
     return {
@@ -34,6 +36,7 @@ export const serializeDiagnosticError = (error: unknown): DiagnosticError => {
   };
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 export const reportDiagnostic = (operation: string, error: unknown) => {
   console.error(`[Unquote] ${operation}`, serializeDiagnosticError(error));
 };

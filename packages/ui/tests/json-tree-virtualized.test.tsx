@@ -9,14 +9,18 @@ import type { ScrollIntent } from "../src/lib/scroll-intent";
 // virtualizer instead of spreading it: its methods are instance properties and
 // a spread would silently drop the ones the component still needs.
 const scrollToIndex = vi.fn();
+
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Keep the real virtualizer and intercept scrollToIndex because jsdom has no layout scrolling.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
+    // SAFETY: The wrapper passes options unchanged to the real generic hook and only intercepts scrolling.
     useVirtualizer: ((options: Parameters<typeof actual.useVirtualizer>[0]) => {
       const virtualizer = actual.useVirtualizer(options);
       return new Proxy(virtualizer, {
         get: (target, property, receiver) =>
+          // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
           property === "scrollToIndex" ? scrollToIndex : Reflect.get(target, property, receiver),
       });
     }) as typeof actual.useVirtualizer,
@@ -24,11 +28,15 @@ vi.mock("@tanstack/react-virtual", async (importOriginal) => {
 });
 
 const { JsonTree } = await import("../src/components/json-tree");
+
 const { I18nProvider } = await import("../src/i18n/context");
 
 const rowCount = 200;
+
 const recordId = "record-1";
+
 const viewportHeight = 600;
+
 const measuredElements: Element[] = [];
 
 interface WideTreeOptions {
@@ -80,6 +88,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
 beforeEach(() => {
   scrollToIndex.mockClear();
   measuredElements.length = 0;
@@ -97,7 +106,7 @@ beforeEach(() => {
       x: 0,
       y: 0,
       toJSON: () => {},
-    } as DOMRect;
+    };
   });
 });
 

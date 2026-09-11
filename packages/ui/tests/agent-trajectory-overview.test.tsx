@@ -46,6 +46,7 @@ const selectionFor = (id: string): AgentCanonicalSelection => ({
   recordId: `record-${id}`,
 });
 
+// SAFETY: The chart fixtures deliberately vary kind and status to exercise presentation across the full matrix.
 const itemFor = (
   id: string,
   kind: AgentTrajectoryItem["kind"],
@@ -173,9 +174,9 @@ const renderControlledOverview = (
 const overviewRoot = () => screen.getByRole("region", { name: translate("trajectory.overview") });
 
 const rangeStart = () =>
-  screen.getByLabelText(translate("trajectory.rangeStart")) as HTMLInputElement;
+  screen.getByLabelText<HTMLInputElement>(translate("trajectory.rangeStart"));
 
-const rangeEnd = () => screen.getByLabelText(translate("trajectory.rangeEnd")) as HTMLInputElement;
+const rangeEnd = () => screen.getByLabelText<HTMLInputElement>(translate("trajectory.rangeEnd"));
 
 const control = (key: "trajectory.zoomIn" | "trajectory.zoomOut" | "trajectory.reset") =>
   screen.getByRole("button", { name: translate(key) });
@@ -212,8 +213,9 @@ class ResizeObserverMock {
 
   notify(width: number) {
     this.callback(
+      // SAFETY: The resize handler reads only contentRect.width; jsdom does not provide layout observer entries.
       [{ contentRect: { width } } as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
+      this,
     );
   }
 }
@@ -402,7 +404,7 @@ describe("AgentTrajectoryOverview", () => {
     expect(spans[1]).toHaveAttribute("aria-current", "true");
     expect(spans[0]).not.toHaveAttribute("aria-current");
 
-    await user.click(spans[0] as HTMLElement);
+    await user.click(spans[0]!);
     expect(onSelectItem).toHaveBeenCalledWith("item-prompt");
   });
 
@@ -415,11 +417,11 @@ describe("AgentTrajectoryOverview", () => {
     renderOverview(presentation);
     await resizeTo(360);
 
-    const gap = overviewRoot().querySelector('[data-trajectory-gap="0"]') as HTMLElement;
+    const gap = overviewRoot().querySelector<HTMLElement>('[data-trajectory-gap="0"]')!;
     expect(gap).not.toBeNull();
     expect(gap.title).toBe(`Idle ${formatTrajectoryDuration(36_000_000, "en")}`);
     // Active clusters keep most of the width: the last span sits at ~97%.
-    const late = overviewRoot().querySelector('[data-trajectory-span="2"]') as HTMLElement;
+    const late = overviewRoot().querySelector<HTMLElement>('[data-trajectory-span="2"]')!;
     expect(Number.parseFloat(late.style.left)).toBeGreaterThan(90);
   });
 
@@ -445,7 +447,7 @@ describe("AgentTrajectoryOverview", () => {
   });
 
   it("combines controlled range inputs and clamps their boundaries", async () => {
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const user = userEvent.setup();
     renderControlledOverview(presentationForDomain(), { start: 20, end: 80 }, onTimeRangeChange);
     await resizeTo(360);
@@ -520,7 +522,7 @@ describe("AgentTrajectoryOverview", () => {
   it("uses the configured finite step for an ArrowRight range increment", async () => {
     const domainStart = Date.UTC(2026, 5, 6, 10, 0, 0);
     const domainEnd = domainStart + 60 * 60 * 1000;
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const user = userEvent.setup();
     renderControlledOverview(
       presentationForDomain(domainStart, domainEnd),
@@ -548,7 +550,7 @@ describe("AgentTrajectoryOverview", () => {
   ] as const)(
     "advances a %s range through native stepUp and controlled change",
     async (_, start, end) => {
-      const onTimeRangeChange = vi.fn();
+      const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
       renderControlledOverview(presentationForDomain(start, end), null, onTimeRangeChange);
       await resizeTo(360);
 
@@ -571,7 +573,7 @@ describe("AgentTrajectoryOverview", () => {
     ["microsecond epoch", Date.UTC(2026, 5, 6, 10, 0, 0), Date.UTC(2026, 5, 6, 10, 0, 0) + 0.001],
     ["large narrow", 1e16, 1e16 + 2],
   ] as const)("retreats a %s end range through native stepDown", async (_, start, end) => {
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     renderControlledOverview(presentationForDomain(start, end), null, onTimeRangeChange);
     await resizeTo(360);
 
@@ -594,7 +596,7 @@ describe("AgentTrajectoryOverview", () => {
   ] as const)(
     "projects a %s controlled absolute range into finite offset coordinates",
     async (_, domainStart, domainEnd, selectedStart, selectedEnd, startOffset, endOffset) => {
-      const onTimeRangeChange = vi.fn();
+      const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
       renderControlledOverview(
         presentationForDomain(domainStart, domainEnd),
         { start: selectedStart, end: selectedEnd },
@@ -619,7 +621,7 @@ describe("AgentTrajectoryOverview", () => {
   );
 
   it("snaps normalized input coordinates and clamps them to the paired boundary", async () => {
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     renderControlledOverview(
       presentationForDomain(200, 300),
       { start: 210, end: 290 },
@@ -640,7 +642,7 @@ describe("AgentTrajectoryOverview", () => {
   it("uses a finite ratio coordinate for an overflowing domain in both directions", async () => {
     const domainStart = -Number.MAX_VALUE;
     const domainEnd = Number.MAX_VALUE;
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     renderControlledOverview(
       presentationForDomain(domainStart, domainEnd),
       null,
@@ -657,7 +659,7 @@ describe("AgentTrajectoryOverview", () => {
     rangeStart().stepUp();
     const startCoordinate = Number(rangeStart().value);
     fireEvent.change(rangeStart(), { target: { value: rangeStart().value } });
-    const advanced = onTimeRangeChange.mock.lastCall?.[0] as AgentTrajectoryTimeRange;
+    const advanced = onTimeRangeChange.mock.lastCall![0]!;
     expect(advanced.start).toBeGreaterThan(domainStart);
     expect(Number.isFinite(advanced.start)).toBe(true);
     expect(advanced.end).toBe(domainEnd);
@@ -666,7 +668,7 @@ describe("AgentTrajectoryOverview", () => {
     rangeEnd().stepDown();
     const endCoordinate = Number(rangeEnd().value);
     fireEvent.change(rangeEnd(), { target: { value: rangeEnd().value } });
-    const retreated = onTimeRangeChange.mock.lastCall?.[0] as AgentTrajectoryTimeRange;
+    const retreated = onTimeRangeChange.mock.lastCall![0]!;
     expect(retreated.start).toBe(advanced.start);
     expect(retreated.end).toBeLessThan(domainEnd);
     expect(Number.isFinite(retreated.end)).toBe(true);
@@ -691,7 +693,7 @@ describe("AgentTrajectoryOverview", () => {
       renderOverview(presentationForDomain(start, end));
       await resizeTo(360);
 
-      const rangeInputs = screen.getAllByRole("slider") as HTMLInputElement[];
+      const rangeInputs = screen.getAllByRole("slider");
       const startText = rangeInputs[0]!.getAttribute("aria-valuetext") ?? "";
       const endText = rangeInputs[1]!.getAttribute("aria-valuetext") ?? "";
 
@@ -721,7 +723,7 @@ describe("AgentTrajectoryOverview", () => {
       renderOverview(presentationForDomain(start, end));
       await resizeTo(360);
 
-      const rangeInputs = screen.getAllByRole("slider") as HTMLInputElement[];
+      const rangeInputs = screen.getAllByRole("slider");
       const startText = rangeInputs[0]!.getAttribute("aria-valuetext") ?? "";
       const endText = rangeInputs[1]!.getAttribute("aria-valuetext") ?? "";
 
@@ -764,7 +766,7 @@ describe("AgentTrajectoryOverview", () => {
   });
 
   it("zooms by narrowing the selected range and clears it on reset", async () => {
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const user = userEvent.setup();
     renderControlledOverview(presentationForDomain(), { start: 20, end: 80 }, onTimeRangeChange);
     await resizeTo(360);
@@ -799,7 +801,7 @@ describe("AgentTrajectoryOverview", () => {
   it("resets its local viewport safely when the presentation domain changes", async () => {
     const first = presentationForDomain(0, 100);
     const second = presentationForDomain(200, 300);
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const { rerender } = render(renderWithProviders(first, null, onTimeRangeChange));
     await resizeTo(360);
 
@@ -811,7 +813,7 @@ describe("AgentTrajectoryOverview", () => {
   it("derives the viewport purely from the selected range across presentations", async () => {
     const first = presentationForDomain(0, 100);
     const second = presentationForDomain(0, 100);
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const { rerender } = render(
       renderWithProviders(first, { start: 20, end: 80 }, onTimeRangeChange),
     );
@@ -832,7 +834,7 @@ describe("AgentTrajectoryOverview", () => {
   });
 
   it("starts measuring when a time domain appears after an empty presentation", async () => {
-    const onTimeRangeChange = vi.fn();
+    const onTimeRangeChange = vi.fn<(range: AgentTrajectoryTimeRange | null) => void>();
     const { rerender } = render(renderWithProviders(presentationFor([]), null, onTimeRangeChange));
 
     rerender(renderWithProviders(presentationForDomain(), null, onTimeRangeChange));

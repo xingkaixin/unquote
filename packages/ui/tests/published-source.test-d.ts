@@ -6,8 +6,11 @@ import {
 } from "../src/lib/published-source";
 
 const file = new File(["{}\n"], "source.jsonl");
+
 const access = createLocalFileAccess(file);
+
 const memory = createTextSourceRevision(1, "{}", "json");
+
 const localFile = createStreamingFileSourceRevision(2, access, "jsonl");
 
 // @ts-expect-error Streaming is a JSONL capability and cannot publish a JSON mode.

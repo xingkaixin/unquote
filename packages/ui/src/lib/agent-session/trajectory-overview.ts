@@ -11,6 +11,7 @@ import {
 } from "./trajectory-time";
 
 const MINIMUM_BUCKET_WIDTH_PX = 6;
+
 const MAXIMUM_BUCKET_COUNT = 512;
 
 export interface AgentTrajectoryOverviewBucket {

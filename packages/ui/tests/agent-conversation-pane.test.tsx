@@ -13,6 +13,7 @@ import type {
 } from "../src/lib/agent-session";
 
 const measuredRowHeight = 96;
+
 const containerTop = 40;
 
 const buildEntry = (
@@ -129,6 +130,7 @@ const renderPane = (
 };
 
 const conversationButtons = () => screen.getAllByRole("button", { name: /^Conversation:/ });
+
 const conversationItem = (button: HTMLElement) => button.closest<HTMLElement>("[role='listitem']")!;
 
 let offsetHeightSpy: ReturnType<typeof vi.spyOn>;
@@ -152,7 +154,7 @@ beforeEach(() => {
     x: 0,
     y: containerTop,
     toJSON: () => {},
-  } as DOMRect);
+  });
 });
 
 afterEach(() => {

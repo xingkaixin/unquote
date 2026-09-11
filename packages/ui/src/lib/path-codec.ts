@@ -6,6 +6,7 @@ export interface TreePathSegment {
 }
 
 const safeIdentifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
 const arrayIndexPattern = /^(0|[1-9]\d*)$/;
 
 const quotePathKey = (key: string) => JSON.stringify(key);
@@ -89,6 +90,7 @@ const parseSingleQuotedSegment = (selector: string, start: number) => {
         return null;
       }
 
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- The escape lookup accepts arbitrary input characters and falls back for absent keys.
       const escapeMap: Record<string, string> = {
         "'": "'",
         '"': '"',

@@ -39,6 +39,7 @@ interface UseExportActionsParams {
   sourceRevision: SourceRevision;
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 const isAbortError = (error: unknown) =>
   typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 
@@ -116,6 +117,7 @@ export const useExportActions = ({
         signal.throwIfAborted();
         downloadBlob(parts, createExportFilename(extension), type);
       })();
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
       void operation.catch((error: unknown) => {
         if (!isAbortError(error)) {
           reportDiagnostic("export.build", error);

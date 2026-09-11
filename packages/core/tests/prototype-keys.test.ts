@@ -45,11 +45,16 @@ describe("JSON keys that shadow prototype members", () => {
 
   it("keeps them through nested containers, arrays, and stringified JSON", () => {
     const record = parseInput(line, { forcedFormat: "jsonl" }).records[0]!;
-    const value = materializeNode(record.node!) as Record<string, unknown>;
+    // SAFETY: The fixture above declares all three containers; the assertions verify their own prototype keys.
+    const value = materializeNode(record.node!) as {
+      nested: object;
+      items: object[];
+      stringified: object;
+    };
 
     expect(Object.hasOwn(value, "__proto__")).toBe(true);
-    expect(Object.hasOwn(value["nested"] as object, "__proto__")).toBe(true);
-    expect(Object.hasOwn((value["items"] as object[])[0]!, "__proto__")).toBe(true);
-    expect(Object.hasOwn(value["stringified"] as object, "__proto__")).toBe(true);
+    expect(Object.hasOwn(value.nested, "__proto__")).toBe(true);
+    expect(Object.hasOwn(value.items[0]!, "__proto__")).toBe(true);
+    expect(Object.hasOwn(value.stringified, "__proto__")).toBe(true);
   });
 });

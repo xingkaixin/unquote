@@ -8,6 +8,7 @@ export const Toaster = ({ ...props }: ToasterProps) => (
     richColors
     closeButton
     style={
+      // SAFETY: Sonner accepts CSS custom properties, which React CSSProperties does not enumerate.
       {
         "--normal-bg": "var(--color-surface-100)",
         "--normal-text": "var(--color-text-primary)",

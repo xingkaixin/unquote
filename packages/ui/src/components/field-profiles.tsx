@@ -7,6 +7,7 @@ interface FieldProfilesProps {
   profiles: FieldProfile[];
   onSelect: (index: number, kind: FieldProfileKind) => void;
 }
+
 const kinds: FieldProfileKind[] = [
   "missing",
   "null",

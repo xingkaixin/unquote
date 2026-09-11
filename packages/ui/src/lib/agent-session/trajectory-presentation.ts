@@ -25,6 +25,7 @@ import {
 } from "./trajectory-presentation-summary";
 
 export type { AgentTrajectoryTimeRange } from "./trajectory-time";
+
 export type {
   AgentTrajectoryLane,
   AgentTrajectoryPresentation,
@@ -32,11 +33,13 @@ export type {
   AgentTrajectoryPresentationItem,
   AgentTrajectoryPresentationSummary,
 } from "./trajectory-presentation-types";
+
 export {
   agentTrajectoryFilterKinds,
   agentTrajectoryFilterStatuses,
   filterAgentTrajectoryPresentation,
 } from "./trajectory-presentation-filter";
+
 export type {
   AgentTrajectoryFilterKind,
   AgentTrajectoryFilterStatus,
@@ -46,10 +49,13 @@ export type {
   AgentTrajectoryPresentationFilter,
   FilteredAgentTrajectoryPresentation,
 } from "./trajectory-presentation-filter";
+
 export { agentTrajectoryWarningKinds } from "./trajectory-presentation-warnings";
+
 export type { AgentTrajectoryWarningGroup } from "./trajectory-presentation-warnings";
 
 const TRAJECTORY_DISPLAY_CHARACTER_LIMIT = 240;
+
 const UNASSIGNED_GROUP_ID = "unassigned";
 
 interface PresentationItemDraft {

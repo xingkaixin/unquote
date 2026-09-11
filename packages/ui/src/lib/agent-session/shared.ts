@@ -7,6 +7,7 @@ import type {
 } from "./session-types";
 import type { ParsedAgentLine } from "./adapter-types";
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Timestamps arrive as unchecked fields from external session logs.
 export const parseTimestamp = (value: unknown): number | undefined => {
   if (typeof value === "string") {
     const ms = Date.parse(value);
@@ -15,19 +16,23 @@ export const parseTimestamp = (value: unknown): number | undefined => {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 };
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each accessor narrows an unchecked JSON field before returning a typed value.
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each accessor narrows an unchecked JSON field before returning a typed value.
 export const getString = (record: Record<string, unknown>, key: string): string | undefined => {
   const value = record[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each accessor narrows an unchecked JSON field before returning a typed value.
 export const getBoolean = (record: Record<string, unknown>, key: string, defaultValue = false) => {
   const value = record[key];
   return typeof value === "boolean" ? value : defaultValue;
 };
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Each accessor narrows an unchecked JSON field before returning a typed value.
 export const readTokenCount = (usage: Record<string, unknown>, key: string): number | undefined => {
   const value = usage[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;

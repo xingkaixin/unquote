@@ -10,14 +10,17 @@ import type { SearchOptions, SearchResultSet } from "../src/lib/record-search";
 
 const defaultOptions: SearchOptions = { syntax: "text", caseSensitive: false };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The fixture serializes arbitrary JSON values before searching typed records.
 const recordsFor = (value: unknown) =>
   parseInput(JSON.stringify(value), { forcedFormat: "json" }).records;
 
 // A string label is rendered as JSON, so the visible window is the truncated
 // value plus its opening quote.
 const maxVisibleStringRanges = maxStringValueLabelLength + 1;
+
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The fixture serializes arbitrary JSON values before searching typed records.
 const matchesForPattern = (value: unknown, pattern: RegExp, options = defaultOptions) => {
   const collector = createSearchResultCollector(pattern, options);
   for (const record of recordsFor(value)) {
@@ -26,6 +29,7 @@ const matchesForPattern = (value: unknown, pattern: RegExp, options = defaultOpt
   return collector.finish().window.matches;
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The fixture serializes arbitrary JSON values before searching typed records.
 const valueRangesFor = (value: unknown, query: string, options = defaultOptions) => {
   const matches = matchesOf(searchRecords(recordsFor(value), query, options));
   expect(matches).toHaveLength(1);

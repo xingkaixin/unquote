@@ -81,8 +81,9 @@ describe("agent trajectory presentation: overview", () => {
     const running = toolItemFor("event-36", "running", { timestamp: 11 });
     const aborted = {
       ...modelOutputItemFor("event-37", "subagent", 12),
+      kind: "subagent",
       status: "aborted",
-    } as AgentTrajectoryItem;
+    } satisfies AgentTrajectoryItem;
     const presentation = createAgentTrajectoryPresentation(
       modelFor(
         [

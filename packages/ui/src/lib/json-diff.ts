@@ -8,7 +8,9 @@ import { appendJsonPathSegment, formatJsonPath, isPathWithin, parseTreePath } fr
 import { yieldToMain } from "./record-export";
 
 export const diffInputBytes = 512 * 1024;
+
 const diffNodeLimit = 50_000;
+
 const diffChangeLimit = 5_000;
 
 interface DiffValue {
@@ -90,6 +92,7 @@ export const compareJsonNodes = async (
       if (hasJsonNodeChildren(left) && hasJsonNodeChildren(right)) {
         const keys = new Set([...Object.keys(left.children), ...Object.keys(right.children)]);
         for (const key of [...keys].reverse()) {
+          // SAFETY: Canonical node children contain JsonNodes under own object keys or numeric array keys.
           const get = (node: typeof left) =>
             Object.hasOwn(node.children, key)
               ? (node.children as Record<string, JsonNode>)[key]

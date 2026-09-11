@@ -48,7 +48,7 @@ describe("createStreamPublisher", () => {
   it("uses animation frames when no scheduler is provided", () => {
     const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(42);
     const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
@@ -64,13 +64,13 @@ describe("createStreamPublisher", () => {
 
   it("publishes the first batch synchronously and coalesces later ones per frame", () => {
     const scheduler = makeScheduler();
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
     expect(emit).toHaveBeenCalledTimes(1);
     expect(publisher.hasPublished()).toBe(true);
-    const firstRecords = emit.mock.calls[0]![0] as JsonlRecord[];
+    const firstRecords = emit.mock.calls[0]![0];
     expect(emit.mock.calls[0]![3]).toBeNull();
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
 
@@ -86,7 +86,7 @@ describe("createStreamPublisher", () => {
     const [records, stats] = emit.mock.calls[1]!;
     expect(records).not.toBe(firstRecords);
     expect(firstRecords.map((record) => record.lineNumber)).toEqual([1]);
-    expect((records as JsonlRecord[]).map((record) => record.lineNumber)).toEqual(
+    expect(records.map((record) => record.lineNumber)).toEqual(
       makeRecords(1, 65).map((record) => record.lineNumber),
     );
     expect(stats).toBe(65);
@@ -95,7 +95,7 @@ describe("createStreamPublisher", () => {
 
   it("publishes immediately when the batch progress is done", () => {
     const scheduler = makeScheduler();
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
@@ -107,7 +107,7 @@ describe("createStreamPublisher", () => {
 
   it("flush force-publishes pending data before completion", () => {
     const scheduler = makeScheduler();
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
@@ -125,7 +125,7 @@ describe("createStreamPublisher", () => {
 
   it("cancel drops the scheduled publish without emitting", () => {
     const scheduler = makeScheduler();
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
 
     publisher.pushBatch([makeRecord(1)], 1, { done: false });
@@ -139,7 +139,7 @@ describe("createStreamPublisher", () => {
 
   it("keeps cumulative snapshot copies linear as records grow", () => {
     const scheduler = makeScheduler();
-    const emit = vi.fn();
+    const emit = vi.fn<Parameters<typeof createStreamPublisher<number, TestProgress>>[0]>();
     const publisher = createStreamPublisher<number, TestProgress>(emit, scheduler);
     const recordCount = 4096;
 
@@ -149,7 +149,7 @@ describe("createStreamPublisher", () => {
     }
     publisher.flush();
 
-    const snapshotSizes = emit.mock.calls.map(([records]) => (records as JsonlRecord[]).length);
+    const snapshotSizes = emit.mock.calls.map(([records]) => records.length);
     expect(snapshotSizes.at(-1)).toBe(recordCount);
     expect(snapshotSizes.reduce((total, size) => total + size, 0)).toBeLessThanOrEqual(
       recordCount * 2,

@@ -1,3 +1,4 @@
+import type { Browser } from "wxt/browser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -5,16 +6,17 @@ const mocks = vi.hoisted(() => {
     onActionClick?: () => Promise<void>;
     onAlarm?: (alarm: { name: string }) => void;
     onCommand?: (command: string) => Promise<void>;
-    onContextMenuClick?: (
-      info: { menuItemId: string | number; selectionText?: string },
-      tab?: unknown,
-    ) => Promise<void>;
+    onContextMenuClick?: (info: {
+      menuItemId: string | number;
+      selectionText?: string;
+    }) => Promise<void>;
     onInstalled?: () => void;
     onMessage?: (
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The browser listener accepts untrusted messages, including the malformed fixtures below.
       message: unknown,
-      sender: unknown,
-      sendResponse: (response: unknown) => void,
-    ) => unknown;
+      sender: Browser.runtime.MessageSender,
+      sendResponse: (response: string) => void,
+    ) => boolean | undefined;
   } = {};
   const storageValues = new Map<string, unknown>();
   const browser = {
@@ -46,10 +48,10 @@ const mocks = vi.hoisted(() => {
       onClicked: {
         addListener: vi.fn(
           (
-            listener: (
-              info: { menuItemId: string | number; selectionText?: string },
-              tab?: unknown,
-            ) => Promise<void>,
+            listener: (info: {
+              menuItemId: string | number;
+              selectionText?: string;
+            }) => Promise<void>,
           ) => {
             listeners.onContextMenuClick = listener;
           },
@@ -70,10 +72,11 @@ const mocks = vi.hoisted(() => {
         addListener: vi.fn(
           (
             listener: (
+              // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The browser listener accepts untrusted messages, including the malformed fixtures below.
               message: unknown,
-              sender: unknown,
-              sendResponse: (response: unknown) => void,
-            ) => unknown,
+              sender: Browser.runtime.MessageSender,
+              sendResponse: (response: string) => void,
+            ) => boolean | undefined,
           ) => {
             listeners.onMessage = listener;
           },
@@ -90,6 +93,7 @@ const mocks = vi.hoisted(() => {
             storageValues.delete(item);
           }
         }),
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The storage fake preserves arbitrary browser storage values for validation tests.
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.entries(items).forEach(([key, value]) => storageValues.set(key, value));
         }),
@@ -103,16 +107,22 @@ const mocks = vi.hoisted(() => {
   return { browser, listeners, storageValues };
 });
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- jsdom has no extension APIs; the fake exercises browser events and storage behavior.
 vi.mock("wxt/browser", () => ({ browser: mocks.browser }));
+
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Execute the WXT entrypoint callback in the test process without the extension runtime.
 vi.mock("wxt/utils/define-background", () => ({
   defineBackground: (setup: () => void) => setup(),
 }));
 
 await import("../entrypoints/background");
+
 await vi.waitFor(() => expect(mocks.browser.storage.session.get).toHaveBeenCalledWith(null));
+
 const startupSweepRan = mocks.browser.storage.session.get.mock.calls.length > 0;
 
 const menuId = "unquote-open-selection";
+
 const getOpenedUrl = () => {
   const call = mocks.browser.tabs.create.mock.calls.at(0);
   if (!call) {

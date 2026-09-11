@@ -1,7 +1,9 @@
 // @ts-check
 
 const benchmarkTimeoutMs = 30_000;
+
 const expandableRowTimeoutMs = 10_000;
+
 const expandPathScrollSteps = 40;
 
 const selectors = {
@@ -130,6 +132,7 @@ export const startBenchmark = () => {
 
 /** @param {{ expectedFile: string; expectsAgentSession: boolean }} options */
 export const waitForBenchmarkReady = async ({ expectedFile, expectsAgentSession }) => {
+  // oxlint-disable-next-line anti-slop/no-reflect-get -- Browser-evaluated helpers exchange timing through an untyped global and validate the result below.
   const recordedStart = Reflect.get(globalThis, "__unquoteBenchmarkStart");
   const start = typeof recordedStart === "number" ? recordedStart : performance.now();
 

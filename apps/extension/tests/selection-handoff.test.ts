@@ -10,7 +10,9 @@ import {
 } from "../src/selection-handoff";
 
 const firstHandoffId = "00000000-0000-4000-8000-000000000001";
+
 const secondHandoffId = "00000000-0000-4000-8000-000000000002";
+
 const handoffStorageKey = (handoffId: string) => `unquote:selection-handoff:${handoffId}`;
 
 class MemoryStorage implements HandoffSessionStorage {
@@ -32,6 +34,7 @@ class MemoryStorage implements HandoffSessionStorage {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The storage fake must retain malformed and delayed entries to test reconciliation.
   async set(items: Record<string, unknown>) {
     Object.entries(items).forEach(([key, value]) => this.values.set(key, value));
   }
@@ -95,6 +98,7 @@ describe("selection handoff", () => {
     const storage: HandoffSessionStorage = {
       get: vi.fn(
         () =>
+          // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The storage fake must retain malformed and delayed entries to test reconciliation.
           new Promise<Record<string, unknown>>((resolve) => {
             releaseGet = () => resolve({ [key]: { input: "first", expiresAt: 200 } });
           }),

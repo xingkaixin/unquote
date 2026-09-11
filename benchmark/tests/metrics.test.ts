@@ -58,6 +58,7 @@ const budgets = {
 
 // Deliberately loose: the tests replace individual summaries with partial and
 // malformed shapes, which is exactly what the collector has to survive.
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- These fixtures mutate metric fields to malformed values to verify benchmark validation.
 const healthyMetrics = (): Record<string, unknown> =>
   Object.fromEntries(
     budgetedRenderMetrics.map(({ metric }: { metric: string }) => [
@@ -66,6 +67,7 @@ const healthyMetrics = (): Record<string, unknown> =>
     ]),
   );
 
+// oxlint-disable-next-line anti-slop/no-known-value-widening, anti-slop/no-unsafe-dictionary-type -- The validation fixture deliberately permits missing or malformed metric fields. These fixtures mutate metric fields to malformed values to verify benchmark validation.
 const healthyAgentMetrics = (): Record<string, unknown> => ({
   ...healthyMetrics(),
   ...Object.fromEntries(
@@ -81,17 +83,20 @@ const healthyAgentMetrics = (): Record<string, unknown> => ({
 });
 
 const plainFixturePath = "benchmark/case2-1MB.jsonl";
+
 const benchmarkGateFixtures = [
   agentSessionFixturePath,
   agentSessionStressFixturePath,
   plainFixturePath,
 ].map((path) => ({ path, scenario: benchmarkScenarioFor(path) }));
+
 const trajectoryBudgetValues: Record<string, number> = Object.fromEntries(
   expectedAgentTrajectoryRenderBudgetContract.map(({ budgetKey, defaultBudget }) => [
     budgetKey,
     defaultBudget,
   ]),
 );
+
 const benchmarkGateBudgets = {
   ...budgets,
   agentSessionReadyMsP50: 600,
@@ -99,6 +104,8 @@ const benchmarkGateBudgets = {
   agentTrajectoryBuildMsP50: 50,
   ...trajectoryBudgetValues,
 };
+
+// oxlint-disable-next-line anti-slop/no-known-value-widening, anti-slop/no-unsafe-dictionary-type -- The validation fixture deliberately permits missing or malformed metric fields. These fixtures mutate metric fields to malformed values to verify benchmark validation.
 const healthyBenchmarkGateRender = (): Record<string, Record<string, unknown>> => ({
   [agentSessionFixturePath]: healthyAgentMetrics(),
   [agentSessionStressFixturePath]: healthyAgentMetrics(),
@@ -472,6 +479,7 @@ describe("collectBenchmarkGateFailures", () => {
   it.each(expectedAgentTrajectoryRenderBudgetContract)(
     "fails when required trajectory budget $budgetKey is missing",
     ({ metric, statistic, budgetKey }) => {
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- The validation fixture deliberately permits missing or malformed metric fields.
       const caseBudgets: Record<string, number> = { ...benchmarkGateBudgets };
       delete caseBudgets[budgetKey];
 

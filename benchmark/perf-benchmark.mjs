@@ -20,9 +20,13 @@ import { benchmarkFileInputSelector } from "./browser-scenario.mjs";
 import { benchmarkScenarioFor, defaultBenchmarkFixturePaths } from "./fixture-manifest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const repoRoot = path.resolve(__dirname, "..");
+
 const webDist = path.join(repoRoot, "dist", "web");
+
 const browserScenarioPath = path.join(repoRoot, "benchmark", "browser-scenario.mjs");
+
 const chromePaths = {
   darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
   linux: [
@@ -51,10 +55,15 @@ const resolveChromePath = () => {
 const readBudget = (name, fallback) => resolveBudgetSetting(name, process.env, fallback);
 
 const chromePath = resolveChromePath();
+
 const remoteDebuggingPort = Number(process.env.UNQUOTE_BENCH_PORT ?? 0);
+
 const maxChromeDiagnosticLength = 8_192;
+
 const chromeStartupTimeoutMs = 30_000;
+
 const chromeStartupPollIntervalMs = 100;
+
 // Three samples: gating on the median already removes the worst-run
 // sensitivity, and raising this to five pushed the CI job past its 20 minute
 // timeout even though the same change costs only ~1.4x locally.
@@ -65,22 +74,30 @@ const sampleRuns = parseIntegerSetting(
   process.env.UNQUOTE_BENCH_RUNS ?? 3,
   1,
 );
+
 const warmupRuns = parseIntegerSetting(
   "UNQUOTE_BENCH_WARMUPS",
   process.env.UNQUOTE_BENCH_WARMUPS ?? 1,
   0,
 );
+
 const fixtureArgs = process.argv.slice(2).filter((argument) => argument !== "--");
+
 const fixtures = fixtureArgs.length > 0 ? fixtureArgs : defaultBenchmarkFixturePaths;
+
 const outputPath = path.resolve(
   repoRoot,
   resolveBenchmarkOutputPath(process.env, fixtureArgs.length > 0),
 );
+
 const heapSnapshotDirectory = process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR
   ? path.resolve(repoRoot, process.env.UNQUOTE_BENCH_HEAP_SNAPSHOT_DIR)
   : null;
+
 const renderOnly = process.env.UNQUOTE_BENCH_RENDER_ONLY === "1";
+
 const skipSearch = process.env.UNQUOTE_BENCH_SKIP_SEARCH === "1";
+
 const debug = (message) => {
   if (process.env.UNQUOTE_BENCH_DEBUG === "1") {
     console.error(`[benchmark] ${message}`);

@@ -11,6 +11,7 @@ import { buildRecordRows, collectStringifiedPaths } from "../src/lib/tree";
 import { resolveTreePath } from "../src/lib/tree-path";
 
 const oversizedMatchCount = 130_000;
+
 const matchesOf = (result: SearchResultSet | null) => result?.window.matches ?? null;
 
 describe("tree paths", () => {
@@ -92,6 +93,7 @@ describe("tree paths", () => {
 
   it("builds and searches deep quoted paths without changing path output", () => {
     const depth = 36;
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to alternating object and array containers.
     let value: unknown = "needle";
     let expectedJsonPath = "$";
 

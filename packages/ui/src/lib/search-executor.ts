@@ -14,7 +14,9 @@ import type { SearchRequest, SearchWorkerResponse } from "../worker/search-worke
 type LocalFileSearchAccess = Pick<LocalFileAccess, "getFile" | "search" | "size">;
 
 export const searchWorkerTimeoutMs = 5000;
+
 export const largeFileSearchWorkerTimeoutMs = 15_000;
+
 const largeFileSearchBytes = 1_000_000;
 
 const buildSearchRequest = (
@@ -148,6 +150,7 @@ export const createSearchExecutor = (): SearchExecutor => {
                 complete(result);
               }
             })
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
             .catch((error: unknown) => {
               finishRequestMeasure();
               if (!fallbackController?.signal.aborted && workerRun.finish()) {

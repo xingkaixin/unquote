@@ -6,7 +6,9 @@ import type { PublishedSourceRevision } from "./published-source";
 import { yieldToMain } from "./record-export";
 
 export const reportBytesLimit = 8 * 1024 * 1024;
+
 export const reportRecordLimit = 1000;
+
 const reportNodeLimit = 50_000;
 
 export interface RecordReport {
@@ -74,6 +76,7 @@ export const redactReportNode = async (
     )
       throw new RangeError("report-incomplete");
     if (node.kind === "object")
+      // SAFETY: A fresh null-prototype dictionary has no inherited fields and is populated only with cloned JsonNodes.
       return { kind: "object", children: Object.create(null) as Record<string, JsonNode> };
     if (node.kind === "array") return { kind: "array", children: [] };
     const copy = { ...node };
@@ -87,12 +90,14 @@ export const redactReportNode = async (
     const current = pending.pop()!;
     if (!hasJsonNodeChildren(current.input) || !hasJsonNodeChildren(current.output)) continue;
     for (const key of Object.keys(current.input.children)) {
+      // SAFETY: Object.keys enumerates canonical child entries, including numeric keys for arrays.
       const child = (current.input.children as Record<string, JsonNode>)[key]!;
       const path = appendJsonPathSegment(current.path, {
         kind: current.input.kind === "array" ? "index" : "key",
         value: key,
       });
       const copied = clone(child, path);
+      // SAFETY: The clone has the same container kind as its input, so the original child key is valid here.
       (current.output.children as Record<string, JsonNode>)[key] = copied;
       pending.push({ input: child, output: copied, path });
       if (visits % 250 === 0) {

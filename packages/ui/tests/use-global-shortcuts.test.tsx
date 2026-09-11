@@ -84,7 +84,7 @@ describe("useGlobalShortcuts", () => {
         initialProps: {
           shortcuts: [
             { matches: (event) => event.key === "a", allowInTextEditing: true, handler: first },
-          ] as GlobalShortcut[],
+          ],
         },
       },
     );

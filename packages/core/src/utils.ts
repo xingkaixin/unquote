@@ -2,8 +2,10 @@ import type { JsonKind, MaterializeOptions } from "./types.js";
 import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
 
 export const DEFAULT_MAX_DEPTH = 100;
+
 export const MAX_SUPPORTED_DEPTH = 1_000;
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function classifies arbitrary decoded JSON values.
 export const getJsonKind = (value: unknown): JsonKind => {
   if (value === null) {
     return "null";
@@ -29,6 +31,7 @@ export const parseJson = (input: string, options: MaterializeOptions = {}) =>
   materializeLosslessValue(parseLosslessJson(input), options);
 
 const isHighSurrogate = (codeUnit: number) => codeUnit >= 0xd800 && codeUnit <= 0xdbff;
+
 const isLowSurrogate = (codeUnit: number) => codeUnit >= 0xdc00 && codeUnit <= 0xdfff;
 
 export const truncateAtCodePointBoundary = (value: string, maxLength: number) => {

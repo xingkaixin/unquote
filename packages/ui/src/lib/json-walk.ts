@@ -29,6 +29,7 @@ interface JsonWalkMetadata {
 }
 
 export type JsonWalkContext = JsonWalkValue & JsonWalkMetadata;
+
 export type JsonNodeVisitor = (ctx: JsonWalkContext) => boolean | void;
 
 export const maxStringValueLabelLength = 512;
@@ -94,7 +95,7 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
     const stringifiedChain = resolved.wasStringified
       ? [...stringifiedAncestors, jsonPath]
       : stringifiedAncestors;
-    // The resolver already validated this pair; copying generic union fields loses its correlation.
+    // SAFETY: The resolver validated this pair; copying generic union fields loses its correlation.
     const context = {
       node: resolved.node,
       kind: resolved.kind,

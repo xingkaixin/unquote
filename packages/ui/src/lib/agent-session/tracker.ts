@@ -10,9 +10,13 @@ import type {
 import type { AgentParseWarning } from "./session-types";
 
 const detectionLineLimit = 80;
+
 const earlyDetectionLineCount = 20;
+
 const confidentDetectionScore = 0.75;
+
 const finalDetectionScore = 0.5;
+
 const parseWarningDetailLimit = 100;
 
 const adapters: AgentSessionAdapter[] = [codexRolloutAdapter, claudeTranscriptAdapter];
@@ -44,6 +48,7 @@ interface DetectionCandidate {
 }
 
 interface DeferredParsedAgentLine extends Pick<ParsedAgentLine, "recordId" | "lineNumber"> {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Materialized JSON has no application schema; callers must narrow its decoded value.
   materializeData: () => unknown;
 }
 
@@ -57,6 +62,7 @@ const emptyDetectionSample: AgentDetectionSample = {
   hasSessionId: false,
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider detection inspects raw decoded JSON before an adapter is selected.
 const createDetectionSample = (data: unknown): AgentDetectionSample => {
   if (!isRecord(data)) {
     return emptyDetectionSample;

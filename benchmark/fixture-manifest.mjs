@@ -1,4 +1,5 @@
 export const agentSessionFixturePath = "benchmark/case1-agent-session.jsonl";
+
 export const agentSessionStressFixturePath = "benchmark/case1-agent-session-5K.jsonl";
 
 export const defaultBenchmarkFixtures = [

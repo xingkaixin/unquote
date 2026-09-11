@@ -11,6 +11,7 @@ import { createLocalFileSearch } from "./local-file-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
 
 export { readFileHead } from "./local-file-reader";
+
 export type { SearchMatch, SearchOptions } from "./record-search";
 
 export interface LocalFileAccess {

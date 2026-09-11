@@ -7,6 +7,7 @@ import { formatClockTime } from "../lib/format";
 import { categoryConfig, formatEventMeta } from "./agent-session-format";
 
 export const timelineVirtualizationThreshold = 160;
+
 const timelineEventEstimateSize = 44;
 
 const TimelineEvent = ({

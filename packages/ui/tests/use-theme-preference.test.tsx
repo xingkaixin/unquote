@@ -14,7 +14,7 @@ describe("useThemePreference", () => {
       changeListener = listener;
     }),
     removeEventListener: vi.fn(),
-  } as unknown as MediaQueryList;
+  };
 
   beforeEach(() => {
     localStorage.clear();
@@ -124,6 +124,7 @@ describe("useThemePreference", () => {
       expect.any(Function),
     );
 
+    // SAFETY: The theme listener consumes only matches; jsdom does not provide MediaQueryListEvent.
     act(() => changeListener?.({ matches: true } as MediaQueryListEvent));
     expect(document.documentElement).toHaveClass("dark");
   });
@@ -133,6 +134,7 @@ describe("useThemePreference", () => {
     const listener = changeListener;
 
     expect(document.documentElement).not.toHaveClass("dark");
+    // SAFETY: The theme listener consumes only matches; jsdom does not provide MediaQueryListEvent.
     act(() => listener?.({ matches: true } as MediaQueryListEvent));
     expect(document.documentElement).toHaveClass("dark");
     expect(document.documentElement).toHaveStyle({ colorScheme: "dark" });

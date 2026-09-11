@@ -9,8 +9,11 @@ import { yieldToMain } from "./record-export";
 import { SourceReadLimitError } from "./local-file-reader";
 
 export const tableRowLimit = 100_000;
+
 export const tableBytesLimit = 20 * 1024 * 1024;
+
 const tableCellBytesLimit = 64 * 1024;
+
 const tableRecordBytesLimit = 4 * 1024 * 1024;
 
 export type TableOperator =
@@ -22,20 +25,24 @@ export type TableOperator =
   | "missing"
   | "kind"
   | "empty";
+
 export interface TableColumn {
   path: string;
   operator: TableOperator;
   value: string;
 }
+
 export interface TableCell {
   kind: JsonNode["kind"] | "missing";
   text: string;
 }
+
 export interface TableRow {
   recordId: string;
   lineNumber: number;
   cells: TableCell[];
 }
+
 export interface TableResult {
   columns: TableColumn[];
   rows: TableRow[];
@@ -50,6 +57,7 @@ const resolveCellNode = (root: JsonNode, segments: TreePathSegment[]) => {
     if (node.truncated || node.preview) throw new RangeError("table-incomplete");
     if (!hasJsonNodeChildren(node)) return undefined;
     if ((node.kind === "array") !== (segment.kind === "index")) return undefined;
+    // SAFETY: The container and path-segment kinds agree above; hasOwn excludes inherited or missing children.
     node = Object.hasOwn(node.children, segment.value)
       ? (node.children as Record<string, JsonNode>)[segment.value]
       : undefined;
@@ -69,6 +77,7 @@ const cellForNode = (node: JsonNode | undefined): TableCell => {
 };
 
 const numberPattern = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
+
 const decimalParts = (text: string) => {
   const match = numberPattern.exec(text);
   if (!match) throw new Error("invalid-number");
@@ -207,6 +216,7 @@ export const scanRecordTable = async (
 };
 
 const csvField = (text: string) => `"${text.replace(/"/g, '""')}"`;
+
 const spreadsheetText = (text: string) => (/^[\s]*[=+\-@\t\r\n]/.test(text) ? `'${text}` : text);
 
 export const exportTableCsv = async (result: TableResult, signal: AbortSignal) => {

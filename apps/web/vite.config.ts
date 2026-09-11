@@ -8,6 +8,7 @@ import { renderChangelogPage } from "./src/changelog-page.ts";
 import { isChangelogLocale } from "./src/changelog-routes.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const changelogLocalePattern = /\sdata-changelog-locale="([^"]+)"/;
 
 const changelogPagesPlugin = {

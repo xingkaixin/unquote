@@ -112,12 +112,11 @@ describe("UnquoteApp", () => {
       await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
 
       const shell = container.querySelector<HTMLElement>(".uq-shell")!;
-      const workerProto = (
-        globalThis.Worker as unknown as {
-          prototype: { completeSearch: (...args: unknown[]) => void };
-        }
-      ).prototype;
-      const silence = vi.spyOn(workerProto, "completeSearch").mockImplementation(() => {});
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- SAFETY: AppTestSuite installs AppWorkerStub; this race test delays its completeSearch method.
+      const worker = globalThis.Worker as unknown as {
+        prototype: { completeSearch: (...args: unknown[]) => void };
+      };
+      const silence = vi.spyOn(worker.prototype, "completeSearch").mockImplementation(() => {});
 
       vi.useFakeTimers();
       try {
@@ -199,7 +198,7 @@ describe("UnquoteApp", () => {
 
       await user.click(screen.getAllByRole("button", { name: /Clear search/i })[0]!);
       // After clearing, the match counter is gone and the input is empty.
-      await waitFor(() => expect((getToolbarInput() as HTMLInputElement).value).toBe(""));
+      await waitFor(() => expect(getToolbarInput()).toHaveValue(""));
       expect(screen.queryAllByText((text) => text.includes("1/1"))).toHaveLength(0);
     });
   });

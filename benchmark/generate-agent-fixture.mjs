@@ -4,22 +4,35 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { agentSessionFixturePath, agentSessionStressFixturePath } from "./fixture-manifest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const repoRoot = path.resolve(__dirname, "..");
+
 const defaultFixtureOutputPath = path.resolve(repoRoot, agentSessionFixturePath);
+
 const stressFixtureOutputPath = path.resolve(repoRoot, agentSessionStressFixturePath);
+
 const recordsPerTurn = 9;
 
 export const syntheticAgentFixtureSeed = 0x1a2b3c4d;
+
 export const syntheticAgentTurnCount = 48;
+
 export const syntheticAgentMatchesPerToolResult = 160;
+
 export const syntheticAgentStressTurnCount = 556;
+
 export const syntheticAgentStressMatchesPerToolResult = 2;
+
 export const syntheticAgentMaxRecordCount = 100_000;
+
 export const syntheticAgentMaxTotalMatches = 100_000;
+
 export const syntheticAgentMaxTurnCount = Math.floor(
   (syntheticAgentMaxRecordCount - 1) / recordsPerTurn,
 );
+
 export const syntheticAgentRecordCount = 1 + syntheticAgentTurnCount * recordsPerTurn;
+
 export const syntheticAgentStressRecordCount = 1 + syntheticAgentStressTurnCount * recordsPerTurn;
 
 const createRandom = (seed) => {
@@ -181,6 +194,7 @@ export const writeSyntheticAgentFixtures = ({
 };
 
 const invokedUrl = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
+
 if (import.meta.url === invokedUrl) {
   writeSyntheticAgentFixtures({ force: process.argv.includes("--force") });
 }

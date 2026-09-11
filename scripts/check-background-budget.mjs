@@ -7,6 +7,7 @@ import { gzipSync } from "node:zlib";
 // ceilings sit just above the isolated cost so the regression is caught by
 // size, not by review.
 const maxBytes = 32_000;
+
 const maxGzipBytes = 11_000;
 
 // Minifiers rename identifiers but keep string literals, so a framework that
@@ -20,8 +21,11 @@ const forbiddenMarkers = [
 ];
 
 const artifact = "dist/extension/background.js";
+
 const code = readFileSync(artifact);
+
 const gzipBytes = gzipSync(code).byteLength;
+
 const failures = [];
 
 console.log(`${artifact}: ${code.byteLength} bytes, ${gzipBytes} bytes gzipped`);
@@ -29,11 +33,13 @@ console.log(`${artifact}: ${code.byteLength} bytes, ${gzipBytes} bytes gzipped`)
 if (code.byteLength > maxBytes) {
   failures.push(`minified size ${code.byteLength} exceeds the ${maxBytes} byte budget`);
 }
+
 if (gzipBytes > maxGzipBytes) {
   failures.push(`gzip size ${gzipBytes} exceeds the ${maxGzipBytes} byte budget`);
 }
 
 const text = code.toString("utf8");
+
 for (const marker of forbiddenMarkers) {
   if (text.includes(marker)) {
     failures.push(`found "${marker}", so a UI dependency re-entered the background graph`);

@@ -23,6 +23,7 @@ import type { TreeRow } from "../lib/tree";
 import { Button } from "./button";
 
 const virtualizationRowThreshold = 180;
+
 const rowEstimateSize = 24;
 
 interface JsonTreeProps {
@@ -476,7 +477,7 @@ const RowItem = memo(function RowItem({
         }
 
         onActivate(row.id);
-        if ((event.target as Element).closest("[data-tree-toggle]")) {
+        if (event.target instanceof Element && event.target.closest("[data-tree-toggle]")) {
           onTogglePath(row);
           return;
         }

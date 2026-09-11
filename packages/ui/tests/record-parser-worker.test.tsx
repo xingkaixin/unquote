@@ -3,8 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RecordParserRequest } from "../src/worker/record-parser-worker";
 
 const loadWorker = async () => {
-  const scope = {
-    onmessage: null as ((event: MessageEvent<RecordParserRequest>) => void) | null,
+  const scope: {
+    onmessage: ((event: MessageEvent<RecordParserRequest>) => void) | null;
+    postMessage: ReturnType<typeof vi.fn>;
+  } = {
+    onmessage: null,
     postMessage: vi.fn(),
   };
   vi.stubGlobal("self", scope);
@@ -24,7 +27,7 @@ describe("record parser worker", () => {
       [3, '{"value":9007199254740993,"nested":"{\\"ok\\":true}"}'],
       [7, "invalid json"],
     ]);
-    scope.onmessage?.({ data: { requestId: 9, lines } } as MessageEvent<RecordParserRequest>);
+    scope.onmessage?.(new MessageEvent("message", { data: { requestId: 9, lines } }));
     expect(scope.postMessage).toHaveBeenCalledWith({
       type: "result",
       requestId: 9,
@@ -39,9 +42,7 @@ describe("record parser worker", () => {
     scope.postMessage.mockImplementationOnce(() => {
       throw new Error("private input");
     });
-    scope.onmessage?.({
-      data: { requestId: 5, lines: new Map() },
-    } as MessageEvent<RecordParserRequest>);
+    scope.onmessage?.(new MessageEvent("message", { data: { requestId: 5, lines: new Map() } }));
     expect(scope.postMessage).toHaveBeenLastCalledWith({ type: "error", requestId: 5 });
   });
 });

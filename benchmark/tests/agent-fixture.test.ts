@@ -31,9 +31,13 @@ const stressOptions = {
 };
 
 const defaultFixtureBytes = 1_131_587;
+
 const defaultFixtureSha256 = "736464c2ba397a5b6e88e016f9b51162243fa11e76d008122417b57096d2fa4e";
+
 const stressFixtureBytes = 1_119_670;
+
 const stressFixtureSha256 = "11a5baf70e544d20c86d5b978f0198ee651274e34d72c544e5aba054f2d2ab87";
+
 const sha256 = (contents: string) => createHash("sha256").update(contents).digest("hex");
 
 const expectNonSensitiveFixture = (contents: string) => {
@@ -105,10 +109,14 @@ describe("synthetic Agent benchmark fixture", () => {
     expect(sha256(first)).toBe(stressFixtureSha256);
     expectNonSensitiveFixture(first);
 
+    // SAFETY: These lines come from the controlled Codex fixture generator; this test checks the generated output shape.
     const toolOutputs = first
       .trim()
       .split("\n")
-      .map((line) => JSON.parse(line) as { type?: string; payload?: Record<string, unknown> })
+      .map(
+        (line) =>
+          JSON.parse(line) as { type?: string; payload?: { type?: string; output?: string } },
+      )
       .filter(
         ({ type, payload }) => type === "response_item" && payload?.type === "function_call_output",
       )

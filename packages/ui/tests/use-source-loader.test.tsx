@@ -27,13 +27,17 @@ class ControlledRecordWorker extends MockWorkerEvents {
 const mocks = vi.hoisted(() => ({
   writeClipboardText: vi.fn(),
 }));
+
 const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Control the browser clipboard permission boundary and its asynchronous results.
 vi.mock("../src/lib/clipboard", () => ({
   writeClipboardText: mocks.writeClipboardText,
 }));
+
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe user notifications and export promises without coupling hook tests to toast rendering.
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 import { maxInMemorySourceBytes, useSourceLoader } from "../src/hooks/use-source-loader";
@@ -53,8 +57,10 @@ const snapshot = (current: ReturnType<typeof useSourceLoader>) => {
 };
 
 const oversizedContents = (prefix: string) => prefix.padEnd(1_000_001, " ");
+
 const oversizedJsonlContents = (line = '{"loaded":true}\n') =>
   line.repeat(Math.ceil(1_000_001 / line.length));
+
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
 // Each chunk is released by the test, so the count reflects exactly how far the

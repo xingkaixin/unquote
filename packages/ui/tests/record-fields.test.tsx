@@ -3,6 +3,7 @@ import type { JsonNode } from "@unquote/core";
 import { describe, expect, it } from "vitest";
 import { getPrimitiveValue, isToolContext, normalizeKey } from "../src/lib/record-fields";
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The fixture serializes arbitrary JSON values before building a typed node.
 const node = (kind: JsonNode["kind"], value: unknown): JsonNode =>
   parseInput(JSON.stringify(value), { forcedFormat: "json" }).records[0]!.node!;
 

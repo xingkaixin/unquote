@@ -7,6 +7,7 @@ import { createTextSourceRevision } from "../src/lib/published-source";
 import type { SourceRevision } from "../src/lib/source-revision";
 
 const source = '{"payload":"needle"}\n{"payload":"needle"}';
+
 const result = parseInput(source, { forcedFormat: "jsonl" });
 
 const createSource = (text: string, revision = 0) =>

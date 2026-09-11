@@ -2,11 +2,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const workflowDirectory = ".github/workflows";
+
 const workflowFiles = readdirSync(workflowDirectory)
   .filter((fileName) => fileName.endsWith(".yml") || fileName.endsWith(".yaml"))
   .sort();
+
 const immutableActionPattern = /^[^@\s]+@[0-9a-f]{40}$/;
+
 const failures = [];
+
 let externalActionCount = 0;
 
 for (const fileName of workflowFiles) {

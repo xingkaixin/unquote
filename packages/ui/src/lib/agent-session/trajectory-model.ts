@@ -36,9 +36,11 @@ import {
 import { trajectoryItemBase } from "./trajectory-values";
 
 type TrajectoryToolProjector = ReturnType<typeof createTrajectoryToolProjector>;
+
 type TrajectoryTurnTracker = ReturnType<typeof createTrajectoryTurnTracker>;
 
 type ModelOutputEvidence = Extract<AgentSessionEvidence, { kind: "model-output" }>;
+
 type TokenUsageEvidence = Extract<AgentSessionEvidence, { kind: "token-usage" }>;
 
 interface TrajectoryDraftState {

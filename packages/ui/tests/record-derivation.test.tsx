@@ -6,6 +6,8 @@ import type { RecordInsight } from "../src/lib/record-insight";
 // deriveRecord's whole point is to walk each record once instead of twice, so
 // the traversal is wrapped here to make the call count observable.
 const walkCalls = { count: 0 };
+
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Count real extraction calls to guard incremental derivation against repeated full scans.
 vi.mock("../src/lib/field-extraction", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/lib/field-extraction")>();
   return {
@@ -20,7 +22,9 @@ vi.mock("../src/lib/field-extraction", async (importOriginal) => {
 });
 
 const { createFileOverview } = await import("../src/lib/file-overview");
+
 const { createRecordInsightMap } = await import("../src/lib/record-insight");
+
 const { createRecordDerivationState, deriveRecord, updateRecordDerivations } =
   await import("../src/lib/record-derivation");
 
@@ -155,6 +159,7 @@ describe("record derivation", () => {
     let state = createRecordDerivationState();
     let streamedRecords: JsonlRecord[] = [];
 
+    // oxlint-disable-next-line oxc/no-accumulating-spread -- Each simulated stream update needs a new snapshot while the previous snapshot remains unchanged.
     for (let offset = 0; offset < allRecords.length; offset += 17) {
       const previousRecords = streamedRecords;
       streamedRecords = [...streamedRecords, ...allRecords.slice(offset, offset + 17)];

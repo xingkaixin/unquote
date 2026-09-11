@@ -16,6 +16,7 @@ describe("stringifyJsonNodeBounded", () => {
   });
 
   it("stops reading the tree once the output limit is reached", () => {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The fixture adds throwing child getters after initialization to verify bounded traversal.
     const children: Record<string, JsonNode> = {
       payload: { kind: "string", value: "x".repeat(1_000) },
     };
@@ -94,6 +95,7 @@ describe("stringifyJsonNodeWithLimits", () => {
           if (typeof property === "string" && /^\d+$/.test(property)) {
             reads += 1;
           }
+          // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
           return Reflect.get(target, property, receiver);
         },
       },

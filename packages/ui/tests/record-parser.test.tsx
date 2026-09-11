@@ -21,8 +21,11 @@ class ControlledWorker extends MockWorkerEvents {
 }
 
 const lines = new Map([[3, '{"value":9007199254740993}']]);
+
 const expected = new Map([[3, parseJsonlRecordLine(lines.get(3)!, 3)]]);
+
 const latestWorker = () => ControlledWorker.instances.at(-1)!;
+
 const complete = (requestId = 1, worker = latestWorker()) =>
   worker.respond({ type: "result", requestId, records: expected });
 

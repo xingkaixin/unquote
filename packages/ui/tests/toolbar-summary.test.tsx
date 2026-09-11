@@ -11,11 +11,15 @@ import { en } from "../src/i18n/en";
 import { zhCN } from "../src/i18n/zh-CN";
 
 const t = createTranslator(en);
+
 const zhT = createTranslator(zhCN);
 
 const doneProgress: ParseProgress = { done: true, elapsedMs: 12 };
+
 const pendingProgress: ParseProgress = { done: false, elapsedMs: 45.6 };
+
 const stats = { total: 3, success: 2, failed: 1 };
+
 const visibleStats = { total: 3, success: 2, failed: 1 };
 
 const baseInput: ToolbarSummaryInput = {

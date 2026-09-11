@@ -20,6 +20,7 @@ describe("agent trajectory presentation: ownership", () => {
         if (property === "find" || property === "filter") {
           throw new Error(`Unexpected item collection search: ${String(property)}`);
         }
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
         return Reflect.get(target, property, receiver);
       },
     });
@@ -28,6 +29,7 @@ describe("agent trajectory presentation: ownership", () => {
         if (property === "find" || property === "filter") {
           throw new Error(`Unexpected turn collection search: ${String(property)}`);
         }
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
         return Reflect.get(target, property, receiver);
       },
     });

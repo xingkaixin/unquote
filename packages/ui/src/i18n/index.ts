@@ -3,7 +3,11 @@
 // Base UI, sonner, and the parser into the graph — fatal for the extension
 // background, which only formats a handful of strings.
 export { createTranslator, detectLocale, persistLocale } from "./i18n";
+
 export type { Locale, MessageKey, Messages } from "./i18n";
+
 export { en } from "./en";
+
 export { ja } from "./ja";
+
 export { zhCN } from "./zh-CN";

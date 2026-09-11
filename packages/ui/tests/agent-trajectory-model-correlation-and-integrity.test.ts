@@ -444,6 +444,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
           if (property === Symbol.iterator) {
             evidenceIteratorReads += 1;
           }
+          // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
           return Reflect.get(target, property, receiver);
         },
       });
@@ -457,6 +458,7 @@ describe("createAgentTrajectoryModel: correlation-and-integrity", () => {
         if (property === Symbol.iterator) {
           eventIteratorReads += 1;
         }
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
         return Reflect.get(target, property, receiver);
       },
     });

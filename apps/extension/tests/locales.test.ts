@@ -6,6 +6,7 @@ interface ExtensionMessage {
   message: string;
 }
 
+// SAFETY: These checked-in locale files use the extension message schema; the tests verify their contents.
 const readMessages = (locale: string) =>
   JSON.parse(
     readFileSync(

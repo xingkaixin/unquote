@@ -26,7 +26,7 @@ export const RangeSlider = ({
   getAriaValueText,
 }: RangeSliderProps) => (
   <Slider.Root
-    value={value as [number, number]}
+    value={[value[0], value[1]]}
     min={min}
     max={max}
     step={step}

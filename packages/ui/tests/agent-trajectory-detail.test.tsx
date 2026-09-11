@@ -97,7 +97,9 @@ const deepFreeze = <T,>(value: T): T => {
 const warningGroupsFor = (warnings: readonly AgentTrajectoryWarning[]) =>
   warnings.map((warning) => ({ warning, count: 1 }));
 
+// SAFETY: The test runtime is Node 24, which has isWellFormed; the shared ES2022 library typings do not.
 const isWellFormed = (value: string) =>
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Node 24 provides isWellFormed, which the shared ES2022 library typings omit.
   (String.prototype as unknown as { isWellFormed: (this: string) => boolean }).isWellFormed.call(
     value,
   );
@@ -181,6 +183,7 @@ describe("AgentTrajectoryDetail", () => {
     render(
       <I18nProvider>
         {examples.map(([kind]) => {
+          // SAFETY: These presentation fixtures supply the common item fields for each explicitly listed kind.
           const item: AgentTrajectoryItem = {
             id: `empty-${kind}`,
             kind,

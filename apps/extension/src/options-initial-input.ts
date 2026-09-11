@@ -5,7 +5,11 @@ import {
 } from "./selection-handoff";
 
 export interface OptionsRuntimeMessenger {
-  sendMessage(message: unknown): Promise<unknown>;
+  sendMessage(message: {
+    type: typeof claimSelectionHandoffMessageType;
+    handoffId: string;
+    // oxlint-disable-next-line anti-slop/no-unknown-returns -- The runtime response is untrusted until claimOptionsInitialInput validates it.
+  }): Promise<unknown>;
 }
 
 export const claimOptionsInitialInput = async (

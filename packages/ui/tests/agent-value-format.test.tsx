@@ -26,8 +26,10 @@ describe("agent value formatting", () => {
   });
 
   it("bounds deeply nested values without recursing on the JavaScript stack", () => {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to recursively nested arrays.
     let value: unknown = "leaf";
     for (let depth = 0; depth < 7_000; depth += 1) {
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to recursively nested arrays.
       value = [value];
     }
 

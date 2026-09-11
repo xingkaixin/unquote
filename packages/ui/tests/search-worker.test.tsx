@@ -1,8 +1,9 @@
+import type { SearchRequest } from "../src/worker/search-worker";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseInput } from "@unquote/core";
 
 interface WorkerScope {
-  onmessage: ((event: MessageEvent) => void) | null;
+  onmessage: ((event: MessageEvent<SearchRequest>) => void) | null;
   postMessage: ReturnType<typeof vi.fn>;
 }
 
@@ -15,8 +16,8 @@ const loadWorker = async () => {
   return workerScope;
 };
 
-const dispatch = (workerScope: WorkerScope, data: unknown) => {
-  workerScope.onmessage?.({ data } as MessageEvent);
+const dispatch = (workerScope: WorkerScope, data: SearchRequest) => {
+  workerScope.onmessage?.(new MessageEvent("message", { data }));
 };
 
 const makeStreamedFile = (contents: string, name = "payload.jsonl") => {
@@ -99,6 +100,7 @@ describe("search worker", () => {
         },
       });
     }
+    // oxlint-disable-next-line anti-slop/no-module-mocking -- Supply instrumented records to verify the worker reuses parsed nodes across searches.
     vi.doMock("@unquote/core", async (importOriginal) => ({
       ...(await importOriginal<typeof import("@unquote/core")>()),
       parseInput: () => parsed,
@@ -294,6 +296,7 @@ describe("search worker", () => {
     };
     const search = vi.fn().mockResolvedValue(result);
     const createLocalFileAccess = vi.fn(() => ({ search }));
+    // oxlint-disable-next-line anti-slop/no-module-mocking -- Observe worker request delegation and result transfer without duplicating file-search tests.
     vi.doMock("../src/lib/local-file-source", () => ({ createLocalFileAccess }));
     const file = new File(["{}"], "payload.jsonl");
     const workerScope = await loadWorker();
@@ -352,6 +355,7 @@ describe("search worker", () => {
   });
 
   it("keeps error responses free of the input text and query", async () => {
+    // oxlint-disable-next-line anti-slop/no-module-mocking -- Inject a search failure to verify the worker never includes source text in errors.
     vi.doMock("../src/lib/record-search", async (importOriginal) => {
       const actual = await importOriginal<typeof import("../src/lib/record-search")>();
       return {

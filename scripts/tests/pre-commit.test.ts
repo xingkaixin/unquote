@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const projectRoot = fileURLToPath(new URL("../..", import.meta.url));
+
 const temporaryRepositories: string[] = [];
 
 const run = (cwd: string, command: string, args: string[], env = process.env) => {
@@ -65,6 +66,7 @@ const stagedPaths = (root: string) =>
     .stdout.split("\0")
     .filter(Boolean);
 
+// SAFETY: The test command stub writes one JSON-encoded argv array per line.
 const calls = (log: string): string[][] =>
   existsSync(log)
     ? readFileSync(log, "utf8")
@@ -97,8 +99,8 @@ describe("pre-commit hook", () => {
     run(repository.root, repository.hook, [], repository.env);
 
     expect(calls(repository.log)).toEqual([
-      ["exec", "oxfmt", "--check", "--", ...paths],
-      ["exec", "oxlint", "--", ...paths],
+      ["exec", "oxfmt", "--check", "--no-error-on-unmatched-pattern", "--", ...paths],
+      ["exec", "oxlint", "--no-error-on-unmatched-pattern", "--", ...paths],
       ["typecheck"],
     ]);
   });
@@ -113,7 +115,7 @@ describe("pre-commit hook", () => {
     run(repository.root, repository.hook, [], repository.env);
 
     expect(calls(repository.log)).toEqual([
-      ["exec", "oxfmt", "--check", "--", ...paths],
+      ["exec", "oxfmt", "--check", "--no-error-on-unmatched-pattern", "--", ...paths],
       ["typecheck"],
     ]);
   });
@@ -147,8 +149,8 @@ describe("pre-commit hook", () => {
     expect(paths).not.toContain("old name.ts");
     expect(paths).not.toContain("deleted.ts");
     expect(calls(repository.log)).toEqual([
-      ["exec", "oxfmt", "--check", "--", ...paths],
-      ["exec", "oxlint", "--", ...paths],
+      ["exec", "oxfmt", "--check", "--no-error-on-unmatched-pattern", "--", ...paths],
+      ["exec", "oxlint", "--no-error-on-unmatched-pattern", "--", ...paths],
       ["typecheck"],
     ]);
   });

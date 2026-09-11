@@ -7,6 +7,7 @@ import { I18nProvider } from "../src/i18n/context";
 import { createTextSourceRevision } from "../src/lib/published-source";
 
 afterEach(cleanup);
+
 it("requires a current preview before export and invalidates it when redactions change", async () => {
   const user = userEvent.setup();
   const text = '{"token":"secret"}';

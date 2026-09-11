@@ -7,6 +7,7 @@ import { I18nProvider } from "../src/i18n/context";
 import { createTextSourceRevision } from "../src/lib/published-source";
 
 afterEach(cleanup);
+
 it("compares pasted JSON and clears stale results when inputs change", async () => {
   const user = userEvent.setup();
   render(

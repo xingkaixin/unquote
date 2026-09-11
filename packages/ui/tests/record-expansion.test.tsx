@@ -64,13 +64,13 @@ const countMapConstructions = <T,>(run: () => T) => {
   let constructions = 0;
 
   class CountingMap<K, V> extends NativeMap<K, V> {
-    constructor(entries?: readonly (readonly [K, V])[] | null) {
+    constructor(entries?: Iterable<readonly [K, V]> | null) {
       super(entries);
       constructions += 1;
     }
   }
 
-  globalThis.Map = CountingMap as unknown as MapConstructor;
+  globalThis.Map = CountingMap;
   try {
     const result = run();
     return { result, constructions };

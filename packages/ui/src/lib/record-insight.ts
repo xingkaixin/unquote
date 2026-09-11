@@ -47,9 +47,12 @@ export interface RecordInsight {
 }
 
 const maxInsightValueLength = 160;
+
 const maxInsightTitleLength = 96;
+
 const errorLikePattern =
   /(^|[-_\s.])(error|exception|failed|failure|fatal|panic|timeout)([-_\s.]|$)/i;
+
 const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
 
 const truncateText = (value: string, maxLength: number) =>
@@ -136,6 +139,7 @@ const classifyInsightField = (
 };
 
 const isErrorLikeValue = (value: string) => errorLikePattern.test(value);
+
 const isInstructionsText = (value: string) => agentsInstructionsPattern.test(value);
 
 const getKeyDepth = (pathSegments: readonly TreePathSegment[]) => {
