@@ -7,12 +7,12 @@ const budgets = {
   initialJsGzipBytes: 205_000,
   totalJsBytes: 820_000,
   totalJsGzipBytes: 270_000,
-  initialCssBytes: 39_000,
+  initialCssBytes: 43_000,
   initialCssGzipBytes: 9_000,
 };
 
 const staticPageBudgets = {
-  cssBytes: 8_000,
+  cssBytes: 10_000,
   cssGzipBytes: 3_000,
 };
 

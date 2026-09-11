@@ -73,15 +73,15 @@ describe("UI bundle budget", () => {
 
   it("budgets a static page stylesheet independently from the app", () => {
     const root = createBuild('<script src="/assets/index.js"></script>');
-    writeFileSync(join(root, "dist/web/assets/changelog.css"), "a".repeat(8_001));
+    writeFileSync(join(root, "dist/web/assets/changelog.css"), "a".repeat(10_001));
 
     const result = runBudgetCheck(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("web changelog en CSS 8001 bytes");
-    expect(result.stderr).toContain("web changelog zh-CN CSS 8001 bytes");
-    expect(result.stderr).toContain("web changelog ja CSS 8001 bytes");
-    expect(result.stderr).toContain("exceeds 8000 bytes");
-    expect(result.stderr).not.toContain("web initial CSS 8001 bytes");
+    expect(result.stderr).toContain("web changelog en CSS 10001 bytes");
+    expect(result.stderr).toContain("web changelog zh-CN CSS 10001 bytes");
+    expect(result.stderr).toContain("web changelog ja CSS 10001 bytes");
+    expect(result.stderr).toContain("exceeds 10000 bytes");
+    expect(result.stderr).not.toContain("web initial CSS 10001 bytes");
   });
 });

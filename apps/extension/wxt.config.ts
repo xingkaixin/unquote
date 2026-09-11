@@ -13,6 +13,9 @@ export default defineConfig({
     disabled: true,
   },
   vite: () => ({
+    build: {
+      assetsInlineLimit: (filePath) => (filePath.endsWith(".woff2") ? false : undefined),
+    },
     plugins: [
       svgr({
         svgrOptions: {
