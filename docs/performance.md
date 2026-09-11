@@ -99,7 +99,7 @@ each surface:
 - initial CSS includes the stylesheets referenced by that surface's built HTML.
 
 Static Web pages are measured separately because their styles are not downloaded
-with the application entry. Each static page has an 8,000 byte / 3,000 byte gzip
+with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
 The current Web build measures about 575 KiB / 185 KiB gzip for initial JS and
@@ -116,7 +116,7 @@ without changing the amount of JavaScript loaded by either surface.
 | Initial JavaScript gzip | 205,000 bytes |
 | Total UI JavaScript | 820,000 bytes |
 | Total UI JavaScript gzip | 270,000 bytes |
-| Initial CSS | 39,000 bytes |
+| Initial CSS | 43,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
 ## Baseline
@@ -311,3 +311,24 @@ The measured initial JavaScript increase is approximately 13.4 KiB (5.2 KiB gzip
 within the existing JavaScript budgets. Shared hover styles add approximately
 0.5 KiB of CSS. The initial CSS budget moves from 38,000 to 39,000 bytes because
 the previous build used 37,974 bytes. The gzip CSS limit remains 9,000 bytes.
+
+## Pages loading and fonts
+
+IBM Plex Sans and JetBrains Mono are bundled from pinned Fontsource variable-font
+packages. The app and localized changelogs share the same font declarations;
+Unicode ranges keep unused character subsets off the network. Vite emits every
+WOFF2 file as a separate hashed asset, including the small Cyrillic extension
+subset, so font binaries stay out of render-blocking CSS and work with
+`font-src 'self'`. The two Latin subsets total 86,116 bytes across all weights.
+
+The font declarations previously downloaded from Google now count toward the
+local CSS budgets. The app and extension measure 42,049 bytes / 8,953 bytes gzip;
+each changelog measures 9,775 bytes / 2,599 bytes gzip. Raw CSS ceilings are
+43,000 and 10,000 bytes respectively; gzip and JavaScript ceilings are unchanged.
+
+Pages serves hashed `/assets/` files with a one-year immutable browser cache.
+HTML retains Pages' default revalidation behavior so deployments can update the
+asset references. No additional cache layer or paid Cloudflare product is needed.
+The CSP permits the existing Pages Web Analytics beacon and its reporting endpoint,
+while fonts and styles no longer require Google origins. After deployment, verify
+beacon delivery and compare first visits and returning visits separately by region.

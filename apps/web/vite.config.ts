@@ -39,6 +39,7 @@ export default defineConfig({
     tailwindcss(),
   ],
   build: {
+    assetsInlineLimit: (filePath) => (filePath.endsWith(".woff2") ? false : undefined),
     outDir: "../../dist/web",
     emptyOutDir: true,
     rollupOptions: {

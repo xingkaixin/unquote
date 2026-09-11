@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap");
+@import "@unquote/ui/fonts.css";
 
 :root {
   color-scheme: light dark;
@@ -13,8 +13,8 @@
   --accent: #e95d1a;
   --accent-hover: #d94e0c;
   --focus: #f26522;
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-sans: "IBM Plex Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import "./fonts.css";
 @import "tailwindcss";
 @source "./**/*.{ts,tsx}";
 @custom-variant dark (&:where(.dark, .dark *));
@@ -45,8 +45,8 @@
   --radius-xl: 14px;
 
   /* --- Fonts --- */
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-sans: "IBM Plex Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
 }
 
 :root {
