@@ -325,3 +325,10 @@ The font declarations previously downloaded from Google now count toward the
 local CSS budgets. The app and extension measure 42,049 bytes / 8,953 bytes gzip;
 each changelog measures 9,775 bytes / 2,599 bytes gzip. Raw CSS ceilings are
 43,000 and 10,000 bytes respectively; gzip and JavaScript ceilings are unchanged.
+
+Pages serves hashed `/assets/` files with a one-year immutable browser cache.
+HTML retains Pages' default revalidation behavior so deployments can update the
+asset references. No additional cache layer or paid Cloudflare product is needed.
+The CSP permits the existing Pages Web Analytics beacon and its reporting endpoint,
+while fonts and styles no longer require Google origins. After deployment, verify
+beacon delivery and compare first visits and returning visits separately by region.
