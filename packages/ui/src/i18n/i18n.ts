@@ -30,9 +30,8 @@ export const localeRegistry = {
 
 export type Locale = keyof typeof localeRegistry;
 
-const keysOf = <T extends object>(value: T) => Object.keys(value) as Array<keyof T>;
-
-export const supportedLocales = Object.freeze(keysOf(localeRegistry));
+// SAFETY: localeRegistry is the closed object literal above; its own string keys define Locale.
+export const supportedLocales = Object.freeze(Object.keys(localeRegistry) as Locale[]);
 
 const defaultLocale: Locale = "en";
 

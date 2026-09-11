@@ -142,6 +142,7 @@ export const RecordTableDialog = ({
                         className={fieldClass}
                         value={column.operator}
                         onChange={(event) =>
+                          // SAFETY: This select only emits values from the TableOperator options rendered immediately below.
                           update(index, { operator: event.target.value as TableOperator })
                         }
                       >

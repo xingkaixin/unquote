@@ -5,6 +5,7 @@ export const DEFAULT_MAX_DEPTH = 100;
 
 export const MAX_SUPPORTED_DEPTH = 1_000;
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function classifies arbitrary decoded JSON values.
 export const getJsonKind = (value: unknown): JsonKind => {
   if (value === null) {
     return "null";

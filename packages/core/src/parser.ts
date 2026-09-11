@@ -32,6 +32,7 @@ const resolveMaxDepth = (maxDepth: number | undefined) => {
 const createParseErrorRecord = (
   line: string,
   lineNumber: number,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
   error: unknown,
 ): FailedJsonlRecord => {
   const errorMeta = getParseErrorMeta(line, error, lineNumber - 1);
@@ -52,8 +53,8 @@ export type JsonlRecordLineResult<T extends FullJsonlRecord | PreviewJsonlRecord
   | { record: FailedJsonlRecord };
 
 export type JsonlRecordIngestionLine<T extends FullJsonlRecord | PreviewJsonlRecord> =
-  | { record: T; materializeValue: () => unknown }
-  | { record: FailedJsonlRecord };
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Materialized JSON has no application schema; callers must narrow its decoded value.
+  { record: T; materializeValue: () => unknown } | { record: FailedJsonlRecord };
 
 type JsonlRecordLineSourceResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
   | { record: T; source: LosslessJsonValue }

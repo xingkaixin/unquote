@@ -7,6 +7,7 @@ import {
   requiredSafariArtifacts,
 } from "../../../scripts/safari-distribution.mjs";
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Malformed manifest overrides deliberately violate the shipping schema.
 const safariManifest = (overrides: Record<string, unknown> = {}) => ({
   ...createExtensionManifest("safari"),
   manifest_version: 3,

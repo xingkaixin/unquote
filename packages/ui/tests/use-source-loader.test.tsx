@@ -32,10 +32,12 @@ const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Control the browser clipboard permission boundary and its asynchronous results.
 vi.mock("../src/lib/clipboard", () => ({
   writeClipboardText: mocks.writeClipboardText,
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe user notifications and export promises without coupling hook tests to toast rendering.
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 import { maxInMemorySourceBytes, useSourceLoader } from "../src/hooks/use-source-loader";

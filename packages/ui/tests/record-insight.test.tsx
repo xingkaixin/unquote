@@ -65,6 +65,7 @@ describe("record insight", () => {
   // keeping the minimum per field. These pin the tie-break order that the
   // stable sort used to provide.
   describe("field selection tie-breaks", () => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The fixture exercises insight extraction across arbitrary decoded JSON values.
     const insightFor = (value: unknown) => {
       const result = parseInput(JSON.stringify(value), { forcedFormat: "jsonl" });
       return createRecordInsight(result.records[0]!);
@@ -151,6 +152,7 @@ describe("record insight", () => {
             if (property === "node") {
               throw new Error("nested filtering read the record tree");
             }
+            // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
             return Reflect.get(target, property, receiver);
           },
         }),

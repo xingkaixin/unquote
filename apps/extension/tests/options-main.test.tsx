@@ -5,16 +5,19 @@ import type { ReactNode } from "react";
 import type { Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { claimSelectionHandoffMessageType } from "../src/selection-handoff";
+import type { OptionsRuntimeMessenger } from "../src/options-initial-input";
 
-const mocks = vi.hoisted(() => ({
-  roots: [] as Root[],
-  initializeThemePreference: vi.fn(),
-  getMessage: vi.fn(() => "Import failed. Please paste or open a file."),
-  sendMessage: vi.fn<(message: unknown) => Promise<unknown>>(),
-}));
+const mocks = vi.hoisted(() => {
+  const roots: Root[] = [];
+  return {
+    roots,
+    initializeThemePreference: vi.fn(),
+    getMessage: vi.fn(() => "Import failed. Please paste or open a file."),
+    sendMessage: vi.fn<OptionsRuntimeMessenger["sendMessage"]>(),
+  };
+});
 
-vi.mock("sonner", async (importOriginal) => importOriginal());
-
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Track real roots created by the entrypoint so each test can unmount them.
 vi.mock("react-dom/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("react-dom/client")>();
   return {
@@ -30,6 +33,7 @@ vi.mock("react-dom/client", async (importOriginal) => {
   };
 });
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- The entrypoint test observes initial-input delivery; shared UI behavior has its own component tests.
 vi.mock("@unquote/ui", async () => {
   const { Toaster } = await import("sonner");
   return {
@@ -43,12 +47,15 @@ vi.mock("@unquote/ui", async () => {
   };
 });
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Node tests cannot execute the bundled CSS entrypoint.
 vi.mock("@unquote/ui/styles.css", () => ({}));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe initialization ordering at the extension entrypoint.
 vi.mock("@unquote/ui/theme-preference", () => ({
   initializeThemePreference: mocks.initializeThemePreference,
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- jsdom has no extension APIs; the fake exercises browser events and storage behavior.
 vi.mock("wxt/browser", () => ({
   browser: { runtime: { sendMessage: mocks.sendMessage }, i18n: { getMessage: mocks.getMessage } },
 }));

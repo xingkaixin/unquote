@@ -109,10 +109,14 @@ describe("synthetic Agent benchmark fixture", () => {
     expect(sha256(first)).toBe(stressFixtureSha256);
     expectNonSensitiveFixture(first);
 
+    // SAFETY: These lines come from the controlled Codex fixture generator; this test checks the generated output shape.
     const toolOutputs = first
       .trim()
       .split("\n")
-      .map((line) => JSON.parse(line) as { type?: string; payload?: Record<string, unknown> })
+      .map(
+        (line) =>
+          JSON.parse(line) as { type?: string; payload?: { type?: string; output?: string } },
+      )
       .filter(
         ({ type, payload }) => type === "response_item" && payload?.type === "function_call_output",
       )

@@ -45,6 +45,7 @@ const renderPanel = (overrides: Partial<ComponentProps<typeof SourceImportPanel>
 const dropTarget = (container: HTMLElement) =>
   container.querySelector<HTMLElement>("[class*='border-dashed']")!;
 
+// SAFETY: The drop handler reads only these DataTransfer fields; jsdom has no native drag data store.
 const transfer = ({
   files = [],
   items = [],
@@ -53,6 +54,7 @@ const transfer = ({
   files?: File[];
   items?: Array<{ kind: string; getAsFile: () => File | null }>;
   types?: string[];
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- jsdom has no native DataTransfer; the fixture supplies the fields consumed by the drop handler.
 } = {}) => ({ files, items, types, dropEffect: "none" }) as unknown as DataTransfer;
 
 const deferred = <T,>() => {

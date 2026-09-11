@@ -10,6 +10,7 @@ const toastMocks = vi.hoisted(() => ({
   warning: vi.fn(),
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe user notifications and export promises without coupling hook tests to toast rendering.
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 const originalClipboard = navigator.clipboard;

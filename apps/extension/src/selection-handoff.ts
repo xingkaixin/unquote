@@ -18,8 +18,10 @@ interface SelectionHandoff {
 }
 
 export interface HandoffSessionStorage {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Session storage may contain stale or malformed values; isSelectionHandoff validates each entry.
   get(key: string | null): Promise<Record<string, unknown>>;
   remove(key: string | string[]): Promise<void>;
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Session storage may contain stale or malformed values; isSelectionHandoff validates each entry.
   set(items: Record<string, unknown>): Promise<void>;
 }
 
@@ -49,22 +51,26 @@ const isSelectionHandoff = (value: unknown): value is SelectionHandoff => {
     return false;
   }
 
-  const handoff = value as { input?: unknown; expiresAt?: unknown };
   return (
-    typeof handoff.input === "string" &&
-    typeof handoff.expiresAt === "number" &&
-    Number.isFinite(handoff.expiresAt)
+    "input" in value &&
+    typeof value.input === "string" &&
+    "expiresAt" in value &&
+    typeof value.expiresAt === "number" &&
+    Number.isFinite(value.expiresAt)
   );
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the untrusted runtime message before reading the handoff id.
 const getClaimedHandoffId = (message: unknown) => {
   if (!message || typeof message !== "object") {
     return null;
   }
 
-  const payload = message as { type?: unknown; handoffId?: unknown };
-  return payload.type === claimSelectionHandoffMessageType && isHandoffId(payload.handoffId)
-    ? payload.handoffId
+  return "type" in message &&
+    message.type === claimSelectionHandoffMessageType &&
+    "handoffId" in message &&
+    isHandoffId(message.handoffId)
+    ? message.handoffId
     : null;
 };
 
@@ -112,6 +118,7 @@ export const createSelectionHandoffStore = (
 
   const reconcile = async (claimedHandoffId?: string): Promise<ReconcileResult> => {
     const currentTime = now();
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Session storage may contain stale or malformed values; isSelectionHandoff validates each entry.
     let values: Record<string, unknown>;
     try {
       values = await storage.get(null);
@@ -196,6 +203,7 @@ export const createSelectionHandoffStore = (
       return null;
     });
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the untrusted runtime message before reading the handoff id.
   const claim = (message: unknown) => {
     const handoffId = getClaimedHandoffId(message);
     if (!handoffId) {

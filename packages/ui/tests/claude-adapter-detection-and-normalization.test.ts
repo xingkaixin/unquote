@@ -329,8 +329,10 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
   });
 
   it("bounds deeply nested tool input without failing the event", () => {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to recursively nested arrays.
     let input: unknown = "leaf";
     for (let depth = 0; depth < 7_000; depth += 1) {
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to recursively nested arrays.
       input = [input];
     }
     const builder = claudeTranscriptAdapter.createBuilder();

@@ -82,7 +82,7 @@ beforeEach(() => {
     x: 0,
     y: 0,
     toJSON: () => {},
-  } as DOMRect);
+  });
 });
 
 afterEach(() => {
@@ -151,6 +151,6 @@ describe("RecordRail", () => {
 
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    expect((scrollIntoView.mock.instances[0] as HTMLElement).dataset.recordId).toBe("record-4");
+    expect(scrollIntoView.mock.instances[0]).toHaveAttribute("data-record-id", "record-4");
   });
 });

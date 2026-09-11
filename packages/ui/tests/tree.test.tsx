@@ -93,6 +93,7 @@ describe("tree paths", () => {
 
   it("builds and searches deep quoted paths without changing path output", () => {
     const depth = 36;
+    // oxlint-disable-next-line anti-slop/no-known-value-widening -- The deep fixture changes from a primitive to alternating object and array containers.
     let value: unknown = "needle";
     let expectedJsonPath = "$";
 

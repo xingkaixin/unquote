@@ -233,9 +233,9 @@ export const JsonDiffDialog = ({ source, records, activeRecord, onClose }: JsonD
                       <caption className="sr-only">{t("diff.title")}</caption>
                       <thead>
                         <tr>
-                          {["diff.path", "diff.before", "diff.after"].map((key) => (
+                          {(["diff.path", "diff.before", "diff.after"] as const).map((key) => (
                             <th scope="col" className="border-b border-border p-2" key={key}>
-                              {t(key as "diff.path")}
+                              {t(key)}
                             </th>
                           ))}
                         </tr>

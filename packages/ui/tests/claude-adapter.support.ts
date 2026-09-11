@@ -13,6 +13,7 @@ export const conversationItems = (session: AgentSession) =>
 export const trajectoryTurnId = (source: "evidence" | "fallback-index", value: string | number) =>
   JSON.stringify([source, value]);
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapter fixtures exercise raw provider payloads, including malformed fields.
 export const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,

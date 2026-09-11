@@ -16,6 +16,7 @@ const agentTrajectoryWarningKindOrder = {
   "unattached-token-usage": true,
 } as const satisfies Record<AgentTrajectoryWarning["kind"], true>;
 
+// SAFETY: The local ordering literal is checked against the complete warning-kind union.
 export const agentTrajectoryWarningKinds = Object.freeze(
   Object.keys(agentTrajectoryWarningKindOrder) as AgentTrajectoryWarning["kind"][],
 );

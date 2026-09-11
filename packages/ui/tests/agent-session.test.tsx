@@ -4,6 +4,7 @@ import { createAgentSessionModel, createAgentSessionTracker } from "../src/lib/a
 import type { AgentSession, ParsedAgentLine } from "../src/lib/agent-session";
 
 const line = (
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Raw session fixtures include invalid fields and throwing payload getters.
   data: Record<string, unknown>,
   lineNumber = 1,
   recordId = `record-${lineNumber}`,
@@ -62,7 +63,7 @@ describe("createAgentSessionTracker", () => {
     tracker.pushParsedLine({
       lineNumber: 4,
       recordId: "record-4",
-      data: JSON.parse(sessionMeta) as unknown,
+      data: JSON.parse(sessionMeta),
     });
 
     const session = tracker.finish();
@@ -171,6 +172,7 @@ describe("createAgentSessionTracker", () => {
   });
 
   it("keeps the session when one Agent projection fails", () => {
+    // oxlint-disable-next-line anti-slop/no-known-value-widening, anti-slop/no-unsafe-dictionary-type -- The fixture adds a throwing payload getter to verify failure isolation. Raw session fixtures include invalid fields and throwing payload getters.
     const payload: Record<string, unknown> = { type: "function_call_output" };
     Object.defineProperty(payload, "output", {
       enumerable: true,

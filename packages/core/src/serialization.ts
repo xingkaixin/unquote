@@ -412,6 +412,7 @@ export const stringifyJsonNodeBounded = (
 };
 
 /** Throws TypeError for incomplete preview data instead of fabricating values. */
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- Materialized JSON has no application schema; callers must narrow its decoded value.
 export const materializeNode = (node: JsonNode, options: MaterializeOptions = {}): unknown => {
   assertSerializableNode(node);
   if (node.kind === "object" && node.children) {

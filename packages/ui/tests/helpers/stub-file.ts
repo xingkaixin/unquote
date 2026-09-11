@@ -25,6 +25,7 @@ export const createStreamFile = (contents: string, name = "payload.json") => {
   return { file, stream };
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 export const createFailingStreamFile = (error: unknown, name = "payload.json", contents = "") => {
   const file = new File([contents], name, { type: fileType(name) });
   const stream = vi.fn(
@@ -85,6 +86,7 @@ export const createControlledStreamFile = (contents: string, name = "payload.jso
       }
       activeController().close();
     },
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     fail(error: unknown) {
       activeController().error(error);
     },

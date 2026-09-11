@@ -6,7 +6,7 @@ const handoffId = "00000000-0000-4000-8000-000000000001";
 
 describe("options initial input", () => {
   it("claims a valid handoff from the options URL", async () => {
-    const runtime = { sendMessage: vi.fn(async (_message: unknown) => "selected input") };
+    const runtime = { sendMessage: vi.fn(async () => "selected input") };
 
     await expect(claimOptionsInitialInput(`?handoff=${handoffId}`, runtime)).resolves.toBe(
       "selected input",
@@ -20,7 +20,7 @@ describe("options initial input", () => {
   it.each(["", "?other=keep"])(
     "renders empty input without messaging for search %j",
     async (search) => {
-      const runtime = { sendMessage: vi.fn(async (_message: unknown) => "unexpected") };
+      const runtime = { sendMessage: vi.fn(async () => "unexpected") };
 
       await expect(claimOptionsInitialInput(search, runtime)).resolves.toBe("");
       expect(runtime.sendMessage).not.toHaveBeenCalled();
@@ -39,7 +39,7 @@ describe("options initial input", () => {
   it.each(["", undefined, null, 42, { input: "selected input" }])(
     "reports an unavailable runtime response %j",
     async (response) => {
-      const runtime = { sendMessage: vi.fn(async (_message: unknown) => response) };
+      const runtime = { sendMessage: vi.fn(async () => response) };
 
       await expect(claimOptionsInitialInput(`?handoff=${handoffId}`, runtime)).resolves.toBeNull();
     },
@@ -47,7 +47,7 @@ describe("options initial input", () => {
 
   it("reports failure when the runtime claim rejects", async () => {
     const runtime = {
-      sendMessage: vi.fn(async (_message: unknown) => {
+      sendMessage: vi.fn(async () => {
         throw new Error("background unavailable");
       }),
     };

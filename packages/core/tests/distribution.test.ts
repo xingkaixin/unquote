@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import * as core from "../src";
 import * as ingestion from "../src/ingestion";
 
+// SAFETY: The checked-in package manifest supplies these fields; this test validates the published package contract.
 const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
 ) as { private?: boolean; files?: string[]; exports?: unknown };

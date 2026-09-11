@@ -55,6 +55,8 @@ it("hydrates preview records before filtering and rejects a cancelled scan", asy
   const resolveRecords = vi.fn(async () => [full]);
   const source = createStreamingFileSourceRevision(
     1,
+    // SAFETY: This table fixture exercises record resolution only; other LocalFileAccess operations are outside this path.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Only record resolution is exercised through this partial LocalFileAccess fixture.
     { resolveRecords } as unknown as LocalFileAccess,
     "jsonl",
   );
@@ -104,6 +106,8 @@ const localTableSource = (lines: string[]) => {
   return {
     source: createStreamingFileSourceRevision(
       1,
+      // SAFETY: This table fixture exercises record resolution only; other LocalFileAccess operations are outside this path.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Only record resolution is exercised through this partial LocalFileAccess fixture.
       { resolveRecords } as unknown as LocalFileAccess,
       "jsonl",
     ),

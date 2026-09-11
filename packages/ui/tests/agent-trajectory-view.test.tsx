@@ -46,6 +46,7 @@ const itemFor = (id: string, options: ItemOptions = {}): AgentTrajectoryItem => 
   const kind = options.kind ?? "assistant";
   const status = options.status ?? "completed";
 
+  // SAFETY: Each test chooses the item kind and status; this fixture supplies their shared presentation fields.
   return {
     id,
     kind,
@@ -854,7 +855,7 @@ describe("AgentTrajectoryView", () => {
     const items = Array.from({ length: itemCount }, (_, index) =>
       itemFor(`large-${index}`, { timestamp: index }),
     );
-    const turnItems = Array.from({ length: turnCount }, () => [] as AgentTrajectoryItem[]);
+    const turnItems = Array.from({ length: turnCount }, (): AgentTrajectoryItem[] => []);
     for (const [index, item] of items.entries()) {
       turnItems[index % turnCount]!.push(item);
     }
@@ -875,9 +876,7 @@ describe("AgentTrajectoryView", () => {
   });
 
   it("reads only the immutable model projection and never a raw source payload", () => {
-    const model = modelFor([itemFor("immutable", { timestamp: 10 })]) as AgentSessionModel & {
-      rawJsonl?: string;
-    };
+    const model = modelFor([itemFor("immutable", { timestamp: 10 })]);
     Object.defineProperty(model, "rawJsonl", {
       get() {
         throw new Error("The view must not read raw JSONL");

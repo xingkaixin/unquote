@@ -2,6 +2,7 @@ import { createAgentSessionModel, type AgentSession } from "../src/lib/agent-ses
 import type { AgentDetectionSample } from "../src/lib/agent-session/adapter-types";
 import type { ParsedAgentLine } from "../src/lib/agent-session";
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapter fixtures exercise raw provider payloads, including malformed fields.
 export const parsedLine = (data: unknown, lineNumber: number): ParsedAgentLine => ({
   data,
   lineNumber,

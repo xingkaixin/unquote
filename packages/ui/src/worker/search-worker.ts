@@ -93,6 +93,7 @@ const searchFile = ({
 
 // Never include the raw error, input text, or query in the posted message —
 // the worker must not echo user input back through unrelated channels.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 const errorMessage = (error: unknown) => (error instanceof Error ? error.name : "search failed");
 
 const postResult = (request: SearchRequest, result: SearchResultSet | null) => {
@@ -124,6 +125,7 @@ self.onmessage = (event: MessageEvent<SearchRequest>) => {
     .then((result) => {
       postResult(message, result);
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     .catch((error: unknown) => {
       self.postMessage({
         type: "error",

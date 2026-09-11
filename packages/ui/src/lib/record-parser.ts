@@ -39,6 +39,7 @@ export const createRecordParser = (): RecordParser => {
   const pending = new Set<() => void>();
   let disposed = false;
   let busy = false;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason can be any value and must reach the pending rejection unchanged.
   let cancelActive: ((reason: unknown) => void) | null = null;
   let idleTimeoutId: number | null = null;
 
@@ -118,6 +119,7 @@ export const createRecordParser = (): RecordParser => {
         onFailure: () => settle(() => reject(new Error("Full record worker failed"))),
       });
 
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason can be any value and must reach the pending rejection unchanged.
       const cancel = (reason: unknown) => {
         if (run.cancel()) {
           settle(() => reject(reason));

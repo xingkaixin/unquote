@@ -90,6 +90,7 @@ const parseSingleQuotedSegment = (selector: string, start: number) => {
         return null;
       }
 
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- The escape lookup accepts arbitrary input characters and falls back for absent keys.
       const escapeMap: Record<string, string> = {
         "'": "'",
         '"': '"',

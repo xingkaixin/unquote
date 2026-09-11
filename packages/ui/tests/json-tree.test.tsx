@@ -97,7 +97,7 @@ describe("JsonTree", () => {
     fireEvent.keyDown(tree, { key: "ArrowDown" });
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
-    expect((scrollIntoView.mock.instances[0] as HTMLElement).id).toBe(items[1]!.id);
+    expect(scrollIntoView.mock.instances[0]).toHaveAttribute("id", items[1]!.id);
   });
 
   it("expands the focused collapsed item with ArrowRight", () => {

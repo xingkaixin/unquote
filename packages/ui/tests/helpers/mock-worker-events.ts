@@ -19,22 +19,23 @@ export class MockWorkerEvents {
     this.listeners.get(type)?.delete(listener);
   }
 
-  dispatch(type: string, event: unknown) {
+  dispatch(type: string, event: Event) {
     for (const listener of this.listeners.get(type) ?? []) {
-      listener(event as Event);
+      listener(event);
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The platform event helper forwards structured-clone payloads for several worker protocols.
   respond(data: unknown) {
-    this.dispatch("message", { data });
+    this.dispatch("message", new MessageEvent("message", { data }));
   }
 
   fail() {
-    this.dispatch("error", { type: "error" });
+    this.dispatch("error", new Event("error"));
   }
 
   failDeserialization() {
-    this.dispatch("messageerror", { type: "messageerror" });
+    this.dispatch("messageerror", new Event("messageerror"));
   }
 
   clearListeners() {

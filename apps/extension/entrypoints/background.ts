@@ -10,9 +10,9 @@ import {
 
 const OPEN_MENU_ID = "unquote-open-selection";
 
-const handoffStorage = browser.storage.session as unknown as HandoffSessionStorage;
+const handoffStorage: HandoffSessionStorage = browser.storage.session;
 
-const handoffAlarms = browser.alarms as unknown as HandoffAlarms;
+const handoffAlarms: HandoffAlarms = browser.alarms;
 
 const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
 
@@ -65,11 +65,13 @@ export default defineBackground(() => {
     await openOptionsPage(handoffId ?? "failed");
   });
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime messages are untrusted until the message type and handoff id are validated.
   browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (
       !message ||
       typeof message !== "object" ||
-      (message as { type?: unknown }).type !== claimSelectionHandoffMessageType
+      !("type" in message) ||
+      message.type !== claimSelectionHandoffMessageType
     ) {
       return undefined;
     }

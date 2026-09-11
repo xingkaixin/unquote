@@ -237,7 +237,7 @@ describe("agent trajectory presentation: projection", () => {
       }),
       selection: canonicalSelection,
       recordId: canonicalSelection.recordId,
-    } as AgentTrajectoryItem;
+    } satisfies AgentTrajectoryItem;
     const trajectorySelection = {
       kind: "trajectory" as const,
       id: item.id,
@@ -273,11 +273,11 @@ describe("agent trajectory presentation: projection", () => {
     const first = {
       ...modelOutputItemFor("event-3", "assistant"),
       id: "event-3:evidence-0",
-    } as AgentTrajectoryItem;
+    } satisfies AgentTrajectoryItem;
     const second = {
       ...modelOutputItemFor("event-3", "reasoning"),
       id: "event-3:evidence-1",
-    } as AgentTrajectoryItem;
+    } satisfies AgentTrajectoryItem;
     const emptyTurn = turnFor("turn-empty", []);
     const assignedTurn = turnFor("turn-assigned", [first]);
     const model = modelFor([event], [first, second], [emptyTurn, assignedTurn]);
@@ -310,7 +310,7 @@ describe("agent trajectory presentation: projection", () => {
 
   it("keeps every source reference once when malformed items reuse an id", () => {
     const first = assistantItemFor("event-3a");
-    const second = { ...first, lineNumber: 99 } as AgentTrajectoryItem;
+    const second = { ...first, lineNumber: 99 } satisfies AgentTrajectoryItem;
     const presentation = createAgentTrajectoryPresentation(
       modelFor(
         [eventFor("event-3a", "Repeated id", "")],
@@ -327,12 +327,13 @@ describe("agent trajectory presentation: projection", () => {
 
   it("assigns stable safe ordinals before filtering even when raw item ids repeat", () => {
     const opaqueId = `opaque-${"x".repeat(64 * 1024)}`;
-    const first = { ...assistantItemFor("event-3b"), id: opaqueId } as AgentTrajectoryItem;
+    const first = { ...assistantItemFor("event-3b"), id: opaqueId } satisfies AgentTrajectoryItem;
     const second = {
       ...first,
       kind: "reasoning",
+      status: "completed",
       lineNumber: first.lineNumber + 1,
-    } as AgentTrajectoryItem;
+    } satisfies AgentTrajectoryItem;
     const presentation = createAgentTrajectoryPresentation(
       modelFor(
         [eventFor("event-3b", "Repeated opaque id", "")],

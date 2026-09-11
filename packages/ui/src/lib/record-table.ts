@@ -57,6 +57,7 @@ const resolveCellNode = (root: JsonNode, segments: TreePathSegment[]) => {
     if (node.truncated || node.preview) throw new RangeError("table-incomplete");
     if (!hasJsonNodeChildren(node)) return undefined;
     if ((node.kind === "array") !== (segment.kind === "index")) return undefined;
+    // SAFETY: The container and path-segment kinds agree above; hasOwn excludes inherited or missing children.
     node = Object.hasOwn(node.children, segment.value)
       ? (node.children as Record<string, JsonNode>)[segment.value]
       : undefined;

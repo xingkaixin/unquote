@@ -33,6 +33,7 @@ const codexEnvelopeTypes = new Set([
   "compacted",
 ]);
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
 const extractCodexMessageText = (content: unknown) => {
   if (!Array.isArray(content)) {
     return "";
@@ -122,6 +123,7 @@ type NormalizedCodexResponseItem =
     }
   | { type: "unknown"; itemType: string };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
 const parseObjectOutput = (output: unknown): Record<string, unknown> | undefined => {
   if (isRecord(output)) {
     return output;
@@ -131,13 +133,14 @@ const parseObjectOutput = (output: unknown): Record<string, unknown> | undefined
   }
 
   try {
-    const parsed = JSON.parse(output) as unknown;
+    const parsed: unknown = JSON.parse(output);
     return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
 const isNonZeroExitCode = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value !== 0;
 
@@ -295,6 +298,7 @@ const ownString = (record: Record<string, unknown>, key: string) => {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
 const codexDurationSeconds = (duration: unknown) => {
   if (typeof duration === "number") {
     return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
@@ -464,6 +468,7 @@ const codexEventRuleFor = (eventType: string | undefined): CodexEventRule | unde
   if (!eventType || !hasOwn(codexEventRules, eventType)) {
     return undefined;
   }
+  // SAFETY: The own-property check above establishes that eventType belongs to this closed rule table.
   return codexEventRules[eventType as keyof typeof codexEventRules];
 };
 

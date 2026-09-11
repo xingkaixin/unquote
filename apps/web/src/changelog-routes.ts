@@ -6,6 +6,7 @@ export const changelogPaths = {
   ja: "/ja/changelog/",
 } as const satisfies Readonly<Record<Locale, string>>;
 
+// SAFETY: changelogPaths is a closed local literal checked against every Locale above.
 export const changelogLocales: readonly Locale[] = Object.keys(changelogPaths) as Locale[];
 
 export const isChangelogLocale = (value: string): value is Locale =>

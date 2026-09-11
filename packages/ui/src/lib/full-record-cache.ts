@@ -27,6 +27,7 @@ const estimateRecordBytes = (record: JsonlRecord) => {
         if (!Object.hasOwn(value, key)) continue;
         bytes += 32 + key.length * 2;
         if (bytes > fullRecordCacheBytesLimit) return fullRecordCacheBytesLimit + 1;
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object branch enumerates only own JSON fields; each value is classified on the next iteration.
         pending.push((value as Record<string, unknown>)[key]);
       }
     } else {

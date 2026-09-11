@@ -78,11 +78,11 @@ export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis
       // Offset geometry stays in layout coordinates while the popup scales in.
       let left = active.offsetLeft;
       let top = active.offsetTop;
-      let parent = active.offsetParent as HTMLElement | null;
-      while (parent && parent !== container && container.contains(parent)) {
+      let parent = active.offsetParent;
+      while (parent instanceof HTMLElement && parent !== container && container.contains(parent)) {
         left += parent.offsetLeft + parent.clientLeft;
         top += parent.offsetTop + parent.clientTop;
-        parent = parent.offsetParent as HTMLElement | null;
+        parent = parent.offsetParent;
       }
       const target = {
         transform: `translate(${left}px, ${top}px)`,

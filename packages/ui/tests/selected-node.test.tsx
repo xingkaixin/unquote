@@ -113,6 +113,7 @@ describe("projectSelectedNode", () => {
         if (typeof property === "string" && /^\d+$/.test(property)) {
           reads += 1;
         }
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
         return Reflect.get(target, property, receiver);
       },
     });

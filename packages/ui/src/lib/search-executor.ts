@@ -150,6 +150,7 @@ export const createSearchExecutor = (): SearchExecutor => {
                 complete(result);
               }
             })
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
             .catch((error: unknown) => {
               finishRequestMeasure();
               if (!fallbackController?.signal.aborted && workerRun.finish()) {

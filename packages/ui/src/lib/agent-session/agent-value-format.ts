@@ -127,9 +127,11 @@ function* ownEnumerableKeys(value: Record<string, unknown>): Generator<string> {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The formatter bounds and validates arbitrary agent payloads, including unsupported values.
 const isUnsupportedValue = (value: unknown) =>
   value === undefined || typeof value === "function" || typeof value === "symbol";
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The formatter bounds and validates arbitrary agent payloads, including unsupported values.
 const writePrimitive = (writer: Writer, value: unknown) => {
   if (typeof value === "string") {
     writeJsonString(writer, value);
@@ -156,6 +158,7 @@ const containerPrefix = (depth: number, hasEntries: boolean) =>
 const containerSuffix = (depth: number, hasEntries: boolean) =>
   hasEntries ? `\n${"  ".repeat(depth)}` : "";
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The formatter bounds and validates arbitrary agent payloads, including unsupported values.
 const serializeBounded = (value: unknown, limit: number) => {
   const writer = createWriter(limit);
   const activeContainers = new Set<ContainerValue>();
@@ -183,6 +186,7 @@ const serializeBounded = (value: unknown, limit: number) => {
         writer.append("null");
         continue;
       }
+      // SAFETY: The guard above excludes null and primitives; only object identity is used for cycle detection.
       const container = frame.value as ContainerValue;
       if (frame.depth >= DEFAULT_MAX_DEPTH || activeContainers.has(container)) {
         writer.truncate();
@@ -210,7 +214,9 @@ const serializeBounded = (value: unknown, limit: number) => {
         writer.append("{");
         stack.push({
           type: "object",
+          // SAFETY: This branch is a non-null, non-array object; each raw property is inspected during traversal.
           value: frame.value as Record<string, unknown>,
+          // SAFETY: Only own enumerable keys are collected from the non-null, non-array object checked above.
           keys: ownEnumerableKeys(frame.value as Record<string, unknown>),
           hasEntries: false,
           depth: frame.depth,
@@ -258,6 +264,7 @@ const serializeBounded = (value: unknown, limit: number) => {
     try {
       item = frame.value[nextKey.value];
     } catch {
+      // oxlint-disable-next-line anti-slop/no-known-value-widening -- A failing raw getter is replaced by a printable fallback in the same traversal slot.
       item = "[unavailable]";
     }
     stack.push(frame);
@@ -283,6 +290,7 @@ export const truncatePreview = (value: string) =>
 
 export const truncateBlockText = (value: string) => truncateText(value, blockTextLimit);
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The formatter bounds and validates arbitrary agent payloads, including unsupported values.
 export const formatAgentBlockValue = (value: unknown) => {
   if (typeof value === "string") {
     return truncateBlockText(value);
@@ -293,6 +301,7 @@ export const formatAgentBlockValue = (value: unknown) => {
   return serializeBounded(value, blockTextLimit);
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The formatter bounds and validates arbitrary agent payloads, including unsupported values.
 export const formatAgentPreviewValue = (value: unknown) =>
   truncatePreview(formatAgentBlockValue(value));
 

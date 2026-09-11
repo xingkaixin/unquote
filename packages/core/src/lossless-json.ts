@@ -15,9 +15,12 @@ interface JsonParseContext {
 
 type ContextualJsonParse = (
   input: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns -- JSON decoding and materialization carry arbitrary values until each kind is inspected. The JSON.parse reviver contract permits arbitrary input and replacement values.
   reviver: (key: string, value: unknown, context?: JsonParseContext) => unknown,
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- The JSON.parse reviver contract permits arbitrary input and replacement values.
 ) => unknown;
 
+// SAFETY: The optional third reviver argument is runtime-probed below; ES2022 typings omit its source context.
 const contextualJsonParse: ContextualJsonParse = (input, reviver) =>
   (JSON.parse as ContextualJsonParse)(input, reviver);
 
@@ -40,6 +43,7 @@ const escapedCharacter = (value: string, index: number) => {
     };
   }
 
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The escape lookup accepts arbitrary input characters and falls back for absent keys.
   const characters: Record<string, string> = {
     '"': '"',
     "\\": "\\",
@@ -188,6 +192,7 @@ const replaceNumbers = (input: string, marker: string) => {
   return parts.join("");
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
 const primitiveValue = (value: unknown, marker: string): LosslessJsonValue => {
   if (typeof value === "string" && value.startsWith(marker)) {
     return { type: "number", rawValue: value.slice(marker.length) };
@@ -198,6 +203,7 @@ const primitiveValue = (value: unknown, marker: string): LosslessJsonValue => {
   throw new TypeError(`Unsupported parsed JSON value: ${typeof value}`);
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
 const toLosslessValue = (root: unknown, marker: string): LosslessJsonValue => {
   if (root === null || typeof root !== "object") {
     return primitiveValue(root, marker);
@@ -247,9 +253,11 @@ export const parseLosslessJsonFallback = (input: string): LosslessJsonValue => {
   JSON.parse(input);
   const marker = chooseNumberMarker(input);
   const transformed = replaceNumbers(input, marker);
-  return toLosslessValue(JSON.parse(transformed) as unknown, marker);
+  const parsed: unknown = JSON.parse(transformed);
+  return toLosslessValue(parsed, marker);
 };
 
+// SAFETY: JSON.parse visits children before parents; every reviver branch returns a LosslessJsonValue.
 const parseWithSourceContext = (input: string) =>
   contextualJsonParse(input, (_key, value, context): LosslessJsonValue => {
     if (typeof value === "number") {
@@ -259,11 +267,14 @@ const parseWithSourceContext = (input: string) =>
       return { type: "number", rawValue: context.source };
     }
     if (Array.isArray(value)) {
+      // SAFETY: The bottom-up reviver has already converted every array item to a LosslessJsonValue.
       return { type: "array", items: value as LosslessJsonValue[] };
     }
     if (value !== null && typeof value === "object") {
+      // SAFETY: The bottom-up reviver has already converted every own object property to a LosslessJsonValue.
       return { type: "object", entries: value as Record<string, LosslessJsonValue> };
     }
+    // SAFETY: Valid JSON has only strings, booleans, and null after numbers and containers were handled above.
     return value as string | boolean | null;
   }) as LosslessJsonValue;
 
@@ -360,6 +371,7 @@ export const materializeJsonNumber = (rawValue: string, options: MaterializeOpti
 const defineValue = (
   target: Record<string, unknown> | unknown[],
   key: string | number,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
   value: unknown,
 ) => {
   Object.defineProperty(target, key, {
@@ -373,6 +385,7 @@ const defineValue = (
 export const materializeLosslessValue = (
   root: LosslessJsonValue,
   options: MaterializeOptions = {},
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Materialized JSON has no application schema; callers must narrow its decoded value.
 ): unknown => {
   let output: unknown;
   const pending: Array<{
@@ -383,6 +396,7 @@ export const materializeLosslessValue = (
 
   while (pending.length > 0) {
     const { source, target, key } = pending.pop()!;
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
     const assign = (value: unknown) => {
       if (target) {
         defineValue(target, key, value);

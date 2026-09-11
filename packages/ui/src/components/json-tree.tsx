@@ -477,7 +477,7 @@ const RowItem = memo(function RowItem({
         }
 
         onActivate(row.id);
-        if ((event.target as Element).closest("[data-tree-toggle]")) {
+        if (event.target instanceof Element && event.target.closest("[data-tree-toggle]")) {
           onTogglePath(row);
           return;
         }

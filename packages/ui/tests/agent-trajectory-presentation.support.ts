@@ -11,7 +11,9 @@ import {
   type AgentTrajectoryWarning,
 } from "../src/lib/agent-session";
 
+// SAFETY: The test runtime is Node 24, which has isWellFormed; the shared ES2022 library typings do not.
 export const isWellFormed = (value: string) =>
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Node 24 provides isWellFormed, which the shared ES2022 library typings omit.
   (String.prototype as unknown as { isWellFormed: (this: string) => boolean }).isWellFormed.call(
     value,
   );
@@ -48,6 +50,7 @@ export const modelOutputItemFor = (
   timestamp?: number,
 ): AgentTrajectoryItem => {
   const status: AgentTrajectoryStatus = kind === "subagent" ? "running" : "completed";
+  // SAFETY: This helper emits running subagents and completed model outputs; TypeScript loses that kind/status correlation.
   return {
     id: `item-${id}`,
     kind,

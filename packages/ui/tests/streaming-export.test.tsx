@@ -12,10 +12,14 @@ const toastMocks = vi.hoisted(() => ({
   warning: vi.fn(),
 }));
 
-const exportMocks = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
+const exportMocks = vi.hoisted(() => ({
+  downloadBlob: vi.fn<typeof import("../src/lib/record-export").downloadBlob>(),
+}));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe user notifications and export promises without coupling hook tests to toast rendering.
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Keep real serialization while capturing the browser download side effect.
 vi.mock("../src/lib/record-export", async () => ({
   ...(await vi.importActual<typeof import("../src/lib/record-export")>("../src/lib/record-export")),
   downloadBlob: exportMocks.downloadBlob,
@@ -41,7 +45,7 @@ const fullRecords = (lines: string[]) =>
   parseInput(lines.join("\n"), { forcedFormat: "jsonl" }).records;
 
 const downloadedText = () => {
-  const parts = exportMocks.downloadBlob.mock.calls.at(-1)?.[0] as BlobPart[];
+  const parts = exportMocks.downloadBlob.mock.calls.at(-1)![0];
   return parts.join("");
 };
 
@@ -206,7 +210,8 @@ describe("streaming export", () => {
       result.current.onExportJsonl();
       await Promise.resolve();
     });
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
 
     // The reader is still waiting on its first chunk; aborting cancels it, so
@@ -220,7 +225,7 @@ describe("streaming export", () => {
     expect(stream.file.name).toBe("slow.jsonl");
 
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
-    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(settled).toHaveProperty("name", "AbortError");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -238,14 +243,15 @@ describe("streaming export", () => {
       await Promise.resolve();
     });
     let settled: unknown;
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
 
     rerender({ sourceRevision: 1 });
     await act(async () => vi.runAllTimersAsync());
 
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
-    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(settled).toHaveProperty("name", "AbortError");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -274,14 +280,15 @@ describe("streaming export", () => {
       await Promise.resolve();
     });
     let settled: unknown;
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
 
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
     rerender({ sourceRevision: 1 });
     await act(async () => vi.runAllTimersAsync());
 
-    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(settled).toHaveProperty("name", "AbortError");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -310,7 +317,8 @@ describe("streaming export", () => {
 
     result.current.onExportJsonl();
     let settled: unknown;
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
     rerender({ sourceRevision: 1 });
     await act(async () => {
@@ -321,7 +329,7 @@ describe("streaming export", () => {
 
     expect(serialized).toBe(false);
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
-    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(settled).toHaveProperty("name", "AbortError");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -339,14 +347,15 @@ describe("streaming export", () => {
       await Promise.resolve();
     });
     let settled: unknown;
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
 
     unmount();
     await act(async () => vi.runAllTimersAsync());
 
     expect(exportMocks.downloadBlob).not.toHaveBeenCalled();
-    expect((settled as Error | undefined)?.name).toBe("AbortError");
+    expect(settled).toHaveProperty("name", "AbortError");
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
@@ -358,7 +367,7 @@ describe("streaming export", () => {
     });
 
     result.current.onExportJsonl();
-    const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+    const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
     await act(async () => {
       await pending?.catch(() => undefined);
     });
@@ -398,7 +407,7 @@ describe("streaming export", () => {
     });
     await act(async () => {
       result.current.onExportJsonl();
-      const pending = toastMocks.promise.mock.calls.at(-1)?.[0] as Promise<unknown> | undefined;
+      const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
       await pending;
     });
 

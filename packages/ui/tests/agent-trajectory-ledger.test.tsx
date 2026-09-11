@@ -23,20 +23,25 @@ const scrollToIndex = vi.fn();
 
 let containerScrolls: number[] = [];
 
-let latestGetItemKey: ((index: number) => unknown) | undefined;
+let latestGetItemKey: Parameters<
+  typeof import("@tanstack/react-virtual").useVirtualizer
+>[0]["getItemKey"];
 
 let latestEstimateSize: ((index: number) => number) | undefined;
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Keep the real virtualizer and intercept scrollToIndex because jsdom has no layout scrolling.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
   return {
     ...actual,
+    // SAFETY: The wrapper passes options unchanged to the real generic hook and only intercepts scrolling.
     useVirtualizer: ((options: Parameters<typeof actual.useVirtualizer>[0]) => {
       latestGetItemKey = options.getItemKey;
       latestEstimateSize = options.estimateSize;
       const virtualizer = actual.useVirtualizer(options);
       return new Proxy(virtualizer, {
         get: (target, property, receiver) =>
+          // oxlint-disable-next-line anti-slop/no-reflect-get -- Forward Proxy property access with the original receiver so getters preserve their semantics.
           property === "scrollToIndex" ? scrollToIndex : Reflect.get(target, property, receiver),
       });
     }) as typeof actual.useVirtualizer,
@@ -73,6 +78,7 @@ const itemFor = (id: string, options: ItemOptions = {}): AgentTrajectoryItem => 
   const kind = options.kind ?? "assistant";
   const status = options.status ?? "completed";
 
+  // SAFETY: Each test chooses the item kind and status; this fixture supplies their shared presentation fields.
   return {
     id,
     kind,
@@ -242,7 +248,7 @@ beforeEach(() => {
       x: 0,
       y: 0,
       toJSON: () => {},
-    } as DOMRect;
+    };
   });
 });
 

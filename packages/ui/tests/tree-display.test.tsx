@@ -20,6 +20,7 @@ const nodeSource: Record<JsonNode["kind"], string> = {
   null: "null",
 };
 
+// SAFETY: The parser supplies the node structure; explicit fixture overrides exercise display edge cases.
 const makeNode = (kind: JsonNode["kind"], overrides: Partial<JsonNode> = {}): JsonNode =>
   ({
     ...parseInput(nodeSource[kind], { forcedFormat: "json" }).records[0]!.node!,

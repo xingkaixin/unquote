@@ -147,6 +147,7 @@ export const useLocalFileSource = (
             return { sourceRevision: scope.sourceRevision, recordsByLine: next };
           });
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
         .catch((error: unknown) => {
           if (fullRecordScopeRef.current === scope && !scope.controller.signal.aborted) {
             reportDiagnostic("source.full-record", error);

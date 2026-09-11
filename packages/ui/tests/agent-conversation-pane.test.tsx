@@ -154,7 +154,7 @@ beforeEach(() => {
     x: 0,
     y: containerTop,
     toJSON: () => {},
-  } as DOMRect);
+  });
 });
 
 afterEach(() => {

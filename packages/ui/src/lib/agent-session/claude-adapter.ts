@@ -322,6 +322,7 @@ const claudeTurnDurationMs = (record: Record<string, unknown>) => {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Claude model field before producing a model label.
 const parseClaudeModel = (raw: unknown) => {
   if (!isRecord(raw) || !isRecord(raw.message)) {
     return undefined;

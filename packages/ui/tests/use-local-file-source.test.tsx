@@ -11,6 +11,7 @@ const toastMocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
+// oxlint-disable-next-line anti-slop/no-module-mocking -- Observe user notifications and export promises without coupling hook tests to toast rendering.
 vi.mock("sonner", () => ({ toast: toastMocks }));
 
 const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
@@ -100,6 +101,7 @@ const makeFailingFile = (name = "payload.jsonl") => {
 interface ControlledRead {
   delivered: boolean;
   resolve?: (result: ReadableStreamReadResult<Uint8Array>) => void;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
   reject?: (error: unknown) => void;
   cancel: ReturnType<typeof vi.fn>;
 }
@@ -140,6 +142,7 @@ const makeControlledFile = (contents: string, name: string) => {
       state.delivered = true;
       state.resolve?.({ done: false, value: new TextEncoder().encode(contents) });
     },
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     reject(error: unknown, index = 0) {
       reads[index]!.reject?.(error);
     },
@@ -168,9 +171,10 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
+      ({ file, sourceRevision }: { file: File | null; sourceRevision: number }) =>
+        useLocalFileSource(accessFor(file), sourceRevision),
       {
-        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        initialProps: { file: sourceA.file, sourceRevision: 0 },
         wrapper,
       },
     );
@@ -198,8 +202,9 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
-      { initialProps: { file: sourceA.file as File, sourceRevision: 0 }, wrapper },
+      ({ file, sourceRevision }: { file: File | null; sourceRevision: number }) =>
+        useLocalFileSource(accessFor(file), sourceRevision),
+      { initialProps: { file: sourceA.file, sourceRevision: 0 }, wrapper },
     );
 
     act(() => result.current.requestFullRecord(makePreviewRecord(1)));
@@ -214,9 +219,10 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"source":"A"}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"source":"B"}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
+      ({ file, sourceRevision }: { file: File | null; sourceRevision: number }) =>
+        useLocalFileSource(accessFor(file), sourceRevision),
       {
-        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        initialProps: { file: sourceA.file, sourceRevision: 0 },
         wrapper,
       },
     );
@@ -241,8 +247,9 @@ describe("useLocalFileSource", () => {
     const fileB = makeStreamedFile('{"b":2}\n');
 
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
-      { initialProps: { file: fileA as File | null, sourceRevision: 0 }, wrapper },
+      ({ file, sourceRevision }: { file: File | null; sourceRevision: number }) =>
+        useLocalFileSource(accessFor(file), sourceRevision),
+      { initialProps: { file: fileA, sourceRevision: 0 }, wrapper },
     );
 
     act(() => {
@@ -250,7 +257,7 @@ describe("useLocalFileSource", () => {
     });
     await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(true));
 
-    rerender({ file: fileB as File | null, sourceRevision: 1 });
+    rerender({ file: fileB, sourceRevision: 1 });
     await waitFor(() => expect(isFullRecordResolved(result.current, 1)).toBe(false));
   });
 
@@ -350,9 +357,10 @@ describe("useLocalFileSource", () => {
     const sourceA = makeControlledFile('{"n":1}\n{"n":2}\n', "a.jsonl");
     const sourceB = makeControlledFile('{"n":9}\n', "b.jsonl");
     const { result, rerender } = renderHook(
-      ({ file, sourceRevision }) => useLocalFileSource(accessFor(file), sourceRevision),
+      ({ file, sourceRevision }: { file: File | null; sourceRevision: number }) =>
+        useLocalFileSource(accessFor(file), sourceRevision),
       {
-        initialProps: { file: sourceA.file as File, sourceRevision: 0 },
+        initialProps: { file: sourceA.file, sourceRevision: 0 },
         wrapper,
       },
     );

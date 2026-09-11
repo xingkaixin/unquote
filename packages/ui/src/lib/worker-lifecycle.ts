@@ -10,6 +10,7 @@ const spawnWorker = (construct: () => Worker): Worker | null => {
 };
 
 interface WorkerRequest {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The runner forwards structured-clone payloads shared by parser and search protocols.
   post: (message: unknown) => boolean;
   finish: () => boolean;
   terminate: () => boolean;
@@ -20,6 +21,7 @@ export interface WorkerRun {
   requestId: number;
   available: boolean;
   isActive: () => boolean;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The runner forwards structured-clone payloads shared by parser and search protocols.
   post: (message: unknown) => boolean;
   finish: () => boolean;
   cancel: () => boolean;
@@ -52,7 +54,7 @@ const createWorkerRequest = <Response>(
   let timeoutId: number | null = null;
 
   const removeListeners = () => {
-    worker.removeEventListener("message", onMessage as EventListener);
+    worker.removeEventListener("message", onMessage);
     worker.removeEventListener("error", fail);
     worker.removeEventListener("messageerror", fail);
   };
@@ -81,6 +83,7 @@ const createWorkerRequest = <Response>(
     return true;
   };
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
   function fail(error?: unknown) {
     if (terminate()) {
       reportDiagnostic("worker.request", error);
@@ -115,7 +118,7 @@ const createWorkerRequest = <Response>(
     },
   };
 
-  worker.addEventListener("message", onMessage as EventListener);
+  worker.addEventListener("message", onMessage);
   worker.addEventListener("error", fail);
   worker.addEventListener("messageerror", fail);
   return request;

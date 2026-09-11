@@ -1,13 +1,14 @@
+import type { ConfigEnv } from "wxt";
 import { describe, expect, it } from "vitest";
 import { createExtensionManifest } from "../src/distribution";
 import baseConfig from "../wxt.config";
 import devConfig from "../wxt.dev.config";
 import safariConfig from "../wxt.safari.config";
 
-const manifestFor = (config: typeof baseConfig, browser: string) => {
+const manifestFor = (config: typeof baseConfig, browser: ConfigEnv["browser"]) => {
   const { manifest } = config;
   return typeof manifest === "function"
-    ? manifest({ browser, manifestVersion: 3, mode: "production", command: "build" } as never)
+    ? manifest({ browser, manifestVersion: 3, mode: "production", command: "build" })
     : manifest;
 };
 

@@ -119,6 +119,7 @@ const postSessionComplete = (requestId: number, session: JsonlSession) => {
   } satisfies ParserWorkerResponse);
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 const postRequestError = (requestId: number, session: JsonlSession | null, error: unknown) => {
   self.postMessage({
     type: "error",

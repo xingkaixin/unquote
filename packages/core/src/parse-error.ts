@@ -18,6 +18,7 @@ const contextLineLength = 160;
 
 const contextLineRadius = 80;
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
 export const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown parse error";
 
@@ -175,6 +176,7 @@ const getErrorContext = (input: string, location: SourceLocation, lineOffset: nu
 
 export const getParseErrorMeta = (
   input: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
   error: unknown,
   lineOffset = 0,
 ): ParseErrorMeta => {

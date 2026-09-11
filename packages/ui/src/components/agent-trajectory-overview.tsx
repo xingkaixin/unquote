@@ -97,16 +97,19 @@ const chartDefinitions = {
   error: { strokeClass: "stroke-error", fillClass: "bg-error" },
 } satisfies Record<ChartColorKey, ChartVisualDefinition>;
 
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const laneEntries = Object.entries(laneDefinitions) as [
   AgentTrajectoryLane,
   (typeof laneDefinitions)[AgentTrajectoryLane],
 ][];
 
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const itemChartEntries = Object.entries(itemChartDefinitions) as [
   AgentTrajectoryItemKind,
   ChartVisualDefinition,
 ][];
 
+// SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const chartEntries = Object.entries(chartDefinitions) as [ChartColorKey, ChartVisualDefinition][];
 
 const colorKeysForLane = (lane: AgentTrajectoryLane): readonly ChartColorKey[] => {
