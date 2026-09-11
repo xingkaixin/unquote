@@ -7,6 +7,20 @@
     "**/.wxt/**",
     "**/.turbo/**",
     "**/coverage/**",
-    "**/*.xcassets/**"
+    "**/*.xcassets/**",
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".delta/**",
+    ".design/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "tools/oxlint/anti-slop/**"
   ]
 }
