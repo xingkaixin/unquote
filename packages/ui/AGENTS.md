@@ -22,6 +22,10 @@ presentation used by the web and extension apps. Its public entry points are def
   line should not be parsed again to build another view.
 - `lib/json-walk.ts` is the shared `JsonNode` traversal for tree rendering, search, overview, and
   Record insight.
+- `lib/json-diff.ts` owns structural comparison and bounded difference previews.
+- `lib/record-table.ts` owns field projection, filtering, and CSV output; `lib/field-profile.ts`
+  accumulates field observations during that same scan.
+- `lib/record-report.ts` owns source-line selection, path redaction, and problem excerpt output.
 
 ## Agent and Trajectory Sessions
 
@@ -46,6 +50,8 @@ presentation used by the web and extension apps. Its public entry points are def
 - Resolve a Preview Record to a Full Record before scrolling to or copying data that is outside
   the available preview.
 - Keep large-file search and hydration cancellable. Results from superseded work must not publish.
+- `lib/full-record-cache.ts` owns retained local-record cache admission and eviction; budgets
+  and the single oversized-record exception are defined there.
 
 ## UI Conventions
 
