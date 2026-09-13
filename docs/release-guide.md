@@ -51,6 +51,9 @@ git show --name-only --format='' "$PREV_TAG"..HEAD | sort -u
 - `apps/web/package.json`
 - `apps/extension/package.json`
 
+同时同步 `apps/safari/Unquote.xcodeproj/project.pbxproj` 中的 `MARKETING_VERSION`，
+保持宿主应用与扩展版本一致。`CURRENT_PROJECT_VERSION` 留给 App Store 发布时递增。
+
 `packages/core/package.json` 和 `packages/ui/package.json` 是仓库内部包（`private: true`），不发布到任何 registry，其 `version` 只用于 workspace 解析，因此不跟随应用版本。分发决策见 `docs/core-distribution.md`。
 
 检查遗漏：
@@ -65,6 +68,8 @@ rg -n "$PREV_VERSION|$VERSION|version" package.json apps packages -g 'package.js
 
 - `CHANGELOG.md`
 - `CHANGELOG_zh-CN.md`
+- `apps/web/src/changelog-page.ts` 中英文、简体中文与日文的产品更新条目
+- `CHROMEWEBSTORE.md` 的更新日期、版本记录，以及本次发布涉及的功能与隐私说明
 
 要求：
 
@@ -127,6 +132,9 @@ pnpm benchmark
 
 ## 8. Safari 渠道
 
+Safari 目前为实验渠道；仅在明确发布或验证 Safari 时执行本节。常规版本准备同步营销版本，
+不执行本地 Safari 打包、签名或上传。此范围与根目录 `AGENTS.md` 保持一致。
+
 Safari 扩展与 Chrome 扩展是同一套代码，通过 `apps/safari` 的 macOS 宿主应用分发。
 除签名与上传外，发布前的准备都可以从干净 checkout 重现：
 
@@ -181,5 +189,6 @@ xcodebuild -project "apps/safari/Unquote.xcodeproj" -scheme Unquote -configurati
 - README 没有夸大未完成能力
 - AGENTS 没有保留已移除 UI 行为
 - 目标版本号只更新了应更新的 package
-- 若本次包含扩展改动，`pnpm build:safari` 已执行且 Xcode 项目无残留 diff
+- 三语产品更新页与商店说明包含当前版本，历史发布内容保持不变
+- 若本次明确包含 Safari 发布或验证，`pnpm build:safari` 已执行且 Xcode 项目无残留 diff
 - 校验命令结果或未运行原因已记录

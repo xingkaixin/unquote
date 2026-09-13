@@ -5,6 +5,31 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.3] - 2026-09-13
+
+### Added
+
+- Added local structured JSON comparison from pasted text, files, or source records, with expanded stringified values, path-based differences, and ignored fields.
+- Added record tables with nested-field columns, combined filters across records, source line numbers, and CSV export.
+- Added field profiles for presence, missing values, nulls, empty strings, and type distributions, with counts that filter the matching records.
+- Added problem excerpt reports: select source lines, redact specified paths, preview the result, and download Markdown or JSONL.
+
+### Changed
+
+- Menus and output tabs now provide smooth hover feedback while preserving keyboard navigation and reduced-motion behavior.
+- Fonts are bundled locally, and versioned web assets use long-lived caching to reduce external font requests and repeated downloads.
+- Updated UI and build dependencies, adopted pnpm 12 and stricter maintenance checks, and retained React 19.2 within the existing JavaScript bundle budgets.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.3`.
+
+### Fixed
+
+- Failed browser-extension selection imports now explain how to recover; consumed import parameters are cleared so refreshing the page does not repeat the warning.
+- Copying, exporting, and revisiting large local records retain less memory and keep browser input responsive through bounded reads, background parsing, and limited record caching.
+- Record tables reduce oversized read batches and filter records before formatting cells, so excluded large values no longer block matching results.
+- Problem excerpt reports process local records one at a time and yield during redaction, reducing peak memory and long pauses.
+- Invalid JSONL lines retain bounded error previews, while copy and export require the complete source text to avoid silently producing truncated output.
+- Long JSON comparison values now show context around the first changed character, exposing differences beyond the initial preview.
+
 ## [1.2.2] - 2026-09-05
 
 ### Added
