@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Unquote
 
-Last Updated: 2026-09-06
+Last Updated: 2026-09-13
 
 This document records repository-derived listing information. Dashboard-only fields below
 must be confirmed before a store submission; this change does not submit a release.
@@ -16,6 +16,10 @@ must be confirmed before a store submission; this change does not submit a relea
 Expand escaped JSON and browse JSONL files on your device. Search records, inspect nested
 values, copy data, and export formatted results. Recognized agent logs provide conversation
 and trajectory views.
+
+Compare JSON by path, build filtered record tables, inspect field presence and types, and
+export matching rows as CSV. Select source lines and redact specified fields before
+downloading problem excerpts as Markdown or JSONL.
 
 Open Unquote from the toolbar or keyboard shortcut, then paste text or open a local file.
 You can also select text on a page and choose Open in Unquote from the context menu. If the
@@ -34,7 +38,8 @@ selection cannot be imported, Unquote explains how to paste it manually or open 
 | Store icon | 128×128 PNG | Present | apps/extension/public/icon128.png |
 | Store screenshots | 1280×800 or 640×400 | Confirm existing dashboard assets | Not tracked here |
 
-Screenshot refresh: capture the selection-import recovery message if documenting this change.
+Screenshot refresh: capture JSON comparison, record tables with field profiles, redacted
+report previews, and selection-import recovery messages for the 1.2.3 listing.
 
 ## Permissions Justification
 
@@ -54,8 +59,7 @@ claimed, and scheduled for cleanup after five minutes if unclaimed. Theme and la
 preferences are stored locally. No JSON upload or analytics code was found in the reviewed
 extension and shared UI sources.
 
-The shared stylesheet references Google Fonts, which can cause external font requests;
-therefore the listing must not claim that the extension makes no network requests.
+Fonts are bundled with the extension. The shared stylesheet no longer requests Google Fonts.
 
 This change puts only a handoff identifier or failure marker in the viewer URL, never the
 selected text, and removes that parameter after processing. Failure messages contain no
@@ -79,6 +83,7 @@ selected text. Data is not sold, used for unrelated purposes, or used for lendin
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
+| 1.2.3 | 2026-09-13 | Add JSON comparison, filtered tables and CSV export, field profiles, and redacted problem reports; improve large-record copy/export, selection-import recovery, and hover feedback; bundle fonts locally. | Prepared; not submitted |
 | Unreleased (after repository version 1.2.2) | 2026-09-06 | Explain failed selection imports and clear consumed import parameters to avoid repeat warnings on refresh. | Draft |
 
 ## Review Notes

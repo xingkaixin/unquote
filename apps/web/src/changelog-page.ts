@@ -89,6 +89,20 @@ const changelogCopy = {
     versionPrefix: "Version",
     releases: [
       {
+        version: "1.2.3",
+        date: "2026-09-13",
+        dateLabel: "September 13, 2026",
+        title: "Compare JSON, inspect fields, and export redacted reports",
+        summary:
+          "New local analysis tools help compare values, filter records, inspect field quality, and prepare problem excerpts. Large-file copy and export use less memory and keep the page responsive.",
+        highlights: [
+          "Compare pasted JSON, files, or source records by path, ignore selected fields, and see context around changes in long values.",
+          "Build record tables from nested fields, filter by values or field profiles, and export matching rows as CSV with source line numbers.",
+          "Select source lines, redact specified paths, preview a problem excerpt, and download Markdown or JSONL.",
+          "Large-record operations use less memory, failed selection imports offer recovery guidance, and bundled fonts reduce external requests.",
+        ],
+      },
+      {
         version: "1.2.2",
         date: "2026-09-05",
         dateLabel: "September 5, 2026",
@@ -214,6 +228,20 @@ const changelogCopy = {
     latestSummary: "更新说明只关注用户可以感知的变化，不罗列背后的实现细节。",
     versionPrefix: "版本",
     releases: [
+      {
+        version: "1.2.3",
+        date: "2026-09-13",
+        dateLabel: "2026 年 9 月 13 日",
+        title: "比较 JSON、检查字段并导出脱敏报告",
+        summary:
+          "新增本地分析工具，支持比较数据、筛选记录、检查字段质量和整理问题片段。大文件复制与导出减少内存占用，并保持页面响应。",
+        highlights: [
+          "按路径比较粘贴的 JSON、文件或源记录，忽略指定字段，并查看长值变化附近的上下文。",
+          "将嵌套字段组成记录表格，按值或字段体检结果筛选，并导出带源行号的 CSV。",
+          "选择源行号、按指定路径脱敏，预览问题片段并下载 Markdown 或 JSONL。",
+          "大型记录操作减少内存占用，选中文本导入失败时提供恢复指引，本地字体减少外部请求。",
+        ],
+      },
       {
         version: "1.2.2",
         date: "2026-09-05",
@@ -344,6 +372,20 @@ const changelogCopy = {
     latestSummary: "実装の詳細ではなく、ユーザーが実感できる変化を中心にまとめています。",
     versionPrefix: "バージョン",
     releases: [
+      {
+        version: "1.2.3",
+        date: "2026-09-13",
+        dateLabel: "2026年9月13日",
+        title: "JSON の比較、フィールドの確認、マスキング済みレポートの出力",
+        summary:
+          "新しいローカル分析ツールで、値の比較、レコードの絞り込み、フィールド品質の確認、問題箇所の抜粋を行えます。大きなファイルのコピーとエクスポートもメモリ使用量を抑え、画面の応答性を保ちます。",
+        highlights: [
+          "貼り付けた JSON、ファイル、元のレコードをパス単位で比較し、指定フィールドを除外して、長い値の変更箇所の前後も確認できます。",
+          "ネストしたフィールドからテーブルを作り、値やフィールドの集計結果で絞り込み、元の行番号付き CSV として出力できます。",
+          "元の行を選び、指定パスの値をマスキングして問題箇所をプレビューし、Markdown または JSONL をダウンロードできます。",
+          "大きなレコードのメモリ使用量を削減し、選択テキストのインポート失敗時には対処方法を案内します。同梱フォントで外部リクエストも減らします。",
+        ],
+      },
       {
         version: "1.2.2",
         date: "2026-09-05",
