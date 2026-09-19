@@ -84,7 +84,7 @@ describe("UnquoteApp", () => {
 
       // The extension passes the selected text as initialInput and never sees the
       // empty state, so hasData has to be true on the very first paint.
-      expect(screen.queryByText("Paste, drop, or choose a file")).not.toBeInTheDocument();
+      expect(screen.queryByText("See escaped JSON as structured data")).not.toBeInTheDocument();
       expect(screen.queryByText("No data loaded · waiting for import")).not.toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeEnabled();
       // The source button names what is loaded; a pasted draft has no file name
@@ -335,7 +335,9 @@ describe("UnquoteApp", () => {
         within(sampleGroup).getByRole("button", { name: "有效/无效混合 JSONL" }),
       ).toBeInTheDocument();
       expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
-      expect(screen.getAllByText("粘贴、拖入或选择一个文件").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("JSON / JSONL 查看器：递归展开转义 JSON").length).toBeGreaterThan(
+        0,
+      );
       expect(screen.getByRole("button", { name: "自动" })).toHaveAttribute("aria-pressed", "true");
     });
 
@@ -364,7 +366,7 @@ describe("UnquoteApp", () => {
       ).toBeInTheDocument();
       expect(document.documentElement).toHaveAttribute("lang", "ja");
       expect(
-        screen.getAllByText("貼り付け、ドロップ、またはファイルを選択").length,
+        screen.getAllByText("JSON / JSONL ビューアー：エスケープされた JSON を展開").length,
       ).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "自動" })).toHaveAttribute("aria-pressed", "true");
     });
@@ -382,6 +384,40 @@ describe("UnquoteApp", () => {
 
       expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
       expect(screen.getByRole("button", { name: "清空" })).toBeInTheDocument();
+    });
+
+    it("supports a web introduction that imports samples and returns after clearing", async () => {
+      const user = userEvent.setup();
+      render(
+        <I18nProvider>
+          <UnquoteApp
+            renderWelcome={(controls, onSelectSample) => (
+              <>
+                <h1>Web introduction</h1>
+                {controls}
+                <button
+                  onClick={() =>
+                    onSelectSample({
+                      id: "web-example",
+                      label: "Web example",
+                      value: '{"body":"{\\"user\\":42}"}',
+                      expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.body"] }],
+                    })
+                  }
+                >
+                  Try web example
+                </button>
+              </>
+            )}
+          />
+        </I18nProvider>,
+      );
+      await user.click(screen.getByRole("button", { name: "Try web example" }));
+      await waitFor(() => expect(screen.getAllByText("user").length).toBeGreaterThan(0));
+      expect(screen.queryByRole("heading", { name: "Web introduction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Clear" }));
+      expect(screen.getByRole("button", { name: "Try web example" })).toBeInTheDocument();
     });
 
     it("loads the escaped API response sample", async () => {

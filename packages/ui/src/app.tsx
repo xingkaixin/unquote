@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from "react";
 import { AppHeader } from "./components/app-header";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
 import { Toaster } from "./components/sonner";
@@ -73,6 +73,10 @@ type ActiveOverlay = "import" | "command" | "diff" | "table" | "report" | null;
 
 export interface UnquoteAppProps {
   initialInput?: string;
+  renderWelcome?: (
+    controls: ReactNode,
+    onSelectSample: (sample: SourceSampleOption) => void,
+  ) => ReactNode;
   changelogUrls?: Readonly<Record<Locale, string>>;
   chromeWebStoreUrl?: string;
   edgeAddonsUrl?: string;
@@ -80,6 +84,7 @@ export interface UnquoteAppProps {
 
 export const UnquoteApp = ({
   initialInput = "",
+  renderWelcome,
   changelogUrls,
   chromeWebStoreUrl,
   edgeAddonsUrl,
@@ -333,16 +338,18 @@ export const UnquoteApp = ({
       </Suspense>
     </DeferredLoadBoundary>
   );
-  const emptyState = (
+  const emptyState = renderWelcome ? (
+    renderWelcome(importPanel("h-[180px]"), handleSampleSelect)
+  ) : (
     <div className="uq-import-empty flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
       <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
         <div className="flex flex-col gap-2.5">
           <span className="font-mono text-[11px] uppercase tracking-[var(--tracking-tag)] text-accent">
             {t("empty.eyebrow")}
           </span>
-          <h2 className="m-0 text-[28px] font-semibold tracking-[-0.02em] text-text-primary">
+          <h1 className="m-0 text-[28px] font-semibold tracking-[-0.02em] text-text-primary">
             {t("empty.headline")}
-          </h2>
+          </h1>
           <p className="m-0 text-[14px] leading-[23px] text-text-secondary">
             {t("empty.subtitle")}
           </p>
@@ -414,6 +421,7 @@ export const UnquoteApp = ({
           tabIndex={-1}
           className="flex min-h-0 flex-1 flex-col focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
         >
+          {hasData ? <h1 className="sr-only">Unquote — {t("empty.headline")}</h1> : null}
           {hasData ? output : emptyState}
         </main>
         <StatusBar

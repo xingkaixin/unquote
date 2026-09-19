@@ -276,8 +276,8 @@ export const en = {
   "samples.agentToolCallJsonl": "Agent tool-call JSONL",
   "samples.codexRolloutJsonl": "Codex rollout JSONL",
   "samples.mixedValidInvalidJsonl": "Mixed valid/invalid JSONL",
+  "empty.headline": "JSON / JSONL viewer for escaped JSON",
   "empty.eyebrow": "START",
-  "empty.headline": "Paste, drop, or choose a file",
   "empty.subtitle":
     "Unquote detects JSON and JSONL, expands the escaped JSON strings inside, and builds a readable timeline for agent sessions. Everything is parsed locally in your browser.",
   "import.title": "Import data",

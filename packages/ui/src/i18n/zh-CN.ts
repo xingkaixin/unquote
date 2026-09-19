@@ -274,8 +274,8 @@ export const zhCN: Messages = {
   "samples.agentToolCallJsonl": "Agent 工具调用 JSONL",
   "samples.codexRolloutJsonl": "Codex rollout JSONL",
   "samples.mixedValidInvalidJsonl": "有效/无效混合 JSONL",
+  "empty.headline": "JSON / JSONL 查看器：递归展开转义 JSON",
   "empty.eyebrow": "开始",
-  "empty.headline": "粘贴、拖入或选择一个文件",
   "empty.subtitle":
     "Unquote 会自动识别 JSON 与 JSONL，展开其中被转义的字符串化 JSON，并为 Agent 会话生成可阅读的时间线。数据只在本地浏览器中解析。",
   "import.title": "导入数据",

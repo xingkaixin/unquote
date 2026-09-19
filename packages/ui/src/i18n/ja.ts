@@ -279,8 +279,8 @@ export const ja: Messages = {
   "samples.agentToolCallJsonl": "エージェントのツール呼び出し JSONL",
   "samples.codexRolloutJsonl": "Codex ロールアウト JSONL",
   "samples.mixedValidInvalidJsonl": "有効・無効混在の JSONL",
+  "empty.headline": "JSON / JSONL ビューアー：エスケープされた JSON を展開",
   "empty.eyebrow": "開始",
-  "empty.headline": "貼り付け、ドロップ、またはファイルを選択",
   "empty.subtitle":
     "Unquote は JSON と JSONL を検出し、内部のエスケープされた JSON 文字列を展開して、エージェントセッションの読みやすいタイムラインを作成します。すべてブラウザ内でローカルに解析されます。",
   "import.title": "データを読み込む",

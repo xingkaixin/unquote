@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import svgr from "vite-plugin-svgr";
+import { renderHomepage } from "./src/homepage.tsx";
 import { renderChangelogPage } from "./src/changelog-page.ts";
 import { isChangelogLocale } from "./src/changelog-routes.ts";
 
@@ -28,6 +29,12 @@ const changelogPagesPlugin = {
 
 export default defineConfig({
   plugins: [
+    {
+      name: "unquote-homepage",
+      transformIndexHtml(html) {
+        return html.replace("<!--unquote-homepage-->", renderHomepage());
+      },
+    },
     changelogPagesPlugin,
     svgr({
       svgrOptions: {
