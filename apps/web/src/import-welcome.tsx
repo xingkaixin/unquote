@@ -1,5 +1,6 @@
+import type { WelcomeCopy } from "./welcome-copy";
 import type { ReactNode } from "react";
-import type { createTranslator } from "../i18n/i18n";
+import type { createTranslator } from "@unquote/ui/i18n";
 
 export const welcomeExample = {
   input: JSON.stringify({ body: JSON.stringify({ user: { id: 42 } }) }, null, 2),
@@ -7,12 +8,13 @@ export const welcomeExample = {
 };
 
 interface ImportWelcomeProps {
+  copy: WelcomeCopy;
   t: ReturnType<typeof createTranslator>;
   children: ReactNode;
   onTryExample?: () => void;
 }
 
-export const ImportWelcome = ({ t, children, onTryExample }: ImportWelcomeProps) => (
+export const ImportWelcome = ({ t, copy, children, onTryExample }: ImportWelcomeProps) => (
   <div className="uq-import-empty flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
     <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
       <div className="flex flex-col gap-2.5">
@@ -25,20 +27,20 @@ export const ImportWelcome = ({ t, children, onTryExample }: ImportWelcomeProps)
         <p className="m-0 text-[14px] leading-[23px] text-text-secondary">{t("empty.subtitle")}</p>
       </div>
       {children}
-      <section aria-labelledby="example-title" className="border-t border-border pt-6">
-        <h2 id="example-title" className="m-0 text-base font-semibold text-text-primary">
-          {t("welcome.exampleTitle")}
+      <section aria-labelledby="example-title" className="border-t border-border pt-4">
+        <h2 id="example-title" className="m-0 text-[16px] font-semibold text-text-primary">
+          {copy.exampleTitle}
         </h2>
-        <p className="mb-4 mt-2 text-sm leading-relaxed text-text-secondary">
-          {t("welcome.exampleDescription")}
+        <p className="mb-4 mt-2 text-sm leading-[23px] text-text-secondary">
+          {copy.exampleDescription}
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           {(["input", "output"] as const).map((side) => (
             <figure key={side} className="m-0 min-w-0">
               <figcaption className="mb-2 text-xs font-medium text-text-secondary">
-                {t(side === "input" ? "welcome.before" : "welcome.after")}
+                {side === "input" ? copy.before : copy.after}
               </figcaption>
-              <pre className="m-0 rounded-md border border-border bg-surface-100 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-text-primary">
+              <pre className="m-0 rounded-md border border-border bg-surface-100 p-3 font-mono text-xs leading-[23px] whitespace-pre-wrap break-all text-text-primary">
                 <code>{welcomeExample[side]}</code>
               </pre>
             </figure>
@@ -48,17 +50,17 @@ export const ImportWelcome = ({ t, children, onTryExample }: ImportWelcomeProps)
           <button
             type="button"
             onClick={onTryExample}
-            className="mt-3 rounded-sm py-2 text-sm font-medium text-text-primary underline underline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mt-2 rounded-sm py-2 text-sm font-medium text-text-primary underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            {t("welcome.tryExample")}
+            {copy.tryExample}
           </button>
         ) : null}
       </section>
-      <dl className="m-0 grid gap-4 text-sm leading-relaxed">
+      <dl className="m-0 grid gap-4 text-sm leading-[23px]">
         {(["formatting", "jsonl", "local"] as const).map((topic) => (
           <div key={topic}>
-            <dt className="font-semibold text-text-primary">{t(`welcome.${topic}Title`)}</dt>
-            <dd className="m-0 mt-1 text-text-secondary">{t(`welcome.${topic}Description`)}</dd>
+            <dt className="font-semibold text-text-primary">{copy[`${topic}Title`]}</dt>
+            <dd className="m-0 mt-1 text-text-secondary">{copy[`${topic}Description`]}</dd>
           </div>
         ))}
       </dl>

@@ -280,23 +280,6 @@ export const ja: Messages = {
   "samples.codexRolloutJsonl": "Codex ロールアウト JSONL",
   "samples.mixedValidInvalidJsonl": "有効・無効混在の JSONL",
   "empty.headline": "JSON / JSONL ビューアー：エスケープされた JSON を展開",
-  "welcome.exampleTitle": "エスケープされた文字列を構造化データに",
-  "welcome.exampleDescription":
-    "body フィールドは JSON 文字列です。Unquote はこれをオブジェクトに展開し、閲覧・検索・エクスポートできるようにします。",
-  "welcome.before": "元の JSON",
-  "welcome.after": "展開後の JSON",
-  "welcome.tryExample": "このサンプルを試す",
-  "welcome.formattingTitle": "JSON の整形だけではありません",
-  "welcome.formattingDescription":
-    "整形はインデントを揃えます。Unquote は文字列内の JSON も再帰的に解析し、入れ子のオブジェクトや配列をツリーで表示します。",
-  "welcome.jsonlTitle": "無効な行を含む JSONL も確認",
-  "welcome.jsonlDescription":
-    "JSONL の各行は独立したレコードです。一部の行で解析に失敗しても、有効なレコードは閲覧できます。失敗したレコードでエラーと元の行を確認できます。",
-  "welcome.localTitle": "データはブラウザー内で処理",
-  "welcome.localDescription":
-    "貼り付けたテキストとファイルは内容をアップロードせず、ローカルで解析します。認識された Codex と Claude Code の JSONL セッションには Agent と Trajectory ビューもあります。",
-  "welcome.enableJavaScript":
-    "JavaScript を有効にすると、JSON の貼り付け、ローカルファイルの読み込み、ビューアーの操作ができます。",
   "empty.eyebrow": "開始",
   "empty.subtitle":
     "Unquote は JSON と JSONL を検出し、内部のエスケープされた JSON 文字列を展開して、エージェントセッションの読みやすいタイムラインを作成します。すべてブラウザ内でローカルに解析されます。",

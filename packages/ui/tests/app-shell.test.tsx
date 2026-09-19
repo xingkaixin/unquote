@@ -386,22 +386,38 @@ describe("UnquoteApp", () => {
       expect(screen.getByRole("button", { name: "清空" })).toBeInTheDocument();
     });
 
-    it("opens the illustrated example and restores the introduction after clearing", async () => {
+    it("supports a web introduction that imports samples and returns after clearing", async () => {
       const user = userEvent.setup();
       render(
         <I18nProvider>
-          <UnquoteApp />
+          <UnquoteApp
+            renderWelcome={(controls, onSelectSample) => (
+              <>
+                <h1>Web introduction</h1>
+                {controls}
+                <button
+                  onClick={() =>
+                    onSelectSample({
+                      id: "web-example",
+                      label: "Web example",
+                      value: '{"body":"{\\"user\\":42}"}',
+                      expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.body"] }],
+                    })
+                  }
+                >
+                  Try web example
+                </button>
+              </>
+            )}
+          />
         </I18nProvider>,
       );
-      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("JSON / JSONL viewer");
-      await user.click(screen.getByRole("button", { name: "Try this example" }));
+      await user.click(screen.getByRole("button", { name: "Try web example" }));
       await waitFor(() => expect(screen.getAllByText("user").length).toBeGreaterThan(0));
-      expect(
-        screen.queryByRole("heading", { name: "See escaped JSON as structured data" }),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Web introduction" })).not.toBeInTheDocument();
       expect(screen.queryByRole("textbox", { name: "Source input" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Clear" }));
-      expect(screen.getByRole("button", { name: "Try this example" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Try web example" })).toBeInTheDocument();
     });
 
     it("loads the escaped API response sample", async () => {
