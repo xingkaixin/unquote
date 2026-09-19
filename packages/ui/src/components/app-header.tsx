@@ -66,9 +66,9 @@ export const AppHeader = ({
 
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-surface-100 px-3 sm:gap-3 sm:px-4">
-      <h1 className="m-0 hidden shrink-0 font-mono text-[12.5px] font-bold tracking-[var(--tracking-tag)] text-text-primary md:block">
+      <div className="m-0 hidden shrink-0 font-mono text-[12.5px] font-bold tracking-[var(--tracking-tag)] text-text-primary md:block">
         UNQUOTE
-      </h1>
+      </div>
       {outputView ? (
         <Tabs
           className="shrink-0"

@@ -274,8 +274,24 @@ export const zhCN: Messages = {
   "samples.agentToolCallJsonl": "Agent 工具调用 JSONL",
   "samples.codexRolloutJsonl": "Codex rollout JSONL",
   "samples.mixedValidInvalidJsonl": "有效/无效混合 JSONL",
+  "empty.headline": "JSON / JSONL 查看器：递归展开转义 JSON",
+  "welcome.exampleTitle": "从转义字符串到结构化数据",
+  "welcome.exampleDescription":
+    "body 字段原本是 JSON 字符串。Unquote 将它展开为对象，方便浏览、搜索和导出。",
+  "welcome.before": "原始 JSON",
+  "welcome.after": "展开后的 JSON",
+  "welcome.tryExample": "试用这个示例",
+  "welcome.formattingTitle": "不止是 JSON 格式化",
+  "welcome.formattingDescription":
+    "格式化调整缩进；Unquote 还会递归解析字符串中的 JSON，让嵌套对象和数组可以在树状视图中展开查看。",
+  "welcome.jsonlTitle": "逐行查看 JSONL，定位错误行",
+  "welcome.jsonlDescription":
+    "JSONL 的每一行是一条独立记录。某一行解析失败时，其他有效记录仍可查看；打开失败记录即可检查解析错误和原始行。",
+  "welcome.localTitle": "数据在浏览器本地处理",
+  "welcome.localDescription":
+    "粘贴的文本和导入的文件都在本地解析，无需上传内容。识别出的 Codex 和 Claude Code JSONL 会话还提供 Agent 与 Trajectory 视图。",
+  "welcome.enableJavaScript": "启用 JavaScript 后，即可粘贴 JSON、打开本地文件并使用交互式查看器。",
   "empty.eyebrow": "开始",
-  "empty.headline": "粘贴、拖入或选择一个文件",
   "empty.subtitle":
     "Unquote 会自动识别 JSON 与 JSONL，展开其中被转义的字符串化 JSON，并为 Agent 会话生成可阅读的时间线。数据只在本地浏览器中解析。",
   "import.title": "导入数据",

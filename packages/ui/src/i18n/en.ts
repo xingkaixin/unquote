@@ -276,8 +276,25 @@ export const en = {
   "samples.agentToolCallJsonl": "Agent tool-call JSONL",
   "samples.codexRolloutJsonl": "Codex rollout JSONL",
   "samples.mixedValidInvalidJsonl": "Mixed valid/invalid JSONL",
+  "empty.headline": "JSON / JSONL viewer for escaped JSON",
+  "welcome.exampleTitle": "See escaped JSON as structured data",
+  "welcome.exampleDescription":
+    "The body field starts as a JSON string. Unquote expands it into an object you can browse, search, and export.",
+  "welcome.before": "Original JSON",
+  "welcome.after": "Expanded JSON",
+  "welcome.tryExample": "Try this example",
+  "welcome.formattingTitle": "More than a JSON formatter",
+  "welcome.formattingDescription":
+    "A formatter changes indentation. Unquote also recursively parses JSON stored inside strings, so nested objects and arrays can be explored as a tree.",
+  "welcome.jsonlTitle": "Read JSONL, including invalid lines",
+  "welcome.jsonlDescription":
+    "Each JSONL line is a separate record. Valid records remain readable when another line fails; inspect failed records to find the parse error and original line.",
+  "welcome.localTitle": "Your data stays in your browser",
+  "welcome.localDescription":
+    "Pasted text and imported files are parsed locally, without uploading their contents. Recognized Codex and Claude Code JSONL sessions also have Agent and Trajectory views.",
+  "welcome.enableJavaScript":
+    "Enable JavaScript to paste JSON, open local files, and use the interactive viewer.",
   "empty.eyebrow": "START",
-  "empty.headline": "Paste, drop, or choose a file",
   "empty.subtitle":
     "Unquote detects JSON and JSONL, expands the escaped JSON strings inside, and builds a readable timeline for agent sessions. Everything is parsed locally in your browser.",
   "import.title": "Import data",
