@@ -116,6 +116,7 @@ export const ja: Messages = {
     "エクスポート内容が64 MiBを超えています。レコードを絞り込んで再試行してください。",
   "toolbar.exportFailed": "エクスポートに失敗しました",
   "toolbar.export": "エクスポート",
+  "toolbar.more": "その他の操作",
   "toolbar.exportJsonl": "JSONL をエクスポート",
   "toolbar.exportJson": "JSON をエクスポート",
   "toolbar.expandAll": "すべて展開",

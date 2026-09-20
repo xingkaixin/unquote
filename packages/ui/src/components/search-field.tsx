@@ -36,7 +36,7 @@ export const SearchField = ({
 
   return (
     <form
-      className="flex h-8 min-w-0 flex-1 items-center gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
+      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmitQuery(inputRef.current?.value ?? query);

@@ -115,6 +115,7 @@ export const en = {
   "toolbar.exportTooLarge": "Export exceeds 64 MiB. Filter fewer records and try again.",
   "toolbar.exportFailed": "Export failed",
   "toolbar.export": "Export",
+  "toolbar.more": "More actions",
   "toolbar.exportJsonl": "Export JSONL",
   "toolbar.exportJson": "Export JSON",
   "toolbar.expandAll": "Expand All",

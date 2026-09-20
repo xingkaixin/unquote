@@ -127,6 +127,27 @@ describe("UnquoteApp", () => {
       }
     });
 
+    it("keeps table and comparison actions reachable from the compact menu", async () => {
+      const user = userEvent.setup();
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput='{"ok":true}' />
+        </I18nProvider>,
+      );
+      await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Record table" }));
+      const table = await screen.findByRole("dialog", { name: "Record table" });
+      expect(table).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Compare JSON" }));
+      expect(await screen.findByRole("dialog", { name: "Compare JSON" })).toBeInTheDocument();
+    });
+
     it("renders configured extension store links", () => {
       const chromeWebStoreUrl = "https://chrome.example/extension";
       const edgeAddonsUrl = "https://edge.example/extension";
