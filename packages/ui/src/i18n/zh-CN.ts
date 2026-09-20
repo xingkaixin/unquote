@@ -113,6 +113,7 @@ export const zhCN: Messages = {
   "toolbar.exportTooLarge": "导出内容超过 64 MiB，请筛选更少的记录后重试。",
   "toolbar.exportFailed": "导出失败",
   "toolbar.export": "导出",
+  "toolbar.more": "更多操作",
   "toolbar.exportJsonl": "导出 JSONL",
   "toolbar.exportJson": "导出 JSON",
   "toolbar.expandAll": "展开全部",
