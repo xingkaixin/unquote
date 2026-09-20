@@ -31,28 +31,29 @@ export const RecordFilterBar = ({
   const { t } = useTranslation();
 
   return (
-    <div className="flex h-[38px] shrink-0 items-center gap-2 border-b border-border bg-surface-50 px-3.5">
-      {barFilters.map((filter) => {
-        const label =
-          filter.mode === "nested" && nestedScope === "top-level"
-            ? "filter.nestedTopLevel"
-            : filter.label;
-        return (
-          <Button
-            key={filter.mode}
-            type="button"
-            variant={mode === filter.mode ? "selected" : "outline"}
-            size="sm"
-            className="h-6 rounded-sm px-2.5"
-            aria-pressed={mode === filter.mode}
-            onClick={() => onChange(filter.mode)}
-          >
-            {t(label)}
-          </Button>
-        );
-      })}
-      <span className="flex-1" />
-      <span className="shrink-0 font-mono text-[10.5px] text-text-tertiary">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-50 px-3.5 py-1">
+      <div className="flex min-w-0 basis-full items-center gap-2 overflow-x-auto py-0.5 sm:flex-1">
+        {barFilters.map((filter) => {
+          const label =
+            filter.mode === "nested" && nestedScope === "top-level"
+              ? "filter.nestedTopLevel"
+              : filter.label;
+          return (
+            <Button
+              key={filter.mode}
+              type="button"
+              variant={mode === filter.mode ? "selected" : "outline"}
+              size="sm"
+              className="h-6 shrink-0 whitespace-nowrap rounded-sm px-2.5"
+              aria-pressed={mode === filter.mode}
+              onClick={() => onChange(filter.mode)}
+            >
+              {t(label)}
+            </Button>
+          );
+        })}
+      </div>
+      <span className="shrink-0 whitespace-nowrap font-mono text-[10.5px] text-text-tertiary">
         {t("filter.hint", { shown, total })}
       </span>
     </div>
