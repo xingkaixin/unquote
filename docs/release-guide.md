@@ -76,6 +76,7 @@ rg -n "$PREV_VERSION|$VERSION|version" package.json apps packages -g 'package.js
 - 顶部新增或更新目标版本章节，例如 `## [0.6.0] - 2026-06-19`
 - 英文和中文条目语义一致，顺序一致
 - 保留历史版本日期和内容，除非发现明确错误
+- 产品更新页有实质性内容变更时，同步 `apps/web/public/sitemap.xml` 中对应页面的 `lastmod`，使用实际内容更新日期
 - 明确写出版本号同步项，例如 Web 和扩展应用版本升级到 `0.6.0`
 - 性能或大文件相关改动要写用户结果，不只写实现名
 
