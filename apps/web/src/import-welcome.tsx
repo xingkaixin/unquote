@@ -50,6 +50,7 @@ export const ImportWelcome = ({ t, copy, children, onTryExample }: ImportWelcome
           <button
             type="button"
             onClick={onTryExample}
+            data-umami-event="try-example"
             className="mt-2 rounded-sm py-2 text-sm font-medium text-text-primary underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {copy.tryExample}

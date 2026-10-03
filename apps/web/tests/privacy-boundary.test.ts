@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
+import { addAnalytics } from "../src/analytics";
+import { renderChangelogPage } from "../src/changelog-page";
+import { changelogLocales } from "../src/changelog-routes";
+import { guides } from "../src/guide-content";
+import { renderGuidePage } from "../src/guide-page";
 
 const readWebFile = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(`../${relativePath}`, import.meta.url)), "utf8");
@@ -29,19 +34,27 @@ const parseContentSecurityPolicy = (headers: string) => {
 };
 
 describe("web privacy boundary", () => {
-  it("allows only production-scoped Umami tracking without legacy source hashes", () => {
-    const html = readWebFile("index.html");
-    const sources = collectScriptSources(html);
-    const { document } = new JSDOM(html).window;
-    const tracker = document.querySelector('script[src="https://umami.xingkaixin.me/script.js"]');
+  it.each([
+    ["home", readWebFile("index.html")],
+    ...changelogLocales.map((locale) => [`changelog ${locale}`, renderChangelogPage(locale)]),
+    ...Object.keys(guides).map((slug) => [slug, renderGuidePage(slug)]),
+  ])(
+    "scopes %s analytics to production without source hashes or session recording",
+    (_page, source) => {
+      const html = addAnalytics(source!);
+      const sources = collectScriptSources(html);
+      const { document } = new JSDOM(html).window;
+      const tracker = document.querySelector('script[src="https://umami.xingkaixin.me/script.js"]');
 
-    expect(sources).toContain("/src/main.tsx");
-    expect(sources.filter(isCrossOrigin)).toEqual(["https://umami.xingkaixin.me/script.js"]);
-    expect(tracker?.hasAttribute("defer")).toBe(true);
-    expect(tracker?.getAttribute("data-website-id")).toBe("65b7d2aa-b029-43fc-8a87-a62ca0f3f23d");
-    expect(tracker?.getAttribute("data-domains")).toBe("unquote.xingkaixin.me");
-    expect(tracker?.getAttribute("data-exclude-hash")).toBe("true");
-  });
+      expect(sources.filter(isCrossOrigin)).toEqual(["https://umami.xingkaixin.me/script.js"]);
+      expect(tracker?.hasAttribute("defer")).toBe(true);
+      expect(tracker?.getAttribute("data-website-id")).toBe("65b7d2aa-b029-43fc-8a87-a62ca0f3f23d");
+      expect(tracker?.getAttribute("data-domains")).toBe("unquote.xingkaixin.me");
+      expect(tracker?.getAttribute("data-exclude-hash")).toBe("true");
+      expect(tracker?.getAttribute("data-performance")).toBe("true");
+      expect(tracker?.hasAttribute("data-replay")).toBe(false);
+    },
+  );
 
   it("allows only Umami and the Pages analytics endpoints for remote scripts and reporting", () => {
     const policy = parseContentSecurityPolicy(readWebFile("public/_headers"));

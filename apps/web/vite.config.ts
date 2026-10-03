@@ -8,6 +8,7 @@ import { renderHomepage } from "./src/homepage.tsx";
 import { renderChangelogPage } from "./src/changelog-page.ts";
 import { isChangelogLocale } from "./src/changelog-routes.ts";
 import { renderGuidePage } from "./src/guide-page.tsx";
+import { addAnalytics } from "./src/analytics.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,6 +47,12 @@ export default defineConfig({
           if (!slug) return html;
           return renderGuidePage(slug);
         },
+      },
+    },
+    {
+      name: "unquote-analytics",
+      transformIndexHtml(html, context) {
+        return context.path === "/404.html" ? html : addAnalytics(html);
       },
     },
     svgr({

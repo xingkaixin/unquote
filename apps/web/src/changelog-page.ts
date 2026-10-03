@@ -655,7 +655,7 @@ export const renderChangelogPage = (locale: Locale) => {
         </a>
         <nav aria-label="${escapeHtml(copy.primaryNavigationLabel)}">
           <a class="nav-link" href="#latest">${escapeHtml(copy.latestNavigation)}</a>
-          <a class="primary-link" href="/">${escapeHtml(copy.openUnquote)}</a>
+          <a class="primary-link" href="/" data-umami-event="open-viewer" data-umami-event-source="changelog">${escapeHtml(copy.openUnquote)}</a>
         </nav>
       </div>
     </header>
