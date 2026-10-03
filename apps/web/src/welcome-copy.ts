@@ -2,6 +2,10 @@ import type { Locale } from "@unquote/ui/i18n";
 
 export const welcomeCopy = {
   en: {
+    guidesTitle: "Guides",
+    jsonlGuide: "Open JSONL files",
+    unescapeGuide: "Unescape nested JSON",
+    agentGuide: "Read agent session logs",
     exampleTitle: "See escaped JSON as structured data",
     exampleDescription:
       "The body field starts as a JSON string. Unquote expands it into an object you can browse, search, and export.",
@@ -21,6 +25,10 @@ export const welcomeCopy = {
       "Enable JavaScript to paste JSON, open local files, and use the interactive viewer.",
   },
   "zh-CN": {
+    guidesTitle: "使用指南（英文）",
+    jsonlGuide: "查看 JSONL 文件",
+    unescapeGuide: "展开转义 JSON",
+    agentGuide: "阅读 Agent 会话日志",
     exampleTitle: "从转义字符串到结构化数据",
     exampleDescription:
       "body 字段原本是 JSON 字符串。Unquote 将它展开为对象，方便浏览、搜索和导出。",
@@ -39,6 +47,10 @@ export const welcomeCopy = {
     enableJavaScript: "启用 JavaScript 后，即可粘贴 JSON、打开本地文件并使用交互式查看器。",
   },
   ja: {
+    guidesTitle: "使い方ガイド（英語）",
+    jsonlGuide: "JSONL ファイルを開く",
+    unescapeGuide: "エスケープされた JSON を展開",
+    agentGuide: "エージェントのセッションログを読む",
     exampleTitle: "エスケープされた文字列を構造化データに",
     exampleDescription:
       "body フィールドは JSON 文字列です。Unquote はこれをオブジェクトに展開し、閲覧・検索・エクスポートできるようにします。",

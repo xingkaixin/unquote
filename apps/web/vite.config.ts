@@ -7,6 +7,7 @@ import svgr from "vite-plugin-svgr";
 import { renderHomepage } from "./src/homepage.tsx";
 import { renderChangelogPage } from "./src/changelog-page.ts";
 import { isChangelogLocale } from "./src/changelog-routes.ts";
+import { renderGuidePage } from "./src/guide-page.tsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +37,17 @@ export default defineConfig({
       },
     },
     changelogPagesPlugin,
+    {
+      name: "unquote-guide-pages",
+      transformIndexHtml: {
+        order: "pre",
+        handler(html) {
+          const slug = html.match(/\sdata-guide="([^"]+)"/)?.[1];
+          if (!slug) return html;
+          return renderGuidePage(slug);
+        },
+      },
+    },
     svgr({
       svgrOptions: {
         plugins: ["@svgr/plugin-svgo", "@svgr/plugin-jsx"],
@@ -55,6 +67,10 @@ export default defineConfig({
         changelog: path.resolve(__dirname, "./changelog/index.html"),
         changelogZhCN: path.resolve(__dirname, "./zh-CN/changelog/index.html"),
         changelogJa: path.resolve(__dirname, "./ja/changelog/index.html"),
+        jsonlViewer: path.resolve(__dirname, "./jsonl-viewer/index.html"),
+        jsonUnescape: path.resolve(__dirname, "./json-unescape/index.html"),
+        agentLogViewer: path.resolve(__dirname, "./agent-log-viewer/index.html"),
+        notFound: path.resolve(__dirname, "./404.html"),
       },
     },
   },

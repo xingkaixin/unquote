@@ -64,6 +64,29 @@ export const ImportWelcome = ({ t, copy, children, onTryExample }: ImportWelcome
           </div>
         ))}
       </dl>
+      <nav
+        aria-label={copy.guidesTitle}
+        className="border-t border-border pt-4 text-sm leading-[23px]"
+      >
+        <h2 className="m-0 text-[16px] font-semibold text-text-primary">{copy.guidesTitle}</h2>
+        <ul className="m-0 mt-2 flex list-none flex-wrap gap-4 p-0">
+          {[
+            ["/jsonl-viewer/", copy.jsonlGuide],
+            ["/json-unescape/", copy.unescapeGuide],
+            ["/agent-log-viewer/", copy.agentGuide],
+          ].map(([href, label]) => (
+            <li key={href}>
+              <a
+                href={href}
+                hrefLang="en"
+                className="text-text-secondary underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   </div>
 );
