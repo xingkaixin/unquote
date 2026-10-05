@@ -23,7 +23,8 @@ await writeFile(
   JSON.stringify({
     name: "unquote",
     compatibilityDate: "2026-10-05",
-    workersDev: true,
+    workersDev: false,
+    previewUrls: false,
     domains: ["unquote.xingkaixin.me"],
     assets: {
       htmlHandling: "auto-trailing-slash",
