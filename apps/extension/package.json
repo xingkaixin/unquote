@@ -16,14 +16,14 @@
   },
   "dependencies": {
     "@unquote/ui": "workspace:*",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "sonner": "^2.0.8"
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sonner": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "tailwindcss": "^4.3.3",
-    "vite": "^8.2.2",
+    "@tailwindcss/vite": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite": "catalog:",
     "wxt": "^0.21.4"
   }
 }

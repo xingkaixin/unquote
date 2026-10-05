@@ -2,11 +2,19 @@ packages:
   - apps/*
   - packages/*
 
-overrides:
-  esbuild: 0.28.2
+catalog:
+  '@tailwindcss/vite': ^4.3.3
   # React 19.3 exceeds the current UI JavaScript bundle budgets.
   react: ~19.2.8
   react-dom: ~19.2.8
+  sonner: ^2.0.8
+  tailwindcss: ^4.3.3
+  vite: ^8.2.2
+
+overrides:
+  esbuild: 0.28.2
+  react: 'catalog:'
+  react-dom: 'catalog:'
 
 allowBuilds:
   esbuild: true
