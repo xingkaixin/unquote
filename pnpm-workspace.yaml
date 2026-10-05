@@ -7,15 +7,9 @@ overrides:
   # React 19.3 exceeds the current UI JavaScript bundle budgets.
   react: ~19.2.8
   react-dom: ~19.2.8
-  # Miniflare pins a sharp release affected by GHSA-rgj7-g3m4-5g8c.
-  miniflare>sharp: 0.35.4
-  # Miniflare pins undici 7.29.0, before its WebSocket and TLS security fixes.
-  miniflare>undici: 7.29.1
 
 allowBuilds:
   esbuild: true
-  spawn-sync: true
-  workerd: true
 
 minimumReleaseAgeExclude:
   - '@vitest/coverage-v8@5.0.0'

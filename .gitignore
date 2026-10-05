@@ -32,7 +32,8 @@ apps/safari/**/xcuserdata
 benchmark/case*.jsonl
 
 
-# wrangler
+# cloudflare
+.cloudflare
 .wrangler
 
 
