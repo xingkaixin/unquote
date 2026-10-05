@@ -56,19 +56,11 @@ describe("web privacy boundary", () => {
     },
   );
 
-  it("allows only Umami and the Pages analytics endpoints for remote scripts and reporting", () => {
+  it("allows only Umami for remote scripts and reporting", () => {
     const policy = parseContentSecurityPolicy(readWebFile("public/_headers"));
 
-    expect(policy.get("script-src")).toEqual([
-      "'self'",
-      "https://umami.xingkaixin.me",
-      "https://static.cloudflareinsights.com/beacon.min.js",
-    ]);
-    expect(policy.get("connect-src")).toEqual([
-      "'self'",
-      "https://umami.xingkaixin.me",
-      "https://cloudflareinsights.com/cdn-cgi/rum",
-    ]);
+    expect(policy.get("script-src")).toEqual(["'self'", "https://umami.xingkaixin.me"]);
+    expect(policy.get("connect-src")).toEqual(["'self'", "https://umami.xingkaixin.me"]);
     expect(policy.get("style-src")).toEqual(["'self'", "'unsafe-inline'"]);
     expect(policy.get("font-src")).toEqual(["'self'"]);
     expect(policy.get("worker-src")).toEqual(["'self'"]);

@@ -66,3 +66,23 @@ MIT
 ## Performance
 
 Release performance gates are documented in [docs/performance.md](docs/performance.md).
+
+## Web 部署
+
+网站使用 Cloudflare Workers Static Assets，生产域名为 `unquote.xingkaixin.me`。
+部署使用通过 mise 全局安装并已登录的 `cf`，不在项目中安装 cf 或 Wrangler。
+当前验证版本为 `cf 1.0.0-beta.12`。
+
+```bash
+pnpm build:cf
+cf deploy --prebuilt --dry-run
+pnpm deploy:cf
+```
+
+`build:cf` 保留现有 Vite 构建，将 `dist/web`（包括 `_headers`）整理为
+`.cloudflare/output/v0`，由 `cf deploy --prebuilt` 上传。Worker 名称、域名及静态路由
+配置在 `scripts/prepare-cf-deploy.mjs` 中。保留 Pages 的 HTML 路径规范化和自定义 404 页面。
+访问统计仅使用 Umami。
+
+cf 的 Build Output v0 仍处于 beta。升级全局 cf 后，先运行上述 dry run 验证兼容性。
+不要在仓库直接运行不带 `--prebuilt` 的 `cf deploy`，其自动配置会安装构建依赖。
