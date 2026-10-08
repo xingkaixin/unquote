@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveSourceWork } from "../lib/published-source";
 import type { PublishedSourceRevision } from "../lib/published-source";
 import type { SearchOptions, SearchResultSet } from "../lib/record-search";
@@ -32,6 +32,7 @@ export interface SearchWorkerResult {
   status: SearchStatus;
   errorKind: SearchErrorKind | null;
   requestWindow: (matchIndexes: Float64Array) => void;
+  flushDebounce: () => void;
 }
 
 const createSearchIdentity = (
@@ -147,6 +148,9 @@ export const useSearchWorker = (params: {
     [canRequestWindow, searchIdentity],
   );
 
+  const pendingDispatchRef = useRef<(() => void) | null>(null);
+  const flushDebounce = useCallback(() => pendingDispatchRef.current?.(), []);
+
   useEffect(() => () => executor.dispose(), [executor]);
 
   useEffect(() => {
@@ -187,9 +191,18 @@ export const useSearchWorker = (params: {
     };
 
     if (debounceMs > 0 && !activeWindowIndexes) {
-      const debounceTimeoutId = window.setTimeout(dispatch, debounceMs);
+      const dispatchPending = () => {
+        window.clearTimeout(debounceTimeoutId);
+        pendingDispatchRef.current = null;
+        dispatch();
+      };
+      const debounceTimeoutId = window.setTimeout(dispatchPending, debounceMs);
+      pendingDispatchRef.current = dispatchPending;
       return () => {
         window.clearTimeout(debounceTimeoutId);
+        if (pendingDispatchRef.current === dispatchPending) {
+          pendingDispatchRef.current = null;
+        }
         executionCleanup?.();
       };
     }
@@ -221,5 +234,6 @@ export const useSearchWorker = (params: {
     status: snapshot.status,
     errorKind: snapshot.errorKind,
     requestWindow,
+    flushDebounce,
   };
 };

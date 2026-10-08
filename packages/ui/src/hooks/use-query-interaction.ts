@@ -1,5 +1,5 @@
 import type { ParseResult } from "@unquote/core";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   createInitialQueryInteractionState,
   queryForModeState,
@@ -120,6 +120,14 @@ export const useQueryInteraction = ({
         : source.kind === "local-file"
           ? localFileSearchDebounceMs
           : memorySearchDebounceMs,
+  });
+  const flushSubmittedSearchRef = useRef(false);
+  // Runs after useSearchWorker's effect has scheduled the submitted query.
+  useEffect(() => {
+    if (flushSubmittedSearchRef.current) {
+      flushSubmittedSearchRef.current = false;
+      searchWorker.flushDebounce();
+    }
   });
   const revisionsAligned = shareSourceRevision(
     sourceRevision,
@@ -300,12 +308,18 @@ export const useQueryInteraction = ({
     [navigate],
   );
   const submitToolbarQuery = useCallback(
-    (value: string) => navigate({ type: "submitToolbarQuery", value }),
+    (value: string) => {
+      flushSubmittedSearchRef.current = true;
+      navigate({ type: "submitToolbarQuery", value });
+    },
     [navigate],
   );
   const clearToolbarQuery = useCallback(() => navigate({ type: "clearToolbarQuery" }), [navigate]);
   const searchFromCommand = useCallback(
-    (value: string) => navigate({ type: "commandSearch", value }),
+    (value: string) => {
+      flushSubmittedSearchRef.current = true;
+      navigate({ type: "commandSearch", value });
+    },
     [navigate],
   );
   const setOption = useCallback(
