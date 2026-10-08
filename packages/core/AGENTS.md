@@ -24,7 +24,7 @@ entry points and exported types are defined by `package.json`, `src/index.ts`, a
 - `lossless-json.ts` owns number-lexeme preservation, including the fallback for runtimes without
   native parse context.
 - `json-probe.ts` owns the cheap-then-strict check for Stringified JSON. Reuse it for Preview
-  detection instead of adding another probe.
+  detection and Full Record expansion instead of adding another probe.
 - `stringifyJsonNode` and `materializeNode` preserve number lexemes. `materializeNode` rejects
   numbers that cannot round-trip unless the caller explicitly requests approximate numbers.
 - `restoreNode` rebuilds selected expanded nodes as raw strings. Do not add UI behavior here.
