@@ -310,6 +310,12 @@ describe("parseInput", () => {
       null: "null",
       padded: ' \n {"ok":true} \t',
       invalid: "{not json",
+      leadingZero: "01",
+      literalPrefix: "trueX",
+      sign: "-",
+      fraction: "1.",
+      exponent: "1e",
+      bom: '﻿{"ok":true}',
       empty: "",
       whitespace: " \t ",
       container: {},
@@ -324,7 +330,17 @@ describe("parseInput", () => {
       status: "preview",
       preview: {
         containers: { container: "object" },
-        nestedFieldKeys: ["object", "array", "string", "number", "true", "false", "null", "padded"],
+        nestedFieldKeys: [
+          "object",
+          "array",
+          "string",
+          "number",
+          "true",
+          "false",
+          "null",
+          "padded",
+          "bom",
+        ],
       },
     });
     expect(preview.node?.children).toBeUndefined();
