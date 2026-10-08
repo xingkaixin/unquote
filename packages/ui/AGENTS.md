@@ -57,6 +57,10 @@ presentation used by the web and extension apps. Its public entry points are def
 
 - Put reusable components in `src/components/` and reusable app logic in `src/hooks/` or
   `src/lib/` according to ownership.
+- Load on-demand components with `deferredComponent` from `src/components/deferred-component.tsx`,
+  or `useDeferredComponent` when loading depends on state, instead of `React.lazy` and `Suspense`.
+  React 19 holds a Suspense reveal until 300 ms after its fallback, even when the chunk loads in
+  milliseconds.
 - Use Tailwind CSS v4 utilities and the tokens in `src/styles.css`. Use an arbitrary value only
   when no existing token or utility represents the required value.
 - Use regular-weight SVGs from `@phosphor-icons/core` for interface icons. Import them with the
