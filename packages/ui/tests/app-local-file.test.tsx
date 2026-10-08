@@ -283,8 +283,8 @@ describe("UnquoteApp", () => {
       await waitFor(() => expect(shell).toHaveAttribute("data-source-file", "payload.jsonl"));
       expect(shell).toHaveAttribute("data-parse-state", "complete");
 
-      await user.type(getToolbarInput(), "needle{Enter}");
       const streamReadsBeforeSearch = streamSpy.mock.calls.length;
+      await user.type(getToolbarInput(), "needle{Enter}");
 
       await waitFor(() => expect(shell).toHaveAttribute("data-search-query", "needle"));
       await waitFor(() =>

@@ -54,13 +54,27 @@ describe("useQueryInteraction", () => {
     vi.useFakeTimers();
     const { result: query } = renderQuery();
 
-    act(() => query.current.intent.searchFromCommand("needle"));
+    act(() => query.current.intent.changeToolbarQuery("needle"));
     expect(query.current.snapshot.searchStatus).toBe("pending");
 
     await act(() => vi.advanceTimersByTimeAsync(memorySearchDebounceMs - 1));
     expect(query.current.snapshot.searchStatus).toBe("pending");
 
     await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(query.current.snapshot.searchStatus).toBe("complete");
+  });
+
+  it("runs a submitted search without waiting for the debounce", async () => {
+    vi.useFakeTimers();
+    const { result: query } = renderQuery();
+
+    act(() => query.current.intent.changeToolbarQuery("needle"));
+    act(() => query.current.intent.submitToolbarQuery("needle"));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(query.current.snapshot.searchStatus).toBe("complete");
+
+    act(() => query.current.intent.searchFromCommand("payload"));
+    await act(() => vi.advanceTimersByTimeAsync(0));
     expect(query.current.snapshot.searchStatus).toBe("complete");
   });
 
