@@ -307,12 +307,10 @@ Framer Motion’s native mini entry point and the fast, non-bouncing spring from
 Fluid Functionalism. Click targets and keyboard navigation remain with Base UI;
 virtualized records and trajectories do not use this effect.
 
-The measured initial JavaScript increase is approximately 13.4 KiB (5.2 KiB gzip),
-within the existing JavaScript budgets. Shared hover styles add approximately
-0.5 KiB of CSS. The initial CSS budget moves from 38,000 to 39,000 bytes because
-the previous build used 37,974 bytes. The gzip CSS limit remains 9,000 bytes.
+The effect adds approximately 13.4 KiB (5.2 KiB gzip) of initial JavaScript and
+0.5 KiB of CSS, within the budgets above.
 
-## Pages loading and fonts
+## Web loading and fonts
 
 IBM Plex Sans and JetBrains Mono are bundled from pinned Fontsource variable-font
 packages. The app and localized changelogs share the same font declarations;
@@ -326,9 +324,8 @@ local CSS budgets. The app and extension measure 42,049 bytes / 8,953 bytes gzip
 each changelog measures 9,775 bytes / 2,599 bytes gzip. Raw CSS ceilings are
 43,000 and 10,000 bytes respectively; gzip and JavaScript ceilings are unchanged.
 
-Pages serves hashed `/assets/` files with a one-year immutable browser cache.
-HTML retains Pages' default revalidation behavior so deployments can update the
-asset references. No additional cache layer or paid Cloudflare product is needed.
-The CSP permits the existing Pages Web Analytics beacon and its reporting endpoint,
-while fonts and styles no longer require Google origins. After deployment, verify
-beacon delivery and compare first visits and returning visits separately by region.
+Workers Static Assets serves hashed `/assets/` files with a one-year immutable
+browser cache through `apps/web/public/_headers`. HTML keeps the default
+revalidation so deployments can update asset references. The CSP allows only the
+Umami script and reporting origin beyond `'self'`; fonts and styles need no
+third-party origin.
