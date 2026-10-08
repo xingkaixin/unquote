@@ -156,7 +156,8 @@ same as max. Times are milliseconds.
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
-visible. `complete p95` measures the time until the UI stats show all expected
+visible; an Agent session fixture may instead first show the Agent view.
+`complete p95` measures the time until the UI stats show all expected
 records. `searchReadyMs` measures the header search interaction for the
 benchmark query `nested`; generated case 2 and case 4 fixtures contain that term
 in every Record, so the gate exercises the high-result-count path rather than a
