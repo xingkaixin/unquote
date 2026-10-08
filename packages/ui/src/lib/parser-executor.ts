@@ -300,6 +300,8 @@ export const createParserExecutor = (): ParserExecutor => {
 
       commit(pendingParserSnapshot(sourceRevision, forcedFormat, sourceFile !== null));
       markPerf("parse:start");
+      // Posting after the current task lets a revision superseded in the same
+      // task cancel before the worker receives any input.
       const timeoutId = window.setTimeout(() => {
         if (sourceFile) {
           post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
@@ -312,7 +314,7 @@ export const createParserExecutor = (): ParserExecutor => {
               : { type: "parse", requestId: workerRun.requestId, input },
           );
         }
-      }, 120);
+      }, 0);
 
       return () => {
         window.clearTimeout(timeoutId);

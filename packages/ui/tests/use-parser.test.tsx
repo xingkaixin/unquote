@@ -257,7 +257,7 @@ describe("useParser", () => {
       forcedFormat: "json",
       onAgentSessionDetected,
     });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
 
     act(() => {
       MockWorker.instances[0]!.respond({
@@ -272,7 +272,7 @@ describe("useParser", () => {
 
   it("terminates a busy worker and publishes only the replacement source", async () => {
     const { rerender } = renderAfterMount({ input: "stalled", forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     const staleWorker = MockWorker.instances[0]!;
     staleWorker.preserveListenersOnTerminate = true;
 
@@ -281,7 +281,7 @@ describe("useParser", () => {
     expect(staleWorker.terminateCalls).toBe(1);
     expect(MockWorker.instances).toHaveLength(2);
 
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     const activeWorker = MockWorker.instances[1]!;
     act(() => {
       activeWorker.respond({
@@ -321,13 +321,13 @@ describe("useParser", () => {
 
   it("keeps an idle worker when a replacement is removed before debounce dispatch", async () => {
     const { rerender } = renderAfterMount({ input: "second", forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
     const worker = MockWorker.instances[0]!;
 
     rerender(<Probe input="stalled" forcedFormat="json" />);
     rerender(<Probe input="second" forcedFormat="json" />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(MockWorker.instances).toHaveLength(1);
@@ -341,7 +341,7 @@ describe("useParser", () => {
 
   it("finishes when worker file reading fails", async () => {
     render(<Probe input="" sourceFile={new File(["x"], "broken.jsonl")} />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
@@ -351,9 +351,9 @@ describe("useParser", () => {
 
   it("ignores a stale worker file error", async () => {
     const { rerender } = render(<Probe input="" sourceFile={new File(["old"], "old.jsonl")} />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     rerender(<Probe input="" sourceFile={new File(["new"], "new.jsonl")} />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(21));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
@@ -408,7 +408,7 @@ describe("useParser", () => {
     expect(parse.mock.calls.filter(([text]) => text === input)).toHaveLength(0);
     parse.mockRestore();
 
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(
@@ -477,7 +477,7 @@ describe("useParser", () => {
 
   it("posts non-streaming JSON requests without an implicit format", async () => {
     const { rerender, unmount } = renderAfterMount({ input: '{"value":1}' });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
     const worker = MockWorker.instances[0]!;
 
@@ -490,7 +490,7 @@ describe("useParser", () => {
     rerender(<Probe input='{"value":2}' forcedFormat="json" />);
     expect(MockWorker.instances).toHaveLength(1);
     expect(worker.terminateCalls).toBe(0);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
     expect(worker.messages).toContainEqual({
       type: "parse",
@@ -505,7 +505,7 @@ describe("useParser", () => {
 
   it("terminates a busy worker once on unmount and ignores later worker activity", async () => {
     const { unmount } = renderAfterMount({ input: "first", forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     const worker = MockWorker.instances[0]!;
 
     unmount();
@@ -522,7 +522,7 @@ describe("useParser", () => {
         <Probe input="" sourceFile={new File(["x"], "stalled.jsonl")} />
       </StrictMode>,
     );
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
 
     const activeWorker = MockWorker.instances.find((worker) =>
       worker.messages.some((message) => message.type === "file-jsonl"),
@@ -551,7 +551,7 @@ describe("useParser", () => {
     MockWorker.postMessageFailsFrom = 1;
 
     renderAfterMount({ input: '{"value":1}', forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
 
     expect(screen.getByTestId("progress")).toHaveTextContent("done");
     expect(toastMocks.error).toHaveBeenCalledTimes(1);
@@ -563,7 +563,7 @@ describe("useParser", () => {
     ["an undeserializable message", (worker: MockWorker) => worker.failDeserialization()],
   ])("finishes a stalled parse after %s", async (_label, provokeFailure) => {
     renderAfterMount({ input: "stalled", forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByTestId("progress")).toHaveTextContent("pending");
 
     act(() => provokeFailure(MockWorker.instances[0]!));
@@ -575,11 +575,11 @@ describe("useParser", () => {
 
   it("builds a fresh worker for the request after a worker failure", async () => {
     const { rerender } = renderAfterMount({ input: "stalled", forcedFormat: "json" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     act(() => MockWorker.instances[0]!.fail());
 
     rerender(<Probe input="second" forcedFormat="jsonl" />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(MockWorker.instances).toHaveLength(2);
@@ -593,7 +593,7 @@ describe("useParser", () => {
   ])("finishes a streaming parse when %s", async (_label, failsFrom, expectedChunks) => {
     MockWorker.postMessageFailsFrom = failsFrom;
     renderAfterMount({ input: `${"x".repeat(256 * 1024)}\n{}`, forcedFormat: "jsonl" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     const worker = MockWorker.instances[0]!;
@@ -608,7 +608,7 @@ describe("useParser", () => {
   it("streams large JSONL input in bounded chunks", async () => {
     const input = `${"x".repeat(256 * 1024)}\n{}`;
     renderAfterMount({ input, forcedFormat: "jsonl" });
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     const chunks = MockWorker.instances[0]?.messages.filter(
@@ -670,7 +670,7 @@ describe("useParser", () => {
     const input = `${"x".repeat(mainThreadWorkBudgetBytes + 1)}\n{}`;
 
     render(<Probe input={input} forcedFormat="jsonl" />);
-    await act(() => vi.advanceTimersByTimeAsync(121));
+    await act(() => vi.advanceTimersByTimeAsync(1));
     await act(() => vi.runOnlyPendingTimersAsync());
 
     expect(MockWorker.instances).toHaveLength(1);
