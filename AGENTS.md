@@ -9,9 +9,25 @@ Agent and Trajectory views for recognized agent-session logs.
 packages/core          Framework-free TypeScript parser library (ESM + CJS)
 packages/ui            React component library, app logic, and design system
 apps/web               Vite web app
-apps/extension         WXT browser extension shared by Chrome and Safari builds
+apps/extension         WXT browser extension shared by Chrome, Edge, and Safari builds
 apps/safari            macOS host app that distributes the Safari extension
 ```
+
+## Project Documents
+
+- `docs/product.md` — goals, non-goals, product principles, and rejected directions
+- `docs/architecture.md` — layering, data flow, and module design principles
+- `CONTEXT.md` — domain glossary; use its terms in code, tests, and documents
+- `DESIGN.md` — design-system token roles and UI rules
+- `docs/source-revision.md`, `docs/virtualization.md` — detailed decisions for those modules
+- `docs/performance.md` — benchmark, bundle, and capacity budgets
+- `docs/core-distribution.md`, `docs/lint-policy.md`, `docs/release-guide.md` — distribution,
+  lint, and release decisions
+
+Check a new feature against the goals and non-goals before designing it. When a change adds a
+goal, crosses a non-goal, or moves a module boundary, update `docs/product.md` or
+`docs/architecture.md` in the same change. Keep feature lists in `README.md`, version history in
+the changelogs, and numeric limits in `docs/performance.md` instead of copying them elsewhere.
 
 The package manifests, `pnpm-workspace.yaml`, `tsconfig.base.json`, and `turbo.json` are the
 sources of truth for versions, scripts, path mappings, and build configuration. Read the scoped

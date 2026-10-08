@@ -63,9 +63,11 @@ pnpm check
 
 MIT
 
-## Performance
+## 文档
 
-Release performance gates are documented in [docs/performance.md](docs/performance.md).
+- [产品定义](docs/product.md)：目标、非目标与产品决策
+- [架构](docs/architecture.md)：模块划分、数据流与设计原则
+- [性能预算](docs/performance.md)：发布前的性能与容量门禁
 
 ## Web 部署
 
