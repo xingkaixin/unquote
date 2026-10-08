@@ -204,7 +204,7 @@ const TrajectoryHeaderBar = ({
           aria-label={t("trajectory.search")}
           placeholder={t("trajectory.searchPlaceholder")}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
-          className="h-7 min-w-[160px] flex-1 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-accent focus:ring-1 focus:ring-accent"
+          className="h-7 min-w-[160px] flex-1 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent"
         />
         <select
           value={kind}
