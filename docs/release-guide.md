@@ -95,7 +95,7 @@ git tag -a v0.5.0 <commit> -m "Release v0.5.0"
 git rev-parse v0.5.0^{}
 ```
 
-## 6. 按需更新 README 和 AGENTS
+## 6. 按需更新 README、AGENTS 和项目文档
 
 更新 `README.md` 的条件：
 
@@ -106,6 +106,11 @@ git rev-parse v0.5.0^{}
 
 - 架构模块、关键文件职责、脚本、测试入口或约束变化
 - 某个旧产品行为已经移除，继续保留会误导后续实现
+
+更新 `docs/product.md` 或 `docs/architecture.md` 的条件：
+
+- 新增或放弃目标、跨越非目标、否决某个方向
+- 模块边界、依赖方向或模块设计原则变化
 
 不要为了“顺手整理”改无关段落。
 
@@ -188,7 +193,7 @@ xcodebuild -project "apps/safari/Unquote.xcodeproj" -scheme Unquote -configurati
 - 工作区 diff 只包含本次发布文档和必要版本号
 - 双语 changelog 的 `Added` / `Changed` / `Fixed` 对齐
 - README 没有夸大未完成能力
-- AGENTS 没有保留已移除 UI 行为
+- AGENTS 和项目文档没有保留已移除的行为或过期的模块边界
 - 目标版本号只更新了应更新的 package
 - 三语产品更新页与商店说明包含当前版本，历史发布内容保持不变
 - 若本次明确包含 Safari 发布或验证，`pnpm build:safari` 已执行且 Xcode 项目无残留 diff
