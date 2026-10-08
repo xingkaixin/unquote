@@ -1,4 +1,4 @@
-import { isStringifiedJson } from "./json-probe.js";
+import { isStringifiedJson, mightBeStringifiedJson } from "./json-probe.js";
 import { parseLosslessJson } from "./lossless-json.js";
 import type {
   FullJsonNode,
@@ -142,7 +142,7 @@ const parseStringifiedJsonLayers = (value: string): LosslessJsonValue | undefine
 
   while (true) {
     const trimmed = current.trim();
-    if (!trimmed) {
+    if (!trimmed || !mightBeStringifiedJson(trimmed)) {
       return hasParsedLayer ? current : undefined;
     }
 
