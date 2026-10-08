@@ -70,7 +70,6 @@ describe("lossless JSON numbers", () => {
   it("still recognizes overflowing numbers as syntactically valid JSONL", () => {
     expect(probeJsonl("1e309\n1e400")).toEqual({
       sampledLines: 2,
-      parsableLines: 2,
       isLikelyJsonl: true,
     });
   });

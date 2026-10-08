@@ -49,7 +49,6 @@ export const truncateAtCodePointBoundary = (value: string, maxLength: number) =>
 
 export interface JsonlProbeResult {
   sampledLines: number;
-  parsableLines: number;
   isLikelyJsonl: boolean;
 }
 
@@ -80,19 +79,18 @@ export const probeJsonl = (input: string, sampleLimit = 8): JsonlProbeResult => 
     start = index + 1;
   }
 
-  let parsableLines = 0;
-  for (const line of lines) {
-    try {
-      parseLosslessJson(line);
-      parsableLines += 1;
-    } catch {
-      // keep counting: parsableLines reports how many sampled lines parse
-    }
-  }
+  // A single line cannot be JSONL, so a minified document is never parsed
+  // just to be rejected. Only validity matters; number lexemes do not.
+  const isLikelyJsonl =
+    lines.length >= 2 &&
+    lines.every((line) => {
+      try {
+        JSON.parse(line);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
-  return {
-    sampledLines: lines.length,
-    parsableLines,
-    isLikelyJsonl: lines.length >= 2 && parsableLines === lines.length,
-  };
+  return { sampledLines: lines.length, isLikelyJsonl };
 };
