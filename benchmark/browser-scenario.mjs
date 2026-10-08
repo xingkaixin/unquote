@@ -140,7 +140,13 @@ export const waitForBenchmarkReady = async ({ expectedFile, expectsAgentSession 
     "source-file",
     () => htmlElement(selectors.shell)?.dataset.sourceFile === expectedFile,
   );
-  await waitFor("first-record", () => document.getElementById("record-1"));
+  // An Agent session can replace the JSON view before its first Record paints.
+  await waitFor(
+    "first-record",
+    () =>
+      document.getElementById("record-1") ??
+      (expectsAgentSession ? document.querySelector(".uq-agent-shell") : null),
+  );
   await settleFrames();
   const firstRecordReady = performance.now();
 

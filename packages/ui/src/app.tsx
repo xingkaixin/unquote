@@ -1,5 +1,6 @@
-import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { AppHeader } from "./components/app-header";
+import { deferredComponent } from "./components/deferred-component";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
 import { Toaster } from "./components/sonner";
 import { SourceImportPanel } from "./components/source-import-panel";
@@ -24,49 +25,34 @@ import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
 import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
 
-const loadAgentOutput = () =>
-  import("./components/agent-output").then(({ AgentOutput }) => ({
-    default: AgentOutput,
-  }));
-
-const AgentOutput = lazy(loadAgentOutput);
-
-const CommandPalette = lazy(() =>
-  import("./components/command-palette").then(({ CommandPalette }) => ({
-    default: CommandPalette,
-  })),
+const AgentOutput = deferredComponent(() =>
+  import("./components/agent-output").then(({ AgentOutput }) => AgentOutput),
 );
 
-const ImportDialog = lazy(() =>
-  import("./components/import-dialog").then(({ ImportDialog }) => ({
-    default: ImportDialog,
-  })),
+const CommandPalette = deferredComponent(() =>
+  import("./components/command-palette").then(({ CommandPalette }) => CommandPalette),
 );
 
-const RecordWorkspace = lazy(() =>
-  import("./components/record-workspace").then(({ RecordWorkspace }) => ({
-    default: RecordWorkspace,
-  })),
+const ImportDialog = deferredComponent(() =>
+  import("./components/import-dialog").then(({ ImportDialog }) => ImportDialog),
+);
+
+const RecordWorkspace = deferredComponent(() =>
+  import("./components/record-workspace").then(({ RecordWorkspace }) => RecordWorkspace),
 );
 
 const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
 
-const RecordReportDialog = lazy(() =>
-  import("./components/record-report-dialog").then(({ RecordReportDialog }) => ({
-    default: RecordReportDialog,
-  })),
+const RecordReportDialog = deferredComponent(() =>
+  import("./components/record-report-dialog").then(({ RecordReportDialog }) => RecordReportDialog),
 );
 
-const RecordTableDialog = lazy(() =>
-  import("./components/record-table-dialog").then(({ RecordTableDialog }) => ({
-    default: RecordTableDialog,
-  })),
+const RecordTableDialog = deferredComponent(() =>
+  import("./components/record-table-dialog").then(({ RecordTableDialog }) => RecordTableDialog),
 );
 
-const JsonDiffDialog = lazy(() =>
-  import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => ({
-    default: JsonDiffDialog,
-  })),
+const JsonDiffDialog = deferredComponent(() =>
+  import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => JsonDiffDialog),
 );
 
 type ActiveOverlay = "import" | "command" | "diff" | "table" | "report" | null;
@@ -107,7 +93,7 @@ export const UnquoteApp = ({
     progress,
     agentSession,
     recordAppend,
-  } = useParser({ source, onAgentSessionDetected: loadAgentOutput });
+  } = useParser({ source, onAgentSessionDetected: AgentOutput.preload });
   const hasData = sourceView.hasData;
 
   const translateError = useCallback(
@@ -318,24 +304,22 @@ export const UnquoteApp = ({
   );
   const output = (
     <DeferredLoadBoundary resetKey={`${resultRevision}:${outputView}`}>
-      <Suspense fallback={null}>
-        {agentSession && outputView !== "json" ? (
-          <AgentOutput
-            session={agentSession}
-            outputView={outputView}
-            isDesktop={isDesktop}
-            filters={trajectoryFilters}
-            detailSelection={recordWorkspace.agent.detailSelection}
-            resolveRecordById={recordWorkspace.agent.resolveRecordById}
-            requestFullRecordById={recordWorkspace.agent.requestFullRecordById}
-            onDetailSelectionChange={recordWorkspace.agent.selectDetail}
-            onOpenRecord={handleOpenRecord}
-            onOpenTrajectoryRecord={handleOpenTrajectoryRecord}
-          />
-        ) : (
-          <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
-        )}
-      </Suspense>
+      {agentSession && outputView !== "json" ? (
+        <AgentOutput
+          session={agentSession}
+          outputView={outputView}
+          isDesktop={isDesktop}
+          filters={trajectoryFilters}
+          detailSelection={recordWorkspace.agent.detailSelection}
+          resolveRecordById={recordWorkspace.agent.resolveRecordById}
+          requestFullRecordById={recordWorkspace.agent.requestFullRecordById}
+          onDetailSelectionChange={recordWorkspace.agent.selectDetail}
+          onOpenRecord={handleOpenRecord}
+          onOpenTrajectoryRecord={handleOpenTrajectoryRecord}
+        />
+      ) : (
+        <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
+      )}
     </DeferredLoadBoundary>
   );
   const emptyState = renderWelcome ? (
@@ -441,64 +425,62 @@ export const UnquoteApp = ({
         />
         {activeOverlay ? (
           <DeferredLoadBoundary resetKey={activeOverlay}>
-            <Suspense fallback={null}>
-              {activeOverlay === "import" ? (
-                <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
-                  {importPanel("h-[220px]")}
-                </ImportDialog>
-              ) : null}
-              {activeOverlay === "report" ? (
-                <RecordReportDialog
-                  key={source.sourceRevision}
-                  source={source}
-                  records={resultRevision === source.sourceRevision ? result.records : []}
-                  activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
-                  onClose={() => setActiveOverlay(null)}
-                />
-              ) : null}
-              {activeOverlay === "table" ? (
-                <RecordTableDialog
-                  key={source.sourceRevision}
-                  source={source}
-                  records={resultRevision === source.sourceRevision ? result.records : []}
-                  selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
-                  onOpenRecord={handleOpenRecord}
-                  onClose={() => setActiveOverlay(null)}
-                />
-              ) : null}
-              {activeOverlay === "diff" ? (
-                <JsonDiffDialog
-                  key={source.sourceRevision}
-                  source={source}
-                  records={resultRevision === source.sourceRevision ? result.records : []}
-                  activeRecord={recordWorkspace.model.active.record}
-                  onClose={() => setActiveOverlay(null)}
-                />
-              ) : null}
-              {activeOverlay === "command" ? (
-                <CommandPalette
-                  open
-                  inputValue={commandInput}
-                  regex={searchRegex}
-                  caseSensitive={searchCaseSensitive}
-                  jq={searchJq}
-                  matchCount={matchCount}
-                  pathMatchCount={pathMatchCount}
-                  visibleCount={visibleStats.total}
-                  totalCount={result.stats.total}
-                  filterMode={recordFilter}
-                  nestedFilterScope={recordWorkspace.model.filter.nestedScope}
-                  onClose={() => setActiveOverlay(null)}
-                  onInputChange={queryIntent.changeCommandInput}
-                  onSearch={queryIntent.searchFromCommand}
-                  onJumpPath={queryIntent.submitToolbarQuery}
-                  onRegexChange={(value) => queryIntent.setOption("regex", value)}
-                  onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
-                  onJqChange={(value) => queryIntent.setOption("jq", value)}
-                  onFilterChange={queryIntent.setFilter}
-                />
-              ) : null}
-            </Suspense>
+            {activeOverlay === "import" ? (
+              <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
+                {importPanel("h-[220px]")}
+              </ImportDialog>
+            ) : null}
+            {activeOverlay === "report" ? (
+              <RecordReportDialog
+                key={source.sourceRevision}
+                source={source}
+                records={resultRevision === source.sourceRevision ? result.records : []}
+                activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
+                onClose={() => setActiveOverlay(null)}
+              />
+            ) : null}
+            {activeOverlay === "table" ? (
+              <RecordTableDialog
+                key={source.sourceRevision}
+                source={source}
+                records={resultRevision === source.sourceRevision ? result.records : []}
+                selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
+                onOpenRecord={handleOpenRecord}
+                onClose={() => setActiveOverlay(null)}
+              />
+            ) : null}
+            {activeOverlay === "diff" ? (
+              <JsonDiffDialog
+                key={source.sourceRevision}
+                source={source}
+                records={resultRevision === source.sourceRevision ? result.records : []}
+                activeRecord={recordWorkspace.model.active.record}
+                onClose={() => setActiveOverlay(null)}
+              />
+            ) : null}
+            {activeOverlay === "command" ? (
+              <CommandPalette
+                open
+                inputValue={commandInput}
+                regex={searchRegex}
+                caseSensitive={searchCaseSensitive}
+                jq={searchJq}
+                matchCount={matchCount}
+                pathMatchCount={pathMatchCount}
+                visibleCount={visibleStats.total}
+                totalCount={result.stats.total}
+                filterMode={recordFilter}
+                nestedFilterScope={recordWorkspace.model.filter.nestedScope}
+                onClose={() => setActiveOverlay(null)}
+                onInputChange={queryIntent.changeCommandInput}
+                onSearch={queryIntent.searchFromCommand}
+                onJumpPath={queryIntent.submitToolbarQuery}
+                onRegexChange={(value) => queryIntent.setOption("regex", value)}
+                onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
+                onJqChange={(value) => queryIntent.setOption("jq", value)}
+                onFilterChange={queryIntent.setFilter}
+              />
+            ) : null}
           </DeferredLoadBoundary>
         ) : null}
         <Toaster theme={theme} />

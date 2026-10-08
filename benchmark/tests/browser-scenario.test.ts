@@ -44,6 +44,25 @@ describe("benchmark browser scenario", () => {
     });
   });
 
+  it("accepts the Agent view as the first content of an Agent session", async () => {
+    const shell = document.createElement("div");
+    shell.className = "uq-shell";
+    shell.dataset.sourceFile = "agent.jsonl";
+    shell.dataset.parseState = "complete";
+    shell.dataset.agentSession = "true";
+    shell.dataset.outputView = "agent";
+    shell.innerHTML = '<div class="uq-agent-shell"><div data-agent-metrics="4"></div></div>';
+    document.body.append(shell);
+    startBenchmark();
+
+    const ready = await waitForBenchmarkReady({
+      expectedFile: "agent.jsonl",
+      expectsAgentSession: true,
+    });
+
+    expect(ready.agentSessionReadyMs).toEqual(expect.any(Number));
+  });
+
   it("rejects a fixture that does not produce the promised Agent session", async () => {
     const shell = document.createElement("div");
     shell.className = "uq-shell";
