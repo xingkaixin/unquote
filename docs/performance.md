@@ -46,13 +46,15 @@ on a shared runner does not trip the check. p95 remains in the report for
 diagnostics. Override a pathological runner with the `UNQUOTE_BENCH_*_BUDGET_*`
 environment variables above.
 
-The GitHub `ubuntu-latest` job keeps the local release defaults except for Agent
-session readiness and Trajectory readiness, which use 700 ms and 130 ms. Four
-runs of the same deferred-Agent implementation measured 5K-session p50 values
-of 577–646.1 ms and Trajectory p50 values of 83.4–116.8 ms on the shared runner,
-while the same commit measured 528.1 ms and 50.5 ms locally. The runner-specific
-limits retain the stricter 600 ms and 100 ms local gates while leaving about 8%
-and 11% above the slowest observed shared-runner medians.
+The GitHub `ubuntu-latest` job keeps the local release defaults except for
+Trajectory readiness, which uses 130 ms. Four runs measured Trajectory p50
+values of 83.4–116.8 ms on the shared runner, while the same commit measured
+50.5 ms locally. The runner-specific limit retains the stricter 100 ms local
+gate while leaving about 11% above the slowest observed shared-runner median.
+Agent session readiness used a 700 ms runner limit while the Agent view waited
+for React's 300 ms Suspense retry throttle. Without that wait the shared runner
+measured 116.8 ms and 196.2 ms p50 for the two Agent fixtures, so the job uses
+the 600 ms default.
 
 Generate ignored local JSONL fixtures with:
 
@@ -102,9 +104,9 @@ Static Web pages are measured separately because their styles are not downloaded
 with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
-The current Web build measures about 575 KiB / 185 KiB gzip for initial JS and
-712 KiB / 229 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 585 KiB / 188 KiB gzip initially and 723 KiB / 233
+The current Web build measures about 596 KiB / 193 KiB gzip for initial JS and
+798 KiB / 260 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 597 KiB / 193 KiB gzip initially and 800 KiB / 260
 KiB gzip in total. The ceilings preserve limited growth headroom without
 permitting the previous 706 KiB initial payload to return. Chunk layout is
 deliberately not budgeted because bundler releases may regroup the same modules
@@ -121,25 +123,25 @@ without changing the amount of JavaScript loaded by either surface.
 
 ## Baseline
 
-Captured at `2026-08-15T22:26:15.670Z` with Node v24.19.0, macOS arm64, 10 CPU
+Captured at `2026-10-08T04:27:22.264Z` with Node v24.21.0, macOS arm64, 10 CPU
 cores, 32 GB memory, 3 samples, and 1 warmup per fixture.
 
 | Fixture | Records | Core p95 | First record p95 | Complete p95 | Search p50 | Build p50 | Trajectory ready p50 | Item selection p50 | Trajectory DOM max | DOM max | Heap max |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `benchmark/case1-agent-session.jsonl` | 433 | 116.4 ms | 187.5 ms | 213.1 ms | 349.8 ms | 1.3 ms | 25.5 ms | 24.9 ms | 198 | 679 | 6.24 MB |
-| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 230.87 ms | 166.8 ms | 252 ms | 350 ms | 7.5 ms | 33.4 ms | 23.5 ms | 190 | 679 | 12.13 MB |
-| `benchmark/case2-1MB.jsonl` | 1610 | 212.95 ms | 161.2 ms | 176.4 ms | 399.2 ms | — | — | — | — | 829 | 5.87 MB |
-| `benchmark/case2-5MB.jsonl` | 7956 | 1014.07 ms | 168.6 ms | 221.9 ms | 809.5 ms | — | — | — | — | 829 | 10.87 MB |
-| `benchmark/case2-10MB.jsonl` | 15765 | 2036.06 ms | 163.8 ms | 265 ms | 1301.6 ms | — | — | — | — | 829 | 15.62 MB |
-| `benchmark/case4-5K-rows.jsonl` | 5000 | 672.14 ms | 172.2 ms | 203 ms | 609 ms | — | — | — | — | 763 | 8.5 MB |
+| `benchmark/case1-agent-session.jsonl` | 433 | 19.45 ms | 65.4 ms | 125.7 ms | 83.4 ms | 2 ms | 66.6 ms | 49.9 ms | 410 | 611 | 6.54 MB |
+| `benchmark/case1-agent-session-5K.jsonl` | 5005 | 29.38 ms | 68 ms | 162.6 ms | 83.3 ms | 5.9 ms | 66.8 ms | 49.8 ms | 247 | 611 | 12.18 MB |
+| `benchmark/case2-1MB.jsonl` | 1610 | 34.67 ms | 61.1 ms | 95 ms | 116.6 ms | — | — | — | — | 834 | 6.01 MB |
+| `benchmark/case2-5MB.jsonl` | 7956 | 161.76 ms | 63.6 ms | 111.7 ms | 266.8 ms | — | — | — | — | 834 | 10.44 MB |
+| `benchmark/case2-10MB.jsonl` | 15765 | 324.87 ms | 64.5 ms | 163.8 ms | 466.8 ms | — | — | — | — | 834 | 15.75 MB |
+| `benchmark/case4-5K-rows.jsonl` | 5000 | 90.48 ms | 65.7 ms | 132.4 ms | 183.8 ms | — | — | — | — | 768 | 8.63 MB |
 
 Both `pnpm benchmark` and `pnpm benchmark:agent` require the two synthetic
 Agent fixtures. The first contains 48 turns and 433 records in 1.13 MB; the
 second contains 556 turns and 5,005 records in 1.12 MB. Together they exercise
 streamed parsing and both virtualized Agent panes at ordinary and high session
-volume. This capture measured Agent session readiness at 184.6 ms and 228.7 ms
-p50, tool expansion at 18 ms and 24.1 ms p50, and trajectory projection at
-1.3 ms and 7.5 ms p50, respectively.
+volume. This capture measured Agent session readiness at 91.6 ms and 116.4 ms
+p50, tool expansion at 37.8 ms and 36.1 ms p50, and trajectory projection at
+2 ms and 5.9 ms p50, respectively.
 
 The three Agent-only trajectory metrics have the following sorted samples
 `[min, p50, max]`; with three samples, p50 is the middle sample and p95 is the
@@ -147,12 +149,12 @@ same as max. Times are milliseconds.
 
 | Fixture | Metric | Sorted samples | Average | p50 | Max |
 |---|---|---:|---:|---:|---:|
-| `case1-agent-session` | Trajectory ready | [25, 25.5, 34.3] | 28.27 | 25.5 | 34.3 |
-| `case1-agent-session` | Item selection ready | [24.9, 24.9, 25] | 24.93 | 24.9 | 25 |
-| `case1-agent-session` | Trajectory DOM nodes | [198, 198, 198] | 198 | 198 | 198 |
-| `case1-agent-session-5K` | Trajectory ready | [33.2, 33.4, 33.4] | 33.33 | 33.4 | 33.4 |
-| `case1-agent-session-5K` | Item selection ready | [23.3, 23.5, 24.9] | 23.9 | 23.5 | 24.9 |
-| `case1-agent-session-5K` | Trajectory DOM nodes | [190, 190, 190] | 190 | 190 | 190 |
+| `case1-agent-session` | Trajectory ready | [66.5, 66.6, 83.8] | 72.3 | 66.6 | 83.8 |
+| `case1-agent-session` | Item selection ready | [49.9, 49.9, 50] | 49.93 | 49.9 | 50 |
+| `case1-agent-session` | Trajectory DOM nodes | [410, 410, 410] | 410 | 410 | 410 |
+| `case1-agent-session-5K` | Trajectory ready | [65.9, 66.8, 66.9] | 66.53 | 66.8 | 66.9 |
+| `case1-agent-session-5K` | Item selection ready | [49.8, 49.8, 50.6] | 50.07 | 49.8 | 50.6 |
+| `case1-agent-session-5K` | Trajectory DOM nodes | [247, 247, 247] | 247 | 247 | 247 |
 
 `core p95` measures `@unquote/core` forced JSONL parsing. `first record p95`
 measures the time from dropping a local JSONL file to `record-1` becoming
@@ -191,8 +193,8 @@ three values are required and budgeted only for `agent-session` fixtures; plain
 JSON and JSONL fixtures neither require nor report them.
 
 The millisecond defaults preserve the existing approximately 2.18× regression
-headroom, rounding up to the next 10: the slowest values in this full report
-yield `ceil10(34.3 × 2.18) = 80 ms` for Trajectory ready and
+headroom, rounding up to the next 10: the slowest values in the 2026-08-15 full
+report yield `ceil10(34.3 × 2.18) = 80 ms` for Trajectory ready and
 `ceil10(25 × 2.18) = 60 ms` for item selection. The ready budget remains at its
 established 100 ms rather than tightening after one successful capture. The DOM
 node budget is structural rather than statistical: the overview renders at most
