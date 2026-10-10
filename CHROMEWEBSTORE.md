@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Unquote
 
-Last Updated: 2026-09-13
+Last Updated: 2026-10-10
 
 This document records repository-derived listing information. Dashboard-only fields below
 must be confirmed before a store submission; this change does not submit a release.
@@ -21,6 +21,9 @@ Compare JSON by path, build filtered record tables, inspect field presence and t
 export matching rows as CSV. Select source lines and redact specified fields before
 downloading problem excerpts as Markdown or JSONL.
 
+Open JSON with less waiting, run submitted searches immediately, and keep search and
+record filters accessible on narrow screens.
+
 Open Unquote from the toolbar or keyboard shortcut, then paste text or open a local file.
 You can also select text on a page and choose Open in Unquote from the context menu. If the
 selection cannot be imported, Unquote explains how to paste it manually or open a file.
@@ -39,7 +42,8 @@ selection cannot be imported, Unquote explains how to paste it manually or open 
 | Store screenshots | 1280×800 or 640×400 | Confirm existing dashboard assets | Not tracked here |
 
 Screenshot refresh: capture JSON comparison, record tables with field profiles, redacted
-report previews, and selection-import recovery messages for the 1.2.3 listing.
+report previews, and selection-import recovery messages for the current listing; include
+narrow-screen toolbar layouts in the 1.2.4 refresh.
 
 ## Permissions Justification
 
@@ -83,6 +87,7 @@ selected text. Data is not sold, used for unrelated purposes, or used for lendin
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
+| 1.2.4 | 2026-10-10 | Reduce parsing and view-loading delays, run submitted searches immediately, and improve narrow-screen toolbars and search placeholder contrast. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.3 | 2026-09-13 | Add JSON comparison, filtered tables and CSV export, field profiles, and redacted problem reports; improve large-record copy/export, selection-import recovery, and hover feedback; bundle fonts locally. | Prepared; not submitted |
 | Unreleased (after repository version 1.2.2) | 2026-09-06 | Explain failed selection imports and clear consumed import parameters to avoid repeat warnings on refresh. | Draft |
 

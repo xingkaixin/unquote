@@ -5,6 +5,27 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.4] - 2026-10-10
+
+### Added
+
+- Added web guides for JSONL viewing, JSON unescaping, and Agent log inspection, with examples that open in the viewer.
+
+### Changed
+
+- Improved the web import page with clearer feature descriptions and direct links to the guides.
+- Moved website hosting to Cloudflare Workers Static Assets while preserving the production domain and static-page routing.
+- Web visit measurement now includes guide pages, viewer engagement, and page performance without sending imported content.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.4`.
+
+### Fixed
+
+- Narrow-screen toolbars now keep search, view controls, and record filters accessible.
+- Opening JSON avoids unnecessary format probes and repeated parsing attempts on ordinary strings; background parsing starts without the previous fixed delay.
+- Explicitly submitted toolbar and command searches run immediately instead of waiting for the typing debounce.
+- On-demand views appear as soon as their code loads, without an additional reveal delay.
+- Search placeholder text now uses the intended tertiary text color.
+
 ## [1.2.3] - 2026-09-13
 
 ### Added
