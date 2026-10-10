@@ -25,6 +25,7 @@
 - 可见记录复制/导出为 JSONL 或格式化 JSON，大文件导出带进度反馈
 - 解析在浏览器或扩展本地完成
 - 深色/浅色/跟随系统主题，支持英文、简体中文和日语
+- Web 使用指南：[JSONL 查看](https://unquote.xingkaixin.me/jsonl-viewer/)、[JSON 反转义](https://unquote.xingkaixin.me/json-unescape/)、[Agent 日志](https://unquote.xingkaixin.me/agent-log-viewer/)，附可直接打开的示例
 
 ## 分发
 

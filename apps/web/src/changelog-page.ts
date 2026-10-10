@@ -89,6 +89,20 @@ const changelogCopy = {
     versionPrefix: "Version",
     releases: [
       {
+        version: "1.2.4",
+        date: "2026-10-10",
+        dateLabel: "October 10, 2026",
+        title: "Faster parsing and search, with new web guides",
+        summary:
+          "JSON opens with less waiting, submitted searches run immediately, and narrow-screen controls stay accessible. New web guides provide examples for common tasks.",
+        highlights: [
+          "Open JSON with fewer unnecessary parsing attempts and no fixed delay before background parsing starts.",
+          "Submit a toolbar or command search to run it immediately; on-demand views appear as soon as they load.",
+          "Use search, view controls, and record filters on narrow screens.",
+          "Explore web guides for JSONL, JSON unescaping, and Agent logs, and open their examples in the viewer.",
+        ],
+      },
+      {
         version: "1.2.3",
         date: "2026-09-13",
         dateLabel: "September 13, 2026",
@@ -228,6 +242,20 @@ const changelogCopy = {
     latestSummary: "更新说明只关注用户可以感知的变化，不罗列背后的实现细节。",
     versionPrefix: "版本",
     releases: [
+      {
+        version: "1.2.4",
+        date: "2026-10-10",
+        dateLabel: "2026 年 10 月 10 日",
+        title: "更快的解析与搜索，新增 Web 使用指南",
+        summary:
+          "减少打开 JSON 和提交搜索时的等待，窄屏下保留常用控制入口。新增 Web 指南，以示例说明常见任务。",
+        highlights: [
+          "打开 JSON 时减少不必要的解析尝试，后台解析不再等待固定延迟。",
+          "工具栏或命令面板主动提交的搜索立即执行；按需加载的视图就绪后立即显示。",
+          "窄屏下仍可使用搜索、视图控制和记录筛选。",
+          "新增 JSONL、JSON 反转义和 Agent 日志 Web 指南，示例可直接在查看器中打开。",
+        ],
+      },
       {
         version: "1.2.3",
         date: "2026-09-13",
@@ -372,6 +400,20 @@ const changelogCopy = {
     latestSummary: "実装の詳細ではなく、ユーザーが実感できる変化を中心にまとめています。",
     versionPrefix: "バージョン",
     releases: [
+      {
+        version: "1.2.4",
+        date: "2026-10-10",
+        dateLabel: "2026年10月10日",
+        title: "解析と検索を高速化し、Web ガイドを追加",
+        summary:
+          "JSON を開く際や検索実行時の待ち時間を短縮し、狭い画面でも操作しやすくしました。新しい Web ガイドでは、よく使う操作をサンプル付きで紹介します。",
+        highlights: [
+          "JSON を開く際の不要な解析を減らし、バックグラウンド解析前の固定待機時間をなくしました。",
+          "ツールバーやコマンドから確定した検索はすぐに実行され、必要に応じて読み込むビューは準備ができ次第表示されます。",
+          "狭い画面でも検索、ビュー切り替え、レコードの絞り込みを利用できます。",
+          "JSONL、JSON のエスケープ解除、Agent ログの Web ガイドを追加し、サンプルをビューアーで直接開けるようにしました。",
+        ],
+      },
       {
         version: "1.2.3",
         date: "2026-09-13",
