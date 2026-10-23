@@ -104,9 +104,9 @@ Static Web pages are measured separately because their styles are not downloaded
 with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
-The current Web build measures about 599 KiB / 194 KiB gzip for initial JS and
-815 KiB / 265 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 601 KiB / 194 KiB gzip initially and 817 KiB / 265
+The current Web build measures about 601 KiB / 195 KiB gzip for initial JS and
+817 KiB / 266 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 603 KiB / 194 KiB gzip initially and 819 KiB / 265
 KiB gzip in total. The ceilings preserve limited growth headroom without
 permitting the previous 706 KiB initial payload to return. Chunk layout is
 deliberately not budgeted because bundler releases may regroup the same modules
@@ -284,7 +284,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 ## Local analysis workspaces
 
-Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 845,000 bytes / 275,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 817 KB / 265 KB gzip.
+Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 845,000 bytes / 275,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 819 KB / 265 KB gzip.
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 
