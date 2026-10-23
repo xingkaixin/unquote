@@ -141,6 +141,13 @@ export const ja: Messages = {
   "agent.metric.tools": "ツール",
   "agent.sessionId": "セッション",
   "agent.model": "モデル",
+  "agent.reported": "{agent} の記録",
+  "agent.reported.cost": "コスト",
+  "agent.reported.lines": "変更行数",
+  "agent.reported.apiTime": "API 時間",
+  "agent.reported.toolTime": "ツール時間",
+  "agent.reported.unknownModelCost":
+    "一部のモデルの価格が不明なため、コストは正確でない可能性があります",
   "agent.warnings": "警告 {count} 件",
   "agent.warning.title": "解析の警告",
   "agent.warning.invalidJson": "無効な JSON",

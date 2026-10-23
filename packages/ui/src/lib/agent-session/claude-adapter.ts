@@ -7,6 +7,7 @@ import type {
   AgentEventCategory,
   AgentTimelineEvent,
   AgentSessionEvidence,
+  AgentSessionReportedTotals,
   AgentTrajectoryStatus,
   AgentTrajectoryTokenUsage,
 } from "./session-types";
@@ -26,11 +27,27 @@ const claudeMetaTypes = new Set([
   "mode",
   "permission-mode",
   "file-history-snapshot",
+  "file-history-delta",
   "attachment",
   "ai-title",
+  "custom-title",
+  "agent-name",
   "last-prompt",
+  "queue-operation",
   "system",
   "pr-link",
+  "cost-state",
+  "atis-latch",
+  "api-request",
+  "api-request-blob",
+  "api-request-shape",
+  "frame-link",
+  "artifact-comment-monitor",
+  "artifact-autoreact-ledger",
+  "worktree-state",
+  "relocated",
+  "dev-mods",
+  "bridge-session",
 ]);
 
 // Older Claude Code transcripts name the subagent tool "Task".
@@ -340,9 +357,28 @@ const claudeTaskNotification = (record: Record<string, unknown>) => {
     : undefined;
 };
 
-const claudeTurnDurationMs = (record: Record<string, unknown>) => {
-  const value = record.durationMs;
+const readNonNegativeNumber = (record: Record<string, unknown>, key: string) => {
+  const value = record[key];
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+};
+
+const parseClaudeCostState = (
+  record: Record<string, unknown>,
+): AgentSessionReportedTotals | undefined => {
+  const costUSD = readNonNegativeNumber(record, "totalCostUSD");
+  const apiDurationMs = readNonNegativeNumber(record, "totalAPIDuration");
+  const toolDurationMs = readNonNegativeNumber(record, "totalToolDuration");
+  const linesAdded = readNonNegativeNumber(record, "totalLinesAdded");
+  const linesRemoved = readNonNegativeNumber(record, "totalLinesRemoved");
+  const totals: AgentSessionReportedTotals = {
+    ...(costUSD === undefined ? {} : { costUSD }),
+    ...(getBoolean(record, "hasUnknownModelCost") ? { hasUnknownModelCost: true } : {}),
+    ...(apiDurationMs === undefined ? {} : { apiDurationMs }),
+    ...(toolDurationMs === undefined ? {} : { toolDurationMs }),
+    ...(linesAdded === undefined ? {} : { linesAdded }),
+    ...(linesRemoved === undefined ? {} : { linesRemoved }),
+  };
+  return Object.keys(totals).length > 0 ? totals : undefined;
 };
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Claude model field before producing a model label.
@@ -371,6 +407,9 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   let model: string | undefined;
   let cwd: string | undefined;
   let version: string | undefined;
+  let customTitle: string | undefined;
+  let aiTitle: string | undefined;
+  let reportedTotals: AgentSessionReportedTotals | undefined;
 
   const startPromptTurn = (turnId: string | undefined) => {
     if (turnId !== undefined && currentTurn?.turnId === turnId) {
@@ -479,6 +518,14 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       sessionId ??= getString(record, "sessionId");
       cwd ??= getString(record, "cwd");
       version ??= getString(record, "version");
+      // Title and cost records repeat as the session evolves; the last one is current.
+      if (type === "custom-title") {
+        customTitle = getString(record, "customTitle") ?? customTitle;
+      } else if (type === "ai-title") {
+        aiTitle = getString(record, "aiTitle") ?? aiTitle;
+      } else if (type === "cost-state") {
+        reportedTotals = parseClaudeCostState(record) ?? reportedTotals;
+      }
 
       const blocks = extractClaudeContentBlocks(record);
       const isToolResultTurn =
@@ -557,7 +604,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       } else if (type === "system") {
         const subtype = getString(record, "subtype");
         if (subtype === "turn_duration" && currentTurn) {
-          event.sessionEvidence = closeCurrentTurn(claudeTurnDurationMs(record));
+          event.sessionEvidence = closeCurrentTurn(readNonNegativeNumber(record, "durationMs"));
         } else if (subtype === "compact_boundary") {
           event.sessionEvidence = [
             { kind: "compaction", ...(turnId === undefined ? {} : { turnId }) },
@@ -568,15 +615,19 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       events.push(event);
     },
     finish(parseWarnings) {
+      // A title the user chose outranks the generated one, whichever came last.
+      const title = customTitle ?? aiTitle;
       return buildSession(
         {
           fileType: "Claude Code",
           ...(fileName ? { fileName } : {}),
           meta: {
             ...(sessionId ? { sessionId } : {}),
+            ...(title ? { title } : {}),
             ...(model ? { model } : {}),
             ...(cwd ? { cwd } : {}),
             ...(version ? { version } : {}),
+            ...(reportedTotals ? { reportedTotals } : {}),
           },
           events,
         },

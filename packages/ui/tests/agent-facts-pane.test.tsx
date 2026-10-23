@@ -154,6 +154,45 @@ describe("AgentFactsPane", () => {
     expect(screen.getByText("/repo")).toBeInTheDocument();
   });
 
+  it("shows the session title and the totals the log reports", () => {
+    renderPane({
+      ...session,
+      fileType: "Claude Code",
+      meta: {
+        title: "Session title",
+        reportedTotals: {
+          costUSD: 0.0123,
+          apiDurationMs: 90_000,
+          toolDurationMs: 4_200,
+          linesAdded: 1200,
+          linesRemoved: 3,
+        },
+      },
+    });
+    const reported = document.querySelector("[data-agent-reported]")!;
+
+    expect(screen.getByText("Session title")).toBeInTheDocument();
+    expect(screen.getByText("Reported by Claude Code")).toBeInTheDocument();
+    expect(reported).toHaveAttribute("data-agent-reported", "4");
+    expect(reported).toHaveTextContent("Cost$0.0123");
+    expect(reported).toHaveTextContent("Lines changed+1,200 −3");
+    expect(reported).toHaveTextContent("API time1.5m");
+    expect(reported).toHaveTextContent("Tool time4.2s");
+    expect(screen.queryByText(/unknown pricing/)).not.toBeInTheDocument();
+  });
+
+  it("warns when the reported cost includes models with unknown pricing", () => {
+    renderPane({
+      ...session,
+      meta: { reportedTotals: { costUSD: 12.5, hasUnknownModelCost: true } },
+    });
+
+    expect(document.querySelector("[data-agent-reported]")).toHaveTextContent("Cost$12.50");
+    expect(
+      screen.getByText("Cost may be inaccurate: some models have unknown pricing"),
+    ).toBeInTheDocument();
+  });
+
   it("omits every fact the session does not carry", () => {
     renderPane({
       fileType: "Claude Code",
@@ -167,6 +206,7 @@ describe("AgentFactsPane", () => {
     expect(screen.queryByText("rollout.jsonl")).not.toBeInTheDocument();
     expect(screen.queryByText(/warnings/)).not.toBeInTheDocument();
     expect(screen.queryByText("Model")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-agent-reported]")).not.toBeInTheDocument();
   });
 
   it("drops the session block entirely when nothing identifies the session", () => {
