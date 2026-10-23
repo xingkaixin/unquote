@@ -7,6 +7,7 @@ import type {
   AgentEventCategory,
   AgentTimelineEvent,
   AgentSessionEvidence,
+  AgentTrajectoryStatus,
   AgentTrajectoryTokenUsage,
 } from "./session-types";
 import { formatAgentBlockValue, truncateBlockText, truncatePreview } from "./agent-value-format";
@@ -30,6 +31,16 @@ const claudeMetaTypes = new Set([
   "last-prompt",
   "system",
   "pr-link",
+]);
+
+// Older Claude Code transcripts name the subagent tool "Task".
+const claudeSubagentToolNames = new Set(["Agent", "Task"]);
+
+const claudeNotificationStatuses = new Map<string, AgentTrajectoryStatus>([
+  ["completed", "completed"],
+  ["failed", "failed"],
+  ["killed", "aborted"],
+  ["stopped", "aborted"],
 ]);
 
 type ClaudeContentBlock =
@@ -317,6 +328,15 @@ const claudeBlockEvidence = (
   return evidence;
 };
 
+// Background tasks, including subagents, report their end in a later prompt
+// made of <task-notification> markup.
+const claudeTaskNotification = (record: Record<string, unknown>) => {
+  const content = isRecord(record.message) ? record.message.content : undefined;
+  return typeof content === "string" && content.startsWith("<task-notification>")
+    ? content
+    : undefined;
+};
+
 const claudeTurnDurationMs = (record: Record<string, unknown>) => {
   const value = record.durationMs;
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -340,6 +360,8 @@ interface ClaudeTurnState {
 const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
   const seenUsageRequestIds = new Set<string>();
+  const subagentCallIds = new Set<string>();
+  const subagentIds = new Set<string>();
   let currentTurn: ClaudeTurnState | undefined;
   let turnCount = 0;
   let sessionId: string | undefined;
@@ -402,6 +424,47 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
     ];
   };
 
+  const subagentEvidence = (
+    record: Record<string, unknown>,
+    blocks: ClaudeContentBlock[],
+    notification: string | undefined,
+    turnId: string | undefined,
+  ): AgentSessionEvidence[] => {
+    const turn = turnId ? { turnId } : {};
+    if (notification !== undefined) {
+      const taskId = /<task-id>([^<]+)<\/task-id>/.exec(notification)?.[1];
+      const taskStatus = /<status>([^<]+)<\/status>/.exec(notification)?.[1];
+      const status =
+        taskId && taskStatus && subagentIds.has(taskId)
+          ? claudeNotificationStatuses.get(taskStatus)
+          : undefined;
+      return status ? [{ kind: "subagent-activity", status, ...turn }] : [];
+    }
+
+    const result = isRecord(record.toolUseResult) ? record.toolUseResult : undefined;
+    const agentId = result ? getString(result, "agentId") : undefined;
+    if (agentId) {
+      subagentIds.add(agentId);
+    }
+    const launchedInBackground =
+      result !== undefined && getString(result, "status") === "async_launched";
+
+    const evidence: AgentSessionEvidence[] = [];
+    for (const block of blocks) {
+      if (block.type === "tool_use" && claudeSubagentToolNames.has(block.toolName)) {
+        subagentCallIds.add(block.callId);
+        evidence.push({ kind: "subagent-activity", status: "running", ...turn });
+      } else if (
+        block.type === "tool_result" &&
+        !launchedInBackground &&
+        (agentId !== undefined || (block.callId !== undefined && subagentCallIds.has(block.callId)))
+      ) {
+        evidence.push({ kind: "subagent-activity", status: block.status, ...turn });
+      }
+    }
+    return evidence;
+  };
+
   return {
     push(line) {
       if (!isRecord(line.data)) {
@@ -417,6 +480,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       const blocks = extractClaudeContentBlocks(record);
       const isToolResultTurn =
         type === "user" && blocks.some((block) => block.type === "tool_result");
+      const notification = type === "user" ? claudeTaskNotification(record) : undefined;
       const timestamp = parseTimestamp(record.timestamp);
 
       let leadingLifecycle: AgentSessionEvidence[] = [];
@@ -479,6 +543,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
         const evidence = [
           ...leadingLifecycle,
           ...claudeBlockEvidence(blocks, items, turnId, trajectoryUsage),
+          ...subagentEvidence(record, blocks, notification, turnId),
           ...trailingLifecycle,
         ];
         if (evidence.length > 0) {
