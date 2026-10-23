@@ -297,6 +297,8 @@ Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps
 
 Record tables display 50 rows per page and retain at most 100,000 matching rows / 20 MiB of projected cells. Each serialized cell is bounded to 64 KiB / 20,000 nodes; local-file hydration starts with 64 records and halves batches that exceed the 4 MiB read budget. Successful batches are processed before the next read; a single record that exceeds the budget is rejected. Scans yield between batches and reject cancellation before publication or download.
 
+The node inspector decodes JWT strings of at most 20,000 UTF-16 code units; longer strings are shown without a decoded view. Decoding runs once per selected node inside the on-demand JSON workspace chunk.
+
 Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
 
 Problem excerpt export selects at most 1,000 records and streams local records one at a time, finishing redaction and serialization before parsing the next. Selected source lines share an 8 MiB UTF-8 read budget; serialized content and traversal retain their 8 MiB / 50,000-node limits. Only serialized text accumulates across records; a single record still requires a full parse. Redaction yields every 250 visited nodes. Markdown previews display 10,000 characters per page.
