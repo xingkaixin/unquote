@@ -1,6 +1,13 @@
+import type { ComponentProps } from "react";
 import { useTranslation } from "../i18n/context";
-import type { AgentSession, AgentSessionModel } from "../lib/agent-session";
+import type { Locale } from "../i18n/i18n";
+import type {
+  AgentSession,
+  AgentSessionModel,
+  AgentSessionReportedTotals,
+} from "../lib/agent-session";
 import { agentParseWarningMessageKey } from "./agent-session-format";
+import { formatTrajectoryDuration } from "./agent-trajectory-format";
 import { Button } from "./button";
 
 export interface AgentFactsPaneProps {
@@ -25,6 +32,63 @@ const metricItems = (
   ];
 };
 
+// Sub-dollar costs keep four decimals so a cheap session does not read as $0.00.
+const formatCostUSD = (value: number, locale: Locale) =>
+  new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: value > 0.5 ? 2 : 4,
+  }).format(value);
+
+const reportedItems = (
+  totals: AgentSessionReportedTotals,
+  locale: Locale,
+  t: ReturnType<typeof useTranslation>["t"],
+) => {
+  const count = new Intl.NumberFormat(locale);
+  const items: { label: string; value: string }[] = [];
+  if (totals.costUSD !== undefined) {
+    items.push({ label: t("agent.reported.cost"), value: formatCostUSD(totals.costUSD, locale) });
+  }
+  if (totals.linesAdded !== undefined && totals.linesRemoved !== undefined) {
+    items.push({
+      label: t("agent.reported.lines"),
+      value: `+${count.format(totals.linesAdded)} −${count.format(totals.linesRemoved)}`,
+    });
+  }
+  if (totals.apiDurationMs !== undefined) {
+    items.push({
+      label: t("agent.reported.apiTime"),
+      value: formatTrajectoryDuration(totals.apiDurationMs, locale),
+    });
+  }
+  if (totals.toolDurationMs !== undefined) {
+    items.push({
+      label: t("agent.reported.toolTime"),
+      value: formatTrajectoryDuration(totals.toolDurationMs, locale),
+    });
+  }
+  return items;
+};
+
+const MetricGrid = ({
+  items,
+  ...props
+}: ComponentProps<"div"> & { items: { label: string; value: string | number }[] }) => (
+  <div
+    className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border"
+    {...props}
+  >
+    {items.map((item) => (
+      <div key={item.label} className="flex flex-col gap-1.5 bg-surface-100 px-3 py-2.5">
+        <span className="uq-label">{item.label}</span>
+        <span className="font-mono text-[16px] text-text-primary">{item.value}</span>
+      </div>
+    ))}
+  </div>
+);
+
 const Chip = ({ children, tone }: { children: string; tone: string }) => (
   <span className={`rounded-xs border px-1.5 py-0.5 font-mono text-[10.5px] ${tone}`}>
     {children}
@@ -32,8 +96,10 @@ const Chip = ({ children, tone }: { children: string; tone: string }) => (
 );
 
 export const AgentFactsPane = ({ session, model, onOpenRecord }: AgentFactsPaneProps) => {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const metrics = metricItems(session, model, t);
+  const totals = session.meta.reportedTotals;
+  const reported = totals ? reportedItems(totals, locale, t) : [];
   const hiddenWarningCount = Math.max(0, session.parseWarningCount - session.parseWarnings.length);
   const location = [session.meta.cwd, session.meta.version ? `v${session.meta.version}` : ""]
     .filter(Boolean)
@@ -43,17 +109,25 @@ export const AgentFactsPane = ({ session, model, onOpenRecord }: AgentFactsPaneP
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
       <h2 className="uq-label m-0">{t("agent.overview")}</h2>
 
-      <div
-        className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border"
-        data-agent-metrics={metrics.length}
-      >
-        {metrics.map((item) => (
-          <div key={item.label} className="flex flex-col gap-1.5 bg-surface-100 px-3 py-2.5">
-            <span className="uq-label">{item.label}</span>
-            <span className="font-mono text-[16px] text-text-primary">{item.value}</span>
-          </div>
-        ))}
-      </div>
+      {session.meta.title ? (
+        <p className="m-0 break-words text-[13px] text-text-primary">{session.meta.title}</p>
+      ) : null}
+
+      <MetricGrid items={metrics} data-agent-metrics={metrics.length} />
+
+      {reported.length > 0 ? (
+        <section className="flex flex-col gap-2" aria-labelledby="agent-reported-title">
+          <h3 id="agent-reported-title" className="uq-label m-0">
+            {t("agent.reported", { agent: session.fileType })}
+          </h3>
+          <MetricGrid items={reported} data-agent-reported={reported.length} />
+          {totals?.hasUnknownModelCost ? (
+            <p className="m-0 text-[11px] text-text-secondary">
+              {t("agent.reported.unknownModelCost")}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Chip tone="border-success text-success">{session.fileType}</Chip>

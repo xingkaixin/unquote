@@ -15,11 +15,23 @@ export type AgentConversationRole =
   | "tool_call"
   | "tool_result";
 
+// Totals the agent wrote into its own log; never derived or priced by Unquote.
+export interface AgentSessionReportedTotals {
+  costUSD?: number;
+  hasUnknownModelCost?: true;
+  apiDurationMs?: number;
+  toolDurationMs?: number;
+  linesAdded?: number;
+  linesRemoved?: number;
+}
+
 export interface AgentSessionMeta {
   sessionId?: string;
+  title?: string;
   model?: string;
   cwd?: string;
   version?: string;
+  reportedTotals?: AgentSessionReportedTotals;
 }
 
 export type AgentParseWarningKind = "invalid-json" | "projection-failed";
