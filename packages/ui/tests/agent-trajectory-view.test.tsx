@@ -591,6 +591,38 @@ describe("AgentTrajectoryView", () => {
     expect(screen.getByLabelText("Status")).toHaveValue("failed");
   });
 
+  it("summarizes tools by name and filters the ledger to a clicked tool", async () => {
+    const user = userEvent.setup();
+    const items = [
+      itemFor("bash-ok", { kind: "tool", status: "completed", timestamp: 10, toolName: "Bash" }),
+      itemFor("bash-broken", { kind: "tool", status: "failed", timestamp: 20, toolName: "Bash" }),
+      itemFor("read", { kind: "tool", status: "completed", timestamp: 30, toolName: "Read" }),
+      itemFor("assistant-note", { timestamp: 40 }),
+    ];
+    renderView({ model: modelFor(items) });
+
+    const table = screen.getByRole("table", { name: "Per-tool breakdown" });
+    const bashRow = screen.getByRole("row", { name: /^Bash/ });
+    expect(table).toContainElement(bashRow);
+    expect(bashRow).toHaveTextContent("Bash21");
+
+    await user.click(screen.getByRole("button", { name: "Bash" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 of 4 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Bash" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Tool")).toHaveValue("Bash");
+    expect(document.querySelector('[data-trajectory-item-token="2"]')).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("4 of 4 visible")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Tool")).toHaveValue("");
+  });
+
   it("keeps the failures card inert when nothing failed", () => {
     renderView({
       model: modelFor([itemFor("tool-ok", { kind: "tool", status: "completed", timestamp: 10 })]),

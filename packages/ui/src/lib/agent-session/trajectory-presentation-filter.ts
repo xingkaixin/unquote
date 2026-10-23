@@ -36,6 +36,7 @@ export interface AgentTrajectoryPresentationFilter {
   readonly query?: string;
   readonly kind?: AgentTrajectoryFilterKind;
   readonly status?: AgentTrajectoryFilterStatus;
+  readonly toolName?: string | null;
   readonly timeRange?: AgentTrajectoryTimeRange | null;
 }
 
@@ -66,12 +67,16 @@ const matchesFilter = (
   query: string,
   kind: AgentTrajectoryFilterKind,
   status: AgentTrajectoryFilterStatus,
+  toolName: string | null,
   timeRange: AgentTrajectoryTimeRange | null,
 ) => {
   if (kind !== "all" && item.item.kind !== kind) {
     return false;
   }
   if (status !== "all" && item.item.status !== status) {
+    return false;
+  }
+  if (toolName !== null && (item.item.kind !== "tool" || item.item.toolName !== toolName)) {
     return false;
   }
   if (query && !item.searchText.includes(query)) {
@@ -87,11 +92,12 @@ export const filterAgentTrajectoryPresentation = (
   const query = filter.query?.trim().toLowerCase() ?? "";
   const kind = filter.kind ?? "all";
   const status = filter.status ?? "all";
+  const toolName = filter.toolName ?? null;
   const timeRange = validTrajectoryRange(filter.timeRange);
   const visibleItems: AgentTrajectoryPresentationItem[] = [];
   const visibleItemSet = new Set<AgentTrajectoryPresentationItem>();
   for (const item of presentation.items) {
-    if (matchesFilter(item, query, kind, status, timeRange)) {
+    if (matchesFilter(item, query, kind, status, toolName, timeRange)) {
       visibleItems.push(item);
       visibleItemSet.add(item);
     }

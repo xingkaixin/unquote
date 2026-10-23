@@ -74,6 +74,32 @@ describe("agent trajectory presentation: filters", () => {
     expect(failedCompaction.visibleItems).toEqual([]);
   });
 
+  it("filters to one tool name and composes it with the other filters", () => {
+    const read = toolItemFor("event-40", "completed", { timestamp: 10, toolName: "Read" });
+    const bash = toolItemFor("event-41", "failed", { timestamp: 20, toolName: "Bash" });
+    const assistant = modelOutputItemFor("event-42", "assistant", 30);
+    const presentation = createAgentTrajectoryPresentation(
+      modelFor(
+        [
+          eventFor("event-40", "Read label", ""),
+          eventFor("event-41", "Bash label", ""),
+          eventFor("event-42", "Assistant label", ""),
+        ],
+        [read, bash, assistant],
+        [turnFor("turn-tools", [read, bash, assistant])],
+      ),
+    );
+    const visibleIds = (filter: Parameters<typeof filterAgentTrajectoryPresentation>[1]) =>
+      filterAgentTrajectoryPresentation(presentation, filter).visibleItems.map(
+        (item) => item.item.id,
+      );
+
+    expect(visibleIds({ toolName: "Bash" })).toEqual(["item-event-41"]);
+    expect(visibleIds({ toolName: "Bash", status: "completed" })).toEqual([]);
+    expect(visibleIds({ toolName: "Missing" })).toEqual([]);
+    expect(visibleIds({ toolName: null })).toHaveLength(3);
+  });
+
   it("reports positions within each filtered ledger group", () => {
     const presentation = presentationForFiltering();
     const filtered = filterAgentTrajectoryPresentation(presentation, { kind: "tool" });

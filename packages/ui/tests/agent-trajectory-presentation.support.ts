@@ -69,6 +69,7 @@ export const toolItemFor = (
     timestamp?: number;
     startedAt?: number;
     endedAt?: number;
+    durationMs?: number;
     toolName?: string;
     callId?: string;
     callSelection?: AgentCanonicalSelection;
@@ -85,6 +86,7 @@ export const toolItemFor = (
   ...(options.timestamp === undefined ? {} : { timestamp: options.timestamp }),
   ...(options.startedAt === undefined ? {} : { startedAt: options.startedAt }),
   ...(options.endedAt === undefined ? {} : { endedAt: options.endedAt }),
+  ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
   ...(options.toolName === undefined ? {} : { toolName: options.toolName }),
   ...(options.callId === undefined ? {} : { callId: options.callId }),
   ...(options.callSelection === undefined ? {} : { callSelection: options.callSelection }),

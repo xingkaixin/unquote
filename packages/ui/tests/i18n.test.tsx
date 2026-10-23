@@ -46,6 +46,14 @@ const trajectoryMessageKeys = [
   "trajectory.search",
   "trajectory.searchPlaceholder",
   "trajectory.kind",
+  "trajectory.toolBreakdown",
+  "trajectory.toolFilter",
+  "trajectory.filterTool",
+  "trajectory.toolColumn.calls",
+  "trajectory.toolColumn.failed",
+  "trajectory.toolColumn.total",
+  "trajectory.toolColumn.max",
+  "trajectory.toolTimedCount",
   "trajectory.clearFilters",
   "trajectory.visibleCount",
   "trajectory.kind.all",
@@ -151,7 +159,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in every locale catalog", () => {
-    expect(trajectoryMessageKeys).toHaveLength(81);
+    expect(trajectoryMessageKeys).toHaveLength(89);
 
     for (const locale of supportedLocales) {
       const catalog = localeRegistry[locale].messages;
