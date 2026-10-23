@@ -64,6 +64,7 @@ const trajectoryMessageKeys = [
   "trajectory.kind.tool",
   "trajectory.kind.subagent",
   "trajectory.kind.compaction",
+  "trajectory.kind.apiError",
   "trajectory.status.completed",
   "trajectory.status.running",
   "trajectory.status.failed",
@@ -81,6 +82,10 @@ const trajectoryMessageKeys = [
   "trajectory.startedAt",
   "trajectory.endedAt",
   "trajectory.callId",
+  "trajectory.retry",
+  "trajectory.retryOf",
+  "trajectory.retryDelay",
+  "trajectory.apiErrorCount",
   "trajectory.warnings",
   "trajectory.raw",
   "trajectory.rawCall",
@@ -159,7 +164,7 @@ describe("i18n", () => {
   });
 
   it("locks every trajectory message in every locale catalog", () => {
-    expect(trajectoryMessageKeys).toHaveLength(89);
+    expect(trajectoryMessageKeys).toHaveLength(94);
 
     for (const locale of supportedLocales) {
       const catalog = localeRegistry[locale].messages;

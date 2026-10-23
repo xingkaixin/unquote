@@ -110,6 +110,7 @@ export const agentTrajectoryLaneFor = (kind: AgentTrajectoryItemKind): AgentTraj
     case "user":
     case "system":
     case "compaction":
+    case "api-error":
       return "activity";
     case "assistant":
     case "reasoning":

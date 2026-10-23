@@ -18,6 +18,7 @@ export const agentTrajectoryFilterKinds = [
   "tool",
   "subagent",
   "compaction",
+  "api-error",
 ] as const;
 
 export type AgentTrajectoryFilterKind = (typeof agentTrajectoryFilterKinds)[number];

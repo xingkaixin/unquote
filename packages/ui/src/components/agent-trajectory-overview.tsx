@@ -48,7 +48,10 @@ const BUCKET_SEGMENT_INSET = 0.15;
 // docs/performance.md derives from this cap.
 export const trajectoryOverviewSpanLimit = 1000;
 
-type ChartColorKey = AgentTrajectoryItemKind | "error";
+// API errors are always failed, so the failure color is the only one they draw with.
+type ChartItemKind = Exclude<AgentTrajectoryItemKind, "api-error">;
+
+type ChartColorKey = ChartItemKind | "error";
 
 interface ChartVisualDefinition {
   strokeClass: string;
@@ -90,7 +93,7 @@ const itemChartDefinitions = {
     strokeClass: "stroke-code-null",
     fillClass: "bg-code-null",
   },
-} satisfies Record<AgentTrajectoryItemKind, ChartVisualDefinition>;
+} satisfies Record<ChartItemKind, ChartVisualDefinition>;
 
 const chartDefinitions = {
   ...itemChartDefinitions,
@@ -105,7 +108,7 @@ const laneEntries = Object.entries(laneDefinitions) as [
 
 // SAFETY: The local definition literal is checked with satisfies and cannot have keys outside its declared union.
 const itemChartEntries = Object.entries(itemChartDefinitions) as [
-  AgentTrajectoryItemKind,
+  ChartItemKind,
   ChartVisualDefinition,
 ][];
 
@@ -127,7 +130,7 @@ const isFailureStatus = (status: AgentTrajectoryOverviewBucket["status"]) =>
   status === "failed" || status === "aborted";
 
 const bucketColorKey = (bucket: AgentTrajectoryOverviewBucket): ChartColorKey | null => {
-  if (isFailureStatus(bucket.status)) {
+  if (isFailureStatus(bucket.status) || bucket.kind === "api-error") {
     return "error";
   }
   return bucket.kind;
@@ -535,7 +538,8 @@ export const AgentTrajectoryOverview = ({
                   <div data-trajectory-spans className="absolute inset-0">
                     {spans.map((span) => {
                       const item = span.item;
-                      const failed = isFailureStatus(item.item.status);
+                      const failed =
+                        isFailureStatus(item.item.status) || item.item.kind === "api-error";
                       const colorKey: ChartColorKey = failed ? "error" : item.item.kind;
                       const selected = item.item.id === selectedItemId;
                       const label = `#${item.ordinal + 1} ${t(trajectoryKindMessageKey[item.item.kind])}: ${

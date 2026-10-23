@@ -32,6 +32,9 @@ interface ItemOptions {
   readonly callSelection?: AgentCanonicalSelection;
   readonly resultSelection?: AgentCanonicalSelection;
   readonly completionSelection?: AgentCanonicalSelection;
+  readonly retryAttempt?: number;
+  readonly maxRetries?: number;
+  readonly retryInMs?: number;
 }
 
 const eventSelection = (id: string, recordId = `record-${id}`): AgentCanonicalSelection => ({
@@ -64,6 +67,9 @@ const itemFor = (id: string, options: ItemOptions = {}): AgentTrajectoryItem => 
     ...(options.completionSelection === undefined
       ? {}
       : { completionSelection: options.completionSelection }),
+    ...(options.retryAttempt === undefined ? {} : { retryAttempt: options.retryAttempt }),
+    ...(options.maxRetries === undefined ? {} : { maxRetries: options.maxRetries }),
+    ...(options.retryInMs === undefined ? {} : { retryInMs: options.retryInMs }),
   } as AgentTrajectoryItem;
 };
 
@@ -621,6 +627,42 @@ describe("AgentTrajectoryView", () => {
       expect(screen.getByText("4 of 4 visible")).toBeInTheDocument();
     });
     expect(screen.getByLabelText("Tool")).toHaveValue("");
+  });
+
+  it("shows API errors as retry warnings on their turn and opens their Record", async () => {
+    const user = userEvent.setup();
+    const apiError = itemFor("api-error", {
+      kind: "api-error",
+      status: "failed",
+      recordId: "record-api",
+      timestamp: 10,
+      retryAttempt: 2,
+      maxRetries: 10,
+      retryInMs: 1_500,
+    });
+    const assistant = itemFor("assistant", { timestamp: 20 });
+    const model = modelFor([apiError, assistant], {
+      events: [eventFor(apiError, "Socket closed"), eventFor(assistant)],
+    });
+    const selected = model.selectTrajectory(apiError.id);
+    const { callbacks } = renderView({ model, detailSelection: selected });
+
+    expect(document.querySelector("[data-trajectory-turn-api-errors]")).toHaveTextContent(
+      "API errors: 1",
+    );
+    expect(itemButton(0)).toHaveTextContent("API error");
+    expect(itemButton(0)).toHaveTextContent("Retry 2 of 10");
+    expect(itemButton(0)).toHaveTextContent("Socket closed");
+    const detail = document.querySelector('[data-trajectory-detail-item-token="0"]');
+    expect(detail).toHaveTextContent("Retry2 of 10");
+    expect(detail).toHaveTextContent("Retry delay1.5s");
+    expect(
+      screen.queryByRole("button", { name: "Show only failed items" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open Record" }));
+
+    expect(callbacks.onOpenRecord).toHaveBeenCalledWith(selected, "record-api");
   });
 
   it("keeps the failures card inert when nothing failed", () => {
