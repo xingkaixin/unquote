@@ -245,6 +245,11 @@ const claudePreview = (
     return truncatePreview(record.content);
   }
 
+  if (type === "system" && getString(record, "subtype") === "api_error" && isRecord(record.error)) {
+    const message = getString(record.error, "message") ?? getString(record.error, "formatted");
+    return message ? truncatePreview(message) : "";
+  }
+
   return "";
 };
 
@@ -360,6 +365,22 @@ const claudeTaskNotification = (record: Record<string, unknown>) => {
 const readNonNegativeNumber = (record: Record<string, unknown>, key: string) => {
   const value = record[key];
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+};
+
+const claudeApiErrorEvidence = (
+  record: Record<string, unknown>,
+  turnId: string | undefined,
+): AgentSessionEvidence => {
+  const retryAttempt = readNonNegativeNumber(record, "retryAttempt");
+  const maxRetries = readNonNegativeNumber(record, "maxRetries");
+  const retryInMs = readNonNegativeNumber(record, "retryInMs");
+  return {
+    kind: "api-error",
+    ...(retryAttempt === undefined ? {} : { retryAttempt }),
+    ...(maxRetries === undefined ? {} : { maxRetries }),
+    ...(retryInMs === undefined ? {} : { retryInMs }),
+    ...(turnId === undefined ? {} : { turnId }),
+  };
 };
 
 const parseClaudeCostState = (
@@ -609,6 +630,8 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
           event.sessionEvidence = [
             { kind: "compaction", ...(turnId === undefined ? {} : { turnId }) },
           ];
+        } else if (subtype === "api_error") {
+          event.sessionEvidence = [claudeApiErrorEvidence(record, turnId)];
         }
       }
 

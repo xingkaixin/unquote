@@ -12,6 +12,7 @@ describe("useTrajectoryFilters", () => {
       result.current.setQuery("shell");
       result.current.setKind("tool");
       result.current.setStatus("failed");
+      result.current.setToolName("Bash");
       result.current.setTimeRange({ start: 10, end: 20 });
     });
     rerender({ revision: 1 });
@@ -19,6 +20,7 @@ describe("useTrajectoryFilters", () => {
     expect(result.current.query).toBe("shell");
     expect(result.current.kind).toBe("tool");
     expect(result.current.status).toBe("failed");
+    expect(result.current.toolName).toBe("Bash");
     expect(result.current.timeRange).toEqual({ start: 10, end: 20 });
   });
 
@@ -30,12 +32,14 @@ describe("useTrajectoryFilters", () => {
     act(() => {
       result.current.setQuery("shell");
       result.current.setKind("tool");
+      result.current.setToolName("Bash");
       result.current.setTimeRange({ start: 10, end: 20 });
     });
     rerender({ revision: 2 });
 
     expect(result.current.query).toBe("");
     expect(result.current.kind).toBe("all");
+    expect(result.current.toolName).toBeNull();
     expect(result.current.timeRange).toBeNull();
   });
 
@@ -46,6 +50,7 @@ describe("useTrajectoryFilters", () => {
       result.current.setQuery("shell");
       result.current.setKind("user");
       result.current.setStatus("running");
+      result.current.setToolName("Bash");
       result.current.setTimeRange({ start: 1, end: 2 });
     });
     act(() => {
@@ -55,6 +60,7 @@ describe("useTrajectoryFilters", () => {
     expect(result.current.query).toBe("");
     expect(result.current.kind).toBe("all");
     expect(result.current.status).toBe("all");
+    expect(result.current.toolName).toBeNull();
     expect(result.current.timeRange).toBeNull();
   });
 });

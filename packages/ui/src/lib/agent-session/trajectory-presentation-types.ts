@@ -6,11 +6,23 @@ import type { AgentTrajectoryWarningGroup } from "./trajectory-presentation-warn
 
 export type AgentTrajectoryLane = "activity" | "model" | "tool";
 
+// Durations cover only the calls whose duration the log provides; timedCalls
+// says how many of the calls that is.
+export interface AgentTrajectoryToolSummary {
+  readonly toolName: string;
+  readonly calls: number;
+  readonly failures: number;
+  readonly timedCalls: number;
+  readonly totalDurationMs?: number;
+  readonly maxDurationMs?: number;
+}
+
 export interface AgentTrajectoryPresentationSummary {
   readonly turns: number;
   readonly events: number;
   readonly tools: number;
   readonly failures: number;
+  readonly toolSummaries: readonly AgentTrajectoryToolSummary[];
   readonly durationMs?: number;
   readonly tokens: AgentTrajectoryTokenUsage;
   readonly warningCount: number;

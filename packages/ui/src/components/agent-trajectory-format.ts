@@ -1,5 +1,6 @@
 import type { Locale, MessageKey } from "../i18n/i18n";
 import type {
+  AgentTrajectoryApiErrorItem,
   AgentTrajectoryItemKind,
   AgentTrajectoryStatus,
   AgentTrajectoryWarning,
@@ -13,6 +14,19 @@ export const trajectoryKindMessageKey: Record<AgentTrajectoryItemKind, MessageKe
   tool: "trajectory.kind.tool",
   subagent: "trajectory.kind.subagent",
   compaction: "trajectory.kind.compaction",
+  "api-error": "trajectory.kind.apiError",
+};
+
+export const trajectoryRetryValue = (
+  item: AgentTrajectoryApiErrorItem,
+  t: (key: MessageKey, values?: Record<string, string | number>) => string,
+) => {
+  if (item.retryAttempt === undefined) {
+    return "";
+  }
+  return item.maxRetries === undefined
+    ? String(item.retryAttempt)
+    : t("trajectory.retryOf", { attempt: item.retryAttempt, max: item.maxRetries });
 };
 
 export const trajectoryStatusMessageKey: Record<AgentTrajectoryStatus, MessageKey> = {

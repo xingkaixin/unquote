@@ -1,6 +1,7 @@
 import type {
   AgentTrajectoryPresentationItem,
   AgentTrajectoryPresentationSummary,
+  AgentTrajectoryToolSummary,
 } from "./trajectory-presentation-types";
 import { finiteTrajectoryNumber } from "./trajectory-time";
 import type { AgentTrajectoryModel, AgentTrajectoryTurn } from "./trajectory-types";
@@ -26,6 +27,58 @@ const sumKnownTurnDurations = (turns: readonly AgentTrajectoryTurn[]) => {
   return hasDuration ? total : undefined;
 };
 
+interface MutableToolSummary {
+  toolName: string;
+  calls: number;
+  failures: number;
+  timedCalls: number;
+  totalDurationMs?: number;
+  maxDurationMs?: number;
+}
+
+const summarizeTools = (items: AgentTrajectoryModel["items"]) => {
+  let tools = 0;
+  let failures = 0;
+  const summaryByName = new Map<string, MutableToolSummary>();
+  for (const item of items) {
+    if (item.kind !== "tool") {
+      continue;
+    }
+    tools += 1;
+    const failed = item.status === "failed";
+    if (failed) {
+      failures += 1;
+    }
+    if (!item.toolName) {
+      continue;
+    }
+    let summary = summaryByName.get(item.toolName);
+    if (!summary) {
+      summary = { toolName: item.toolName, calls: 0, failures: 0, timedCalls: 0 };
+      summaryByName.set(item.toolName, summary);
+    }
+    summary.calls += 1;
+    if (failed) {
+      summary.failures += 1;
+    }
+    const duration = finiteNonNegativeNumber(item.durationMs);
+    if (duration !== undefined) {
+      summary.timedCalls += 1;
+      summary.totalDurationMs = Math.min(
+        Number.MAX_VALUE,
+        (summary.totalDurationMs ?? 0) + duration,
+      );
+      summary.maxDurationMs = Math.max(summary.maxDurationMs ?? 0, duration);
+    }
+  }
+  const toolSummaries: AgentTrajectoryToolSummary[] = [...summaryByName.values()].sort(
+    (left, right) =>
+      right.calls - left.calls ||
+      (left.toolName < right.toolName ? -1 : left.toolName > right.toolName ? 1 : 0),
+  );
+  return { tools, failures, toolSummaries };
+};
+
 const summaryTokenKeys = [
   "inputTokens",
   "outputTokens",
@@ -36,8 +89,6 @@ const summaryTokenKeys = [
 
 export const createTrajectoryPresentationSummary = (
   trajectory: AgentTrajectoryModel,
-  toolCount: number,
-  failedToolCount: number,
 ): AgentTrajectoryPresentationSummary => {
   const tokens: Partial<Record<(typeof summaryTokenKeys)[number], number>> = {};
   for (const key of summaryTokenKeys) {
@@ -47,11 +98,13 @@ export const createTrajectoryPresentationSummary = (
     }
   }
   const durationMs = sumKnownTurnDurations(trajectory.turns);
+  const { tools, failures, toolSummaries } = summarizeTools(trajectory.items);
   return {
     turns: trajectory.turns.length,
     events: trajectory.items.length,
-    tools: toolCount,
-    failures: failedToolCount,
+    tools,
+    failures,
+    toolSummaries,
     ...(durationMs === undefined ? {} : { durationMs }),
     tokens,
     warningCount: trajectory.warnings.length,

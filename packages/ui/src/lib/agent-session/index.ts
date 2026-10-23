@@ -26,6 +26,7 @@ export type {
 } from "./session-types";
 
 export type {
+  AgentTrajectoryApiErrorItem,
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
   AgentTrajectoryItem,

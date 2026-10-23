@@ -32,6 +32,7 @@ export type {
   AgentTrajectoryPresentationGroup,
   AgentTrajectoryPresentationItem,
   AgentTrajectoryPresentationSummary,
+  AgentTrajectoryToolSummary,
 } from "./trajectory-presentation-types";
 
 export {
@@ -109,6 +110,7 @@ export const agentTrajectoryLaneFor = (kind: AgentTrajectoryItemKind): AgentTraj
     case "user":
     case "system":
     case "compaction":
+    case "api-error":
       return "activity";
     case "assistant":
     case "reasoning":
@@ -171,15 +173,7 @@ export const createAgentTrajectoryPresentation = (
 
   const drafts: PresentationItemDraft[] = [];
   const candidatesBySelection: WarningCandidateIndex<PresentationItemDraft> = new Map();
-  let toolCount = 0;
-  let failedToolCount = 0;
   for (const item of trajectory.items) {
-    if (item.kind === "tool") {
-      toolCount += 1;
-      if (item.status === "failed") {
-        failedToolCount += 1;
-      }
-    }
     const detail = model.resolveDetail(item.selection);
     const turn = item.turnId ? (turnById.get(item.turnId) ?? null) : null;
     const draft: PresentationItemDraft = {
@@ -259,7 +253,7 @@ export const createAgentTrajectoryPresentation = (
   return {
     items: presentationItems,
     groups,
-    summary: createTrajectoryPresentationSummary(trajectory, toolCount, failedToolCount),
+    summary: createTrajectoryPresentationSummary(trajectory),
     unattachedWarningGroups: unattachedWarningGroups.groups,
     timeDomain: createTrajectoryTimeDomain(presentationItems, trajectory.turns),
     timedItemCount,

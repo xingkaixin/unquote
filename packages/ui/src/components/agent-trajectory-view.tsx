@@ -15,6 +15,7 @@ import {
   agentTrajectoryFilterStatuses,
   createAgentTrajectoryPresentation,
   filterAgentTrajectoryPresentation,
+  truncateTrajectoryDisplayText,
   type AgentTrajectoryFilterKind,
   type AgentTrajectoryFilterStatus,
   type AgentTrajectoryPresentationSummary,
@@ -28,6 +29,7 @@ import {
 } from "./agent-trajectory-format";
 import { AgentTrajectoryLedger } from "./agent-trajectory-ledger";
 import { AgentTrajectoryOverview } from "./agent-trajectory-overview";
+import { AgentTrajectoryToolSummaryTable } from "./agent-trajectory-tool-summary";
 import { Button } from "./button";
 import { WorkspaceColumns } from "./workspace-columns";
 
@@ -103,12 +105,14 @@ interface TrajectoryHeaderBarProps {
   query: string;
   kind: AgentTrajectoryFilterKind;
   status: AgentTrajectoryFilterStatus;
+  toolName: string | null;
   hasTimeRange: boolean;
   visibleCount: number;
   totalCount: number;
   onQueryChange: (query: string) => void;
   onKindChange: (kind: AgentTrajectoryFilterKind) => void;
   onStatusChange: (status: AgentTrajectoryFilterStatus) => void;
+  onToolNameChange: (toolName: string | null) => void;
   onFilterFailures: () => void;
   onClear: () => void;
 }
@@ -118,18 +122,27 @@ const TrajectoryHeaderBar = ({
   query,
   kind,
   status,
+  toolName,
   hasTimeRange,
   visibleCount,
   totalCount,
   onQueryChange,
   onKindChange,
   onStatusChange,
+  onToolNameChange,
   onFilterFailures,
   onClear,
 }: TrajectoryHeaderBarProps) => {
   const { locale, t } = useTranslation();
   const duration = formatTrajectoryDuration(summary.durationMs, locale) || MISSING_METRIC_VALUE;
-  const hasFilters = query.length > 0 || kind !== "all" || status !== "all" || hasTimeRange;
+  const hasFilters =
+    query.length > 0 || kind !== "all" || status !== "all" || toolName !== null || hasTimeRange;
+  const toolNames = summary.toolSummaries.map((tool) => tool.toolName);
+  // A tool filter survives a model refresh within the Source Revision even
+  // when the refreshed session no longer reports that tool.
+  if (toolName !== null && !toolNames.includes(toolName)) {
+    toolNames.unshift(toolName);
+  }
   const selectClass =
     "h-7 rounded-md border border-border bg-surface-50 px-2 text-[12px] text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent";
 
@@ -197,6 +210,13 @@ const TrajectoryHeaderBar = ({
           {t("trajectory.warnings")} {formatMetricNumber(summary.warningCount, locale)}
         </span>
       </div>
+      {summary.toolSummaries.length > 0 ? (
+        <AgentTrajectoryToolSummaryTable
+          summaries={summary.toolSummaries}
+          selectedToolName={toolName}
+          onToolNameChange={onToolNameChange}
+        />
+      ) : null}
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-border px-3 py-1.5">
         <input
           type="search"
@@ -240,6 +260,21 @@ const TrajectoryHeaderBar = ({
             </option>
           ))}
         </select>
+        {toolNames.length > 0 ? (
+          <select
+            value={toolName ?? ""}
+            aria-label={t("trajectory.toolFilter")}
+            onChange={(event) => onToolNameChange(event.currentTarget.value || null)}
+            className={`${selectClass} max-w-40`}
+          >
+            <option value="">{t("trajectory.kind.all")}</option>
+            {toolNames.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {truncateTrajectoryDisplayText(candidate)}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <Button type="button" variant="outline" size="sm" disabled={!hasFilters} onClick={onClear}>
           {t("trajectory.clearFilters")}
         </Button>
@@ -279,7 +314,7 @@ export const AgentTrajectoryView = ({
   onOpenRecord,
 }: AgentTrajectoryViewProps) => {
   const { t } = useTranslation();
-  const { query, kind, status, timeRange } = filters;
+  const { query, kind, status, toolName, timeRange } = filters;
   const deferredQuery = useDeferredValue(query);
   const presentation = useMemo(() => createAgentTrajectoryPresentation(model), [model]);
   const itemsById = useMemo(
@@ -305,9 +340,10 @@ export const AgentTrajectoryView = ({
         query: deferredQuery,
         kind,
         status,
+        toolName,
         timeRange,
       }),
-    [deferredQuery, kind, presentation, status, timeRange],
+    [deferredQuery, kind, presentation, status, toolName, timeRange],
   );
   const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
   const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
@@ -377,12 +413,14 @@ export const AgentTrajectoryView = ({
               query={query}
               kind={kind}
               status={status}
+              toolName={toolName}
               hasTimeRange={timeRange !== null}
               visibleCount={filteredPresentation.visibleItems.length}
               totalCount={presentation.items.length}
               onQueryChange={filters.setQuery}
               onKindChange={filters.setKind}
               onStatusChange={filters.setStatus}
+              onToolNameChange={filters.setToolName}
               onFilterFailures={() => filters.setStatus("failed")}
               onClear={filters.clear}
             />

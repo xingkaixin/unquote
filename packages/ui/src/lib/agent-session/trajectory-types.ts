@@ -11,7 +11,8 @@ export type AgentTrajectoryItemKind =
   | "reasoning"
   | "tool"
   | "subagent"
-  | "compaction";
+  | "compaction"
+  | "api-error";
 
 export interface AgentTrajectoryStep {
   readonly index: number;
@@ -71,11 +72,21 @@ export type AgentTrajectorySubagentItem = AgentTrajectoryItemBase<
 
 export type AgentTrajectoryCompactionItem = AgentTrajectoryItemBase<"compaction", "completed">;
 
+export interface AgentTrajectoryApiErrorItem extends AgentTrajectoryItemBase<
+  "api-error",
+  "failed"
+> {
+  readonly retryAttempt?: number;
+  readonly maxRetries?: number;
+  readonly retryInMs?: number;
+}
+
 export type AgentTrajectoryItem =
   | AgentTrajectoryToolItem
   | AgentTrajectoryModelOutputItem
   | AgentTrajectorySubagentItem
-  | AgentTrajectoryCompactionItem;
+  | AgentTrajectoryCompactionItem
+  | AgentTrajectoryApiErrorItem;
 
 export interface AgentTrajectoryTurn {
   readonly id: string;
