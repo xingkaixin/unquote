@@ -18,6 +18,7 @@ export type SelectedNodeProjection =
   | {
       kind: "value";
       selection: SelectedPath;
+      node: JsonNode;
       text: string;
       truncated: boolean;
       copy: SelectedNodeCopy;
@@ -68,6 +69,7 @@ const projectResolvedNode = (selection: SelectedPath, node: JsonNode): SelectedN
   return {
     kind: "value",
     selection,
+    node,
     text: serialized.text,
     truncated: serialized.characterLimitExceeded,
     copy: copyBlocked ? { kind: "blocked" } : { kind: "available", format },
