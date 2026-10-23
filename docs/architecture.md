@@ -98,8 +98,8 @@ Record 和 Agent 检测证据，各视图共享同一个 Record id。
 
 负责识别 Agent 日志并投影出会话、事件和对话。
 
-- Adapter 只从原始记录中提取证据（工具调用与结果、回合、token、子 Agent、上下文压缩）。
-  展示逻辑放在 Adapter 之外。
+- Adapter 只从原始记录中提取证据（工具调用与结果、无调用 id 可配对的独立工具执行、回合、
+  token、子 Agent、上下文压缩）。展示逻辑放在 Adapter 之外。
 - 工具调用、结果和完成状态的配对集中在一个模块中，各 Adapter 和 Trajectory 共用。
 - 完整性问题挂在受影响的条目上作为告警，不使整个会话识别失败。
 - 每个事件和对话条目都保留 canonical Record 链接。

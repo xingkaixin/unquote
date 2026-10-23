@@ -31,8 +31,9 @@ presentation used by the web and extension apps. Its public entry points are def
 
 - Session detection runs only for JSONL and recognizes Codex rollout and Claude Code transcript
   records.
-- Adapters emit evidence: tool calls, results and completions, turn lifecycle, token usage, model
-  output, subagent activity, and compaction. Presentation belongs outside adapters.
+- Adapters emit evidence: tool calls, results and completions, standalone tool executions that
+  the log links to no call id, turn lifecycle, token usage, model output, subagent activity, and
+  compaction. Presentation belongs outside adapters.
 - `lib/agent-session/tool-correlation.ts` owns call, result, and completion pairing across
   adapters and Trajectory projection.
 - Integrity problems attach warnings to the affected item instead of failing the whole session.

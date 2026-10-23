@@ -2,6 +2,7 @@ import type {
   AgentCanonicalSelection,
   AgentToolCallEvidence,
   AgentToolCompletionEvidence,
+  AgentToolExecutionEvidence,
   AgentToolResultEvidence,
   AgentTimelineEvent,
 } from "./session-types";
@@ -333,6 +334,29 @@ const appendUngroupedTool = (
     draft.item = toolItemFor(undefined, undefined, occurrence, warnings);
     addUnpairedCompletionWarning(warnings, occurrence);
   }
+};
+
+export const trajectoryToolExecutionDraft = (
+  evidence: AgentToolExecutionEvidence,
+  context: TrajectoryEvidenceContext,
+): TrajectoryItemDraft => {
+  const startedAt = finiteTrajectoryNumber(evidence.startedAt);
+  const endedAt = finiteTrajectoryNumber(evidence.endedAt);
+  const durationMs = nonNegativeTrajectoryDuration(evidence.durationMs);
+  const item: AgentTrajectoryToolItem = {
+    ...trajectoryItemBase(
+      context.itemId,
+      "tool",
+      evidence.status,
+      context.event,
+      context.selection,
+    ),
+    toolName: evidence.toolName,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(endedAt === undefined ? {} : { endedAt }),
+    ...(durationMs === undefined ? {} : { durationMs }),
+  };
+  return { turn: context.turn, item };
 };
 
 export const createTrajectoryToolProjector = (
