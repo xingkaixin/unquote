@@ -105,8 +105,8 @@ with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
 The current Web build measures about 596 KiB / 193 KiB gzip for initial JS and
-799 KiB / 260 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 597 KiB / 193 KiB gzip initially and 801 KiB / 260
+800 KiB / 261 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 597 KiB / 193 KiB gzip initially and 802 KiB / 260
 KiB gzip in total. The ceilings preserve limited growth headroom without
 permitting the previous 706 KiB initial payload to return. The total UI ceiling
 rose from 820,000 to 825,000 bytes when Codex `item_completed` tool executions
