@@ -364,4 +364,39 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     expect(session.events[0]).toMatchObject({ label: "text", preview: "Plain reply" });
     expect(conversationItems(session)[0]?.block).toEqual({ type: "text", text: "Plain reply" });
   });
+
+  it("normalizes task notifications as system prompts that still open a turn", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-notification",
+          message: {
+            content:
+              "<task-notification>\n<task-id>bash-1</task-id>\n<status>completed</status>\n</task-notification>",
+          },
+        },
+        1,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events[0]).toMatchObject({
+      category: "system",
+      label: "task-notification",
+      turnIndex: 1,
+    });
+    expect(conversationItems(session).map((item) => item.role)).toEqual(["system"]);
+    expect(session.events[0]?.sessionEvidence).toEqual([
+      { kind: "turn-lifecycle", phase: "start", turnId: "prompt-notification" },
+      {
+        kind: "model-output",
+        role: "system",
+        conversationItemId: "conv-1-block-0",
+        turnId: "prompt-notification",
+      },
+    ]);
+  });
 });
