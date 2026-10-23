@@ -251,6 +251,13 @@ ready p50 under 60 ms, and Trajectory DOM nodes under 1400. Use
 100k fixture is intentionally generated locally instead of committed.
 
 
+## Source ingestion limits
+
+Files over 1,000,000 bytes open through Local-file Source Access only when they are
+JSONL, by explicit mode or by detection on the first 64 KiB. Every other file,
+including SSE, is read into memory up to 64 MiB; a larger file is rejected before
+it is read. SSE events span lines, so an SSE Source is always parsed in memory.
+
 ## Copy and export payload limits
 
 Copy resolves batches of up to 64 records and stops at 20,000,000 UTF-8 output

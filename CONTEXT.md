@@ -5,7 +5,7 @@ Unquote 将 JSON、JSONL 与可识别的 Agent 日志转换为可浏览、可查
 ## Language
 
 **Source**:
-用户当前打开或输入的一份 JSON 或 JSONL 内容。
+用户当前打开或输入的一份 JSON、JSONL 或 SSE 内容。
 _Avoid_: Input payload, document
 
 **Source Candidate**:
@@ -22,7 +22,8 @@ _Avoid_: Generation, request version
 _Avoid_: File helper, hydration layer
 
 **Record**:
-Source 中可独立定位和查看的内容项；JSON Source 对应整体内容，JSONL Source 对应一个非空行。
+Source 中可独立定位和查看的内容项；JSON Source 对应整体内容，JSONL Source 对应一个非空行，
+SSE Source 对应一个派发的事件，并以事件块的第一行定位。
 _Avoid_: Row, entry
 
 **JSON Node**:
