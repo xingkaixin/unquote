@@ -92,6 +92,17 @@ export type AgentToolLifecycleEvidence =
   | AgentToolResultEvidence
   | AgentToolCompletionEvidence;
 
+// A tool run the log reports in one record without a call id to pair it with,
+// e.g. a command started inside a Codex code-mode script.
+export interface AgentToolExecutionEvidence extends AgentSessionEvidenceBase {
+  kind: "tool-execution";
+  toolName: string;
+  status: "completed" | "failed";
+  startedAt?: number;
+  endedAt?: number;
+  durationMs?: number;
+}
+
 interface AgentTokenUsageEvidenceBase extends AgentSessionEvidenceBase {
   kind: "token-usage";
 }
@@ -119,6 +130,7 @@ export type AgentSessionEvidence =
   | AgentTurnLifecycleEvidence
   | AgentModelOutputEvidence
   | AgentToolLifecycleEvidence
+  | AgentToolExecutionEvidence
   | AgentTokenUsageEvidence
   | AgentSubagentActivityEvidence
   | AgentCompactionEvidence;

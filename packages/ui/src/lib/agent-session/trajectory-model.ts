@@ -30,6 +30,7 @@ import {
 } from "./trajectory-turns";
 import {
   createTrajectoryToolProjector,
+  trajectoryToolExecutionDraft,
   type TrajectoryEvidenceContext as EvidenceContext,
   type TrajectoryItemDraft as ItemDraft,
 } from "./trajectory-tools";
@@ -171,6 +172,9 @@ const appendEvidence = (
     if (evidence.phase !== "call") {
       turns.markToolRecovery(context.turn);
     }
+  } else if (evidence.kind === "tool-execution") {
+    state.itemDrafts.push(trajectoryToolExecutionDraft(evidence, context));
+    turns.markToolRecovery(context.turn);
   } else if (evidence.kind === "token-usage") {
     observeTokenUsage(state, evidence, context);
   } else if (evidence.kind === "subagent-activity") {

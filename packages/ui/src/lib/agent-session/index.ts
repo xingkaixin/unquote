@@ -14,6 +14,7 @@ export type {
   AgentTokenUsageEvidence,
   AgentToolCallEvidence,
   AgentToolCompletionEvidence,
+  AgentToolExecutionEvidence,
   AgentToolLifecycleEvidence,
   AgentToolResultEvidence,
   AgentTimelineEvent,
