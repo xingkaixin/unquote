@@ -28,6 +28,12 @@ describe("detectSourceFormat", () => {
     });
   });
 
+  it("reports an event stream as sse", () => {
+    expect(detectSourceFormat('event: delta\ndata: {"a":1}\n\ndata: [DONE]\n')).toEqual({
+      kind: "sse",
+    });
+  });
+
   it("reports text that parses neither way as invalid", () => {
     expect(detectSourceFormat("not json")).toEqual({ kind: "invalid" });
     expect(detectSourceFormat('{"a":1}\nnot json\nalso not json')).toEqual({ kind: "invalid" });

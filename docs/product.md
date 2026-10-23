@@ -6,15 +6,15 @@
 
 ## 定位
 
-Unquote 是本地 JSON / JSONL 查看器。它递归展开 JSON 字符串值中编码的 JSON，保留 JSONL 的
-逐条 Record 语义，并为可识别的 Agent 会话日志提供会话与轨迹视图。
+Unquote 是本地 JSON / JSONL / SSE 查看器。它递归展开 JSON 字符串值中编码的 JSON，保留
+JSONL 行和 SSE 事件的逐条 Record 语义，并为可识别的 Agent 会话日志提供会话与轨迹视图。
 
-它不替代通用 JSON formatter 或编辑器。它的价值在于把二次编码的字符串和逐行 Agent 记录变为
-可浏览、可查询的本地结构。
+它不替代通用 JSON formatter 或编辑器。它的价值在于把二次编码的字符串、流式响应和逐行 Agent
+记录变为可浏览、可查询的本地结构。
 
 ## 目标用户
 
-- 使用大模型 API 的开发者，需要阅读嵌套的 JSON 响应。
+- 使用大模型 API 的开发者，需要阅读嵌套的 JSON 响应和 SSE 流式响应。
 - Agent / MCP 工具链的开发者，需要检查 Codex、Claude Code 等会话记录、工具调用和 JSONL 日志。
 - 需要在本地格式化、检索、比较或导出 JSON / JSONL 的技术人员。
 
@@ -28,17 +28,22 @@ Unquote 是本地 JSON / JSONL 查看器。它递归展开 JSON 字符串值中�
 
 常规 formatter 把 `payload` 当作普通字符串。用户需要手动去转义再格式化，多层嵌套时容易出错。
 
+**SSE 流式响应。** 大模型 API 的流式响应和抓包日志是 `text/event-stream` 文本，每行以
+`data:`、`event:` 等字段开头，每个事件的 JSON 都在 `data` 字段里。常规 formatter 无法解析
+这种文本。
+
 **JSONL 与 Agent 记录。** 会话记录和日志通常是 JSONL，一个文件可能有几十到数十万条记录。
 逐行查看会丢失时间线和上下文，也难以定位字段、错误或特定事件。
 
 ## 目标
 
-1. **可读**：在深度上限内递归展开 Stringified JSON，JSONL 每个非空行是一个独立 Record。
+1. **可读**：在深度上限内递归展开 Stringified JSON，JSONL 每个非空行、SSE 每个事件是一个
+   独立 Record。
 2. **本地**：输入、解析、搜索、比较、复制和导出都在浏览器或扩展内完成，不上传用户数据。
 3. **忠实**：数字保留源字面量；Record 身份和源行号在解析、搜索、各视图和导出之间保持稳定；
    不完整的数据不能作为完整结果复制或导出。
-4. **大文件可用**：JSONL 流式导入、虚拟化渲染、按需取得完整 Record。预算由
-   `docs/performance.md` 管理并在发布前验证。
+4. **大文件可用**：JSONL 流式导入、虚拟化渲染、按需取得完整 Record；SSE 在内存上限内由
+   Worker 流式解析。预算由 `docs/performance.md` 管理并在发布前验证。
 5. **Agent 语义**：对已识别的 Agent 日志提供对话、时间线和轨迹视图，并且始终可以回到产生
    该内容的原始 Record。
 6. **本地排障**：在不离开本地的前提下完成定位、筛选、结构比较、字段统计和脱敏片段导出。
@@ -51,6 +56,7 @@ Unquote 是本地 JSON / JSONL 查看器。它递归展开 JSON 字符串值中�
 - **不持久化 Source**：不使用 IndexedDB 或文件索引保存用户内容。只有主题和语言偏好会保存在
   本地；扩展的选区交接只在 session storage 中短暂保留，读取后删除。
 - **不是查询语言**：搜索支持文本、正则和 jq 风格路径匹配，不实现完整的 jq 或 JSONPath 执行器。
+- **不重组流式增量**：SSE 每个事件是独立 Record，不把 delta 事件拼接为完整消息。
 - **不推断 Schema**：字段体检只统计观察到的事实，不把类型差异判定为错误，也不做 Schema 校验。
 - **不猜测 Agent 格式**：Agent 视图只覆盖明确识别的格式（Codex rollout、Claude Code
   transcript）。未识别的内容按普通 JSONL 浏览。
@@ -72,6 +78,13 @@ Unquote 是本地 JSON / JSONL 查看器。它递归展开 JSON 字符串值中�
 
 以下是各本地分析功能的语义边界。具体数值上限见 `docs/performance.md`。
 
+- **SSE 事件流**：按 WHATWG SSE 规则解析。连续的 `data:` 行以 `\n` 拼接；只有空行才派发事件，
+  只含空白的行不派发；`:` 开头的行是注释；未知字段、非数字的 `retry` 和含 NUL 的 `id` 按
+  规范忽略；没有 `data` 的事件块不产生 Record。每个事件是一个对象 Record，只包含本事件块中
+  出现的 `event`、`id`、`retry` 和拼接后的 `data` 字符串，`data` 再按 Stringified JSON
+  规则展开。非 JSON 的 `data`（如 `[DONE]`）保留为字符串，不算失败，也不特判。Record 身份
+  和行号取事件块的第一行。与浏览器不同，输入末尾未以空行结束的事件仍会派发，避免丢失抓包
+  日志的最后一个事件。行结束符支持 LF 和 CRLF，不支持单独的 CR。
 - **结构化比较**：比较展开后的结构；对象忽略键顺序，数组按位置比较，数字按源字面量比较；
   忽略路径同时忽略其子树。
 - **记录表格**：每个 Record 对应一行，不把对象数组拆成多行；列条件之间为 AND；CSV 中以公式

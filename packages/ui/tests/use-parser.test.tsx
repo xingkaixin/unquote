@@ -89,10 +89,10 @@ class MockWorker extends MockWorkerEvents {
       throw new DOMException("payload could not be cloned", "DataCloneError");
     }
     this.messages.push(payload);
-    if (payload.type === "start-jsonl") {
+    if (payload.type === "start-stream") {
       return;
     }
-    if (payload.type === "jsonl-chunk" && payload.done && MockWorker.failJsonlParsing) {
+    if (payload.type === "stream-chunk" && payload.done && MockWorker.failJsonlParsing) {
       setTimeout(() => {
         this.respond({
           type: "error",
@@ -110,7 +110,7 @@ class MockWorker extends MockWorkerEvents {
     // Mirrors the real worker, which only reports a terminal response once the
     // stream is drained, and leaves "stalled" input open so failure paths can
     // be exercised mid-parse.
-    if ((payload.type === "jsonl-chunk" && !payload.done) || payload.input === "stalled") {
+    if ((payload.type === "stream-chunk" && !payload.done) || payload.input === "stalled") {
       return;
     }
     if (payload.type === "file-jsonl") {
@@ -413,7 +413,7 @@ describe("useParser", () => {
 
     expect(
       MockWorker.instances.some((worker) =>
-        worker.messages.some((message) => message.type === "start-jsonl"),
+        worker.messages.some((message) => message.type === "start-stream"),
       ),
     ).toBe(true);
     expect(screen.getByTestId("stats")).toHaveTextContent("2");
@@ -597,7 +597,7 @@ describe("useParser", () => {
     await act(() => vi.runOnlyPendingTimersAsync());
 
     const worker = MockWorker.instances[0]!;
-    expect(worker.messages.filter((message) => message.type === "jsonl-chunk")).toHaveLength(
+    expect(worker.messages.filter((message) => message.type === "stream-chunk")).toHaveLength(
       expectedChunks,
     );
     expect(worker.terminateCalls).toBe(1);
@@ -612,7 +612,7 @@ describe("useParser", () => {
     await act(() => vi.runOnlyPendingTimersAsync());
 
     const chunks = MockWorker.instances[0]?.messages.filter(
-      (message) => message.type === "jsonl-chunk",
+      (message) => message.type === "stream-chunk",
     );
     expect(chunks).toHaveLength(2);
     expect(chunks?.[0]?.chunk).toHaveLength(256 * 1024);

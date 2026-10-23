@@ -222,14 +222,14 @@ export interface ParseStats {
 }
 
 export interface ParseResult {
-  format: "json" | "jsonl";
+  format: "json" | "jsonl" | "sse";
   records: JsonlRecord[];
   stats: ParseStats;
 }
 
 export interface ParseOptions {
   maxDepth?: number;
-  forcedFormat?: "json" | "jsonl";
+  forcedFormat?: "json" | "jsonl" | "sse";
 }
 
 export interface FormatOptions {

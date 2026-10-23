@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import type { ParseResult } from "@unquote/core";
 import { AppHeader } from "./components/app-header";
 import { deferredComponent } from "./components/deferred-component";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
@@ -41,7 +42,7 @@ const RecordWorkspace = deferredComponent(() =>
   import("./components/record-workspace").then(({ RecordWorkspace }) => RecordWorkspace),
 );
 
-const formatParseMode = (format: "json" | "jsonl") => format.toUpperCase();
+const formatParseMode = (format: ParseResult["format"]) => format.toUpperCase();
 
 const RecordReportDialog = deferredComponent(() =>
   import("./components/record-report-dialog").then(({ RecordReportDialog }) => RecordReportDialog),

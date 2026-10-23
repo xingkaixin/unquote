@@ -133,6 +133,9 @@ describe("SourceImportPanel draft commit", () => {
     fireEvent.change(textarea, { target: { value: '{"a":1}\n{"b":2}' } });
     expect(screen.getByText("Detected JSONL · 2 lines")).toBeInTheDocument();
 
+    fireEvent.change(textarea, { target: { value: "data: {}\n\ndata: [DONE]\n" } });
+    expect(screen.getByText("Detected SSE stream")).toBeInTheDocument();
+
     fireEvent.change(textarea, { target: { value: "not json" } });
     expect(screen.getByText("Cannot parse — check the format")).toBeInTheDocument();
   });
@@ -182,6 +185,20 @@ describe("SourceImportPanel draft commit", () => {
       text: '{"ok":true}',
       mode: "jsonl",
     });
+  });
+
+  it("commits a draft in explicit SSE mode", async () => {
+    const user = userEvent.setup();
+    const { props } = renderPanel();
+    const group = screen.getByRole("group", { name: "Input format" });
+
+    await user.click(within(group).getByRole("button", { name: "SSE" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Source input" }), {
+      target: { value: "data: 1\n" },
+    });
+    await user.click(screen.getByRole("button", { name: "Parse" }));
+
+    expect(props.onCommit).toHaveBeenCalledWith({ kind: "text", text: "data: 1\n", mode: "sse" });
   });
 
   it("recommits an unchanged current file with the selected mode", async () => {

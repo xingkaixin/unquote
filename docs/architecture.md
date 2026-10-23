@@ -38,13 +38,14 @@ Source Candidate ──确认──→ Source + Source Revision
 
 导入流程中的内容是 Source Candidate，确认后才原子发布为新的 Source Revision。之后的所有
 解析、搜索和视图结果都属于产生它的 Revision。JSONL 每行只解析一次，同一次摄取同时产出
-Record 和 Agent 检测证据，各视图共享同一个 Record id。
+Record 和 Agent 检测证据，各视图共享同一个 Record id。SSE 每行只送入一次事件组装，每个
+事件产出一个 Record，不参与 Agent 检测。
 
 ## 模块与设计原则
 
 ### Core 解析（`packages/core`）
 
-负责 JSON / JSONL 检测、Stringified JSON 递归展开、节点模型和序列化。
+负责 JSON / JSONL / SSE 检测、SSE 事件组装、Stringified JSON 递归展开、节点模型和序列化。
 
 - 节点只保存 JSON 事实。路径、深度和 Record 归属属于遍历上下文。
 - 数字保留源字面量。无法无损往返的数字不能被静默近似。
@@ -69,7 +70,9 @@ Record 和 Agent 检测证据，各视图共享同一个 Record id。
 
 - 解析和搜索默认在 Worker 中执行。主线程只在预算内同步工作，超出预算明确拒绝。
 - 流式结果以追加方式发布，不随批次数量重复复制或全量重算。
-- JSONL 摄取是唯一的逐行解析入口。其他视图复用其结果，不再次解析同一行。
+- JSONL 摄取和 SSE 摄取是仅有的逐行解析入口。其他视图复用其结果，不再次解析同一行。
+- SSE 事件跨行，Record 无法按单行回读，因此 SSE Source 只在内存中解析：Worker 分块流式
+  组装并分批发布 Record，不经过本地文件访问。超出内存上限时明确拒绝。
 
 ### 本地文件访问（Local-file Source Access）
 

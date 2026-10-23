@@ -14,20 +14,8 @@ import { getErrorMessage, getParseErrorMeta } from "./parse-error.js";
 import { createFullJsonlRecord, createPreviewJsonlRecord } from "./record-builder.js";
 import { isFailedRecord, isParsed, isPreviewRecord } from "./records.js";
 import { stringifyJsonNode } from "./serialization.js";
-import {
-  DEFAULT_MAX_DEPTH,
-  MAX_SUPPORTED_DEPTH,
-  probeJsonl,
-  truncateAtCodePointBoundary,
-} from "./utils.js";
-
-const resolveMaxDepth = (maxDepth: number | undefined) => {
-  const resolved = maxDepth ?? DEFAULT_MAX_DEPTH;
-  if (!Number.isSafeInteger(resolved) || resolved < 0 || resolved > MAX_SUPPORTED_DEPTH) {
-    throw new RangeError(`maxDepth must be an integer between 0 and ${MAX_SUPPORTED_DEPTH}`);
-  }
-  return resolved;
-};
+import { isLikelySse, parseSseRecords } from "./sse.js";
+import { probeJsonl, resolveMaxDepth, truncateAtCodePointBoundary } from "./utils.js";
 
 const createParseErrorRecord = (
   line: string,
@@ -202,6 +190,15 @@ const parseLooseJsonlLines = <TLine>(
   return parsedLines;
 };
 
+const buildSseResult = (input: string, maxDepth: number): ParseResult => {
+  const records = parseSseRecords(input, { maxDepth });
+  return {
+    format: "sse",
+    records,
+    stats: { total: records.length, success: records.length, failed: 0 },
+  };
+};
+
 const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
   const success = records.filter(isParsed).length;
   return {
@@ -248,11 +245,11 @@ const detectFormat = (input: string): "json" | "jsonl" =>
   probeJsonl(input).isLikelyJsonl ? "jsonl" : "json";
 
 export type ParseInputForIngestionResult =
-  | { format: "json"; result: ParseResult }
+  | { format: "json" | "sse"; result: ParseResult }
   | { format: "jsonl"; lines: JsonlRecordIngestionLine<FullJsonlRecord>[] };
 
 type ParsedInputWithLines<TLine> =
-  | { format: "json"; result: ParseResult }
+  | { format: "json" | "sse"; result: ParseResult }
   | { format: "jsonl"; lines: TLine[] };
 
 const parseInputWithJsonlLines = <TLine>(
@@ -275,6 +272,10 @@ const parseInputWithJsonlLines = <TLine>(
 
   if (options.forcedFormat === "json") {
     return { format: "json", result: parseSingleJsonResult(input, maxDepth) };
+  }
+
+  if (options.forcedFormat === "sse" || (!options.forcedFormat && isLikelySse(input))) {
+    return { format: "sse", result: buildSseResult(input, maxDepth) };
   }
 
   if (options.forcedFormat === "jsonl") {
@@ -346,9 +347,9 @@ export const parseInputForIngestion = (
     (line, lineNumber, maxDepth) => parseFullJsonlRecordLine(line, lineNumber, maxDepth),
     (line) => line.record,
   );
-  return parsed.format === "json"
-    ? parsed
-    : { format: "jsonl", lines: parsed.lines.map(withLazyApproximateValue) };
+  return parsed.format === "jsonl"
+    ? { format: "jsonl", lines: parsed.lines.map(withLazyApproximateValue) }
+    : parsed;
 };
 
 export const parseInput = (input: string, options: ParseOptions = {}): ParseResult => {
@@ -358,7 +359,7 @@ export const parseInput = (input: string, options: ParseOptions = {}): ParseResu
     (line, lineNumber, maxDepth) => parseFullJsonlRecordLine(line, lineNumber, maxDepth).record,
     (record) => record,
   );
-  return parsed.format === "json" ? parsed.result : buildJsonlResult(parsed.lines);
+  return parsed.format === "jsonl" ? buildJsonlResult(parsed.lines) : parsed.result;
 };
 
 const restoreNodeAtPath = (

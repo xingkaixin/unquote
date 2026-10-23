@@ -1,3 +1,4 @@
+import type { ParseResult } from "@unquote/core";
 import type { LocalFileAccess } from "./local-file-source";
 import type { SourceMode } from "./source-candidate";
 import type { SourceRevision } from "./source-revision";
@@ -14,7 +15,7 @@ interface PublishedLocalFileSource {
   readonly kind: "local-file";
   readonly sourceRevision: SourceRevision;
   readonly access: LocalFileAccess;
-  readonly mode: Exclude<SourceMode, "json">;
+  readonly mode: Exclude<SourceMode, "json" | "sse">;
 }
 
 export type PublishedSourceRevision = PublishedMemorySource | PublishedLocalFileSource;
@@ -23,7 +24,7 @@ export interface ResolvedSourceWork {
   readonly sourceRevision: SourceRevision;
   readonly text: string;
   readonly sourceAccess: LocalFileAccess | null;
-  readonly forcedFormat: "json" | "jsonl" | undefined;
+  readonly forcedFormat: ParseResult["format"] | undefined;
 }
 
 export interface SourceImportProjection {
@@ -72,7 +73,7 @@ export const createImportedFileSourceRevision = (
 export const createStreamingFileSourceRevision = (
   sourceRevision: SourceRevision,
   access: LocalFileAccess,
-  mode: Exclude<SourceMode, "json">,
+  mode: Exclude<SourceMode, "json" | "sse">,
 ): PublishedSourceRevision =>
   freeze({
     kind: "local-file",

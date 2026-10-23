@@ -276,7 +276,7 @@ describe("parser worker dispatch", () => {
 
     workerScope.postMessage.mockClear();
     dispatch(workerScope, {
-      type: "jsonl-chunk",
+      type: "stream-chunk",
       requestId: 1,
       chunk: '{"after":true}\n',
       done: true,
@@ -287,22 +287,22 @@ describe("parser worker dispatch", () => {
   it("streams JSONL chunks, skips blank lines, and completes with failure stats", async () => {
     const workerScope = await loadWorker();
     dispatch(workerScope, {
-      type: "jsonl-chunk",
+      type: "stream-chunk",
       requestId: 1,
       chunk: '{"ignored":true}\n',
       done: false,
     });
     expect(workerScope.postMessage).not.toHaveBeenCalled();
 
-    dispatch(workerScope, { type: "start-jsonl", requestId: 2 });
+    dispatch(workerScope, { type: "start-stream", requestId: 2, format: "jsonl" });
     dispatch(workerScope, {
-      type: "jsonl-chunk",
+      type: "stream-chunk",
       requestId: 1,
       chunk: '{"stale":true}\n',
       done: false,
     });
     dispatch(workerScope, {
-      type: "jsonl-chunk",
+      type: "stream-chunk",
       requestId: 2,
       chunk: '\n{"ok":true}\n{bad}\n',
       done: true,
@@ -318,12 +318,46 @@ describe("parser worker dispatch", () => {
 
     workerScope.postMessage.mockClear();
     dispatch(workerScope, {
-      type: "jsonl-chunk",
+      type: "stream-chunk",
       requestId: 2,
       chunk: '{"after":true}\n',
       done: true,
     });
     expect(workerScope.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("streams SSE events split across chunks and links each to its first line", async () => {
+    const workerScope = await loadWorker();
+
+    dispatch(workerScope, { type: "start-stream", requestId: 1, format: "sse" });
+    dispatch(workerScope, {
+      type: "stream-chunk",
+      requestId: 1,
+      chunk: 'event: delta\ndata: {"a":',
+      done: false,
+    });
+    dispatch(workerScope, {
+      type: "stream-chunk",
+      requestId: 1,
+      chunk: "1}\n\n: keep-alive\n\ndata: [DONE]",
+      done: true,
+    });
+
+    const records = workerScope.postMessage.mock.calls.flatMap(([message]) =>
+      message.type === "batch" ? message.records : [],
+    );
+    expect(records).toEqual([
+      expect.objectContaining({ id: "record-1", lineNumber: 1, summary: "event:delta" }),
+      expect.objectContaining({ id: "record-6", lineNumber: 6, status: "full" }),
+    ]);
+    expect(workerScope.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "complete-stats",
+        requestId: 1,
+        stats: { total: 2, success: 2, failed: 0 },
+        agentSession: null,
+      }),
+    );
   });
 
   it("cancels a reader superseded after a successful read", async () => {
@@ -431,9 +465,9 @@ describe("parser worker dispatch", () => {
     }));
     const workerScope = await loadWorker();
 
-    dispatch(workerScope, { type: "start-jsonl", requestId: 1 });
-    dispatch(workerScope, { type: "jsonl-chunk", requestId: 1, chunk: '{"a":1}\n', done: false });
-    dispatch(workerScope, { type: "jsonl-chunk", requestId: 1, chunk: '{"b":2}\n', done: false });
+    dispatch(workerScope, { type: "start-stream", requestId: 1, format: "jsonl" });
+    dispatch(workerScope, { type: "stream-chunk", requestId: 1, chunk: '{"a":1}\n', done: false });
+    dispatch(workerScope, { type: "stream-chunk", requestId: 1, chunk: '{"b":2}\n', done: false });
 
     expect(workerScope.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
