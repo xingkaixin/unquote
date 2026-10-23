@@ -398,6 +398,7 @@ describe("agent trajectory presentation: projection", () => {
       events: 3,
       tools: 1,
       failures: 1,
+      toolSummaries: [],
       durationMs: 20,
       tokens: {
         inputTokens: 21,
@@ -407,6 +408,40 @@ describe("agent trajectory presentation: projection", () => {
       },
       warningCount: 1,
     });
+  });
+
+  it("summarizes tools by name from log-provided durations only", () => {
+    const items = [
+      toolItemFor("event-30", "completed", { toolName: "Read", durationMs: 40 }),
+      toolItemFor("event-31", "failed", { toolName: "Bash", durationMs: 250 }),
+      toolItemFor("event-32", "completed", { toolName: "Bash" }),
+      toolItemFor("event-33", "completed", { toolName: "Bash", durationMs: 50 }),
+      toolItemFor("event-34", "running", { toolName: "Grep" }),
+      toolItemFor("event-35", "failed"),
+    ];
+    const events = items.map((_, index) => eventFor(`event-${30 + index}`, "Tool", ""));
+    const presentation = createAgentTrajectoryPresentation(modelFor(events, items));
+
+    expect(presentation.summary).toMatchObject({ tools: 6, failures: 2 });
+    expect(presentation.summary.toolSummaries).toEqual([
+      {
+        toolName: "Bash",
+        calls: 3,
+        failures: 1,
+        timedCalls: 2,
+        totalDurationMs: 300,
+        maxDurationMs: 250,
+      },
+      { toolName: "Grep", calls: 1, failures: 0, timedCalls: 0 },
+      {
+        toolName: "Read",
+        calls: 1,
+        failures: 0,
+        timedCalls: 1,
+        totalDurationMs: 40,
+        maxDurationMs: 40,
+      },
+    ]);
   });
 
   it("leaves duration absent without a finite non-negative turn duration", () => {

@@ -16,6 +16,9 @@ const localFile = createStreamingFileSourceRevision(2, access, "jsonl");
 // @ts-expect-error Streaming is a JSONL capability and cannot publish a JSON mode.
 createStreamingFileSourceRevision(3, access, "json");
 
+// @ts-expect-error SSE events span lines, so an SSE Source is parsed in memory.
+createStreamingFileSourceRevision(3, access, "sse");
+
 // @ts-expect-error A published revision must contain one complete source variant.
 const _splitRevision: PublishedSourceRevision = { sourceRevision: 4 };
 

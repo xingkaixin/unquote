@@ -6,6 +6,7 @@ import type {
   AgentTimelineEvent,
 } from "./session-types";
 import type {
+  AgentTrajectoryApiErrorItem,
   AgentTrajectoryAssistantReasoningItem,
   AgentTrajectoryCompactionItem,
   AgentTrajectoryItem,
@@ -186,6 +187,20 @@ const appendEvidence = (
         context.event,
         context.selection,
       ),
+    };
+    state.itemDrafts.push({ turn: context.turn, item });
+  } else if (evidence.kind === "api-error") {
+    const item: AgentTrajectoryApiErrorItem = {
+      ...trajectoryItemBase(
+        context.itemId,
+        "api-error",
+        "failed",
+        context.event,
+        context.selection,
+      ),
+      ...(evidence.retryAttempt === undefined ? {} : { retryAttempt: evidence.retryAttempt }),
+      ...(evidence.maxRetries === undefined ? {} : { maxRetries: evidence.maxRetries }),
+      ...(evidence.retryInMs === undefined ? {} : { retryInMs: evidence.retryInMs }),
     };
     state.itemDrafts.push({ turn: context.turn, item });
   } else {

@@ -36,8 +36,8 @@ presentation used by the web and extension apps. Its public entry points are def
 - Adapters record each content block's source paths in its Record so exports can read the
   complete value. Display text stays bounded.
 - Adapters emit evidence: tool calls, results and completions, standalone tool executions that
-  the log links to no call id, turn lifecycle, token usage, model output, subagent activity, and
-  compaction. Presentation belongs outside adapters.
+  the log links to no call id, turn lifecycle, token usage, model output, subagent activity,
+  compaction, and reported API errors. Presentation belongs outside adapters.
 - `lib/agent-session/tool-correlation.ts` owns call, result, and completion pairing across
   adapters and Trajectory projection.
 - Integrity problems attach warnings to the affected item instead of failing the whole session.

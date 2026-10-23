@@ -1,6 +1,7 @@
 import { createLocalFileAccess } from "../lib/local-file-source";
 import type { LocalFileAccess } from "../lib/local-file-source";
 import { parseInput } from "@unquote/core";
+import type { ParseResult } from "@unquote/core";
 import type { SourceRevision } from "../lib/source-revision";
 import { createMemorySearch } from "../lib/memory-search";
 import type { SearchOptions, SearchResultSet, SearchResultWindow } from "../lib/record-search";
@@ -10,7 +11,7 @@ type TextSearchSource =
       kind: "content";
       sourceRevision: SourceRevision;
       text: string;
-      forcedFormat?: "json" | "jsonl";
+      forcedFormat?: ParseResult["format"];
     }
   | {
       kind: "cached";

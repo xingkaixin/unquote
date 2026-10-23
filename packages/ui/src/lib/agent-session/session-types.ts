@@ -138,6 +138,14 @@ export interface AgentCompactionEvidence extends AgentSessionEvidenceBase {
   kind: "compaction";
 }
 
+// A model API request the agent reported as failed, with the retry it scheduled.
+export interface AgentApiErrorEvidence extends AgentSessionEvidenceBase {
+  kind: "api-error";
+  retryAttempt?: number;
+  maxRetries?: number;
+  retryInMs?: number;
+}
+
 export type AgentSessionEvidence =
   | AgentTurnLifecycleEvidence
   | AgentModelOutputEvidence
@@ -145,7 +153,8 @@ export type AgentSessionEvidence =
   | AgentToolExecutionEvidence
   | AgentTokenUsageEvidence
   | AgentSubagentActivityEvidence
-  | AgentCompactionEvidence;
+  | AgentCompactionEvidence
+  | AgentApiErrorEvidence;
 
 export type AgentContentBlock = (
   | { type: "text"; text: string }

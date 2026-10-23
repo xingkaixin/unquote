@@ -72,3 +72,5 @@ export {
 } from "./utils.js";
 
 export type { JsonlProbeResult } from "./utils.js";
+
+export { isLikelySse } from "./sse.js";

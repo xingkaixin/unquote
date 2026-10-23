@@ -1,7 +1,10 @@
+import { isLikelySse } from "@unquote/core";
+
 export type SourceDetection =
   | { kind: "empty" }
   | { kind: "json" }
   | { kind: "jsonl"; lines: number; precision: "exact" | "lower-bound" }
+  | { kind: "sse" }
   | { kind: "invalid" };
 
 export const sourceDetectionProbeByteBudget = 64 * 1024;
@@ -105,6 +108,10 @@ export const detectSourceFormat = (text: string): SourceDetection => {
       lines: scan.count,
       precision: scan.precision,
     };
+  }
+
+  if (isLikelySse(text)) {
+    return { kind: "sse" };
   }
 
   const looksLikeJson =

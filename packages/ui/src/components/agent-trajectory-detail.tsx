@@ -22,6 +22,7 @@ import {
 import {
   formatTrajectoryDuration,
   trajectoryKindMessageKey,
+  trajectoryRetryValue,
   trajectoryStatusMessageKey,
   trajectoryWarningMessageKey,
 } from "./agent-trajectory-format";
@@ -319,13 +320,26 @@ export const AgentTrajectoryDetail = ({
     trajectoryItem.kind === "assistant" || trajectoryItem.kind === "reasoning"
       ? trajectoryItem.step
       : undefined;
+  const retry = trajectoryItem.kind === "api-error" ? trajectoryRetryValue(trajectoryItem, t) : "";
+  const retryDelay =
+    trajectoryItem.kind === "api-error"
+      ? formatTrajectoryDuration(trajectoryItem.retryInMs, locale)
+      : "";
   const tokenUsageFacts = tokenUsageFactsFor(trajectoryItem);
   const rawRecords = trajectoryRawRecordsFor(trajectoryItem);
   const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
   const summary = truncateTrajectoryDisplayText(item.summary) || kind;
   const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
   const hasDetailFacts = Boolean(
-    time || duration || startedAt || endedAt || toolName || callId || derivedStep,
+    time ||
+    duration ||
+    startedAt ||
+    endedAt ||
+    toolName ||
+    callId ||
+    derivedStep ||
+    retry ||
+    retryDelay,
   );
 
   return (
@@ -370,6 +384,8 @@ export const AgentTrajectoryDetail = ({
           {callId ? (
             <DetailFact label={t("trajectory.callId")} value={callId} preserveWhitespace />
           ) : null}
+          {retry ? <DetailFact label={t("trajectory.retry")} value={retry} /> : null}
+          {retryDelay ? <DetailFact label={t("trajectory.retryDelay")} value={retryDelay} /> : null}
           {derivedStep ? (
             <DetailFact
               label={t("trajectory.derivedStep", { step: derivedStep.index })}

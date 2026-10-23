@@ -13,6 +13,7 @@ import { formatClockTime } from "../lib/format";
 import {
   formatTrajectoryDuration,
   trajectoryKindMessageKey,
+  trajectoryRetryValue,
   trajectoryStatusMessageKey,
 } from "./agent-trajectory-format";
 
@@ -68,6 +69,12 @@ const LedgerTurnHeader = ({
   const facts = turn
     ? [duration, t("trajectory.itemCount", { count: row.group.items.length })].filter(Boolean)
     : [];
+  let apiErrorCount = 0;
+  for (const { item } of row.group.items) {
+    if (item.kind === "api-error") {
+      apiErrorCount += 1;
+    }
+  }
 
   return (
     <div
@@ -84,6 +91,11 @@ const LedgerTurnHeader = ({
         {turn ? (
           <span className={`font-mono text-[10px] ${statusTextTone[turn.status]}`}>
             {t(trajectoryStatusMessageKey[turn.status])}
+          </span>
+        ) : null}
+        {apiErrorCount > 0 ? (
+          <span data-trajectory-turn-api-errors className="font-mono text-[10px] text-warning">
+            {t("trajectory.apiErrorCount", { count: apiErrorCount })}
           </span>
         ) : null}
         <span className="flex-1" />
@@ -126,6 +138,7 @@ const LedgerItemRow = ({
   const summary = truncateTrajectoryDisplayText(presentationItem.summary) || kind;
   const derivedStep =
     item.kind === "assistant" || item.kind === "reasoning" ? item.step : undefined;
+  const retry = item.kind === "api-error" ? trajectoryRetryValue(item, t) : "";
   const metadata = [
     t("trajectory.line", { line: item.lineNumber }),
     turnIndex === undefined ? "" : t("trajectory.turn", { turn: turnIndex }),
@@ -170,6 +183,11 @@ const LedgerItemRow = ({
             >
               {t("trajectory.derivedStep", { step: derivedStep.index })}
               <span className="sr-only">. {t("trajectory.derivedStepHint")}</span>
+            </span>
+          ) : null}
+          {retry ? (
+            <span className="min-w-0 truncate font-mono text-[10px] text-warning">
+              {t("trajectory.retry")} {retry}
             </span>
           ) : null}
           <span className="flex-1" />

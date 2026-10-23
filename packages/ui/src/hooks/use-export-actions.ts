@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import type { JsonlRecord } from "@unquote/core";
+import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
@@ -34,7 +34,7 @@ interface UseExportActionsParams {
     maxBytes?: number,
   ) => Promise<JsonlRecord[]>;
   sourceAccess: LocalFileExportAccess | null;
-  format: "json" | "jsonl";
+  format: ParseResult["format"];
   isCopyBlocked: boolean;
   sourceRevision: SourceRevision;
 }

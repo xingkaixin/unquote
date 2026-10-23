@@ -28,7 +28,7 @@ export const parseText = (input: string, options: ParseTextOptions = {}): Parsed
   );
   let result: ParseResult;
   let agentSession: AgentSession | null;
-  if (parsed.format === "json") {
+  if (parsed.format !== "jsonl") {
     result = parsed.result;
     agentSession = null;
   } else {

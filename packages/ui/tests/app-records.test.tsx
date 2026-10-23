@@ -31,6 +31,29 @@ describe("UnquoteApp", () => {
       expect(screen.getAllByText("Parse failed").length).toBeGreaterThan(0);
     });
 
+    it("opens an auto-detected SSE stream as one Record per event", async () => {
+      render(
+        <I18nProvider>
+          <UnquoteApp
+            initialInput={[
+              "event: message_start",
+              'data: {"type":"message_start"}',
+              "",
+              'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+              "",
+              "data: [DONE]",
+              "",
+            ].join("\n")}
+          />
+        </I18nProvider>,
+      );
+
+      await waitFor(() => expect(screen.getAllByText("#6").length).toBeGreaterThan(0));
+      expect(screen.getAllByText("#1").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("#4").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("3 total · 3 ok · 0 err").length).toBeGreaterThan(0);
+    });
+
     it("filters JSONL records across the record list and search", async () => {
       const user = userEvent.setup();
       await renderFilterableJsonl(user);

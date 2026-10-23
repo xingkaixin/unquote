@@ -100,6 +100,7 @@ const laneFor = (kind: AgentTrajectoryItem["kind"]): AgentTrajectoryPresentation
     case "user":
     case "system":
     case "compaction":
+    case "api-error":
       return "activity";
     case "assistant":
     case "reasoning":

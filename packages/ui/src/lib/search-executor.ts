@@ -2,6 +2,7 @@ import type { LocalFileAccess } from "./local-file-source";
 import { reportDiagnostic } from "./diagnostics";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
 import { parseInput } from "@unquote/core";
+import type { ParseResult } from "@unquote/core";
 import { startPerfMeasure } from "./perf";
 import { searchRecords } from "./record-search";
 import type { SearchOptions, SearchResultSet, SearchResultWindow } from "./record-search";
@@ -22,7 +23,7 @@ const largeFileSearchBytes = 1_000_000;
 const buildSearchRequest = (
   requestId: number,
   text: string,
-  forcedFormat: "json" | "jsonl" | undefined,
+  forcedFormat: ParseResult["format"] | undefined,
   sourceAccess: LocalFileSearchAccess | null,
   query: string,
   options: SearchOptions,
@@ -64,7 +65,7 @@ const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileSearchAccess | null) =>
 export interface SearchExecution {
   sourceRevision: SourceRevision;
   text: string;
-  forcedFormat: "json" | "jsonl" | undefined;
+  forcedFormat: ParseResult["format"] | undefined;
   sourceAccess: LocalFileSearchAccess | null;
   query: string;
   options: SearchOptions;
