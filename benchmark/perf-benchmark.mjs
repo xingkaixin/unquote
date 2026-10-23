@@ -396,12 +396,12 @@ const runRenderFixture = async (client, fixture) => {
   }
   await client.invoke("Page.navigate", { url: "http://127.0.0.1:4173/" });
   await evaluateBrowserScenario(client, "waitForBenchmarkFileInput");
-  const documentNode = await client.invoke("DOM.getDocument");
-  const fileInput = await client.invoke("DOM.querySelector", {
-    nodeId: documentNode.root.nodeId,
-    selector: benchmarkFileInputSelector,
+  // A DOM nodeId would be discarded if DOMContentLoaded fires after the input
+  // mounts (cold first load); a Runtime objectId survives until navigation.
+  const fileInput = await client.invoke("Runtime.evaluate", {
+    expression: `document.querySelector(${JSON.stringify(benchmarkFileInputSelector)})`,
   });
-  if (!fileInput.nodeId) {
+  if (!fileInput.result.objectId) {
     throw new Error("File input not found");
   }
   if (agentTrajectoryMetric) {
@@ -409,7 +409,7 @@ const runRenderFixture = async (client, fixture) => {
   }
   await evaluateBrowserScenario(client, "startBenchmark");
   await client.invoke("DOM.setFileInputFiles", {
-    nodeId: fileInput.nodeId,
+    objectId: fileInput.result.objectId,
     files: [path.join(repoRoot, fixture.path)],
   });
 
