@@ -48,6 +48,7 @@ export type {
   AgentSessionDetail,
   AgentSessionIntegrityIssue,
   AgentSessionModel,
+  AgentToolLines,
   AgentToolStatus,
 } from "./model-types";
 

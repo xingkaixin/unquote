@@ -33,39 +33,44 @@ const codexEnvelopeTypes = new Set([
   "compacted",
 ]);
 
+const hasOwn = (record: Record<string, unknown>, key: string) =>
+  Object.prototype.hasOwnProperty.call(record, key);
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
 const extractCodexMessageText = (content: unknown) => {
+  const texts: string[] = [];
+  const sourcePaths: string[] = [];
   if (!Array.isArray(content)) {
-    return "";
+    return { text: "", sourcePaths };
   }
 
-  return content
-    .map((part) => {
-      if (!isRecord(part)) {
-        return "";
-      }
-      if (
-        (part.type === "input_text" || part.type === "output_text") &&
-        typeof part.text === "string"
-      ) {
-        return part.text;
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
+  content.forEach((part, index) => {
+    if (
+      isRecord(part) &&
+      (part.type === "input_text" || part.type === "output_text") &&
+      typeof part.text === "string" &&
+      part.text
+    ) {
+      texts.push(part.text);
+      sourcePaths.push(`$.payload.content[${index}].text`);
+    }
+  });
+  return { text: texts.join("\n"), sourcePaths };
 };
 
 const extractCodexReasoningText = (payload: Record<string, unknown>) => {
-  if (!Array.isArray(payload.summary)) {
-    return "encrypted reasoning";
+  const texts: string[] = [];
+  const sourcePaths: string[] = [];
+  if (Array.isArray(payload.summary)) {
+    payload.summary.forEach((entry, index) => {
+      const text = isRecord(entry) ? getString(entry, "text") : undefined;
+      if (text) {
+        texts.push(text);
+        sourcePaths.push(`$.payload.summary[${index}].text`);
+      }
+    });
   }
-
-  const summary = payload.summary
-    .map((entry) => (isRecord(entry) ? (getString(entry, "text") ?? "") : ""))
-    .filter(Boolean)
-    .join("\n");
-  return summary || "encrypted reasoning";
+  return { text: texts.join("\n") || "encrypted reasoning", sourcePaths };
 };
 
 const shortCallId = (callId: string | undefined) =>
@@ -102,8 +107,9 @@ type NormalizedCodexResponseItem =
       category: AgentEventCategory;
       evidenceRole: AgentModelOutputEvidence["role"] | undefined;
       text: string;
+      sourcePaths: readonly string[];
     }
-  | { type: "reasoning"; itemType: "reasoning"; text: string }
+  | { type: "reasoning"; itemType: "reasoning"; text: string; sourcePaths: readonly string[] }
   | { type: "agent-message"; itemType: "agent_message" }
   | {
       type: "tool-call";
@@ -111,12 +117,14 @@ type NormalizedCodexResponseItem =
       toolName: string;
       callId: string | undefined;
       text: string | undefined;
+      sourcePaths: readonly string[];
     }
   | {
       type: "tool-result";
       itemType: "function_call_output" | "custom_tool_call_output";
       callId: string | undefined;
       text: string;
+      sourcePaths: readonly string[];
       preview: string;
       status: "completed" | "failed";
       evidenceStatus: "completed" | "failed" | undefined;
@@ -173,12 +181,12 @@ const normalizeCodexResponseItem = (
       itemType,
       messageRole,
       ...normalizedRole,
-      text: extractCodexMessageText(payload.content),
+      ...extractCodexMessageText(payload.content),
     };
   }
 
   if (itemType === "reasoning") {
-    return { type: "reasoning", itemType, text: extractCodexReasoningText(payload) };
+    return { type: "reasoning", itemType, ...extractCodexReasoningText(payload) };
   }
 
   if (itemType === "agent_message") {
@@ -190,14 +198,15 @@ const normalizeCodexResponseItem = (
     const callId = getString(payload, "call_id");
     // Keep the raw argument string: parsing a large payload would retain a value
     // that no consumer needs beyond its bounded preview.
-    const text =
-      itemType === "function_call" ? getString(payload, "arguments") : getString(payload, "input");
+    const field = itemType === "function_call" ? "arguments" : "input";
+    const text = getString(payload, field);
     return {
       type: "tool-call",
       itemType,
       toolName,
       callId,
       text,
+      sourcePaths: text === undefined ? [] : [`$.payload.${field}`],
     };
   }
 
@@ -210,6 +219,7 @@ const normalizeCodexResponseItem = (
       itemType,
       callId,
       text,
+      sourcePaths: hasOwn(payload, "output") ? ["$.payload.output"] : [],
       preview: formatAgentPreviewValue(payload.output),
       status,
       evidenceStatus:
@@ -286,9 +296,6 @@ const codexTokenUsageEvidence = (
     cumulativeUsage,
   };
 };
-
-const hasOwn = (record: Record<string, unknown>, key: string) =>
-  Object.prototype.hasOwnProperty.call(record, key);
 
 const ownValue = (record: Record<string, unknown>, key: string) =>
   hasOwn(record, key) ? record[key] : undefined;
@@ -566,7 +573,11 @@ const projectCodexResponseItem = (
     case "message": {
       const conversationItemId = `conv-${lineNumber}-${item.conversationRole}`;
       const block = item.text
-        ? ({ type: "text", text: truncateBlockText(item.text) } satisfies AgentContentBlock)
+        ? ({
+            type: "text",
+            text: truncateBlockText(item.text),
+            sourcePaths: item.sourcePaths,
+          } satisfies AgentContentBlock)
         : undefined;
       const conversation = {
         id: conversationItemId,
@@ -595,7 +606,11 @@ const projectCodexResponseItem = (
       const conversation = {
         id: conversationItemId,
         role: "thinking",
-        block: { type: "thinking", text: truncateBlockText(item.text) },
+        block: {
+          type: "thinking",
+          text: truncateBlockText(item.text),
+          sourcePaths: item.sourcePaths,
+        },
       } satisfies AgentConversationItem;
       return {
         category: "thinking",
@@ -632,6 +647,7 @@ const projectCodexResponseItem = (
       const block = {
         type: "tool_use",
         text: truncateBlockText(item.text ?? "{}"),
+        sourcePaths: item.sourcePaths,
       } satisfies AgentContentBlock;
       const conversation = {
         id: conversationItemId,
@@ -661,6 +677,7 @@ const projectCodexResponseItem = (
           ? ({
               type: "tool_result",
               text: item.text,
+              sourcePaths: item.sourcePaths,
             } satisfies AgentContentBlock)
           : undefined;
       const conversation = {

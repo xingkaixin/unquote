@@ -145,13 +145,26 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
       "tool_result",
       "tool_result",
     ]);
-    expect(items[1]?.block).toEqual({ type: "text", text: "More context" });
-    expect(items[2]?.block).toEqual({ type: "tool_result", text: '{\n  "ok": true\n}' });
+    // Source paths keep the original content index, including skipped parts.
+    expect(items[1]?.block).toEqual({
+      type: "text",
+      text: "More context",
+      sourcePaths: ["$.message.content[1].text"],
+    });
+    expect(items[2]?.block).toEqual({
+      type: "tool_result",
+      text: '{\n  "ok": true\n}',
+      sourcePaths: ["$.message.content[2].content"],
+    });
     expect(items[3]).not.toHaveProperty("block");
     expect(items[4]?.block).toMatchObject({
       type: "tool_result",
     });
-    expect(items[5]?.block).toEqual({ type: "tool_result", text: "" });
+    expect(items[5]?.block).toEqual({
+      type: "tool_result",
+      text: "",
+      sourcePaths: ["$.message.content[0].content"],
+    });
     expect(session.events[2]?.sessionEvidence).toContainEqual(
       expect.objectContaining({ kind: "tool-lifecycle", phase: "result", status: "completed" }),
     );
@@ -362,7 +375,11 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     const session = builder.finish([]);
 
     expect(session.events[0]).toMatchObject({ label: "text", preview: "Plain reply" });
-    expect(conversationItems(session)[0]?.block).toEqual({ type: "text", text: "Plain reply" });
+    expect(conversationItems(session)[0]?.block).toEqual({
+      type: "text",
+      text: "Plain reply",
+      sourcePaths: ["$.message.content"],
+    });
   });
 
   it("normalizes task notifications as system prompts that still open a turn", () => {

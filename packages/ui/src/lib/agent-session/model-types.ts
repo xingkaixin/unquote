@@ -18,6 +18,12 @@ export interface AgentSessionDetail {
 
 export type AgentToolStatus = "pending" | "completed" | "failed";
 
+// Source lines of a tool call and its result, paired only by the log's call id.
+export interface AgentToolLines {
+  call?: number;
+  result?: number;
+}
+
 export type AgentSessionIntegrityIssue =
   | { kind: "duplicate-event-id"; id: string }
   | { kind: "duplicate-record-id"; recordId: string }
@@ -35,4 +41,5 @@ export interface AgentSessionModel {
   selectTrajectory(itemId: string): AgentDetailSelection | null;
   resolveToolStatus(item: AgentConversationItem): AgentToolStatus;
   resolveToolName(item: AgentConversationItem): string | undefined;
+  resolveToolLines(item: AgentConversationItem): AgentToolLines;
 }

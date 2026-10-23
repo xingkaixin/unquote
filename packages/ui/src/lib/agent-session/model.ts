@@ -8,6 +8,7 @@ import type {
   AgentConversationEntry,
   AgentSessionDetail,
   AgentSessionModel,
+  AgentToolLines,
   AgentToolStatus,
 } from "./model-types";
 import type { AgentTrajectoryItem, AgentTrajectoryModel } from "./trajectory-types";
@@ -125,6 +126,14 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
   const resolveToolName = (item: AgentConversationItem): string | undefined =>
     toolLifecycle.stateByConversationItem.get(item)?.toolName;
 
+  const resolveToolLines = (item: AgentConversationItem): AgentToolLines => {
+    const state = toolLifecycle.stateByConversationItem.get(item);
+    return {
+      ...(state?.callLineNumber === undefined ? {} : { call: state.callLineNumber }),
+      ...(state?.resultLineNumber === undefined ? {} : { result: state.resultLineNumber }),
+    };
+  };
+
   return {
     events,
     conversation,
@@ -139,5 +148,6 @@ export const createAgentSessionModel = (session: AgentSession): AgentSessionMode
     selectTrajectory,
     resolveToolStatus,
     resolveToolName,
+    resolveToolLines,
   };
 };

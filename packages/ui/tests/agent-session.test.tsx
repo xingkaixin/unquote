@@ -480,9 +480,25 @@ describe("agent session", () => {
       {
         type: "tool_result",
         text: "alpha output",
+        sourcePaths: ["$.message.content[0].content"],
       },
-      { type: "tool_result", text: "beta failed" },
-      { type: "tool_result", text: "unattributed output" },
+      {
+        type: "tool_result",
+        text: "beta failed",
+        sourcePaths: ["$.message.content[2].content"],
+      },
+      {
+        type: "tool_result",
+        text: "unattributed output",
+        sourcePaths: ["$.message.content[3].content"],
+      },
+    ]);
+    expect([...calls, ...results].map(({ item }) => model.resolveToolLines(item))).toEqual([
+      { call: 2, result: 3 },
+      { call: 2, result: 3 },
+      { call: 2, result: 3 },
+      { call: 2, result: 3 },
+      { result: 3 },
     ]);
     expect(results.map(({ item }) => model.resolveToolStatus(item))).toEqual([
       "completed",

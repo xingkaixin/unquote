@@ -169,6 +169,7 @@ export const modelFor = (
     selectTrajectory: () => null,
     resolveToolStatus: () => "pending",
     resolveToolName: () => undefined,
+    resolveToolLines: () => ({}),
   };
 };
 
