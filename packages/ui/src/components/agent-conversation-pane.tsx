@@ -198,13 +198,41 @@ const ConversationTurn = ({
   );
 };
 
+const TurnHeader = ({
+  turn,
+  selected,
+  onToggle,
+}: {
+  turn: number;
+  selected: boolean;
+  onToggle: (turn: number) => void;
+}) => {
+  const { t } = useTranslation();
+  return (
+    <label className="inline-flex items-center gap-2 pb-3">
+      <input
+        type="checkbox"
+        className="size-3.5"
+        checked={selected}
+        aria-label={t("turnReport.selectTurn", { turn })}
+        onChange={() => onToggle(turn)}
+      />
+      <span className="uq-label">{t("agent.turn", { turn })}</span>
+    </label>
+  );
+};
+
 interface AgentConversationPaneProps {
   entries: readonly AgentConversationEntry[];
   model: AgentSessionModel;
   selectedConversationId: string | undefined;
   detailSelection: AgentDetailSelection | null;
+  selectedTurns: ReadonlySet<number>;
   onSelectItem: (itemId: string) => void;
   onOpenRecord: (recordId: string) => void;
+  onToggleTurn: (turn: number) => void;
+  onClearTurns: () => void;
+  onExportTurns: (() => void) | undefined;
 }
 
 export const AgentConversationPane = ({
@@ -212,8 +240,12 @@ export const AgentConversationPane = ({
   model,
   selectedConversationId,
   detailSelection,
+  selectedTurns,
   onSelectItem,
   onOpenRecord,
+  onToggleTurn,
+  onClearTurns,
+  onExportTurns,
 }: AgentConversationPaneProps) => {
   const { t } = useTranslation();
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
@@ -223,6 +255,17 @@ export const AgentConversationPane = ({
     const map = new Map<string, number>();
     entries.forEach(({ item }, index) => map.set(item.id, index));
     return map;
+  }, [entries]);
+  const turnStartById = useMemo(() => {
+    const starts = new Map<string, number>();
+    let previous: number | undefined;
+    for (const { item, event } of entries) {
+      if (event.turnIndex !== undefined && event.turnIndex !== previous) {
+        starts.set(item.id, event.turnIndex);
+        previous = event.turnIndex;
+      }
+    }
+    return starts;
   }, [entries]);
   const conversationVirtualizer = useVirtualizer({
     count: entries.length,
@@ -256,80 +299,103 @@ export const AgentConversationPane = ({
       ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
   }, [detailSelection, selectedConversationId]);
 
-  const renderTurn = (entry: AgentConversationEntry) => (
-    <ConversationTurn
-      entry={entry}
-      model={model}
-      selected={selectedConversationId === entry.item.id}
-      onSelect={onSelectItem}
-      onOpenRecord={onOpenRecord}
-    />
-  );
+  const renderTurn = (entry: AgentConversationEntry) => {
+    const turn = turnStartById.get(entry.item.id);
+    return (
+      <>
+        {turn === undefined ? null : (
+          <TurnHeader turn={turn} selected={selectedTurns.has(turn)} onToggle={onToggleTurn} />
+        )}
+        <ConversationTurn
+          entry={entry}
+          model={model}
+          selected={selectedConversationId === entry.item.id}
+          onSelect={onSelectItem}
+          onOpenRecord={onOpenRecord}
+        />
+      </>
+    );
+  };
 
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-      <div
-        role={entries.length === 0 ? undefined : "list"}
-        aria-label={entries.length === 0 ? undefined : t("agent.conversation")}
-        className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-14 pt-8"
-      >
-        {entries.length === 0 ? (
-          <p className="m-0 rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-tertiary">
-            {t("agent.noConversation")}
-          </p>
-        ) : shouldVirtualize ? (
-          <div
-            role="presentation"
-            className="relative w-full"
-            style={{ height: `${conversationVirtualizer.getTotalSize()}px` }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const entry = entries[virtualItem.index];
-              if (!entry) {
-                return null;
-              }
+    <div className="flex min-h-0 flex-1 flex-col">
+      {selectedTurns.size > 0 ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-2">
+          <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary">
+            {t("turnReport.selected", { count: selectedTurns.size })}
+          </span>
+          <Button variant="ghost" size="sm" onClick={onClearTurns}>
+            {t("turnReport.clear")}
+          </Button>
+          <Button size="sm" disabled={!onExportTurns} onClick={onExportTurns}>
+            {t("turnReport.export")}
+          </Button>
+        </div>
+      ) : null}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          role={entries.length === 0 ? undefined : "list"}
+          aria-label={entries.length === 0 ? undefined : t("agent.conversation")}
+          className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-14 pt-8"
+        >
+          {entries.length === 0 ? (
+            <p className="m-0 rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-tertiary">
+              {t("agent.noConversation")}
+            </p>
+          ) : shouldVirtualize ? (
+            <div
+              role="presentation"
+              className="relative w-full"
+              style={{ height: `${conversationVirtualizer.getTotalSize()}px` }}
+            >
+              {virtualItems.map((virtualItem) => {
+                const entry = entries[virtualItem.index];
+                if (!entry) {
+                  return null;
+                }
 
-              return (
+                return (
+                  <div
+                    key={entry.item.id}
+                    role="listitem"
+                    aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
+                    aria-setsize={entries.length}
+                    aria-posinset={virtualItem.index + 1}
+                    ref={(node) => {
+                      if (node) {
+                        conversationVirtualizer.measureElement(node);
+                      }
+                    }}
+                    data-index={virtualItem.index}
+                    className="absolute left-0 top-0 w-full"
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                  >
+                    {renderTurn(entry)}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div role="presentation" className="flex flex-col gap-6">
+              {entries.map((entry) => (
                 <div
                   key={entry.item.id}
                   role="listitem"
                   aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
-                  aria-setsize={entries.length}
-                  aria-posinset={virtualItem.index + 1}
                   ref={(node) => {
                     if (node) {
-                      conversationVirtualizer.measureElement(node);
+                      conversationRefs.current.set(entry.item.id, node);
+                    } else {
+                      conversationRefs.current.delete(entry.item.id);
                     }
                   }}
-                  data-index={virtualItem.index}
-                  className="absolute left-0 top-0 w-full"
-                  style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
                   {renderTurn(entry)}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div role="presentation" className="flex flex-col gap-6">
-            {entries.map((entry) => (
-              <div
-                key={entry.item.id}
-                role="listitem"
-                aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
-                ref={(node) => {
-                  if (node) {
-                    conversationRefs.current.set(entry.item.id, node);
-                  } else {
-                    conversationRefs.current.delete(entry.item.id);
-                  }
-                }}
-              >
-                {renderTurn(entry)}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

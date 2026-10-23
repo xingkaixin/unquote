@@ -19,6 +19,17 @@ export const en = {
     "Could not build the report. Check paths and source line numbers; invalid JSON and missing lines cannot be included.",
   "report.previous": "Previous",
   "report.next": "Next",
+  "turnReport.title": "Export turn report",
+  "turnReport.description":
+    "Builds a Markdown report of the selected turns from their full source records. Tool calls are paired with results only by the call ids recorded in the log.",
+  "turnReport.turns": "Selected turns: {turns}",
+  "turnReport.reasoning": "Include reasoning",
+  "turnReport.failed":
+    "Could not build the report. Check paths; turn content must come from complete, valid source records.",
+  "turnReport.selectTurn": "Select turn {turn} for the report",
+  "turnReport.selected": "{count} turns selected",
+  "turnReport.clear": "Clear",
+  "turnReport.export": "Export turns",
   "profile.title": "Field profile",
   "profile.description":
     "Exact counts for the selected columns across all valid source records, before filters. Empty strings also count as strings. Click a count to replace current conditions and show those records; variation alone does not mean an error.",

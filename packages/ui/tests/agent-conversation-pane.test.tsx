@@ -99,8 +99,12 @@ const renderPane = (
         model={model}
         selectedConversationId={overrides.selectedConversationId}
         detailSelection={overrides.detailSelection ?? null}
+        selectedTurns={new Set()}
         onSelectItem={onSelectItem}
         onOpenRecord={onOpenRecord}
+        onToggleTurn={vi.fn()}
+        onClearTurns={vi.fn()}
+        onExportTurns={undefined}
       />
     </I18nProvider>,
   );
@@ -119,8 +123,12 @@ const renderPane = (
           model={model}
           selectedConversationId={next.selectedConversationId}
           detailSelection={next.detailSelection ?? null}
+          selectedTurns={new Set()}
           onSelectItem={onSelectItem}
           onOpenRecord={onOpenRecord}
+          onToggleTurn={vi.fn()}
+          onClearTurns={vi.fn()}
+          onExportTurns={undefined}
         />
       </I18nProvider>,
     );
@@ -172,7 +180,10 @@ describe("AgentConversationPane", () => {
     const entry = buildEntry(0);
     renderPane([{ ...entry, event: { ...entry.event, turnIndex: 3 } }]);
 
-    expect(screen.getByText(/Turn 3/)).toBeInTheDocument();
+    expect(screen.getByText("Line 1 · Turn 3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Select turn 3 for the report" }),
+    ).not.toBeChecked();
   });
 
   it("renders every item without virtualizing below the threshold", () => {

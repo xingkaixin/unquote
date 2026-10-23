@@ -62,13 +62,25 @@ const claudeNotificationStatuses = new Map<string, AgentTrajectoryStatus>([
 
 type ClaudeContentBlock =
   | Extract<AgentContentBlock, { type: "text" | "thinking" }>
-  | { type: "tool_use"; text: string; toolName: string; callId: string }
+  | {
+      type: "tool_use";
+      text: string;
+      sourcePaths: readonly string[];
+      toolName: string;
+      callId: string;
+    }
   | {
       type: "tool_result";
       text: string;
+      sourcePaths: readonly string[];
       status: "completed" | "failed";
       callId?: string;
     };
+
+const claudeContentPath = (index: number, field: string) => `$.message.content[${index}].${field}`;
+
+const claudeOptionalContentPaths = (part: Record<string, unknown>, index: number, field: string) =>
+  Object.prototype.hasOwnProperty.call(part, field) ? [claudeContentPath(index, field)] : [];
 
 /**
  * The single normalization pass for a record's message content. The label,
@@ -82,22 +94,32 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): ClaudeCont
 
   const content = record.message.content;
   if (typeof content === "string") {
-    return content ? [{ type: "text", text: truncateBlockText(content) }] : [];
+    return content
+      ? [{ type: "text", text: truncateBlockText(content), sourcePaths: ["$.message.content"] }]
+      : [];
   }
   if (!Array.isArray(content)) {
     return [];
   }
 
   const blocks: ClaudeContentBlock[] = [];
-  for (const part of content) {
+  content.forEach((part, index) => {
     if (!isRecord(part)) {
-      continue;
+      return;
     }
 
     if (part.type === "text" && typeof part.text === "string") {
-      blocks.push({ type: "text", text: truncateBlockText(part.text) });
+      blocks.push({
+        type: "text",
+        text: truncateBlockText(part.text),
+        sourcePaths: [claudeContentPath(index, "text")],
+      });
     } else if (part.type === "thinking" && typeof part.thinking === "string") {
-      blocks.push({ type: "thinking", text: truncateBlockText(part.thinking) });
+      blocks.push({
+        type: "thinking",
+        text: truncateBlockText(part.thinking),
+        sourcePaths: [claudeContentPath(index, "thinking")],
+      });
     } else if (
       part.type === "tool_use" &&
       typeof part.name === "string" &&
@@ -106,6 +128,7 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): ClaudeCont
       blocks.push({
         type: "tool_use",
         text: formatAgentBlockValue(part.input ?? {}),
+        sourcePaths: claudeOptionalContentPaths(part, index, "input"),
         toolName: part.name,
         callId: part.id,
       });
@@ -115,11 +138,12 @@ const extractClaudeContentBlocks = (record: Record<string, unknown>): ClaudeCont
       blocks.push({
         type: "tool_result",
         text: formatAgentBlockValue(part.content),
+        sourcePaths: claudeOptionalContentPaths(part, index, "content"),
         status: part.is_error === true ? "failed" : "completed",
         ...(typeof part.tool_use_id === "string" ? { callId: part.tool_use_id } : {}),
       });
     }
-  }
+  });
   return blocks;
 };
 
@@ -184,7 +208,11 @@ const attachBlockItems = (
     attach({
       id: `conv-${event.lineNumber}-block-${blockIndex}`,
       role: claudeBlockRole(block, textRole),
-      block: { type: block.type, text: block.text },
+      block: {
+        type: block.type,
+        text: block.text,
+        ...(block.sourcePaths ? { sourcePaths: block.sourcePaths } : {}),
+      },
     });
   });
 

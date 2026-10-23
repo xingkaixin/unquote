@@ -156,11 +156,16 @@ export type AgentSessionEvidence =
   | AgentCompactionEvidence
   | AgentApiErrorEvidence;
 
-export type AgentContentBlock =
+export type AgentContentBlock = (
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
   | { type: "tool_use"; text: string }
-  | { type: "tool_result"; text: string };
+  | { type: "tool_result"; text: string }
+) & {
+  // JSON paths of the block's content in its source Record. `text` is bounded for
+  // display, so exports read the full values from these paths instead.
+  sourcePaths?: readonly string[];
+};
 
 export interface AgentTimelineEvent {
   id: string;

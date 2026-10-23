@@ -21,6 +21,17 @@ export const ja: Messages = {
     "レポートを作成できません。パスと元の行番号を確認してください。無効な JSON や存在しない行は含められません。",
   "report.previous": "前へ",
   "report.next": "次へ",
+  "turnReport.title": "ターンのレポートを書き出す",
+  "turnReport.description":
+    "選択したターンを元の完全なレコードから Markdown レポートにします。ツール呼び出しと結果は、ログに記録された call id でのみ対応付けます。",
+  "turnReport.turns": "選択したターン: {turns}",
+  "turnReport.reasoning": "推論を含める",
+  "turnReport.failed":
+    "レポートを作成できません。パスを確認してください。ターンの内容は完全で有効な元レコードから取得する必要があります。",
+  "turnReport.selectTurn": "ターン {turn} をレポートに含める",
+  "turnReport.selected": "{count} 件のターンを選択中",
+  "turnReport.clear": "クリア",
+  "turnReport.export": "ターンを書き出す",
   "profile.title": "フィールド概況",
   "profile.description":
     "フィルター適用前の有効な全レコードにおける選択フィールドの正確な集計です。空文字も文字列に含まれます。件数を押すと条件を置換して対象を表示します。型の違いだけではエラーと判定しません。",

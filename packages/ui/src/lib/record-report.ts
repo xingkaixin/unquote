@@ -1,6 +1,6 @@
 import { SourceReadLimitError } from "./local-file-reader";
 import { hasJsonNodeChildren, stringifyJsonNodeWithLimits } from "@unquote/core";
-import type { JsonNode, JsonlRecord } from "@unquote/core";
+import type { FullJsonlRecord, JsonNode, JsonlRecord } from "@unquote/core";
 import { appendJsonPathSegment, formatJsonPath, isPathWithin, parseTreePath } from "./path-codec";
 import type { PublishedSourceRevision } from "./published-source";
 import { yieldToMain } from "./record-export";
@@ -9,7 +9,7 @@ export const reportBytesLimit = 8 * 1024 * 1024;
 
 export const reportRecordLimit = 1000;
 
-const reportNodeLimit = 50_000;
+export const reportNodeLimit = 50_000;
 
 export interface RecordReport {
   markdown: string;
@@ -53,6 +53,12 @@ export const parseRedactedPaths = (text: string) =>
       if (!segments) throw new Error("invalid-path");
       return formatJsonPath(segments);
     });
+
+export const reportRedactionPaths = (text: string) =>
+  parseRedactedPaths(text).filter(
+    (path, index, all) =>
+      !all.some((other, i) => i !== index && other !== path && isPathWithin(path, other)),
+  );
 
 export const redactReportNode = async (
   root: JsonNode,
@@ -109,11 +115,54 @@ export const redactReportNode = async (
   return { node: output, redacted };
 };
 
-const fenced = (text: string, language: string) => {
+export const fenced = (text: string, language: string) => {
   let length = 3;
   for (const match of text.matchAll(/`+/g)) length = Math.max(length, match[0].length + 1);
   const fence = "`".repeat(length);
   return `${fence}${language}\n${text}\n${fence}`;
+};
+
+// Delivers each selected Record in source order as a Full Record. Local files are
+// re-read line by line so selected Records never require bulk hydration.
+export const streamReportRecords = async (
+  source: PublishedSourceRevision,
+  selected: readonly JsonlRecord[],
+  consume: (record: FullJsonlRecord) => Promise<void>,
+  signal: AbortSignal,
+) => {
+  let delivered = 0;
+  const accept = async (record: JsonlRecord) => {
+    signal.throwIfAborted();
+    const expected = selected[delivered];
+    if (
+      record.status !== "full" ||
+      record.id !== expected?.id ||
+      record.lineNumber !== expected.lineNumber
+    )
+      throw new Error("invalid-record");
+    delivered++;
+    await consume(record);
+    await yieldToMain();
+    signal.throwIfAborted();
+  };
+  if (source.kind === "local-file") {
+    try {
+      await source.access.streamRecords(
+        new Set(selected.map((record) => record.lineNumber)),
+        accept,
+        signal,
+        reportBytesLimit,
+      );
+    } catch (error) {
+      signal.throwIfAborted();
+      if (error instanceof SourceReadLimitError) throw new RangeError("report-limit");
+      throw error;
+    }
+  } else {
+    for (const record of selected) await accept(record);
+  }
+  signal.throwIfAborted();
+  if (delivered !== selected.length) throw new Error("missing-lines");
 };
 
 export const buildRecordReport = async (
@@ -126,56 +175,30 @@ export const buildRecordReport = async (
 ): Promise<RecordReport> => {
   signal.throwIfAborted();
   const selected = selectReportRecords(records, selection);
-  const paths = parseRedactedPaths(redactions).filter(
-    (path, index, all) =>
-      !all.some((other, i) => i !== index && other !== path && isPathWithin(path, other)),
-  );
+  const paths = reportRedactionPaths(redactions);
   const encoder = new TextEncoder();
   let bytes = encoder.encode(notes).byteLength;
   if (bytes > reportBytesLimit) throw new RangeError("report-limit");
   const bodies: string[] = [];
   const sections: string[] = [];
   let redacted = 0;
-  const appendRecord = async (record: JsonlRecord) => {
-    signal.throwIfAborted();
-    const expected = selected[bodies.length];
-    if (
-      record.status !== "full" ||
-      record.id !== expected?.id ||
-      record.lineNumber !== expected.lineNumber
-    )
-      throw new Error("invalid-record");
-    const sanitized = await redactReportNode(record.node, paths, signal);
-    const body = stringifyJsonNodeWithLimits(sanitized.node, {
-      maxBytes: reportBytesLimit - bytes,
-      maxNodes: reportNodeLimit,
-    });
-    if (!body.complete) throw new RangeError("report-limit");
-    bytes += encoder.encode(body.text).byteLength;
-    redacted += sanitized.redacted;
-    bodies.push(body.text);
-    sections.push(`## Line ${record.lineNumber}\n\n${fenced(body.text, "json")}`);
-    await yieldToMain();
-    signal.throwIfAborted();
-  };
-  if (source.kind === "local-file") {
-    try {
-      await source.access.streamRecords(
-        new Set(selected.map((record) => record.lineNumber)),
-        appendRecord,
-        signal,
-        reportBytesLimit,
-      );
-    } catch (error) {
-      signal.throwIfAborted();
-      if (error instanceof SourceReadLimitError) throw new RangeError("report-limit");
-      throw error;
-    }
-  } else {
-    for (const record of selected) await appendRecord(record);
-  }
-  signal.throwIfAborted();
-  if (bodies.length !== selected.length) throw new Error("missing-lines");
+  await streamReportRecords(
+    source,
+    selected,
+    async (record) => {
+      const sanitized = await redactReportNode(record.node, paths, signal);
+      const body = stringifyJsonNodeWithLimits(sanitized.node, {
+        maxBytes: reportBytesLimit - bytes,
+        maxNodes: reportNodeLimit,
+      });
+      if (!body.complete) throw new RangeError("report-limit");
+      bytes += encoder.encode(body.text).byteLength;
+      redacted += sanitized.redacted;
+      bodies.push(body.text);
+      sections.push(`## Line ${record.lineNumber}\n\n${fenced(body.text, "json")}`);
+    },
+    signal,
+  );
   return {
     markdown: `# Unquote report\n\n${notes ? `## Notes\n\n${fenced(notes, "text")}\n\n` : ""}${sections.join("\n\n")}\n`,
     jsonl: bodies.join("\n") + "\n",

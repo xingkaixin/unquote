@@ -104,9 +104,9 @@ Static Web pages are measured separately because their styles are not downloaded
 with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
-The current Web build measures about 601 KiB / 195 KiB gzip for initial JS and
-817 KiB / 266 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 603 KiB / 194 KiB gzip initially and 819 KiB / 265
+The current Web build measures about 603 KiB / 196 KiB gzip for initial JS and
+826 KiB / 269 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 605 KiB / 195 KiB gzip initially and 828 KiB / 269
 KiB gzip in total. The ceilings preserve limited growth headroom without
 permitting the previous 706 KiB initial payload to return. Chunk layout is
 deliberately not budgeted because bundler releases may regroup the same modules
@@ -116,8 +116,8 @@ without changing the amount of JavaScript loaded by either surface.
 |---|---:|
 | Initial JavaScript | 620,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 845,000 bytes |
-| Total UI JavaScript gzip | 275,000 bytes |
+| Total UI JavaScript | 851,000 bytes |
+| Total UI JavaScript gzip | 277,000 bytes |
 | Initial CSS | 43,000 bytes |
 | Initial CSS gzip | 9,000 bytes |
 
@@ -284,7 +284,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 ## Local analysis workspaces
 
-Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 845,000 bytes / 275,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 819 KB / 265 KB gzip.
+Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 851,000 bytes / 277,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 828 KB / 269 KB gzip.
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 
@@ -295,6 +295,8 @@ The node inspector decodes JWT strings of at most 20,000 UTF-16 code units; long
 Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
 
 Problem excerpt export selects at most 1,000 records and streams local records one at a time, finishing redaction and serialization before parsing the next. Selected source lines share an 8 MiB UTF-8 read budget; serialized content and traversal retain their 8 MiB / 50,000-node limits. Only serialized text accumulates across records; a single record still requires a full parse. Redaction yields every 250 visited nodes. Markdown previews display 10,000 characters per page.
+
+Turn report export applies the same limits to the Records that hold the selected turns' content: at most 1,000 records, the shared 8 MiB read budget, 8 MiB of rendered content and 50,000 nodes per record.
 
 Failed local-file previews retain at most 512 source characters plus an ellipsis,
 with bounded error text and context. Record identity and error coordinates remain

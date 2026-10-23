@@ -7,7 +7,7 @@ import { createAgentSessionModel } from "../lib/agent-session/model";
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
 import type { OutputView } from "../lib/output-view";
 import type { AgentTrajectoryViewProps } from "./agent-trajectory-view";
-import { AgentSessionView } from "./agent-session-view";
+import { AgentSessionView, type AgentReportSource } from "./agent-session-view";
 import { DeferredLoadError } from "./deferred-load-error";
 
 const loadAgentTrajectoryView = (): Promise<ComponentType<AgentTrajectoryViewProps>> =>
@@ -19,6 +19,7 @@ interface AgentOutputProps {
   isDesktop: boolean;
   filters: TrajectoryFilters;
   detailSelection: AgentDetailSelection | null;
+  reportSource: AgentReportSource | undefined;
   resolveRecordById: (recordId: string) => JsonlRecord | null;
   requestFullRecordById: (recordId: string) => void;
   onDetailSelectionChange: (selection: AgentDetailSelection) => void;
@@ -32,6 +33,7 @@ export const AgentOutput = ({
   isDesktop,
   filters,
   detailSelection,
+  reportSource,
   resolveRecordById,
   requestFullRecordById,
   onDetailSelectionChange,
@@ -49,6 +51,7 @@ export const AgentOutput = ({
         model={model}
         isDesktop={isDesktop}
         detailSelection={detailSelection}
+        reportSource={reportSource}
         onDetailSelectionChange={onDetailSelectionChange}
         onOpenRecord={onOpenRecord}
       />

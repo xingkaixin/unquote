@@ -22,6 +22,8 @@ import { trajectoryTurnIdFor } from "./trajectory-turns";
 export interface AgentToolLifecycleState {
   status: AgentToolStatus;
   toolName?: string;
+  callLineNumber?: number;
+  resultLineNumber?: number;
 }
 
 export interface AgentToolLifecycleOccurrence<TEvidence extends AgentToolLifecycleEvidence> {
@@ -91,6 +93,8 @@ const stateForEvidence = (
 ): AgentToolLifecycleState => ({
   status: resolveToolLifecycleStatus(result?.evidence.status, completion?.evidence.status),
   ...(call?.evidence.toolName ? { toolName: call.evidence.toolName } : {}),
+  ...(call ? { callLineNumber: call.event.lineNumber } : {}),
+  ...(result ? { resultLineNumber: result.event.lineNumber } : {}),
 });
 
 const assignEvidenceState = (

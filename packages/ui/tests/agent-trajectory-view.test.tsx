@@ -177,6 +177,7 @@ const modelFor = (
     },
     resolveToolStatus: () => "pending",
     resolveToolName: () => undefined,
+    resolveToolLines: () => ({}),
   };
 };
 
