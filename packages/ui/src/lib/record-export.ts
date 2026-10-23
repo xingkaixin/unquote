@@ -1,5 +1,5 @@
 import { SourceReadLimitError } from "./local-file-reader";
-import type { JsonNode, JsonlRecord } from "@unquote/core";
+import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
 import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
 
 export const copyRecordLimit = 5000;
@@ -288,7 +288,7 @@ export const createJsonlPartsBuilder = (byteLimit = exportBytesLimit): ExportPar
   createExportPartsBuilder("jsonl", byteLimit);
 
 export const createJsonPartsBuilder = (
-  format: "json" | "jsonl",
+  format: ParseResult["format"],
   byteLimit = exportBytesLimit,
 ): ExportPartsBuilder => createExportPartsBuilder(format === "json" ? "json" : "array", byteLimit);
 

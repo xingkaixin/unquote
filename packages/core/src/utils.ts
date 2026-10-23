@@ -47,6 +47,14 @@ export const truncateAtCodePointBoundary = (value: string, maxLength: number) =>
   return value.slice(0, splitsSurrogatePair ? maxLength - 1 : maxLength);
 };
 
+export const resolveMaxDepth = (maxDepth: number | undefined) => {
+  const resolved = maxDepth ?? DEFAULT_MAX_DEPTH;
+  if (!Number.isSafeInteger(resolved) || resolved < 0 || resolved > MAX_SUPPORTED_DEPTH) {
+    throw new RangeError(`maxDepth must be an integer between 0 and ${MAX_SUPPORTED_DEPTH}`);
+  }
+  return resolved;
+};
+
 export interface JsonlProbeResult {
   sampledLines: number;
   isLikelyJsonl: boolean;

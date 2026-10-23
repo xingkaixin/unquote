@@ -47,12 +47,13 @@ const readMockFileText = (file: File) => {
 Object.assign(globalThis, {
   Worker: class extends MockWorkerEvents {
     chunks = "";
+    streamFormat: "jsonl" | "sse" = "jsonl";
     isSearchWorker: boolean;
     isRecordParser: boolean;
     searchSource: {
       sourceRevision: number;
       text: string;
-      forcedFormat?: "json" | "jsonl";
+      forcedFormat?: "json" | "jsonl" | "sse";
     } | null = null;
     constructor(...args: unknown[]) {
       super();
@@ -65,7 +66,7 @@ Object.assign(globalThis, {
     completeSearch(
       requestId: number,
       text: string,
-      forcedFormat: "json" | "jsonl" | undefined,
+      forcedFormat: "json" | "jsonl" | "sse" | undefined,
       query: string,
       options: SearchOptions,
       windowIndexes?: Float64Array,
@@ -107,7 +108,12 @@ Object.assign(globalThis, {
           });
       });
     }
-    complete(requestId: number, input: string, forcedFormat?: "json" | "jsonl", compact = false) {
+    complete(
+      requestId: number,
+      input: string,
+      forcedFormat?: "json" | "jsonl" | "sse",
+      compact = false,
+    ) {
       import("../../src/lib/parse-text").then(({ parseText }) => {
         const parsed = parseText(input, { forcedFormat });
         const result = compact
@@ -177,15 +183,16 @@ Object.assign(globalThis, {
         return;
       }
 
-      if (payload.type === "start-jsonl") {
+      if (payload.type === "start-stream") {
         this.chunks = "";
+        this.streamFormat = payload.format;
         return;
       }
 
-      if (payload.type === "jsonl-chunk") {
+      if (payload.type === "stream-chunk") {
         this.chunks += payload.chunk ?? "";
         if (payload.done) {
-          this.complete(payload.requestId, this.chunks, "jsonl");
+          this.complete(payload.requestId, this.chunks, this.streamFormat);
         }
         return;
       }

@@ -45,6 +45,7 @@ describe("core distribution contract", () => {
 
   it("limits the ingestion entry to capabilities used by the ingestion pipeline", () => {
     expect(Object.keys(ingestion).sort()).toEqual([
+      "createSseRecordReader",
       "parseInputForIngestion",
       "parseJsonlRecordLineWithValue",
       "parsePreviewJsonlRecordLineWithValue",
