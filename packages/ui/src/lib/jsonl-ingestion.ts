@@ -78,9 +78,6 @@ export const createJsonlIngestion = (
     ingestFullLine,
     ingestPreviewLine,
     stats,
-    get processedLines() {
-      return total;
-    },
     finishAgentSession: () => agentTracker.finish(),
   };
 };

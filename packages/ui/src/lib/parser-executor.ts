@@ -1,4 +1,4 @@
-import { parseInput, probeJsonl } from "@unquote/core";
+import { isLikelySse, parseInput, probeJsonl } from "@unquote/core";
 import type { ParseResult } from "@unquote/core";
 import type { ParsedText, ParserProgress } from "./parse-text";
 import { reportDiagnostic } from "./diagnostics";
@@ -10,11 +10,11 @@ import { isWithinMainThreadBudget } from "./main-thread-budget";
 import { createStreamPublisher } from "./stream-publisher";
 import { createWorkerRequestRunner } from "./worker-lifecycle";
 import type { WorkerRun } from "./worker-lifecycle";
-import type { ParserRequest, ParserWorkerResponse } from "../worker/parser-worker";
+import type { ParserRequest, ParserWorkerResponse, StreamFormat } from "../worker/parser-worker";
 
 const workerChunkSize = 256 * 1024;
 
-const emptyResult = (forcedFormat?: "json" | "jsonl"): ParseResult => ({
+const emptyResult = (forcedFormat?: ParseResult["format"]): ParseResult => ({
   format: forcedFormat ?? "json",
   records: [],
   stats: { total: 0, success: 0, failed: 0 },
@@ -27,7 +27,7 @@ export const idleParserProgress: ParserProgress = {
 
 export const parseInitialText = (
   input: string,
-  forcedFormat: "json" | "jsonl" | undefined,
+  forcedFormat: ParseResult["format"] | undefined,
 ): ParsedText => {
   const startedAt = performance.now();
   const result = parseInput(input, forcedFormat ? { forcedFormat } : {});
@@ -53,7 +53,7 @@ export type ParserStateUpdate = ParserSnapshot | ((current: ParserSnapshot) => P
 
 export const pendingParserSnapshot = (
   sourceRevision: SourceRevision,
-  forcedFormat: "json" | "jsonl" | undefined,
+  forcedFormat: ParseResult["format"] | undefined,
   hasLocalFile: boolean,
 ): ParserSnapshot => ({
   sourceRevision,
@@ -78,27 +78,30 @@ const parseFileOnMainThread = async (
 
 const parseTextOnMainThread = async (
   input: string,
-  forcedFormat: "json" | "jsonl" | undefined,
+  forcedFormat: ParseResult["format"] | undefined,
   onAgentSessionDetected: () => void,
 ) => {
   const { parseText } = await import("./parse-text");
   return parseText(input, { forcedFormat, onAgentSessionDetected });
 };
 
-const shouldStreamJsonl = (input: string, forcedFormat?: "json" | "jsonl") => {
-  if (forcedFormat === "jsonl") {
-    return true;
+const streamFormatFor = (
+  input: string,
+  forcedFormat: ParseResult["format"] | undefined,
+): StreamFormat | null => {
+  if (forcedFormat) {
+    return forcedFormat === "json" ? null : forcedFormat;
   }
-  if (forcedFormat === "json") {
-    return false;
+  if (probeJsonl(input).isLikelyJsonl) {
+    return "jsonl";
   }
-  return probeJsonl(input).isLikelyJsonl;
+  return isLikelySse(input) ? "sse" : null;
 };
 
 export interface ParserExecution {
   sourceRevision: SourceRevision;
   input: string;
-  forcedFormat: "json" | "jsonl" | undefined;
+  forcedFormat: ParseResult["format"] | undefined;
   sourceFile: File | null;
   commit: (update: ParserStateUpdate) => void;
   onReadError: () => void;
@@ -127,6 +130,8 @@ export const createParserExecutor = (): ParserExecutor => {
       onTooLarge,
       onAgentSessionDetected,
     }) {
+      const streamFormat = sourceFile ? "jsonl" : streamFormatFor(input, forcedFormat);
+      const streamedResultFormat = streamFormat ?? "jsonl";
       const applyParsedText = ({ result, agentSession, progress }: ParsedText) => {
         commit({ sourceRevision, result, agentSession, progress, recordAppend: null });
       };
@@ -165,7 +170,7 @@ export const createParserExecutor = (): ParserExecutor => {
           reportUnparsedSource(onTooLarge);
           return;
         }
-        if (!shouldStreamJsonl(input, forcedFormat)) {
+        if (!streamFormat) {
           run.finish();
           applyParsedText(parseInitialText(input, forcedFormat));
           return;
@@ -191,7 +196,7 @@ export const createParserExecutor = (): ParserExecutor => {
         (records, stats, progress, recordAppend) => {
           commit((current) => ({
             sourceRevision,
-            result: { format: "jsonl", records, stats },
+            result: { format: streamedResultFormat, records, stats },
             agentSession: belongsToSourceRevision(sourceRevision, current)
               ? current.agentSession
               : null,
@@ -211,8 +216,8 @@ export const createParserExecutor = (): ParserExecutor => {
 
       let workerRun: WorkerRun;
       const post = (message: ParserRequest) => workerRun.post(message);
-      const postJsonlChunks = () => {
-        if (!post({ type: "start-jsonl", requestId: workerRun.requestId })) {
+      const postStreamChunks = (format: StreamFormat) => {
+        if (!post({ type: "start-stream", requestId: workerRun.requestId, format })) {
           return;
         }
         let offset = 0;
@@ -223,7 +228,7 @@ export const createParserExecutor = (): ParserExecutor => {
           const end = Math.min(input.length, offset + workerChunkSize);
           if (
             !post({
-              type: "jsonl-chunk",
+              type: "stream-chunk",
               requestId: workerRun.requestId,
               chunk: input.slice(offset, end),
               done: end >= input.length,
@@ -267,7 +272,7 @@ export const createParserExecutor = (): ParserExecutor => {
           measurePerf("parse:error", "parse:start", "parse:error");
           commit((current) => ({
             sourceRevision,
-            result: { ...current.result, format: "jsonl", stats: message.stats },
+            result: { ...current.result, format: streamedResultFormat, stats: message.stats },
             agentSession: null,
             progress: message.progress,
             recordAppend: current.recordAppend,
@@ -284,7 +289,7 @@ export const createParserExecutor = (): ParserExecutor => {
         }
         commit((current) => ({
           sourceRevision,
-          result: { ...current.result, format: "jsonl", stats: message.stats },
+          result: { ...current.result, format: streamedResultFormat, stats: message.stats },
           agentSession: message.agentSession,
           progress: message.progress,
           recordAppend: current.recordAppend,
@@ -305,8 +310,8 @@ export const createParserExecutor = (): ParserExecutor => {
       const timeoutId = window.setTimeout(() => {
         if (sourceFile) {
           post({ type: "file-jsonl", requestId: workerRun.requestId, file: sourceFile });
-        } else if (shouldStreamJsonl(input, forcedFormat)) {
-          postJsonlChunks();
+        } else if (streamFormat) {
+          postStreamChunks(streamFormat);
         } else {
           post(
             forcedFormat

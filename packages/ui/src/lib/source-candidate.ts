@@ -1,4 +1,4 @@
-export type SourceMode = "auto" | "json" | "jsonl";
+export type SourceMode = "auto" | "json" | "jsonl" | "sse";
 
 export type SourceCandidate =
   | { kind: "text"; text: string; mode: SourceMode }

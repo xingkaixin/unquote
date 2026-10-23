@@ -25,7 +25,7 @@ interface SourceImportPanelProps {
   textareaClassName: string;
 }
 
-const modeOptions: readonly SourceMode[] = ["auto", "json", "jsonl"];
+const modeOptions: readonly SourceMode[] = ["auto", "json", "jsonl", "sse"];
 
 const transferTypes = (dataTransfer: DataTransfer) => Array.from(dataTransfer.types);
 
@@ -109,6 +109,8 @@ const detectionHint = (
       return t(detection.precision === "exact" ? "input.detectJsonl" : "input.detectJsonlAtLeast", {
         lines: detection.lines,
       });
+    case "sse":
+      return t("input.detectSse");
     case "invalid":
       return t("input.detectInvalid");
   }
