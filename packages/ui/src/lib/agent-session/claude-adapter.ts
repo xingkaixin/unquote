@@ -278,7 +278,9 @@ const claudeBlockEvidence = (
     const block = blocks[index];
     if (!block || block.type === "text") {
       const role =
-        item.role === "user" ? "user" : item.role === "assistant" ? "assistant" : undefined;
+        item.role === "user" || item.role === "assistant" || item.role === "system"
+          ? item.role
+          : undefined;
       if (role) {
         evidence.push({
           kind: "model-output",
@@ -329,7 +331,8 @@ const claudeBlockEvidence = (
 };
 
 // Background tasks, including subagents, report their end in a later prompt
-// made of <task-notification> markup.
+// made of <task-notification> markup. Claude Code stores it as a user record,
+// but the harness wrote it.
 const claudeTaskNotification = (record: Record<string, unknown>) => {
   const content = isRecord(record.message) ? record.message.content : undefined;
   return typeof content === "string" && content.startsWith("<task-notification>")
@@ -499,9 +502,11 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       const event = createBaseEvent(
         line,
-        claudeCategory(type, isToolResultTurn),
+        notification === undefined ? claudeCategory(type, isToolResultTurn) : "system",
         type,
-        claudeLabel(type, blocks, isToolResultTurn),
+        notification === undefined
+          ? claudeLabel(type, blocks, isToolResultTurn)
+          : "task-notification",
         claudePreview(type, record, blocks),
         {
           timestamp,
@@ -527,7 +532,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       let items: AgentConversationItem[] = [];
       if (type === "user") {
         if (isToolResultTurn || !getBoolean(record, "isMeta")) {
-          items = attachBlockItems(event, blocks, "user");
+          items = attachBlockItems(event, blocks, notification === undefined ? "user" : "system");
         }
       } else if (type === "assistant") {
         model = parseClaudeModel(record) ?? model;
