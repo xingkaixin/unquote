@@ -327,6 +327,10 @@ const codexCompletionDurationMs = (payload: Record<string, unknown>) => {
   return Number.isSafeInteger(durationMs) && durationMs >= 0 ? durationMs : undefined;
 };
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validate the external Codex field before exposing a normalized value.
+const isFailedCodexStatus = (status: unknown) =>
+  status === "failed" || status === "error" || status === "declined";
+
 const codexToolCompletionStatus = (eventType: string, payload: Record<string, unknown>) => {
   const success = ownValue(payload, "success");
   const status = ownValue(payload, "status");
@@ -336,10 +340,9 @@ const codexToolCompletionStatus = (eventType: string, payload: Record<string, un
   const hasResultOk = resultRecord ? hasOwn(resultRecord, "Ok") : false;
   const okResult = resultRecord ? ownValue(resultRecord, "Ok") : undefined;
   const failedOkResult = isRecord(okResult) && ownValue(okResult, "isError") === true;
-  const failedStatus = status === "failed" || status === "error" || status === "declined";
   const exitCode = ownValue(payload, "exit_code");
 
-  if (success === false || failedStatus || hasResultError || failedOkResult) {
+  if (success === false || isFailedCodexStatus(status) || hasResultError || failedOkResult) {
     return "failed" as const;
   }
   if (isNonZeroExitCode(exitCode)) {
@@ -376,6 +379,78 @@ const codexToolCompletionEvidence = (
     ...withTurnId(turnId),
     ...(status === undefined ? {} : { status }),
     callId,
+    ...(durationMs === undefined ? {} : { durationMs }),
+  };
+};
+
+const codexItemToolName = (item: Record<string, unknown>) => {
+  const itemType = ownString(item, "type");
+  switch (itemType) {
+    case "CommandExecution":
+    case "FileChange":
+    case "ImageView":
+      return itemType;
+    case "McpToolCall":
+      return ownString(item, "tool") ?? itemType;
+    case "Extension":
+      return ownString(item, "kind") ?? itemType;
+    default:
+      return undefined;
+  }
+};
+
+const codexItemStatus = (item: Record<string, unknown>) => {
+  const result = ownValue(item, "result");
+  return isFailedCodexStatus(ownValue(item, "status")) ||
+    (isRecord(result) && ownValue(result, "isError") === true) ||
+    isNonZeroExitCode(ownValue(item, "exit_code"))
+    ? "failed"
+    : "completed";
+};
+
+const codexItemPreview = (item: Record<string, unknown>, toolName: string) => {
+  const command = ownValue(item, "command");
+  if (!Array.isArray(command)) {
+    return toolName;
+  }
+  return command.filter((part) => typeof part === "string").join(" ") || toolName;
+};
+
+const codexItemCompletedEvidence = (
+  payload: Record<string, unknown>,
+  item: Record<string, unknown>,
+  toolName: string,
+  turnId: string | undefined,
+  callIds: ReadonlySet<string>,
+): AgentSessionEvidence => {
+  const status = codexItemStatus(item);
+  const startedAt = parseTimestamp(ownValue(payload, "started_at_ms"));
+  const endedAt = parseTimestamp(ownValue(payload, "completed_at_ms"));
+  const durationMs =
+    codexCompletionDurationMs(item) ??
+    (startedAt !== undefined && endedAt !== undefined && endedAt >= startedAt
+      ? endedAt - startedAt
+      : undefined);
+  const itemId = ownString(item, "id");
+  // Direct function calls reuse their call_id as the item id; items started inside a
+  // code-mode script carry their own id, and the log links them to no call.
+  if (itemId && callIds.has(itemId)) {
+    return {
+      kind: "tool-lifecycle",
+      phase: "completion",
+      ...withTurnId(turnId),
+      status,
+      callId: itemId,
+      ...(durationMs === undefined ? {} : { durationMs }),
+    };
+  }
+  return {
+    kind: "tool-execution",
+    ...withTurnId(turnId),
+    toolName,
+    status,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(endedAt === undefined ? {} : { endedAt }),
     ...(durationMs === undefined ? {} : { durationMs }),
   };
 };
@@ -462,6 +537,7 @@ const codexEventRules = {
   mcp_tool_call_end: codexToolCompletionRule("mcp_tool_call_end"),
   patch_apply_end: codexToolCompletionRule("patch_apply_end"),
   web_search_end: codexToolCompletionRule("web_search_end"),
+  item_completed: { category: "unknown", turnIdSource: "payload" },
 } satisfies Record<string, CodexEventRule>;
 
 const codexEventRuleFor = (eventType: string | undefined): CodexEventRule | undefined => {
@@ -629,7 +705,36 @@ interface CodexEventProjectionContext {
   turnId: string | undefined;
   eventType: string | undefined;
   eventRule: CodexEventRule | undefined;
+  callIds: ReadonlySet<string>;
 }
+
+const projectCodexItemCompleted = (
+  payload: Record<string, unknown>,
+  context: CodexEventProjectionContext,
+): CodexEventProjection | undefined => {
+  const item = ownValue(payload, "item");
+  if (!isRecord(item)) {
+    return undefined;
+  }
+  const toolName = codexItemToolName(item);
+  if (!toolName) {
+    return undefined;
+  }
+
+  return {
+    category: "tool",
+    kind: "item_completed",
+    label: "item_completed",
+    preview: truncatePreview(codexItemPreview(item, toolName)),
+    sessionEvidence: codexItemCompletedEvidence(
+      payload,
+      item,
+      toolName,
+      context.turnId,
+      context.callIds,
+    ),
+  };
+};
 
 const projectCodexEvent = (
   envelopeType: string,
@@ -644,6 +749,13 @@ const projectCodexEvent = (
     );
   }
   if (envelopeType === "event_msg") {
+    const itemProjection =
+      context.eventType === "item_completed"
+        ? projectCodexItemCompleted(payload, context)
+        : undefined;
+    if (itemProjection) {
+      return itemProjection;
+    }
     const kind = context.eventType ?? "event_msg";
     const sessionEvidence = context.eventRule?.projectEvidence?.(payload, context.turnId);
     return {
@@ -688,6 +800,7 @@ const projectCodexEvent = (
 const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
   const events: AgentTimelineEvent[] = [];
   const turnIdToIndex = new Map<string, number>();
+  const callIds = new Set<string>();
   let sessionId: string | undefined;
   let cwd: string | undefined;
   let version: string | undefined;
@@ -752,7 +865,12 @@ const createCodexBuilder = (fileName?: string): AgentAdapterBuilder => {
         turnId: eventTurnId,
         eventType,
         eventRule,
+        callIds,
       });
+      const evidence = projection.sessionEvidence;
+      if (evidence?.kind === "tool-lifecycle" && evidence.phase === "call" && evidence.callId) {
+        callIds.add(evidence.callId);
+      }
       const event = createBaseEvent(
         line,
         projection.category,
