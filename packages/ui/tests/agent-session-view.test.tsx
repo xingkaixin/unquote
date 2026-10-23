@@ -78,6 +78,7 @@ const renderView = (overrides: Partial<ComponentProps<typeof AgentSessionView>> 
     model: overrides.model ?? createAgentSessionModel(sourceSession),
     isDesktop: true,
     detailSelection: null,
+    reportSource: undefined,
     onDetailSelectionChange: callbacks.onDetailSelectionChange,
     onOpenRecord: callbacks.onOpenRecord,
     ...overrides,
@@ -108,6 +109,7 @@ describe("AgentSessionView", () => {
           model={model}
           isDesktop
           detailSelection={{ kind: "event", id: "event-2", recordId: "record-2" }}
+          reportSource={undefined}
           onDetailSelectionChange={callbacks.onDetailSelectionChange}
           onOpenRecord={callbacks.onOpenRecord}
         />

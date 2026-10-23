@@ -26,11 +26,15 @@ presentation used by the web and extension apps. Its public entry points are def
 - `lib/record-table.ts` owns field projection, filtering, and CSV output; `lib/field-profile.ts`
   accumulates field observations during that same scan.
 - `lib/record-report.ts` owns source-line selection, path redaction, and problem excerpt output.
+- `lib/turn-report.ts` owns turn report output. It reuses the excerpt redaction, limits, and
+  Record streaming, and reads content from block source paths rather than display text.
 
 ## Agent and Trajectory Sessions
 
 - Session detection runs only for JSONL and recognizes Codex rollout and Claude Code transcript
   records.
+- Adapters record each content block's source paths in its Record so exports can read the
+  complete value. Display text stays bounded.
 - Adapters emit evidence: tool calls, results and completions, standalone tool executions that
   the log links to no call id, turn lifecycle, token usage, model output, subagent activity, and
   compaction. Presentation belongs outside adapters.

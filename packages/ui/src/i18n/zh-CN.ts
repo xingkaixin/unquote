@@ -20,6 +20,16 @@ export const zhCN: Messages = {
   "report.failed": "无法生成报告，请检查路径和源行号；无法包含无效 JSON 或不存在的行。",
   "report.previous": "上一页",
   "report.next": "下一页",
+  "turnReport.title": "导出轮次报告",
+  "turnReport.description":
+    "从完整源记录生成所选轮次的 Markdown 报告。工具调用与结果只按日志记录的 call id 配对。",
+  "turnReport.turns": "已选轮次：{turns}",
+  "turnReport.reasoning": "包含推理",
+  "turnReport.failed": "无法生成报告，请检查路径；轮次内容必须来自完整且有效的源记录。",
+  "turnReport.selectTurn": "将第 {turn} 轮加入报告",
+  "turnReport.selected": "已选 {count} 轮",
+  "turnReport.clear": "清除",
+  "turnReport.export": "导出轮次",
   "profile.title": "字段体检",
   "profile.description":
     "所选字段在全部有效源记录中的精确统计，不受筛选条件影响。空字符串同时计入字符串类型。点击计数会替换当前条件并显示对应记录；类型差异不直接认定为错误。",

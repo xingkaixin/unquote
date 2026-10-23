@@ -284,7 +284,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 ## Local analysis workspaces
 
-Comparison, record tables, field profiles and problem excerpt export are loaded on demand. The combined total UI budget is 830,000 bytes / 270,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 805 KB / 261 KB gzip.
+Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 830,000 bytes / 270,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 805 KB / 261 KB gzip.
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 
@@ -293,6 +293,8 @@ Record tables display 50 rows per page and retain at most 100,000 matching rows 
 Field profiles update fixed-size counters for the selected columns during the same scan, before filtering. They do not retain additional records or perform a second parse. Counts cover all valid scanned records; aborted or failed scans publish no profile.
 
 Problem excerpt export selects at most 1,000 records and streams local records one at a time, finishing redaction and serialization before parsing the next. Selected source lines share an 8 MiB UTF-8 read budget; serialized content and traversal retain their 8 MiB / 50,000-node limits. Only serialized text accumulates across records; a single record still requires a full parse. Redaction yields every 250 visited nodes. Markdown previews display 10,000 characters per page.
+
+Turn report export applies the same limits to the Records that hold the selected turns' content: at most 1,000 records, the shared 8 MiB read budget, 8 MiB of rendered content and 50,000 nodes per record.
 
 Failed local-file previews retain at most 512 source characters plus an ellipsis,
 with bounded error text and context. Record identity and error coordinates remain

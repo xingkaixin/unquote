@@ -302,15 +302,19 @@ export const UnquoteApp = ({
       textareaClassName={textareaClassName}
     />
   );
+  const recordsReady = progress.done && resultRevision === source.sourceRevision;
   const output = (
     <DeferredLoadBoundary resetKey={`${resultRevision}:${outputView}`}>
       {agentSession && outputView !== "json" ? (
         <AgentOutput
+          // Turn selections belong to one Source Revision.
+          key={resultRevision}
           session={agentSession}
           outputView={outputView}
           isDesktop={isDesktop}
           filters={trajectoryFilters}
           detailSelection={recordWorkspace.agent.detailSelection}
+          reportSource={recordsReady ? { source, records: result.records } : undefined}
           resolveRecordById={recordWorkspace.agent.resolveRecordById}
           requestFullRecordById={recordWorkspace.agent.requestFullRecordById}
           onDetailSelectionChange={recordWorkspace.agent.selectDetail}
@@ -365,11 +369,7 @@ export const UnquoteApp = ({
           enabled={hasData}
           sourceName={sourceView.file?.name ?? null}
           onOpenImport={() => setActiveOverlay("import")}
-          onOpenTable={
-            progress.done && resultRevision === source.sourceRevision
-              ? () => setActiveOverlay("table")
-              : undefined
-          }
+          onOpenTable={recordsReady ? () => setActiveOverlay("table") : undefined}
           onOpenDiff={() => setActiveOverlay("diff")}
           outputView={agentSession ? outputView : null}
           jsonTabLabel={formatParseMode(result.format)}
@@ -393,11 +393,7 @@ export const UnquoteApp = ({
           onCopyFormattedJson={recordWorkspace.toolbar.copyFormattedJson}
           onExportJsonl={recordWorkspace.toolbar.exportJsonl}
           onExportFormattedJson={recordWorkspace.toolbar.exportFormattedJson}
-          onOpenReport={
-            progress.done && resultRevision === source.sourceRevision
-              ? () => setActiveOverlay("report")
-              : undefined
-          }
+          onOpenReport={recordsReady ? () => setActiveOverlay("report") : undefined}
         />
 
         <main
