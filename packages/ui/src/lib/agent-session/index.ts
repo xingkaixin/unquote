@@ -10,6 +10,7 @@ export type {
   AgentParseWarningKind,
   AgentSession,
   AgentSessionMeta,
+  AgentSessionReportedTotals,
   AgentSubagentActivityEvidence,
   AgentTokenUsageEvidence,
   AgentToolCallEvidence,
