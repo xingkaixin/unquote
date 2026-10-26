@@ -5,6 +5,29 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.5] - 2026-10-26
+
+### Added
+
+- Added SSE import with automatic detection and an explicit format mode. Each event becomes a Record with expanded JSON data and a link to its first source line.
+- Added read-only JWT decoding and timestamp conversion in the node inspector. JWTs are marked unverified; supported timestamps show local and UTC times without changing copied or exported values.
+- Added Agent turn reports: select conversation turns, redact specified paths, preview, and download Markdown from complete source Records with source line references and tool call/result pairing based on logged call ids.
+- Added Claude Code subagent activity to the Trajectory, including background task completion, and session overview fields for titles, costs, changed lines, and API/tool time reported by the log.
+- Added per-tool call, failure, and duration summaries with tool filtering, plus Claude Code API errors and retry details in their corresponding Trajectory turns.
+
+### Changed
+
+- Recognized additional Claude Code queue, title, cost, request, and artifact records instead of displaying them as unknown events.
+- Shared report redaction, source Record streaming, limits, and preview controls between problem excerpt and turn reports.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.5`.
+
+### Fixed
+
+- Codex tool completions now show the failures and timing reported by `item_completed` events, including standalone executions without a matching call id.
+- Claude Code background task notifications now appear as system messages instead of user-authored prompts.
+- The performance benchmark now reliably selects its input file on a cold page load, avoiding stale browser node references.
+- Updated Vite and the test dependency `undici` to remove high-severity dependency vulnerabilities.
+
 ## [1.2.4] - 2026-10-10
 
 ### Added

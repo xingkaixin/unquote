@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Unquote
 
-Last Updated: 2026-10-10
+Last Updated: 2026-10-26
 
 This document records repository-derived listing information. Dashboard-only fields below
 must be confirmed before a store submission; this change does not submit a release.
@@ -13,13 +13,20 @@ must be confirmed before a store submission; this change does not submit a relea
 
 **Detailed Description:**
 
-Expand escaped JSON and browse JSONL files on your device. Search records, inspect nested
-values, copy data, and export formatted results. Recognized agent logs provide conversation
-and trajectory views.
+Expand escaped JSON and browse JSONL files and SSE event streams on your device. Search
+records, inspect nested values, copy data, and export formatted results. Recognized agent logs provide conversation
+and trajectory views. Track Claude Code subagent activity, see reported session costs and
+timing, inspect API errors and retries, and filter tool calls from per-tool summaries.
+
+Open each SSE event as a record with expanded JSON data and source line references. Decode
+JWT headers and payloads without signature verification, and view supported timestamps in
+local time and UTC without changing the original values.
 
 Compare JSON by path, build filtered record tables, inspect field presence and types, and
 export matching rows as CSV. Select source lines and redact specified fields before
-downloading problem excerpts as Markdown or JSONL.
+downloading problem excerpts as Markdown or JSONL. Select Agent conversation turns to
+preview and download redacted Markdown reports with full source content, source line
+references, and paired tool calls and results.
 
 Open JSON with less waiting, run submitted searches immediately, and keep search and
 record filters accessible on narrow screens.
@@ -30,7 +37,7 @@ selection cannot be imported, Unquote explains how to paste it manually or open 
 
 **Category:** Developer Tools (proposed; confirm dashboard selection).
 
-**Single Purpose:** Inspect and expand JSON and JSONL data locally.
+**Single Purpose:** Inspect and expand JSON, JSONL, and SSE event data locally.
 
 **Primary Language:** English; Chinese and Japanese translations are included.
 
@@ -43,7 +50,8 @@ selection cannot be imported, Unquote explains how to paste it manually or open 
 
 Screenshot refresh: capture JSON comparison, record tables with field profiles, redacted
 report previews, and selection-import recovery messages for the current listing; include
-narrow-screen toolbar layouts in the 1.2.4 refresh.
+narrow-screen toolbar layouts. For 1.2.5, include SSE event records, decoded inspector values,
+Agent turn report previews, and Claude Code subagent activity and tool summaries.
 
 ## Permissions Justification
 
@@ -62,6 +70,10 @@ JSON content is processed locally. Selected text is held in session storage, rem
 claimed, and scheduled for cleanup after five minutes if unclaimed. Theme and language
 preferences are stored locally. No JSON upload or analytics code was found in the reviewed
 extension and shared UI sources.
+
+SSE parsing, JWT and timestamp decoding, Agent summaries, and turn report generation run
+locally. JWT decoding does not verify signatures or contact an authentication service.
+Reports redact only the paths the user specifies and download to the user's device.
 
 Fonts are bundled with the extension. The shared stylesheet no longer requests Google Fonts.
 
@@ -87,6 +99,7 @@ selected text. Data is not sold, used for unrelated purposes, or used for lendin
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
+| 1.2.5 | 2026-10-26 | Add SSE event viewing, JWT and timestamp decoding, Agent turn reports, Claude Code subagent activity and reported totals, per-tool summaries and API retry details; correct Codex tool completion failures and timing. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.4 | 2026-10-10 | Reduce parsing and view-loading delays, run submitted searches immediately, and improve narrow-screen toolbars and search placeholder contrast. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.3 | 2026-09-13 | Add JSON comparison, filtered tables and CSV export, field profiles, and redacted problem reports; improve large-record copy/export, selection-import recovery, and hover feedback; bundle fonts locally. | Prepared; not submitted |
 | Unreleased (after repository version 1.2.2) | 2026-09-06 | Explain failed selection imports and clear consumed import parameters to avoid repeat warnings on refresh. | Draft |
