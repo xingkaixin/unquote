@@ -89,6 +89,21 @@ const changelogCopy = {
     versionPrefix: "Version",
     releases: [
       {
+        version: "1.2.5",
+        date: "2026-10-26",
+        dateLabel: "October 26, 2026",
+        title: "SSE events, decoded values, and Agent turn reports",
+        summary:
+          "Open SSE streams, inspect JWTs and timestamps, and export selected Agent turns as redacted Markdown reports. Agent views explain subagent work, tool outcomes, and retries more clearly.",
+        highlights: [
+          "Import SSE automatically or choose its format explicitly; inspect each event's expanded JSON data with source line references.",
+          "Decode JWT headers and payloads without signature verification, and view supported timestamps in local time and UTC.",
+          "Select conversation turns, redact specified paths, preview, and download a Markdown report from complete source records with paired tool calls and results.",
+          "Track Claude Code subagents and background task completion, and see titles, costs, changed lines, and timing reported by the log.",
+          "Filter calls from per-tool summaries, inspect Claude API errors and retry details, and see correct Codex tool failures and timing.",
+        ],
+      },
+      {
         version: "1.2.4",
         date: "2026-10-10",
         dateLabel: "October 10, 2026",
@@ -242,6 +257,21 @@ const changelogCopy = {
     latestSummary: "更新说明只关注用户可以感知的变化，不罗列背后的实现细节。",
     versionPrefix: "版本",
     releases: [
+      {
+        version: "1.2.5",
+        date: "2026-10-26",
+        dateLabel: "2026 年 10 月 26 日",
+        title: "SSE 导入、值解码与 Agent 轮次报告",
+        summary:
+          "打开 SSE 事件流、检查 JWT 与时间戳，并将选中的 Agent 轮次导出为脱敏 Markdown 报告。Agent 视图更清楚地展示子 Agent 活动、工具结果与重试。",
+        highlights: [
+          "自动识别 SSE 或显式选择格式，逐事件查看展开后的 JSON 数据并关联源行号。",
+          "解码 JWT 的 header 与 payload，不校验签名；将支持的时间戳显示为本地时间和 UTC。",
+          "勾选对话轮次、按指定路径脱敏、预览并下载 Markdown 报告，读取完整源记录并配对工具调用与结果。",
+          "跟踪 Claude Code 子 Agent 与后台任务完成状态，并查看日志报告的标题、费用、增删行数与耗时。",
+          "从按工具汇总中筛选调用，检查 Claude API 错误与重试详情，正确显示 Codex 工具失败状态和耗时。",
+        ],
+      },
       {
         version: "1.2.4",
         date: "2026-10-10",
@@ -400,6 +430,21 @@ const changelogCopy = {
     latestSummary: "実装の詳細ではなく、ユーザーが実感できる変化を中心にまとめています。",
     versionPrefix: "バージョン",
     releases: [
+      {
+        version: "1.2.5",
+        date: "2026-10-26",
+        dateLabel: "2026年10月26日",
+        title: "SSE の読み込み、値のデコード、Agent ターンのレポート",
+        summary:
+          "SSE ストリームを開き、JWT やタイムスタンプを確認し、選択した Agent ターンをマスキング済み Markdown レポートとして出力できます。サブエージェントの動作、ツールの結果、再試行も把握しやすくなりました。",
+        highlights: [
+          "SSE を自動検出するか形式を指定し、各イベントの展開済み JSON データと元の行番号を確認できます。",
+          "署名を検証せずに JWT のヘッダーとペイロードをデコードし、対応するタイムスタンプをローカル時刻と UTC で表示します。",
+          "会話のターンを選択し、指定パスをマスキングしてプレビューできます。完全な元のレコードを読み、ツール呼び出しと結果を対応付けた Markdown レポートをダウンロードできます。",
+          "Claude Code のサブエージェントやバックグラウンドタスクの完了を追跡し、ログに記録されたタイトル、費用、変更行数、所要時間を確認できます。",
+          "ツール別の集計から呼び出しを絞り込み、Claude API のエラーと再試行の詳細を確認できます。Codex ツールの失敗と所要時間も正しく表示します。",
+        ],
+      },
       {
         version: "1.2.4",
         date: "2026-10-10",
