@@ -47,10 +47,10 @@ const timelineButtons = () => screen.getAllByRole("button", { name: /^Timeline:/
 const timelineItem = (button: HTMLElement) => button.closest<HTMLElement>("[role='listitem']")!;
 
 // jsdom has no layout engine: the virtualizer reads the scroll container's
-// offsetHeight for its viewport size and each row's getBoundingClientRect
+// clientHeight for its viewport size and each row's getBoundingClientRect
 // for its measured size, both of which default to 0 without this stub.
 beforeEach(() => {
-  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(scrollViewportHeight);
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(scrollViewportHeight);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
     width: 400,
     height: measuredRowHeight,

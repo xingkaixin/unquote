@@ -143,12 +143,11 @@ const conversationItem = (button: HTMLElement) => button.closest<HTMLElement>("[
 
 let offsetHeightSpy: ReturnType<typeof vi.spyOn>;
 
-// jsdom has no layout engine: useWindowVirtualizer reads window.innerHeight for
-// its viewport (non-zero by default in jsdom). The default measureElement
-// reads each row's offsetHeight, and the scroll-margin layout effect reads
-// the list container's getBoundingClientRect().top — both default to 0
-// without these stubs.
+// jsdom has no layout engine: the virtualizer reads the scroll container's
+// clientHeight for its viewport size and the default measureElement reads each
+// row's offsetHeight, both of which default to 0 without these stubs.
 beforeEach(() => {
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(measuredRowHeight);
   offsetHeightSpy = vi
     .spyOn(HTMLElement.prototype, "offsetHeight", "get")
     .mockReturnValue(measuredRowHeight);

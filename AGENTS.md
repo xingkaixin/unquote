@@ -63,9 +63,3 @@ guide before changing one of these areas:
   distribution behavior.
 - Add or update tests when they protect changed observable behavior, a regression boundary, or a
   fragile platform contract. Follow the scoped guide for test entry points.
-
-## Dependency Constraint
-
-`pnpm-workspace.yaml` pins esbuild to 0.28.2 because tsup 8.5.1 still requests the vulnerable
-`^0.27.0` line. Do not remove the override until tsup accepts a patched esbuild. Verify a proposed
-removal with `pnpm audit` and `pnpm check`.

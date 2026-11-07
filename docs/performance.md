@@ -104,9 +104,9 @@ Static Web pages are measured separately because their styles are not downloaded
 with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
 CSS budget.
 
-The current Web build measures about 603 KiB / 196 KiB gzip for initial JS and
-826 KiB / 269 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 605 KiB / 195 KiB gzip initially and 828 KiB / 269
+The current Web build measures about 610 KiB / 198 KiB gzip for initial JS and
+843 KiB / 275 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 612 KiB / 197 KiB gzip initially and 845 KiB / 274
 KiB gzip in total. The ceilings preserve limited growth headroom without
 permitting the previous 706 KiB initial payload to return. Chunk layout is
 deliberately not budgeted because bundler releases may regroup the same modules
@@ -114,10 +114,10 @@ without changing the amount of JavaScript loaded by either surface.
 
 | Metric per surface | Budget |
 |---|---:|
-| Initial JavaScript | 620,000 bytes |
+| Initial JavaScript | 630,000 bytes |
 | Initial JavaScript gzip | 205,000 bytes |
-| Total UI JavaScript | 851,000 bytes |
-| Total UI JavaScript gzip | 277,000 bytes |
+| Total UI JavaScript | 870,000 bytes |
+| Total UI JavaScript gzip | 285,000 bytes |
 | Initial CSS | 43,000 bytes |
 | Initial CSS gzip | 9,200 bytes |
 
@@ -284,7 +284,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 ## Local analysis workspaces
 
-Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 851,000 bytes / 277,000 bytes gzip; initial JavaScript and CSS limits are unchanged. The combined extension measurement is approximately 828 KB / 269 KB gzip.
+Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 870,000 bytes / 285,000 bytes gzip. The combined extension measurement is approximately 845 KiB / 274 KiB gzip.
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 

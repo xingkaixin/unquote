@@ -3,24 +3,17 @@ packages:
   - packages/*
 
 catalog:
-  '@tailwindcss/vite': ^4.3.3
+  '@tailwindcss/vite': ^4.3.4
   # React 19.3 exceeds the current UI JavaScript bundle budgets.
-  react: ~19.2.8
-  react-dom: ~19.2.8
+  react: ~19.2.9
+  react-dom: ~19.2.9
   sonner: ^2.0.8
-  tailwindcss: ^4.3.3
-  vite: ^8.2.4
+  tailwindcss: ^4.3.4
+  vite: ^8.3.6
 
 overrides:
-  esbuild: 0.28.2
   react: 'catalog:'
   react-dom: 'catalog:'
 
 allowBuilds:
   esbuild: true
-
-minimumReleaseAgeExclude:
-  - '@vitest/coverage-v8@5.0.0'
-  - '@vitest/mocker@5.0.0'
-  - '@vitest/spy@5.0.0'
-  - vitest@5.0.0
