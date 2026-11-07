@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isFullRecord, parseJsonlRecordLine } from "@unquote/core";
 import FileCodeIcon from "@phosphor-icons/core/regular/file-code.svg?react";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import { preferredScrollBehavior } from "../lib/motion-preference";
 import type { MessageKey } from "../i18n/i18n";
@@ -248,6 +248,13 @@ export const AgentConversationPane = ({
   onExportTurns,
 }: AgentConversationPaneProps) => {
   const { t } = useTranslation();
+  const turnBarOpen = selectedTurns.size > 0;
+  // The bar stays mounted to fade out, so it keeps the last non-zero count
+  // instead of showing "0 turns selected" while it leaves.
+  const [turnBarCount, setTurnBarCount] = useState(selectedTurns.size);
+  if (turnBarOpen && selectedTurns.size !== turnBarCount) {
+    setTurnBarCount(selectedTurns.size);
+  }
   const conversationRefs = useRef(new Map<string, HTMLDivElement>());
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldVirtualize = entries.length > conversationVirtualizationThreshold;
@@ -318,25 +325,12 @@ export const AgentConversationPane = ({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {selectedTurns.size > 0 ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-2">
-          <span className="min-w-0 flex-1 truncate text-[12px] text-text-secondary">
-            {t("turnReport.selected", { count: selectedTurns.size })}
-          </span>
-          <Button variant="ghost" size="sm" onClick={onClearTurns}>
-            {t("turnReport.clear")}
-          </Button>
-          <Button size="sm" disabled={!onExportTurns} onClick={onExportTurns}>
-            {t("turnReport.export")}
-          </Button>
-        </div>
-      ) : null}
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div
           role={entries.length === 0 ? undefined : "list"}
           aria-label={entries.length === 0 ? undefined : t("agent.conversation")}
-          className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-14 pt-8"
+          className="mx-auto flex w-full max-w-[780px] flex-col px-6 pb-16 pt-8"
         >
           {entries.length === 0 ? (
             <p className="m-0 rounded-md border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-tertiary">
@@ -396,6 +390,21 @@ export const AgentConversationPane = ({
             </div>
           )}
         </div>
+      </div>
+      <div
+        inert={!turnBarOpen}
+        data-open={turnBarOpen ? "" : undefined}
+        className="uq-floating-bar absolute bottom-3 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-border-medium bg-surface-100 py-1.5 pl-3 pr-1.5 shadow-[var(--shadow-panel)]"
+      >
+        <span className="min-w-0 truncate text-[12px] text-text-secondary">
+          {t("turnReport.selected", { count: turnBarCount })}
+        </span>
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={onClearTurns}>
+          {t("turnReport.clear")}
+        </Button>
+        <Button size="sm" className="shrink-0" disabled={!onExportTurns} onClick={onExportTurns}>
+          {t("turnReport.export")}
+        </Button>
       </div>
     </div>
   );

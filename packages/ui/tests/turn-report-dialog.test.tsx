@@ -64,7 +64,8 @@ it("exports the turns selected in the conversation pane once the Records are rea
 
   await user.keyboard("{Escape}");
   await user.click(await screen.findByRole("button", { name: "Clear" }));
-  expect(screen.queryByText("2 turns selected")).not.toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "Select turn 1 for the report" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Select turn 2 for the report" })).not.toBeChecked();
 });
 
 it("cancels a report built for an obsolete Source Revision", async () => {
