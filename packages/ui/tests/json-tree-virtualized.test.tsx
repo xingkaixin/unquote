@@ -92,7 +92,7 @@ afterEach(() => {
 beforeEach(() => {
   scrollToIndex.mockClear();
   measuredElements.length = 0;
-  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(viewportHeight);
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(viewportHeight);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     measuredElements.push(this);
     const height = this.textContent && this.textContent.length > 200 ? 72 : 24;
