@@ -62,13 +62,13 @@ describe("UI bundle budget", () => {
 
   it("still rejects local bundles that exceed the initial JavaScript budget", () => {
     const root = createBuild('<script src="/assets/index.js"></script>');
-    writeFileSync(join(root, "dist/web/assets/index.js"), "a".repeat(620_001));
+    writeFileSync(join(root, "dist/web/assets/index.js"), "a".repeat(630_001));
 
     const result = runBudgetCheck(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("web initial JS 620001 bytes");
-    expect(result.stderr).toContain("exceeds 620000 bytes");
+    expect(result.stderr).toContain("web initial JS 630001 bytes");
+    expect(result.stderr).toContain("exceeds 630000 bytes");
   });
 
   it("budgets a static page stylesheet independently from the app", () => {
