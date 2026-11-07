@@ -229,11 +229,11 @@ beforeEach(() => {
   ) {
     containerScrolls.push(value);
   });
-  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
-    function (this: HTMLElement) {
-      return this.hasAttribute("data-index") ? trajectoryLedgerRowEstimateSize : 600;
-    },
-  );
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return this.hasAttribute("data-index") ? trajectoryLedgerRowEstimateSize : 600;
+  });
   vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(600);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const height =
