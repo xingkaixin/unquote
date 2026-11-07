@@ -146,8 +146,10 @@ and keyboard behavior stay with Base UI. Virtualized lists do not use this effec
 
 Inputs sit on a transparent or `surface-50` background and show focus with an accent border or
 outline. Every input needs an
-accessible label; placeholder text is supporting context, not a label. Dialogs, menus, and the
-command palette use `rounded-xl`, `surface-100`, a medium border, and `--shadow-panel`.
+accessible label; placeholder text is supporting context, not a label. Dialogs, menus, the
+command palette, and floating bars (`.uq-floating-bar`) use `rounded-xl`, `surface-100`, a medium
+border, and `--shadow-panel`. A floating bar overlays the bottom of its pane instead of inserting
+a row, so showing it does not shift the content.
 
 ### JSON and record views
 
@@ -173,13 +175,14 @@ The default interactive transition is 150ms for color, background, border, and s
 
 Use `--ease-out` for short entrances, exits, and disclosure. Dropdowns and dialogs transition
 transform and opacity for 180ms; disclosures (`.uq-collapse`) animate their grid rows for 180ms.
-The hover highlight uses a short, non-bouncing spring.
+Floating bars rise 8px and fade in for 180ms, and leave in 140ms. The hover highlight uses a
+short, non-bouncing spring.
 
 Respect `prefers-reduced-motion: reduce`:
 
 - pulses and row entrance animations stop;
 - transform, progress, and disclosure transitions become immediate;
-- overlays fade without scaling;
+- overlays and floating bars fade without scaling or moving;
 - active button translation is removed and the hover highlight snaps instead of travelling.
 
 Do not animate layout continuously, animate large JSON collections, or add motion that delays

@@ -193,6 +193,23 @@ a,
   will-change: opacity;
 }
 
+/* Transitioned visibility stays visible until the fade ends, so the bar can leave
+   without a delayed visibility rule. */
+.uq-floating-bar {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: 140ms var(--ease-out);
+  transition-property: transform, opacity, visibility;
+}
+
+.uq-floating-bar[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-duration: 180ms;
+}
+
 .uq-collapse {
   display: grid;
   grid-template-rows: 0fr;
@@ -303,6 +320,10 @@ a,
   .uq-dropdown-popup[data-ending-style],
   .uq-dialog-popup[data-starting-style],
   .uq-dialog-popup[data-ending-style] {
+    transform: none;
+  }
+
+  .uq-floating-bar {
     transform: none;
   }
 
