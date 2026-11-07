@@ -119,7 +119,7 @@ without changing the amount of JavaScript loaded by either surface.
 | Total UI JavaScript | 851,000 bytes |
 | Total UI JavaScript gzip | 277,000 bytes |
 | Initial CSS | 43,000 bytes |
-| Initial CSS gzip | 9,000 bytes |
+| Initial CSS gzip | 9,200 bytes |
 
 ## Baseline
 
@@ -330,6 +330,10 @@ The font declarations previously downloaded from Google now count toward the
 local CSS budgets. The app and extension measure 42,049 bytes / 8,953 bytes gzip;
 each changelog measures 9,775 bytes / 2,599 bytes gzip. Raw CSS ceilings are
 43,000 and 10,000 bytes respectively; gzip and JavaScript ceilings are unchanged.
+
+Before the floating turn-report bar, the app measured 8,998 bytes gzip, 2 bytes under the 9,000
+byte ceiling. With the bar it measures 42,860 bytes / 9,116 bytes gzip, so the initial CSS gzip
+ceiling rose to 9,200 bytes.
 
 Workers Static Assets serves hashed `/assets/` files with a one-year immutable
 browser cache through `apps/web/public/_headers`. HTML keeps the default
