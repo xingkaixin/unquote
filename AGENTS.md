@@ -29,6 +29,9 @@ goal, crosses a non-goal, or moves a module boundary, update `docs/product.md` o
 `docs/architecture.md` in the same change. Keep feature lists in `README.md`, version history in
 the changelogs, and numeric limits in `docs/performance.md` instead of copying them elsewhere.
 
+If fulfilling a request would require revisiting a documented non-goal, explain what the
+current scope allows and ask the user to decide the specific trade-off.
+
 The package manifests, `pnpm-workspace.yaml`, `tsconfig.base.json`, and `turbo.json` are the
 sources of truth for versions, scripts, path mappings, and build configuration. Read the scoped
 guide before changing one of these areas:
