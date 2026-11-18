@@ -9,7 +9,7 @@ catalog:
   react-dom: ~19.2.9
   sonner: ^2.0.8
   tailwindcss: ^4.3.4
-  vite: ^8.3.6
+  vite: ^8.3.8
 
 overrides:
   react: 'catalog:'
