@@ -17,3 +17,8 @@ overrides:
 
 allowBuilds:
   esbuild: true
+
+audit:
+  ignore:
+    # Temporary while the development-only picomatch versions lack fixes.
+    - GHSA-fc5q-39xc-vjpf
