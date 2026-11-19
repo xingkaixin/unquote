@@ -12,31 +12,14 @@ export const drainJsonlLines = (
   done: boolean,
   onLine: (line: string) => boolean | void,
 ): JsonlLineScanResult => {
-  const firstNewline = chunk.indexOf("\n");
-  if (firstNewline < 0) {
-    const tail = buffer ? buffer + chunk : chunk;
-    if (done && tail) {
-      if (onLine(stripLineEndCarriageReturn(tail)) === false) {
-        return { buffer: "", stopped: true };
-      }
+  let lineStart = 0;
+  let newlineIndex = chunk.indexOf("\n");
+  let prefix = buffer;
 
-      return { buffer: "", stopped: false };
-    }
-
-    return { buffer: tail, stopped: false };
-  }
-
-  const firstLine = stripLineEndCarriageReturn(
-    buffer ? buffer + chunk.slice(0, firstNewline) : chunk.slice(0, firstNewline),
-  );
-  if (onLine(firstLine) === false) {
-    return { buffer: chunk.slice(firstNewline + 1), stopped: true };
-  }
-
-  let lineStart = firstNewline + 1;
-  let newlineIndex = chunk.indexOf("\n", lineStart);
   while (newlineIndex >= 0) {
-    const line = stripLineEndCarriageReturn(chunk.slice(lineStart, newlineIndex));
+    const slice = chunk.slice(lineStart, newlineIndex);
+    const line = stripLineEndCarriageReturn(prefix ? prefix + slice : slice);
+    prefix = "";
     if (onLine(line) === false) {
       return { buffer: chunk.slice(newlineIndex + 1), stopped: true };
     }
@@ -45,13 +28,10 @@ export const drainJsonlLines = (
     newlineIndex = chunk.indexOf("\n", lineStart);
   }
 
-  const tail = chunk.slice(lineStart);
+  const remainder = lineStart === 0 ? chunk : chunk.slice(lineStart);
+  const tail = prefix ? prefix + remainder : remainder;
   if (done && tail) {
-    if (onLine(stripLineEndCarriageReturn(tail)) === false) {
-      return { buffer: "", stopped: true };
-    }
-
-    return { buffer: "", stopped: false };
+    return { buffer: "", stopped: onLine(stripLineEndCarriageReturn(tail)) === false };
   }
 
   return { buffer: tail, stopped: false };

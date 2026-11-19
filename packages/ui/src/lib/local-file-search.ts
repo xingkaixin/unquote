@@ -12,26 +12,11 @@ const containerBracketPattern = /[[\]{}]/;
 
 const digitsOnlyPattern = /^\d+$/;
 
-interface RawLineProbe {
-  pattern: RegExp | null;
-  exactSubstring: string | null;
-  // Minimum line length at which a synthetic container count (`{N}`/`[N]`) could
-  // contain the query as a substring. `Infinity` means container labels can never match.
-  minSyntheticContainerLineLength: number;
-}
-
-const minContainerCountForDigits = (digits: string) => {
-  if (digits === "0") {
-    return 0;
-  }
-  return digits.startsWith("0") ? Number(`1${digits}`) : Number(digits);
-};
-
 const buildRawLineProbe = (
   query: string,
   options: SearchOptions,
   searchPattern: RegExp,
-): RawLineProbe | null => {
+): ((line: string) => boolean) | null => {
   if (
     options.syntax !== "text" ||
     unsafeRawProbePattern.test(query) ||
@@ -40,24 +25,18 @@ const buildRawLineProbe = (
     return null;
   }
 
-  const minSyntheticContainerLineLength = digitsOnlyPattern.test(query)
-    ? minContainerCountForDigits(query)
+  // Minimum line length where a synthetic container count (`{N}`/`[N]`) could contain `query`.
+  const minLineLength = digitsOnlyPattern.test(query)
+    ? query === "0"
+      ? 0
+      : Number(query.startsWith("0") ? `1${query}` : query)
     : Number.POSITIVE_INFINITY;
-
-  return options.caseSensitive
-    ? { pattern: null, exactSubstring: query, minSyntheticContainerLineLength }
-    : {
-        pattern: new RegExp(searchPattern.source, "i"),
-        exactSubstring: null,
-        minSyntheticContainerLineLength,
-      };
+  const matcher = options.caseSensitive ? query : new RegExp(searchPattern.source, "i");
+  return (line) =>
+    line.length >= minLineLength ||
+    line.includes("\\u") ||
+    (typeof matcher === "string" ? line.includes(matcher) : matcher.test(line));
 };
-
-const rawLineMayMatch = (line: string, probe: RawLineProbe | null) =>
-  !probe ||
-  line.length >= probe.minSyntheticContainerLineLength ||
-  line.includes("\\u") ||
-  (probe.exactSubstring !== null ? line.includes(probe.exactSubstring) : probe.pattern!.test(line));
 
 const searchJsonlFile = async (
   file: File,
@@ -71,7 +50,7 @@ const searchJsonlFile = async (
     if (!pattern) {
       return null;
     }
-    const rawLineProbe = buildRawLineProbe(query, options, pattern);
+    const rawLineMayMatch = buildRawLineProbe(query, options, pattern);
     const collector = createSearchResultCollector(pattern, options, windowIndexes, query);
 
     await readJsonlFileLines(
@@ -81,7 +60,7 @@ const searchJsonlFile = async (
           return false;
         }
 
-        if (line.trim() && rawLineMayMatch(line, rawLineProbe)) {
+        if (line.trim() && (!rawLineMayMatch || rawLineMayMatch(line))) {
           try {
             collector.addRecord(parseJsonlRecordLine(line, lineNumber));
           } catch {

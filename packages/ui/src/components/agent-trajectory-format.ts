@@ -93,37 +93,19 @@ export const formatTrajectoryDuration = (durationMs: number | undefined, locale:
     return "";
   }
 
-  if (durationMs < 1_000) {
-    return cachedNumberFormat(`ms:${locale}`, locale, {
-      style: "unit",
-      unit: "millisecond",
-      unitDisplay: "narrow",
-      maximumFractionDigits: 0,
-    }).format(durationMs);
-  }
+  const [unit, scaled, maximumFractionDigits] =
+    durationMs < 1_000
+      ? (["millisecond", durationMs, 0] as const)
+      : durationMs < 60_000
+        ? (["second", durationMs / 1_000, 1] as const)
+        : durationMs < 3_600_000
+          ? (["minute", durationMs / 60_000, 1] as const)
+          : (["hour", durationMs / 3_600_000, 1] as const);
 
-  if (durationMs < 60_000) {
-    return cachedNumberFormat(`s:${locale}`, locale, {
-      style: "unit",
-      unit: "second",
-      unitDisplay: "narrow",
-      maximumFractionDigits: 1,
-    }).format(durationMs / 1_000);
-  }
-
-  if (durationMs < 3_600_000) {
-    return cachedNumberFormat(`m:${locale}`, locale, {
-      style: "unit",
-      unit: "minute",
-      unitDisplay: "narrow",
-      maximumFractionDigits: 1,
-    }).format(durationMs / 60_000);
-  }
-
-  return cachedNumberFormat(`h:${locale}`, locale, {
+  return cachedNumberFormat(`${unit}:${locale}`, locale, {
     style: "unit",
-    unit: "hour",
+    unit,
     unitDisplay: "narrow",
-    maximumFractionDigits: 1,
-  }).format(durationMs / 3_600_000);
+    maximumFractionDigits,
+  }).format(scaled);
 };

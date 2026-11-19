@@ -230,36 +230,20 @@ const createWriter = (limits: JsonSerializationLimits): SerializationWriter => {
     }
 
     if (maxBytes !== undefined) {
-      const remainingBytes = maxBytes - byteLength;
-      if (output === value) {
-        const prefix = utf8PrefixWithin(value, remainingBytes);
-        output = prefix.codeUnits === value.length ? value : value.slice(0, prefix.codeUnits);
-        if (output) {
-          chunks.push(output);
-          characterLength += output.length;
+      const remaining = maxBytes - byteLength;
+      const same = output === value;
+      const prefix = output ? utf8PrefixWithin(output, remaining) : null;
+      if (prefix && prefix.codeUnits > 0) {
+        if (prefix.codeUnits < output.length) {
+          output = output.slice(0, prefix.codeUnits);
         }
-        if (!byteLimitExceeded) {
-          byteLength += prefix.bytes;
-          byteLimitExceeded = prefix.codeUnits < value.length;
-        }
-        return shouldContinue();
-      }
-
-      if (output) {
-        const outputPrefix = utf8PrefixWithin(output, remainingBytes);
-        output =
-          outputPrefix.codeUnits === output.length
-            ? output
-            : output.slice(0, outputPrefix.codeUnits);
-        if (output) {
-          chunks.push(output);
-          characterLength += output.length;
-        }
+        chunks.push(output);
+        characterLength += output.length;
       }
       if (!byteLimitExceeded) {
-        const valuePrefix = utf8PrefixWithin(value, remainingBytes);
-        byteLength += valuePrefix.bytes;
-        byteLimitExceeded = valuePrefix.codeUnits < value.length;
+        const measured = same && prefix ? prefix : utf8PrefixWithin(value, remaining);
+        byteLength += measured.bytes;
+        byteLimitExceeded = measured.codeUnits < value.length;
       }
       return shouldContinue();
     }

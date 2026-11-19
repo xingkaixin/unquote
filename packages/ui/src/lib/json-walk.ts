@@ -26,6 +26,7 @@ interface JsonWalkMetadata {
   stringifiedChain: string[];
   // Shared walk-scoped view; copy before retaining it beyond the visitor call.
   pathSegments: readonly TreePathSegment[];
+  resolvePath?: (() => { jsonPath: string; stringifiedChain: string[] }) | undefined;
 }
 
 export type JsonWalkContext = JsonWalkValue & JsonWalkMetadata;
@@ -103,83 +104,34 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
   const pathSegments = [...(start.pathSegments ?? [])];
   const basePath = start.jsonPath ?? "$";
   const baseAncestors = start.stringifiedAncestors ?? [];
+  const lazyPath = start.lazyPath === true;
+  const baseSegmentCount = pathSegments.length;
+  const stringifiedDepths: number[] = [];
 
-  if (start.lazyPath) {
-    const baseSegmentCount = pathSegments.length;
-    const stringifiedDepths: number[] = [];
-
-    const formatPathAtDepth = (depth: number) => {
-      let path = basePath;
-      for (let index = baseSegmentCount; index < depth; index += 1) {
-        path = appendJsonPathSegment(path, pathSegments[index]!);
-      }
-      return path;
-    };
-
-    const walkLazy = (node: JsonNode) => {
-      const resolved = resolveJsonNode(node);
-      if (resolved.wasStringified) {
-        stringifiedDepths.push(pathSegments.length);
-      }
-
-      let cachedPath: string | undefined;
-      let cachedChain: string[] | undefined;
-      // SAFETY: The resolver validated this pair; copying generic union fields loses its correlation.
-      const context = {
-        node: resolved.node,
-        kind: resolved.kind,
-        value: resolved.value,
-        childCount: resolved.childCount,
-        ...(typeof resolved.valueLength === "number" ? { valueLength: resolved.valueLength } : {}),
-        get jsonPath() {
-          cachedPath ??= formatPathAtDepth(pathSegments.length);
-          return cachedPath;
-        },
-        get stringifiedChain() {
-          if (!cachedChain) {
-            cachedChain = [...baseAncestors];
-            for (let index = 0; index < stringifiedDepths.length; index += 1) {
-              cachedChain.push(formatPathAtDepth(stringifiedDepths[index]!));
-            }
-          }
-          return cachedChain;
-        },
-        pathSegments,
-      } as JsonWalkContext;
-
-      if (visit(context) !== false && resolved.children) {
-        if (Array.isArray(resolved.children)) {
-          const { children } = resolved;
-          for (let index = 0; index < children.length; index += 1) {
-            pathSegments.push({ kind: "index", value: String(index) });
-            walkLazy(children[index]!);
-            pathSegments.pop();
-          }
-        } else if (resolved.objectKeys) {
-          const { children, objectKeys } = resolved;
-          for (let index = 0; index < objectKeys.length; index += 1) {
-            const key = objectKeys[index]!;
-            pathSegments.push({ kind: "key", value: key });
-            walkLazy(children[key]!);
-            pathSegments.pop();
-          }
-        }
-      }
-
-      if (resolved.wasStringified) {
-        stringifiedDepths.pop();
-      }
-    };
-
-    walkLazy(root);
-    return;
-  }
+  const formatPathAtDepth = (depth: number) => {
+    let path = basePath;
+    for (let index = baseSegmentCount; index < depth; index += 1) {
+      path = appendJsonPathSegment(path, pathSegments[index]!);
+    }
+    return path;
+  };
+  const resolveLazyPath = lazyPath
+    ? () => ({
+        jsonPath: formatPathAtDepth(pathSegments.length),
+        stringifiedChain: [...baseAncestors, ...stringifiedDepths.map(formatPathAtDepth)],
+      })
+    : undefined;
 
   function walk(node: JsonNode, jsonPath: string, stringifiedAncestors: string[]) {
     const resolved = resolveJsonNode(node);
-    const stringifiedChain = resolved.wasStringified
-      ? [...stringifiedAncestors, jsonPath]
-      : stringifiedAncestors;
+    if (lazyPath && resolved.wasStringified) {
+      stringifiedDepths.push(pathSegments.length);
+    }
+    const stringifiedChain = lazyPath
+      ? baseAncestors
+      : resolved.wasStringified
+        ? [...stringifiedAncestors, jsonPath]
+        : stringifiedAncestors;
     // SAFETY: The resolver validated this pair; copying generic union fields loses its correlation.
     const context = {
       node: resolved.node,
@@ -190,32 +142,38 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
       jsonPath,
       stringifiedChain,
       pathSegments,
+      resolvePath: resolveLazyPath,
     } as JsonWalkContext;
 
-    if (visit(context) === false || !resolved.children) {
-      return;
+    if (visit(context) !== false && resolved.children) {
+      if (Array.isArray(resolved.children)) {
+        for (let index = 0; index < resolved.children.length; index += 1) {
+          const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
+          pathSegments.push(segment);
+          walk(
+            resolved.children[index]!,
+            lazyPath ? "" : appendJsonPathSegment(jsonPath, segment),
+            stringifiedChain,
+          );
+          pathSegments.pop();
+        }
+      } else if (resolved.objectKeys) {
+        for (let index = 0; index < resolved.objectKeys.length; index += 1) {
+          const key = resolved.objectKeys[index]!;
+          const segment = { kind: "key", value: key } satisfies TreePathSegment;
+          pathSegments.push(segment);
+          walk(
+            resolved.children[key]!,
+            lazyPath ? "" : appendJsonPathSegment(jsonPath, segment),
+            stringifiedChain,
+          );
+          pathSegments.pop();
+        }
+      }
     }
 
-    if (Array.isArray(resolved.children)) {
-      const { children } = resolved;
-      for (let index = 0; index < children.length; index += 1) {
-        const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
-        pathSegments.push(segment);
-        walk(children[index]!, appendJsonPathSegment(jsonPath, segment), stringifiedChain);
-        pathSegments.pop();
-      }
-      return;
-    }
-
-    if (resolved.objectKeys) {
-      const { children, objectKeys } = resolved;
-      for (let index = 0; index < objectKeys.length; index += 1) {
-        const key = objectKeys[index]!;
-        const segment = { kind: "key", value: key } satisfies TreePathSegment;
-        pathSegments.push(segment);
-        walk(children[key]!, appendJsonPathSegment(jsonPath, segment), stringifiedChain);
-        pathSegments.pop();
-      }
+    if (lazyPath && resolved.wasStringified) {
+      stringifiedDepths.pop();
     }
   }
 

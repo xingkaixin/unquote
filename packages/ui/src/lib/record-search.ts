@@ -99,61 +99,32 @@ export const normalizeSearchWindowIndexes = (indexes?: ArrayLike<number>) => {
 
 const containerLabelOnlyPattern = /^[\d[\]{}]+$/;
 
-const hasJsonEscapableChar = (value: string) => {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code <= 0x1f || code === 0x22 || code === 0x5c) {
-      return true;
-    }
-    if (code >= 0xd800 && code <= 0xdfff) {
-      if (code <= 0xdbff && index + 1 < value.length) {
-        const next = value.charCodeAt(index + 1);
-        if (next >= 0xdc00 && next <= 0xdfff) {
-          index += 1;
-          continue;
-        }
-      }
-      return true;
-    }
-  }
-  return false;
-};
+// oxlint-disable-next-line no-control-regex -- Matches JSON-escapable control characters, quotes, backslashes, and surrogates.
+const jsonEscapablePattern = /[\x00-\x1f"\\\ud800-\udfff]/;
+
+const hasJsonEscapableChar = (value: string) => jsonEscapablePattern.test(value);
 
 const matchExactPath = (root: JsonNode, segments: readonly TreePathSegment[]) => {
   let node: JsonNode = root;
-  let currentPath = "$";
-  const stringifiedChain: string[] = [];
-  if (isStringifiedNode(node)) {
-    stringifiedChain.push(currentPath);
-  }
+  let path = "$";
+  const chain: string[] = [];
+  if (isStringifiedNode(node)) chain.push(path);
 
-  for (let index = 0; index < segments.length; index += 1) {
-    if (!hasJsonNodeChildren(node)) {
-      return null;
-    }
-    const segment = segments[index]!;
+  for (const segment of segments) {
+    if (!hasJsonNodeChildren(node)) return null;
     if (segment.kind === "index") {
-      if (node.kind !== "array") {
-        return null;
-      }
-      const itemIndex = Number(segment.value);
-      if (itemIndex < 0 || itemIndex >= node.children.length) {
-        return null;
-      }
-      node = node.children[itemIndex]!;
+      const next = node.kind === "array" ? node.children[Number(segment.value)] : undefined;
+      if (!next) return null;
+      node = next;
     } else {
-      if (node.kind !== "object" || !Object.hasOwn(node.children, segment.value)) {
-        return null;
-      }
+      if (node.kind !== "object" || !Object.hasOwn(node.children, segment.value)) return null;
       node = node.children[segment.value]!;
     }
-    currentPath = appendJsonPathSegment(currentPath, segment);
-    if (isStringifiedNode(node)) {
-      stringifiedChain.push(currentPath);
-    }
+    path = appendJsonPathSegment(path, segment);
+    if (isStringifiedNode(node)) chain.push(path);
   }
 
-  return { pathText: currentPath, stringifiedPathChain: stringifiedChain };
+  return { pathText: path, stringifiedPathChain: chain };
 };
 
 const createCollector = (
@@ -163,7 +134,7 @@ const createCollector = (
   query?: string,
 ): InternalSearchResultCollector => {
   const testPattern = new RegExp(pattern.source, pattern.flags.replace("g", ""));
-  const usePlainSubstring = options.syntax === "text" && query !== undefined && query.length > 0;
+  const usePlainSubstring = options.syntax === "text" && !!query;
   const matchesPattern =
     usePlainSubstring && options.caseSensitive
       ? (text: string) => text.includes(query)
@@ -196,74 +167,60 @@ const createCollector = (
     matches.push(createMatch());
   };
 
-  const matchContextValue = (
-    context: JsonWalkContext,
-  ): { matched: boolean; formatted?: string } => {
-    if (context.kind === "object" || context.kind === "array") {
-      if (!canMatchContainerLabel) {
-        return { matched: false };
-      }
-      const formatted = formatJsonValueLabel(context);
-      return { matched: matchesPattern(formatted), formatted };
-    }
-    if (context.kind === "string") {
-      if (
-        plainStringQuerySafe &&
-        (context.valueLength === undefined || context.valueLength === context.value.length)
-      ) {
-        if (matchesPattern(context.value)) {
-          return { matched: true };
-        }
-        if (!hasJsonEscapableChar(context.value)) {
-          return { matched: false };
-        }
-      }
-      const formatted = formatJsonValueLabel(context);
-      return { matched: matchesPattern(formatted), formatted };
-    }
-    const formatted =
-      context.kind === "null"
-        ? "null"
-        : context.kind === "boolean"
-          ? context.value
-            ? "true"
-            : "false"
-          : typeof context.value === "string"
-            ? context.value
-            : String(context.value);
-    return { matched: matchesPattern(formatted), formatted };
-  };
-
   const addContext = (context: JsonWalkContext, recordId: string, lineNumber: number) => {
     const keySegment = context.pathSegments.at(-1);
     const keyText = keySegment?.kind === "key" ? keySegment.value : null;
     const pathOnly = options.syntax === "path";
     const keyMatched = !pathOnly && keyText ? matchesPattern(keyText) : false;
-    const valueResult = pathOnly ? { matched: false } : matchContextValue(context);
-    const valueMatched = valueResult.matched;
-    const pathMatched = (pathOnly || options.syntax === "jq") && matchesPattern(context.jsonPath);
 
+    let valueText: string | undefined;
+    let valueMatched = false;
+    if (!pathOnly) {
+      if (context.kind === "object" || context.kind === "array") {
+        if (canMatchContainerLabel) {
+          valueText = formatJsonValueLabel(context);
+          valueMatched = matchesPattern(valueText);
+        }
+      } else if (
+        context.kind === "string" &&
+        plainStringQuerySafe &&
+        (context.valueLength === undefined || context.valueLength === context.value.length)
+      ) {
+        valueMatched = matchesPattern(context.value);
+        if (!valueMatched && hasJsonEscapableChar(context.value)) {
+          valueText = formatJsonValueLabel(context);
+          valueMatched = matchesPattern(valueText);
+        }
+      } else {
+        valueText = formatJsonValueLabel(context);
+        valueMatched = matchesPattern(valueText);
+      }
+    }
+
+    const pathMatched = (pathOnly || options.syntax === "jq") && matchesPattern(context.jsonPath);
     if (!keyMatched && !valueMatched && !pathMatched) {
       return;
     }
 
     recordMatch(lineNumber, () => {
-      const valueText = valueMatched
-        ? (valueResult.formatted ?? formatJsonValueLabel(context))
-        : "";
+      const resolvedPath = context.resolvePath?.();
+      const pathText = resolvedPath ? resolvedPath.jsonPath : context.jsonPath;
+      const formatted = valueMatched ? (valueText ?? formatJsonValueLabel(context)) : "";
       return {
         recordId,
-        pathText: context.jsonPath,
+        pathText,
         keyRanges: keyMatched && keyText ? scanRanges(keyText, pattern) : [],
         valueRanges: valueMatched
           ? scanRanges(
-              valueText,
+              formatted,
               pattern,
               getSearchableJsonValueLabelLength(context, maxStringValueLabelLength),
             )
           : [],
-        pathRanges: options.syntax === "jq" ? scanRanges(context.jsonPath, pattern) : [],
-        stringifiedPathChain: [...context.stringifiedChain],
+        pathRanges: options.syntax === "jq" ? scanRanges(pathText, pattern) : [],
+        stringifiedPathChain: resolvedPath
+          ? resolvedPath.stringifiedChain
+          : [...context.stringifiedChain],
       };
     });
   };

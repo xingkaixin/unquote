@@ -352,12 +352,46 @@ const scanJsonlLinesByNumber = async (
   let firstRequestedLine = Number.POSITIVE_INFINITY;
   let lastRequestedLine = 0;
   for (const lineNumber of lineNumbers) {
-    firstRequestedLine = Math.min(firstRequestedLine, lineNumber);
-    lastRequestedLine = Math.max(lastRequestedLine, lineNumber);
+    if (lineNumber < firstRequestedLine) firstRequestedLine = lineNumber;
+    if (lineNumber > lastRequestedLine) lastRequestedLine = lineNumber;
   }
   const lineIndex = lineIndexFor(file);
   const scanRange = lineIndex.scanRange(firstRequestedLine, lastRequestedLine);
   const slicedFile = file.slice(scanRange.start.byteOffset, scanRange.end?.byteOffset ?? file.size);
+
+  let collectedBytes = 0;
+  let matchedCount = 0;
+  let batch = collected;
+  let batchBytes = 0;
+
+  const flushBatch = async () => {
+    if (!onBatch || batch.size === 0) {
+      return;
+    }
+    const ready = batch;
+    batch = new Map();
+    batchBytes = 0;
+    await onBatch(ready);
+    signal?.throwIfAborted();
+  };
+
+  const pushMatchedLine = async (lineNumber: number, text: string, byteLength: number) => {
+    if (collectedBytes + byteLength > maxBytes) {
+      await flushBatch();
+      throw new SourceReadLimitError();
+    }
+    collectedBytes += byteLength;
+    matchedCount += 1;
+    if (onBatch && batch.size > 0 && batchBytes + byteLength > batchMaxBytes) {
+      await flushBatch();
+    }
+    batch.set(lineNumber, text);
+    batchBytes += byteLength;
+    if (onBatch && (batch.size >= batchMaxLines || batchBytes >= batchMaxBytes)) {
+      await flushBatch();
+    }
+    return matchedCount < lineNumbers.size;
+  };
 
   if (typeof slicedFile.stream !== "function") {
     if (!onBatch && file.size > maxBytes) {
@@ -375,47 +409,12 @@ const scanJsonlLinesByNumber = async (
       signal,
     );
     signal?.throwIfAborted();
-    if (!onBatch) {
-      for (const [lineNumber, line] of matched) {
-        collected.set(lineNumber, line);
-      }
-      return collected;
-    }
-
-    const encoder = new TextEncoder();
-    let totalBytes = 0;
-    let batch = new Map<number, string>();
-    let batchBytes = 0;
+    const encoder = onBatch ? new TextEncoder() : null;
     for (const [lineNumber, line] of matched) {
       signal?.throwIfAborted();
-      const lineBytes = encoder.encode(line).byteLength;
-      if (totalBytes + lineBytes > maxBytes) {
-        if (batch.size > 0) {
-          await onBatch(batch);
-          signal?.throwIfAborted();
-        }
-        throw new SourceReadLimitError();
-      }
-      totalBytes += lineBytes;
-      if (batch.size > 0 && batchBytes + lineBytes > batchMaxBytes) {
-        await onBatch(batch);
-        signal?.throwIfAborted();
-        batch = new Map();
-        batchBytes = 0;
-      }
-      batch.set(lineNumber, line);
-      batchBytes += lineBytes;
-      if (batch.size >= batchMaxLines || batchBytes >= batchMaxBytes) {
-        await onBatch(batch);
-        signal?.throwIfAborted();
-        batch = new Map();
-        batchBytes = 0;
-      }
+      await pushMatchedLine(lineNumber, line, encoder ? encoder.encode(line).byteLength : 0);
     }
-    if (batch.size > 0) {
-      await onBatch(batch);
-      signal?.throwIfAborted();
-    }
+    await flushBatch();
     return collected;
   }
 
@@ -424,10 +423,6 @@ const scanJsonlLinesByNumber = async (
   let absoluteOffset = scanRange.start.byteOffset;
   let lineChunks: Uint8Array[] = [];
   let lineChunkBytes = 0;
-  let collectedBytes = 0;
-  let matchedCount = 0;
-  let batch = collected;
-  let batchBytes = 0;
   let stopped = false;
   let readerCanceled = false;
   const decoder = new TextDecoder();
@@ -438,63 +433,25 @@ const scanJsonlLinesByNumber = async (
   };
   signal?.addEventListener("abort", cancelReader, { once: true });
 
-  const withoutCarriageReturn = (bytes: Uint8Array) =>
-    bytes.at(-1) === 13 ? bytes.subarray(0, -1) : bytes;
-
-  const flushBatch = async () => {
-    if (!onBatch || batch.size === 0) {
-      return;
-    }
-    const ready = batch;
-    batch = new Map();
-    batchBytes = 0;
-    await onBatch(ready);
-    signal?.throwIfAborted();
-  };
-
-  const decodeLine = (trailing: Uint8Array) => {
-    if (lineChunks.length === 0) {
-      const trimmed = withoutCarriageReturn(trailing);
-      return { text: decoder.decode(trimmed), byteLength: trimmed.byteLength };
-    }
-
-    const bytes = new Uint8Array(lineChunkBytes + trailing.byteLength);
-    let writeOffset = 0;
-    for (const chunk of lineChunks) {
-      bytes.set(chunk, writeOffset);
-      writeOffset += chunk.byteLength;
-    }
-    bytes.set(trailing, writeOffset);
-    lineChunks = [];
-    lineChunkBytes = 0;
-    const trimmed = withoutCarriageReturn(bytes);
-    return { text: decoder.decode(trimmed), byteLength: trimmed.byteLength };
-  };
-
   const emitLine = async (trailing: Uint8Array) => {
-    const rawLineBytes = lineChunkBytes + trailing.byteLength;
-    const hasTrailingCr =
-      trailing.byteLength > 0
-        ? trailing[trailing.byteLength - 1] === 13
-        : lineChunks.at(-1)?.at(-1) === 13;
-    const effectiveLineBytes = hasTrailingCr ? rawLineBytes - 1 : rawLineBytes;
-    if (collectedBytes + effectiveLineBytes > maxBytes) {
+    let raw = trailing;
+    if (lineChunks.length > 0) {
+      raw = new Uint8Array(lineChunkBytes + trailing.byteLength);
+      let writeOffset = 0;
+      for (const chunk of lineChunks) {
+        raw.set(chunk, writeOffset);
+        writeOffset += chunk.byteLength;
+      }
+      raw.set(trailing, writeOffset);
+      lineChunks = [];
+      lineChunkBytes = 0;
+    }
+    const trimmed = raw.at(-1) === 13 ? raw.subarray(0, -1) : raw;
+    if (collectedBytes + trimmed.byteLength > maxBytes) {
       await flushBatch();
       throw new SourceReadLimitError();
     }
-
-    const decoded = decodeLine(trailing);
-    collectedBytes += decoded.byteLength;
-    matchedCount += 1;
-    if (onBatch && batch.size > 0 && batchBytes + decoded.byteLength > batchMaxBytes) {
-      await flushBatch();
-    }
-    batch.set(lineNumber, decoded.text);
-    batchBytes += decoded.byteLength;
-    if (onBatch && (batch.size >= batchMaxLines || batchBytes >= batchMaxBytes)) {
-      await flushBatch();
-    }
-    return matchedCount < lineNumbers.size;
+    return pushMatchedLine(lineNumber, decoder.decode(trimmed), trimmed.byteLength);
   };
 
   try {
