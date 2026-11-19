@@ -201,5 +201,40 @@ describe("UnquoteApp", () => {
       await waitFor(() => expect(getToolbarInput()).toHaveValue(""));
       expect(screen.queryAllByText((text) => text.includes("1/1"))).toHaveLength(0);
     });
+
+    it("steps matches with Enter and Shift+Enter and shows 0/0 or invalid regex feedback", async () => {
+      const user = userEvent.setup();
+      const input = ['{"msg":"alpha"}', '{"msg":"alpha"}', '{"msg":"[DONE]"}'].join("\n");
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput={input} />
+        </I18nProvider>,
+      );
+      await waitFor(() => expect(screen.getAllByText("#1").length).toBeGreaterThan(0));
+
+      const searchInput = getToolbarInput();
+      await user.type(searchInput, "alpha");
+      await waitFor(() => expect(screen.getByText("1/2")).toBeInTheDocument());
+
+      fireEvent.keyDown(searchInput, { key: "Enter" });
+      await waitFor(() => expect(screen.getByText("2/2")).toBeInTheDocument());
+
+      fireEvent.keyDown(searchInput, { key: "Enter", shiftKey: true });
+      await waitFor(() => expect(screen.getByText("1/2")).toBeInTheDocument());
+
+      fireEvent.change(searchInput, { target: { value: "[DONE]" } });
+      await waitFor(() => expect(screen.getByText("1/1")).toBeInTheDocument());
+
+      fireEvent.change(searchInput, { target: { value: "unmatched" } });
+      await waitFor(() => expect(screen.getByText("0/0")).toBeInTheDocument());
+
+      await user.click(screen.getAllByRole("button", { name: /Commands/i })[0]!);
+      await user.click(await screen.findByRole("button", { name: /^Regex$/i }));
+      await user.keyboard("{Escape}");
+
+      expect(screen.getByTitle("Regex")).toHaveTextContent(".*");
+      fireEvent.change(searchInput, { target: { value: "[" } });
+      await waitFor(() => expect(screen.getByText("Invalid regex")).toBeInTheDocument());
+    });
   });
 });

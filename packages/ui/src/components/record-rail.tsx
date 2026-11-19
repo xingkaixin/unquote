@@ -88,7 +88,7 @@ const RailRow = ({
           active ? "border-l-accent bg-accent-soft" : "border-l-transparent hover:bg-surface-200"
         }`}
       >
-        <span className="w-[18px] shrink-0 pt-px font-mono text-[11px] text-text-tertiary">
+        <span className="min-w-[2.25rem] shrink-0 whitespace-nowrap pt-px font-mono text-[11px] tabular-nums text-text-tertiary">
           #{record.lineNumber}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">

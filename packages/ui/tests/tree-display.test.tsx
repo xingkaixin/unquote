@@ -213,7 +213,7 @@ describe("getCollapsedValue", () => {
     expect(getCollapsedValue(row)).toBe(JSON.stringify('{"a":1}'));
   });
 
-  it("uses the full raw string rather than the truncated value label", () => {
+  it("bounds long collapsed raw strings instead of rendering unbounded text", () => {
     const rawString = `{"a":"${"x".repeat(600)}"}`;
     const row = makeRow({
       id: "r0",
@@ -225,7 +225,11 @@ describe("getCollapsedValue", () => {
       node: makeNode("object", { rawString }),
     });
 
-    expect(getCollapsedValue(row)).toBe(JSON.stringify(rawString));
+    const collapsed = getCollapsedValue(row);
+    expect(collapsed).toBe(
+      `${JSON.stringify(`${rawString.slice(0, 512)}...`)} (${rawString.length} chars)`,
+    );
+    expect(collapsed.length).toBeLessThan(JSON.stringify(rawString).length);
   });
 
   it("falls back to the value label when there is no raw string", () => {

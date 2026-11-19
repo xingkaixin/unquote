@@ -101,8 +101,26 @@ export const useQueryInteraction = ({
   const mode = state.modeState.mode;
   const searchQuery = mode === "search" ? state.modeState.query : "";
   const pathQuery = mode === "path" && state.modeState.submitted ? state.modeState.query : "";
-  const pathSegments = useMemo(() => (pathQuery ? parseTreePath(pathQuery) : null), [pathQuery]);
-  const workerQuery = mode === "path" ? (pathSegments ? pathQuery : "") : searchQuery;
+  const normalizedPathQuery = useMemo(() => {
+    const trimmed = pathQuery.trim();
+    return trimmed.startsWith("[") ? `$${trimmed}` : trimmed;
+  }, [pathQuery]);
+  const pathSegments = useMemo(
+    () => (normalizedPathQuery ? parseTreePath(normalizedPathQuery) : null),
+    [normalizedPathQuery],
+  );
+  const workerQuery = mode === "path" ? (pathSegments ? normalizedPathQuery : "") : searchQuery;
+  const searchRegexInvalid = useMemo(() => {
+    if (mode !== "search" || state.searchSyntax !== "regex" || !searchQuery) {
+      return false;
+    }
+    try {
+      new RegExp(searchQuery);
+      return false;
+    } catch {
+      return true;
+    }
+  }, [mode, searchQuery, state.searchSyntax]);
   const searchOptions = useMemo<SearchOptions>(
     () => ({
       syntax: mode === "path" ? "path" : state.searchSyntax,
@@ -155,12 +173,13 @@ export const useQueryInteraction = ({
     () => projectSearchResult(pathResult, pathVisibility, requestedPathIndex),
     [pathResult, pathVisibility, requestedPathIndex],
   );
-  const pathError =
+  const pathErrorReason =
     pathQuery && !pathSegments
-      ? translateError("invalid")
+      ? ("invalid" as const)
       : pathResult && pathResult.total === 0
-        ? translateError("not-found")
+        ? ("not-found" as const)
         : null;
+  const pathError = pathErrorReason ? translateError(pathErrorReason) : null;
   const currentPathMatchIndex = pathProjection.currentMatchIndex;
   const pathMatchCount = pathProjection.matchCount;
   const activePathMatch = pathProjection.activeMatch;
@@ -398,9 +417,11 @@ export const useQueryInteraction = ({
       recordFilter: state.recordFilter,
       commandInput: state.commandInput,
       pathError,
+      pathErrorReason,
       pathMatchCount,
       currentPathMatchIndex,
       mode,
+      searchRegexInvalid,
       searchStatus: revisionsAligned ? searchWorker.status : workerQuery ? "pending" : "idle",
       searchErrorKind: revisionsAligned ? searchWorker.errorKind : null,
       ...pipeline,

@@ -58,6 +58,34 @@ describe("reduceWorkspaceSelection", () => {
     });
   });
 
+  it("selects a path without issuing a scroll intent when scroll is false", () => {
+    const state = reduceWorkspaceSelection(createPopulatedState(), {
+      type: "selectPath",
+      selection: { recordId: "record-1", pathText: "$.payload.next", rawKey: "next" },
+      scroll: false,
+    });
+
+    expect(state).toMatchObject({
+      activeRecordId: "record-1",
+      selectedPath: { recordId: "record-1", pathText: "$.payload.next", rawKey: "next" },
+      scrollIntent: null,
+    });
+  });
+
+  it("selects a record without issuing a scroll intent when scroll is false", () => {
+    const state = reduceWorkspaceSelection(createPopulatedState(), {
+      type: "selectRecord",
+      recordId: "record-2",
+      scroll: false,
+    });
+
+    expect(state).toMatchObject({
+      activeRecordId: "record-2",
+      detailSelection: { kind: "record", recordId: "record-2" },
+      scrollIntent: null,
+    });
+  });
+
   it("selects a record and issues a scroll intent for it", () => {
     const state = reduceWorkspaceSelection(createPopulatedState(), {
       type: "selectRecord",

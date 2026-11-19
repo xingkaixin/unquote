@@ -12,6 +12,7 @@ import WarningCircleIcon from "@phosphor-icons/core/regular/warning-circle.svg?r
 import WrenchIcon from "@phosphor-icons/core/regular/wrench.svg?react";
 import XIcon from "@phosphor-icons/core/regular/x.svg?react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { NestedFilterScope, RecordFilterMode } from "../lib/record-filter";
 import { isPathLikeQuery } from "../lib/query-interaction";
 import type { MessageKey } from "../i18n/i18n";
@@ -88,12 +89,14 @@ export const CommandPalette = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [commandQuery, setCommandQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const pathMode = isPathLikeQuery(inputValue);
+  const [actionSelected, setActionSelected] = useState(false);
+  const pathMode = isPathLikeQuery(inputValue, regex ? "regex" : jq ? "jq" : "text");
 
   useEffect(() => {
     if (!open) return;
     setCommandQuery("");
     setActiveIndex(0);
+    setActionSelected(false);
   }, [open]);
 
   const actions = useMemo<CommandAction[]>(
@@ -149,6 +152,41 @@ export const CommandPalette = ({
     onClose();
   };
 
+  const handlePaletteKeyDown = (event: KeyboardEvent<HTMLInputElement>, preferAction: boolean) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const action = visibleActions[activeIndex];
+      if (action && (preferAction || actionSelected)) {
+        runAction(action);
+        return;
+      }
+      if (!preferAction) runPrimary();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActionSelected(true);
+      setActiveIndex((current) =>
+        visibleActions.length === 0 ? 0 : (current + 1) % visibleActions.length,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActionSelected(true);
+      setActiveIndex((current) =>
+        visibleActions.length === 0
+          ? 0
+          : (current - 1 + visibleActions.length) % visibleActions.length,
+      );
+    }
+  };
+
   return (
     <Dialog.Root
       open={open}
@@ -177,31 +215,11 @@ export const CommandPalette = ({
                   activeActionId ? `command-action-${activeActionId}` : undefined
                 }
                 value={inputValue}
-                onChange={(event) => onInputChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    runPrimary();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    onClose();
-                  }
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setActiveIndex((current) =>
-                      visibleActions.length === 0 ? 0 : (current + 1) % visibleActions.length,
-                    );
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setActiveIndex((current) =>
-                      visibleActions.length === 0
-                        ? 0
-                        : (current - 1 + visibleActions.length) % visibleActions.length,
-                    );
-                  }
+                onChange={(event) => {
+                  setActionSelected(false);
+                  onInputChange(event.target.value);
                 }}
+                onKeyDown={(event) => handlePaletteKeyDown(event, false)}
                 placeholder={t("command.placeholder")}
                 className="min-w-0 flex-1 bg-transparent font-mono text-[12px] tracking-[0.04em] text-text-primary outline-none placeholder:text-text-tertiary"
               />
@@ -268,7 +286,11 @@ export const CommandPalette = ({
               <input
                 aria-label={t("command.filterCommands")}
                 value={commandQuery}
-                onChange={(event) => setCommandQuery(event.target.value)}
+                onChange={(event) => {
+                  setCommandQuery(event.target.value);
+                  setActionSelected(event.target.value.trim().length > 0);
+                }}
+                onKeyDown={(event) => handlePaletteKeyDown(event, true)}
                 placeholder={t("command.filterCommands")}
                 className="ml-auto h-7 w-44 border border-border bg-surface-50 px-2 font-mono uq-text-11 text-text-primary outline-none placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               />

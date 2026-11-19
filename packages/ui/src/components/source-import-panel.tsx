@@ -40,10 +40,10 @@ const hasTransferFile = (dataTransfer: DataTransfer) =>
   Array.from(dataTransfer.items).some((item) => item.kind === "file") ||
   hasFileType(dataTransfer);
 
-const isPotentialFileDrag = (dataTransfer: DataTransfer) =>
+export const isPotentialFileDrag = (dataTransfer: DataTransfer) =>
   hasTransferFile(dataTransfer) || transferTypes(dataTransfer).length === 0;
 
-const getTransferFile = (dataTransfer: DataTransfer) => {
+export const getTransferFile = (dataTransfer: DataTransfer) => {
   for (const item of Array.from(dataTransfer.items)) {
     if (item.kind !== "file") {
       continue;
@@ -58,7 +58,7 @@ const getTransferFile = (dataTransfer: DataTransfer) => {
   return dataTransfer.files[0] ?? null;
 };
 
-const pastedFileNamePattern = /(?:^|[/\\])([^/\\]+\.(?:json|jsonl|txt))$/i;
+const pastedFileNamePattern = /(?:^|[/\\])([^/\\]+\.(?:json|jsonl|ndjson|sse|log|txt))$/i;
 
 const getPastedFileName = (text: string) => {
   const match = pastedFileNamePattern.exec(text);
@@ -67,7 +67,12 @@ const getPastedFileName = (text: string) => {
 
 const looksLikeJsonSource = (text: string) => {
   const trimmed = text.trimStart();
-  return trimmed.startsWith("{") || trimmed.startsWith("[");
+  return (
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[") ||
+    /^data:\s*/i.test(trimmed) ||
+    /^event:\s*/i.test(trimmed)
+  );
 };
 
 const readClipboardFile = async (name: string) => {
@@ -312,7 +317,7 @@ export const SourceImportPanel = ({
             ref={fileInputRef}
             type="file"
             data-benchmark-action="source-file-input"
-            accept=".json,.jsonl,application/json,text/plain"
+            accept=".json,.jsonl,.ndjson,.sse,.log,application/json,text/event-stream,text/plain"
             className="sr-only"
             tabIndex={-1}
             onChange={handleFileInputChange}

@@ -34,8 +34,8 @@ export const createInitialWorkspaceSelectionState = (): WorkspaceSelectionState 
 
 export type WorkspaceSelectionAction =
   | { type: "scrollToPath"; recordId: string; pathText: string }
-  | { type: "selectPath"; selection: SelectedPath }
-  | { type: "selectRecord"; recordId: string }
+  | { type: "selectPath"; selection: SelectedPath; scroll?: boolean }
+  | { type: "selectRecord"; recordId: string; scroll?: boolean }
   | { type: "selectAgentDetail"; selection: AgentDetailSelection }
   | { type: "openAgentRecord"; selection: AgentDetailSelection; recordId: string }
   | { type: "recordsVisibilityChanged"; visibility: WorkspaceSelectionVisibility }
@@ -119,11 +119,14 @@ export const reduceWorkspaceSelection = (
         ...state,
         activeRecordId: action.selection.recordId,
         selectedPath: action.selection,
-        scrollIntent: issueScrollIntent({
-          kind: "path",
-          recordId: action.selection.recordId,
-          pathText: action.selection.pathText,
-        }),
+        scrollIntent:
+          action.scroll === false
+            ? null
+            : issueScrollIntent({
+                kind: "path",
+                recordId: action.selection.recordId,
+                pathText: action.selection.pathText,
+              }),
       };
 
     case "selectRecord":
@@ -131,7 +134,10 @@ export const reduceWorkspaceSelection = (
         ...state,
         activeRecordId: action.recordId,
         detailSelection: { kind: "record", recordId: action.recordId },
-        scrollIntent: issueScrollIntent({ kind: "record", recordId: action.recordId }),
+        scrollIntent:
+          action.scroll === false
+            ? null
+            : issueScrollIntent({ kind: "record", recordId: action.recordId }),
       };
 
     case "selectAgentDetail":

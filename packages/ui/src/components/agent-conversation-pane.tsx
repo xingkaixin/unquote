@@ -64,17 +64,20 @@ const ToolCard = ({
   status,
   expanded,
   selectLabel,
-  onSelect,
+  onToggle,
 }: {
   block: Extract<AgentContentBlock, { type: "tool_use" | "tool_result" }>;
   title: string;
   status: AgentToolStatus;
   expanded: boolean;
   selectLabel: string;
-  onSelect: () => void;
+  onToggle: () => void;
 }) => {
   const { t } = useTranslation();
-  const fields = expanded ? parseToolFields(block.text) : null;
+  const fields = useMemo(
+    () => (expanded ? parseToolFields(block.text) : null),
+    [block.text, expanded],
+  );
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface-100">
@@ -84,7 +87,7 @@ const ToolCard = ({
         aria-label={selectLabel}
         aria-pressed={expanded}
         className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-        onClick={onSelect}
+        onClick={onToggle}
       >
         <span className="shrink-0 font-mono text-[12px] text-accent">{expanded ? "▾" : "▸"}</span>
         <span className="shrink-0 whitespace-nowrap font-mono text-[12.5px] font-medium text-text-primary">
@@ -128,12 +131,14 @@ const ConversationTurn = ({
   entry,
   model,
   selected,
+  expanded,
   onSelect,
   onOpenRecord,
 }: {
   entry: AgentConversationEntry;
   model: AgentSessionModel;
   selected: boolean;
+  expanded: boolean;
   onSelect: (itemId: string) => void;
   onOpenRecord: (recordId: string) => void;
 }) => {
@@ -145,17 +150,38 @@ const ConversationTurn = ({
   const block = item.block;
   const selectLabel = `${t("agent.conversation")}: ${config.label}`;
   const toolName = model.resolveToolName(item);
+  const isToolBlock = block?.type === "tool_use" || block?.type === "tool_result";
 
   return (
     <article className="flex flex-col gap-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Icon className="size-3.5 shrink-0 text-text-tertiary" />
-        <span className="shrink-0 text-[12.5px] font-semibold text-text-primary">
-          {config.label}
-        </span>
-        <span className="min-w-0 truncate font-mono text-[10.5px] text-text-tertiary">
-          {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
-        </span>
+        {isToolBlock ? (
+          <>
+            <Icon className="size-3.5 shrink-0 text-text-tertiary" />
+            <span className="shrink-0 text-[12.5px] font-semibold text-text-primary">
+              {config.label}
+            </span>
+            <span className="min-w-0 truncate font-mono text-[10.5px] text-text-tertiary">
+              {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
+            </span>
+          </>
+        ) : (
+          <button
+            type="button"
+            aria-label={selectLabel}
+            aria-pressed={selected}
+            className="flex min-w-0 items-center gap-2 rounded-xs text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onClick={() => onSelect(item.id)}
+          >
+            <Icon className="size-3.5 shrink-0 text-text-tertiary" />
+            <span className="shrink-0 text-[12.5px] font-semibold text-text-primary">
+              {config.label}
+            </span>
+            <span className="min-w-0 truncate font-mono text-[10.5px] text-text-tertiary">
+              {formatEventMeta(event.lineNumber, time, event.turnIndex, t)}
+            </span>
+          </button>
+        )}
         <span className="flex-1" />
         <Button
           variant="ghost"
@@ -167,7 +193,7 @@ const ConversationTurn = ({
           <FileCodeIcon className="size-3.5" />
         </Button>
       </div>
-      {block?.type === "tool_use" || block?.type === "tool_result" ? (
+      {isToolBlock ? (
         <ToolCard
           block={block}
           title={
@@ -178,21 +204,23 @@ const ConversationTurn = ({
                 : config.label
           }
           status={model.resolveToolStatus(item)}
-          expanded={selected}
+          expanded={expanded}
           selectLabel={selectLabel}
-          onSelect={() => onSelect(item.id)}
+          onToggle={() => onSelect(item.id)}
         />
       ) : (
-        <button
-          type="button"
-          aria-label={selectLabel}
-          className={`w-full border-l-2 py-0.5 pl-4 text-left text-[15px] leading-[26px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent ${
+        <div
+          className={`w-full select-text whitespace-pre-wrap break-words border-l-2 py-0.5 pl-4 text-left text-[15px] leading-[26px] ${
             selected ? "border-l-accent text-text-primary" : "border-l-border text-text-secondary"
           }`}
-          onClick={() => onSelect(item.id)}
+          onClick={() => {
+            if (!window.getSelection?.()?.toString()) {
+              onSelect(item.id);
+            }
+          }}
         >
           {block?.text ?? ""}
-        </button>
+        </div>
       )}
     </article>
   );
@@ -248,6 +276,16 @@ export const AgentConversationPane = ({
   onExportTurns,
 }: AgentConversationPaneProps) => {
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState<{
+    id: string;
+    selection: AgentDetailSelection | null;
+  } | null>(null);
+  if (
+    collapsed &&
+    (collapsed.id !== selectedConversationId || collapsed.selection !== detailSelection)
+  ) {
+    setCollapsed(null);
+  }
   const turnBarOpen = selectedTurns.size > 0;
   // The bar stays mounted to fade out, so it keeps the last non-zero count
   // instead of showing "0 turns selected" while it leaves.
@@ -307,6 +345,8 @@ export const AgentConversationPane = ({
   }, [detailSelection, selectedConversationId]);
 
   const renderTurn = (entry: AgentConversationEntry) => {
+    const selected = entry.item.id === selectedConversationId;
+    const expanded = selected && !collapsed;
     const turn = turnStartById.get(entry.item.id);
     return (
       <>
@@ -316,8 +356,17 @@ export const AgentConversationPane = ({
         <ConversationTurn
           entry={entry}
           model={model}
-          selected={selectedConversationId === entry.item.id}
-          onSelect={onSelectItem}
+          selected={selected}
+          expanded={expanded}
+          onSelect={(id) => {
+            const block = entry.item.block;
+            if (expanded && (block?.type === "tool_use" || block?.type === "tool_result")) {
+              setCollapsed({ id, selection: detailSelection });
+            } else {
+              setCollapsed(null);
+              onSelectItem(id);
+            }
+          }}
           onOpenRecord={onOpenRecord}
         />
       </>
@@ -355,11 +404,7 @@ export const AgentConversationPane = ({
                     aria-current={selectedConversationId === entry.item.id ? "true" : undefined}
                     aria-setsize={entries.length}
                     aria-posinset={virtualItem.index + 1}
-                    ref={(node) => {
-                      if (node) {
-                        conversationVirtualizer.measureElement(node);
-                      }
-                    }}
+                    ref={conversationVirtualizer.measureElement}
                     data-index={virtualItem.index}
                     className="absolute left-0 top-0 w-full"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}

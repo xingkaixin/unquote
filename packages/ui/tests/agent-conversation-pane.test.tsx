@@ -424,4 +424,73 @@ describe("AgentConversationPane", () => {
     // the default measureElement reads offsetHeight once per mounted row's ref callback
     expect(offsetHeightSpy.mock.calls.length).toBeGreaterThanOrEqual(rowCount);
   });
+
+  it("renders non-tool text in a selectable pre-wrap container and keeps body clicks selectable", () => {
+    const multiline = "Line one\n  indented line two";
+    const entries = [buildEntry(0, { type: "text", text: multiline })];
+    const { onSelectItem } = renderPane(entries);
+
+    const body = screen.getByText(multiline, { normalizer: (text) => text });
+    expect(body.closest("button")).toBeNull();
+    expect(body).toHaveClass("whitespace-pre-wrap", "break-words", "select-text");
+
+    fireEvent.click(body);
+    expect(onSelectItem).toHaveBeenCalledWith("item-0");
+
+    vi.mocked(onSelectItem).mockClear();
+    const selection = window.getSelection();
+    selection?.selectAllChildren(body);
+    fireEvent.click(body);
+    expect(onSelectItem).not.toHaveBeenCalled();
+    selection?.removeAllRanges();
+  });
+
+  it("toggles an already-expanded tool card collapsed and re-expands on next click or selection", () => {
+    const entries = [
+      buildEntry(1, {
+        type: "tool_use",
+        text: '{"cmd":"ls -la"}',
+      }),
+    ];
+    const initialSelection: AgentDetailSelection = {
+      kind: "conversation",
+      id: "item-1",
+      recordId: "record-1",
+    };
+    const { onSelectItem, rerenderWith } = renderPane(entries, {
+      selectedConversationId: "item-1",
+      detailSelection: initialSelection,
+    });
+
+    const toggle = screen.getByRole("button", { name: /^Conversation:/ });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("cmd")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("cmd")).not.toBeInTheDocument();
+    expect(onSelectItem).not.toHaveBeenCalled();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("cmd")).toBeInTheDocument();
+    expect(onSelectItem).toHaveBeenCalledWith("item-1");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    rerenderWith({
+      entries: [],
+      selectedConversationId: "item-1",
+      detailSelection: initialSelection,
+    });
+    rerenderWith({ entries, selectedConversationId: "item-1", detailSelection: initialSelection });
+    const remounted = screen.getByRole("button", { name: /^Conversation:/ });
+    expect(remounted).toHaveAttribute("aria-pressed", "false");
+    rerenderWith({
+      selectedConversationId: "item-1",
+      detailSelection: { kind: "event", id: "event-1", recordId: "record-1" },
+    });
+    expect(remounted).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("cmd")).toBeInTheDocument();
+  });
 });

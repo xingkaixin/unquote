@@ -1,3 +1,4 @@
+import { formatJsonValueLabel, maxStringValueLabelLength } from "./json-walk";
 import { isArrayElementPath } from "./path-codec";
 import type { TreeRow } from "./tree";
 
@@ -33,7 +34,10 @@ const getEmptyContainer = (row: TreeRow) => (row.kind === "array" ? "[]" : "{}")
 export const getCollapsedValue = (row: TreeRow) => {
   const rawString = row.node.rawString;
   if (typeof rawString === "string") {
-    return JSON.stringify(rawString);
+    return formatJsonValueLabel(
+      { kind: "string", value: rawString, childCount: 0 },
+      maxStringValueLabelLength,
+    );
   }
 
   return row.valueLabel;

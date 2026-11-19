@@ -61,4 +61,17 @@ describe("RecordFilterBar", () => {
     expect(screen.getByRole("button", { name: "Top-level nested" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nested" })).not.toBeInTheDocument();
   });
+
+  it.each<{ mode: RecordFilterMode; label: string }>([
+    { mode: "errors", label: "Errors" },
+    { mode: "matches", label: "Matches" },
+  ])("shows an active removable chip when $mode filter is active", async ({ mode, label }) => {
+    const user = userEvent.setup();
+    const { props } = renderBar({ mode });
+
+    const chip = screen.getByRole("button", { name: label });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    await user.click(chip);
+    expect(props.onChange).toHaveBeenCalledWith("all");
+  });
 });

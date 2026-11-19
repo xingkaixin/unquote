@@ -242,6 +242,10 @@ export const useRecordWorkspace = ({
     },
     [query.intent.revealAllRecords, recordsById, workspace.openAgentRecord],
   );
+  const selectRailRecord = useCallback(
+    (record: ParseResult["records"][number]) => workspace.selectRecord(record, { scroll: false }),
+    [workspace.selectRecord],
+  );
   const model = useMemo<RecordWorkspaceModel>(
     () => ({
       filter: {
@@ -272,7 +276,7 @@ export const useRecordWorkspace = ({
       scrollIntent: projectedSelection.scrollIntent,
       intent: {
         setFilter: query.intent.setFilter,
-        selectRecord: workspace.selectRecord,
+        selectRecord: selectRailRecord,
         recordView,
         expandAll,
         collapseAll,
@@ -299,11 +303,11 @@ export const useRecordWorkspace = ({
       renderedActiveRecord,
       result.stats.total,
       selectedNode,
+      selectRailRecord,
       turnIndexByRecordId,
       visibleMatchesByRecord,
       visibleRecords,
       visibleStats.total,
-      workspace.selectRecord,
     ],
   );
 

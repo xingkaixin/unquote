@@ -1,3 +1,4 @@
+import { parseTreePath } from "./path-codec";
 import type { RecordFilterMode } from "./record-filter";
 import type { SearchSyntax } from "./record-search";
 
@@ -21,8 +22,30 @@ export interface QueryInteractionState {
   commandInput: string;
 }
 
-export const isPathLikeQuery = (value: string) =>
-  /^\s*[$.[\]]/.test(value) || value.trimStart().startsWith(".");
+export const isPathLikeQuery = (value: string, searchSyntax: SearchSyntax = "text") => {
+  if (searchSyntax !== "text") {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (trimmed === "$" || trimmed.startsWith("$.") || trimmed.startsWith("$[")) {
+    return true;
+  }
+
+  if (trimmed.startsWith(".")) {
+    return parseTreePath(trimmed) !== null;
+  }
+
+  if (trimmed.startsWith("[")) {
+    return parseTreePath(`$${trimmed}`) !== null;
+  }
+
+  return false;
+};
 
 export const createInitialQueryInteractionState = (): QueryInteractionState => ({
   modeState: { mode: "idle" },
@@ -60,7 +83,7 @@ export const reduceQueryInteraction = (
     case "toolbarQueryChange": {
       return {
         ...state,
-        modeState: createModeState(action.value),
+        modeState: createModeState(action.value, state.searchSyntax),
       };
     }
 
@@ -68,7 +91,7 @@ export const reduceQueryInteraction = (
       const modeState =
         state.modeState.mode === "search" && state.modeState.query === action.value
           ? state.modeState
-          : createModeState(action.value);
+          : createModeState(action.value, state.searchSyntax);
       return {
         ...state,
         modeState: modeState.mode === "path" ? { ...modeState, submitted: true } : modeState,
@@ -91,15 +114,22 @@ export const reduceQueryInteraction = (
     }
 
     case "setSearchOption": {
-      const modeState = resetSearchMatchIndex(state.modeState);
       if (action.kind === "caseSensitive") {
-        return { ...state, modeState, searchCaseSensitive: action.on };
+        return {
+          ...state,
+          modeState: resetSearchMatchIndex(state.modeState),
+          searchCaseSensitive: action.on,
+        };
       }
       const searchSyntax = action.on
         ? action.kind
         : state.searchSyntax === action.kind
           ? "text"
           : state.searchSyntax;
+      const modeState =
+        searchSyntax !== "text" && state.modeState.mode === "path"
+          ? createSearchModeState(state.modeState.query)
+          : resetSearchMatchIndex(state.modeState);
       return { ...state, modeState, searchSyntax };
     }
 
@@ -188,12 +218,12 @@ export const queryForModeState = (modeState: QueryModeState) =>
 const createSearchModeState = (query: string): QueryModeState =>
   query.trim() ? { mode: "search", query, currentMatchIndex: 0 } : { mode: "idle" };
 
-const createModeState = (query: string): QueryModeState => {
+const createModeState = (query: string, searchSyntax: SearchSyntax): QueryModeState => {
   if (!query.trim()) {
     return { mode: "idle" };
   }
 
-  return isPathLikeQuery(query)
+  return isPathLikeQuery(query, searchSyntax)
     ? { mode: "path", query, submitted: false, currentIndex: 0 }
     : createSearchModeState(query);
 };

@@ -58,6 +58,8 @@ export const JsonTree = memo(function JsonTree({
     [displayRows],
   );
   const [activeRowId, setActiveRowId] = useState<string | undefined>();
+  const lastActivatedScrollIntentRef = useRef<ScrollIntent | null>(null);
+  const lastSyncedSelectedRowIdRef = useRef<string | null>(null);
   // Keyboard navigation resolves a row id to its position on every keypress.
   // Building the lookups once per row-set change keeps that O(1): the row set
   // only changes on expand/collapse or a new search, far less often than keys.
@@ -142,6 +144,11 @@ export const JsonTree = memo(function JsonTree({
       case "ArrowRight":
         if (activeRow.showToggle && !activeRow.source.expanded) {
           toggleRow(activeRow);
+        } else if (activeRow.kind === "open") {
+          const firstChild = interactiveRows[currentIndex + 1];
+          if (firstChild && firstChild.depth > activeRow.depth) {
+            nextIndex = currentIndex + 1;
+          }
         }
         break;
       case "ArrowLeft":
@@ -177,6 +184,18 @@ export const JsonTree = memo(function JsonTree({
   };
 
   useEffect(() => {
+    const rowId = selectedPath ? `${record.id}:${selectedPath}` : null;
+    if (!rowId) {
+      lastSyncedSelectedRowIdRef.current = null;
+      return;
+    }
+    if (rowId !== lastSyncedSelectedRowIdRef.current && interactiveIndexById.has(rowId)) {
+      lastSyncedSelectedRowIdRef.current = rowId;
+      setActiveRowId(rowId);
+    }
+  }, [interactiveIndexById, record.id, selectedPath]);
+
+  useEffect(() => {
     if (!targetsPathInRecord(scrollIntent, record.id)) {
       return;
     }
@@ -186,11 +205,17 @@ export const JsonTree = memo(function JsonTree({
       return;
     }
 
+    const targetRowId = displayRows[index]!.id;
+    if (lastActivatedScrollIntentRef.current !== scrollIntent) {
+      lastActivatedScrollIntentRef.current = scrollIntent;
+      setActiveRowId(targetRowId);
+    }
+
     const frame = requestAnimationFrame(() => {
       if (shouldVirtualize) {
         rowVirtualizer.scrollToIndex(index, { align: "center" });
       } else {
-        const element = document.getElementById(displayRows[index]!.id);
+        const element = document.getElementById(targetRowId);
         element?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
       }
     });
@@ -304,11 +329,7 @@ export const JsonTree = memo(function JsonTree({
                 collectionSize={interactiveRows.length}
                 positionInSet={(interactiveIndexById.get(row.id) ?? -1) + 1}
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
-                measureRef={(node) => {
-                  if (node) {
-                    rowVirtualizer.measureElement(node);
-                  }
-                }}
+                measureRef={rowVirtualizer.measureElement}
                 searchMatch={searchMatch}
                 isActiveMatch={isActive}
                 isSelected={isSelected}

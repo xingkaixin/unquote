@@ -1,10 +1,14 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ParseResult } from "@unquote/core";
 import { AppHeader } from "./components/app-header";
 import { deferredComponent } from "./components/deferred-component";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
 import { Toaster } from "./components/sonner";
-import { SourceImportPanel } from "./components/source-import-panel";
+import {
+  getTransferFile,
+  isPotentialFileDrag,
+  SourceImportPanel,
+} from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
 import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
@@ -123,10 +127,12 @@ export const UnquoteApp = ({
     toolbarQuery,
     commandInput,
     pathError,
+    pathErrorReason,
     pathMatchCount,
     currentPathMatchIndex,
     currentMatchIndex,
     mode: queryMode,
+    searchRegexInvalid,
     searchStatus,
     searchErrorKind,
     fileOverview,
@@ -187,6 +193,53 @@ export const UnquoteApp = ({
     setActiveOverlay(null);
   };
 
+  const handleToolbarQueryChange = useCallback(
+    (value: string) => {
+      queryIntent.changeToolbarQuery(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleToolbarQuerySubmit = useCallback(
+    (value: string) => {
+      queryIntent.submitToolbarQuery(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handlePreviousResult = useCallback(() => {
+    queryIntent.previousResult();
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
+  const handleNextResult = useCallback(() => {
+    queryIntent.nextResult();
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
+  const handleCommandSearch = useCallback(
+    (value: string) => {
+      queryIntent.searchFromCommand(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleCommandFilterChange = useCallback(
+    (filter: typeof recordFilter) => {
+      queryIntent.setFilter(filter);
+      setOutputView("json");
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleSelectFailed = useCallback(() => {
+    queryIntent.setFilter("errors");
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
+
   const handleOpenRecord = useCallback(
     (recordId: string) => {
       if (recordWorkspace.agent.openRecord(recordId)) {
@@ -206,6 +259,47 @@ export const UnquoteApp = ({
     [recordWorkspace.agent.openEndpoint, setOutputView],
   );
 
+  useEffect(() => {
+    if (!hasData) {
+      return;
+    }
+
+    const handleWindowDragOver = (event: globalThis.DragEvent) => {
+      if (
+        event.defaultPrevented ||
+        !event.dataTransfer ||
+        !isPotentialFileDrag(event.dataTransfer)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleWindowDrop = (event: globalThis.DragEvent) => {
+      if (
+        event.defaultPrevented ||
+        !event.dataTransfer ||
+        !isPotentialFileDrag(event.dataTransfer)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const file = getTransferFile(event.dataTransfer);
+      if (file) {
+        void handleFileDrop(file, "auto");
+        setActiveOverlay(null);
+      }
+    };
+
+    window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("drop", handleWindowDrop);
+    return () => {
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("drop", handleWindowDrop);
+    };
+  }, [handleFileDrop, hasData]);
+
   // Global shortcut command table. Shortcuts are read via a ref inside the
   // hook (listener mounts once), so this array can be a fresh literal every
   // render without churn.
@@ -214,7 +308,7 @@ export const UnquoteApp = ({
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
       allowInTextEditing: true,
       handler: () => {
-        if (activeOverlay === "import") {
+        if (!hasData || activeOverlay === "import") {
           return false;
         }
 
@@ -226,6 +320,10 @@ export const UnquoteApp = ({
       allowInTextEditing: true,
       // Escape never preventDefault()s: it has no browser default to suppress here.
       handler: () => {
+        if (activeOverlay === "import" && !hasData) {
+          return false;
+        }
+
         setActiveOverlay(null);
         return false;
       },
@@ -233,7 +331,11 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.model.active.selectedPath || activeOverlay !== null) {
+        if (
+          outputView !== "json" ||
+          !recordWorkspace.model.active.selectedPath ||
+          activeOverlay !== null
+        ) {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -292,6 +394,13 @@ export const UnquoteApp = ({
     ],
   );
   const toolbarInPathMode = queryMode === "path";
+  const searchFieldError = searchRegexInvalid
+    ? t("search.invalidRegex")
+    : toolbarInPathMode && pathErrorReason === "invalid"
+      ? pathError
+      : searchStatus === "error"
+        ? t("search.failed")
+        : null;
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
       initialDraft={sourceImport.draft}
@@ -380,11 +489,16 @@ export const UnquoteApp = ({
             matchCount: toolbarInPathMode ? pathMatchCount : matchCount,
             currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
             disabled: !hasData,
-            onQueryChange: queryIntent.changeToolbarQuery,
-            onSubmitQuery: queryIntent.submitToolbarQuery,
+            searchStatus,
+            errorLabel: searchFieldError,
+            regex: searchRegex,
+            jq: searchJq,
+            caseSensitive: searchCaseSensitive,
+            onQueryChange: handleToolbarQueryChange,
+            onSubmitQuery: handleToolbarQuerySubmit,
             onClearQuery: queryIntent.clearToolbarQuery,
-            onPrevMatch: queryIntent.previousResult,
-            onNextMatch: queryIntent.nextResult,
+            onPrevMatch: handlePreviousResult,
+            onNextMatch: handleNextResult,
           }}
           onOpenCommandPalette={handleOpenCommandPalette}
           theme={theme}
@@ -408,7 +522,7 @@ export const UnquoteApp = ({
         <StatusBar
           summary={hasData ? toolbarSummary : t("status.empty")}
           failedCount={result.stats.failed}
-          onSelectFailed={() => queryIntent.setFilter("errors")}
+          onSelectFailed={handleSelectFailed}
           maxDepth={fileOverview.structurePrecision === "exact" ? fileOverview.maxDepth : null}
           expandedNestedCount={recordWorkspace.model.active.expandedNestedCount}
           sourceStatus={sourceFileStatus}
@@ -423,7 +537,15 @@ export const UnquoteApp = ({
         {activeOverlay ? (
           <DeferredLoadBoundary resetKey={activeOverlay}>
             {activeOverlay === "import" ? (
-              <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
+              <ImportDialog
+                open
+                dismissible={hasData}
+                onClose={() => {
+                  if (hasData) {
+                    setActiveOverlay(null);
+                  }
+                }}
+              >
                 {importPanel("h-[220px]")}
               </ImportDialog>
             ) : null}
@@ -470,12 +592,12 @@ export const UnquoteApp = ({
                 nestedFilterScope={recordWorkspace.model.filter.nestedScope}
                 onClose={() => setActiveOverlay(null)}
                 onInputChange={queryIntent.changeCommandInput}
-                onSearch={queryIntent.searchFromCommand}
-                onJumpPath={queryIntent.submitToolbarQuery}
+                onSearch={handleCommandSearch}
+                onJumpPath={handleToolbarQuerySubmit}
                 onRegexChange={(value) => queryIntent.setOption("regex", value)}
                 onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
                 onJqChange={(value) => queryIntent.setOption("jq", value)}
-                onFilterChange={queryIntent.setFilter}
+                onFilterChange={handleCommandFilterChange}
               />
             ) : null}
           </DeferredLoadBoundary>
