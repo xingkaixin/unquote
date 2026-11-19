@@ -17,9 +17,13 @@ const createBuild = (webHtml: string) => {
     "dist/web/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
     "dist/web/zh-CN/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
     "dist/web/ja/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
+    "dist/web/jsonl-viewer/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
+    "dist/web/json-unescape/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
+    "dist/web/agent-log-viewer/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
     "dist/web/assets/index.js": "export {};",
     "dist/web/assets/index.css": "body {}",
     "dist/web/assets/changelog.css": "body {}",
+    "dist/web/assets/guide.css": "body {}",
     "dist/extension/options.html":
       '<script src="./chunks/options.js"></script><link rel="stylesheet" href="./assets/options.css">',
     "dist/extension/chunks/options.js": "export {};",
@@ -74,6 +78,7 @@ describe("UI bundle budget", () => {
   it("budgets a static page stylesheet independently from the app", () => {
     const root = createBuild('<script src="/assets/index.js"></script>');
     writeFileSync(join(root, "dist/web/assets/changelog.css"), "a".repeat(10_001));
+    writeFileSync(join(root, "dist/web/assets/guide.css"), "b".repeat(10_002));
 
     const result = runBudgetCheck(root);
 
@@ -81,6 +86,9 @@ describe("UI bundle budget", () => {
     expect(result.stderr).toContain("web changelog en CSS 10001 bytes");
     expect(result.stderr).toContain("web changelog zh-CN CSS 10001 bytes");
     expect(result.stderr).toContain("web changelog ja CSS 10001 bytes");
+    expect(result.stderr).toContain("web guide jsonl-viewer CSS 10002 bytes");
+    expect(result.stderr).toContain("web guide json-unescape CSS 10002 bytes");
+    expect(result.stderr).toContain("web guide agent-log-viewer CSS 10002 bytes");
     expect(result.stderr).toContain("exceeds 10000 bytes");
     expect(result.stderr).not.toContain("web initial CSS 10001 bytes");
   });

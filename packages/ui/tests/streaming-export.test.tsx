@@ -320,11 +320,11 @@ describe("streaming export", () => {
     const pending = toastMocks.promise.mock.calls.at(-1)?.[0];
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
     pending?.catch((error: unknown) => (settled = error));
+    await vi.waitFor(() => expect(controlledResolve).toHaveBeenCalled());
     rerender({ sourceRevision: 1 });
     await act(async () => {
       settleResolution([resolvedRecord]);
-      await Promise.resolve();
-      await Promise.resolve();
+      await pending?.catch(() => undefined);
     });
 
     expect(serialized).toBe(false);

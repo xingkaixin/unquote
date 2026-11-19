@@ -2,24 +2,17 @@ import { toast } from "sonner";
 import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "../i18n/context";
+import { copyBytesLimit } from "../lib/copy-limits";
 import { reportDiagnostic } from "../lib/diagnostics";
 import { SourceReadLimitError } from "../lib/local-file-reader";
 import type { LocalFileAccess } from "../lib/local-file-source";
-import {
-  addRecordsToBuilder,
-  createExportFilename,
-  createJsonPartsBuilder,
-  createJsonlPartsBuilder,
-  downloadBlob,
-  exportChunkSize,
-  ExportSizeLimitError,
-  copyBytesLimit,
-  formatResolvedRecordsForCopy,
-  yieldToMain,
-} from "../lib/record-export";
 import type { ExportPartsBuilder } from "../lib/record-export";
 import type { SourceRevision } from "../lib/source-revision";
 import { useCopyToClipboard } from "./use-copy-to-clipboard";
+
+type RecordExportModule = typeof import("../lib/record-export");
+
+const loadRecordExport = () => import("../lib/record-export");
 
 // Multi-record reads fit the UTF-16 main-thread parser budget; single records keep the copy limit.
 const copyBatchReadBytesLimit = 256 * 1024;
@@ -70,12 +63,12 @@ export const useExportActions = ({
    * the output still follows `visibleRecords`.
    */
   const buildExportParts = useCallback(
-    async (builder: ExportPartsBuilder, signal: AbortSignal) => {
+    async (builder: ExportPartsBuilder, recordExport: RecordExportModule, signal: AbortSignal) => {
       signal.throwIfAborted();
       if (!sourceAccess) {
         const records = await resolveRecords(visibleRecords, signal);
         signal.throwIfAborted();
-        return addRecordsToBuilder(builder, records, signal);
+        return recordExport.addRecordsToBuilder(builder, records, signal);
       }
 
       let exportedCount = 0;
@@ -92,8 +85,8 @@ export const useExportActions = ({
 
           builder.addBody(builder.bodyFor(record));
           exportedCount += 1;
-          if (exportedCount % exportChunkSize === 0) {
-            await yieldToMain();
+          if (exportedCount % recordExport.exportChunkSize === 0) {
+            await recordExport.yieldToMain();
             signal.throwIfAborted();
           }
         },
@@ -110,12 +103,20 @@ export const useExportActions = ({
   );
 
   const exportWithBuilder = useCallback(
-    (builder: ExportPartsBuilder, extension: "json" | "jsonl", type: string) => {
+    (
+      createBuilder: (recordExport: RecordExportModule) => ExportPartsBuilder,
+      extension: "json" | "jsonl",
+      type: string,
+    ) => {
       const { signal } = exportScopeRef.current;
+      let loadedRecordExport: RecordExportModule | undefined;
       const operation = (async () => {
-        const parts = await buildExportParts(builder, signal);
+        const recordExport = await loadRecordExport();
+        loadedRecordExport = recordExport;
         signal.throwIfAborted();
-        downloadBlob(parts, createExportFilename(extension), type);
+        const parts = await buildExportParts(createBuilder(recordExport), recordExport, signal);
+        signal.throwIfAborted();
+        recordExport.downloadBlob(parts, recordExport.createExportFilename(extension), type);
       })();
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
       void operation.catch((error: unknown) => {
@@ -123,7 +124,7 @@ export const useExportActions = ({
           reportDiagnostic("export.build", error);
           toast.error(
             t(
-              error instanceof ExportSizeLimitError
+              loadedRecordExport && error instanceof loadedRecordExport.ExportSizeLimitError
                 ? "toolbar.exportTooLarge"
                 : "toolbar.exportFailed",
             ),
@@ -142,6 +143,8 @@ export const useExportActions = ({
     (records: JsonlRecord[], outputFormat: "json" | "jsonl" | "array") =>
       copyText(async (signal) => {
         try {
+          const { formatResolvedRecordsForCopy } = await loadRecordExport();
+          signal.throwIfAborted();
           const text = await formatResolvedRecordsForCopy(
             records,
             outputFormat,
@@ -180,6 +183,7 @@ export const useExportActions = ({
     }
     return copyRecords(visibleRecords, "jsonl");
   }, [copyRecords, isCopyBlocked, t, visibleRecords]);
+
   const onCopyFormattedJson = useCallback(() => {
     if (isCopyBlocked) {
       toast.warning(t("toolbar.copyBlocked"));
@@ -189,11 +193,19 @@ export const useExportActions = ({
   }, [copyRecords, format, isCopyBlocked, t, visibleRecords]);
 
   const onExportJsonl = useCallback(() => {
-    exportWithBuilder(createJsonlPartsBuilder(), "jsonl", "application/jsonl;charset=utf-8");
+    exportWithBuilder(
+      (recordExport) => recordExport.createJsonlPartsBuilder(),
+      "jsonl",
+      "application/jsonl;charset=utf-8",
+    );
   }, [exportWithBuilder]);
 
   const onExportFormattedJson = useCallback(() => {
-    exportWithBuilder(createJsonPartsBuilder(format), "json", "application/json;charset=utf-8");
+    exportWithBuilder(
+      (recordExport) => recordExport.createJsonPartsBuilder(format),
+      "json",
+      "application/json;charset=utf-8",
+    );
   }, [exportWithBuilder, format]);
 
   const onCopyRecord = useCallback(

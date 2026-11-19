@@ -212,8 +212,8 @@ export const CommandPalette = ({
                 render={
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="uq-icon-button h-7 w-7 px-0"
+                    size="icon"
+                    className="uq-icon-button"
                     aria-label={t("command.close")}
                   >
                     <XIcon className="size-3.5" />
@@ -230,8 +230,8 @@ export const CommandPalette = ({
               <Button
                 variant={jq ? "secondary" : "ghost"}
                 aria-pressed={jq}
-                size="sm"
-                className="h-7 gap-1.5"
+                size={null}
+                className="h-7 gap-1.5 px-2"
                 onClick={() => onJqChange(!jq)}
               >
                 <BracketsCurlyIcon className="size-3.5" />
@@ -240,8 +240,8 @@ export const CommandPalette = ({
               <Button
                 variant={regex ? "secondary" : "ghost"}
                 aria-pressed={regex}
-                size="sm"
-                className="h-7 gap-1.5"
+                size={null}
+                className="h-7 gap-1.5 px-2"
                 onClick={() => onRegexChange(!regex)}
               >
                 <AsteriskIcon className="size-3.5" />
@@ -250,14 +250,14 @@ export const CommandPalette = ({
               <Button
                 variant={caseSensitive ? "secondary" : "ghost"}
                 aria-pressed={caseSensitive}
-                size="sm"
-                className="h-7 gap-1.5"
+                size={null}
+                className="h-7 gap-1.5 px-2"
                 onClick={() => onCaseSensitiveChange(!caseSensitive)}
               >
                 <TextAaIcon className="size-3.5" />
                 {t("search.caseSensitive")}
               </Button>
-              <Button variant="secondary" size="sm" className="ml-auto h-7" onClick={runPrimary}>
+              <Button variant="secondary" size="sm" className="ml-auto" onClick={runPrimary}>
                 {t(pathMode ? "path.jump" : "command.search")}
               </Button>
             </div>

@@ -138,8 +138,8 @@ export const NodeInspector = memo(function NodeInspector({
           <div className="flex gap-2">
             <Button
               variant="outline"
-              size="sm"
-              className="h-[30px] flex-1 rounded-md"
+              size={null}
+              className="h-[30px] flex-1 gap-2 px-2"
               disabled={projection.copy.kind === "blocked"}
               onClick={onCopyValue}
             >
@@ -147,8 +147,8 @@ export const NodeInspector = memo(function NodeInspector({
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="h-[30px] flex-1 rounded-md"
+              size={null}
+              className="h-[30px] flex-1 gap-2 px-2"
               onClick={onCopyPath}
             >
               {t("inspector.copyPath")}
@@ -164,12 +164,7 @@ export const NodeInspector = memo(function NodeInspector({
           <span className="text-[11.5px] leading-[17px] text-text-secondary">
             {t("inspector.nestedBody")}
           </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-6 rounded-sm px-2.5"
-            onClick={onExpandNested}
-          >
+          <Button variant="secondary" size="xs" radius="sm" onClick={onExpandNested}>
             {t("inspector.expandNested")}
           </Button>
         </div>

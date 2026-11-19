@@ -82,8 +82,9 @@ export const SearchField = ({
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          className="uq-icon-button h-6 w-6 rounded-xs px-0"
+          size="icon-xs"
+          radius="xs"
+          className="uq-icon-button"
           onClick={onPrevMatch}
           disabled={!hasMatches}
           aria-label={t("search.prev")}
@@ -93,8 +94,9 @@ export const SearchField = ({
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          className="uq-icon-button h-6 w-6 rounded-xs px-0"
+          size="icon-xs"
+          radius="xs"
+          className="uq-icon-button"
           onClick={onNextMatch}
           disabled={!hasMatches}
           aria-label={t("search.next")}

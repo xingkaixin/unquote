@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { writeClipboardText } from "../lib/clipboard";
 import { reportDiagnostic } from "../lib/diagnostics";
-import { isCopyTextAboveThreshold } from "../lib/record-export";
+import { isCopyTextAboveThreshold } from "../lib/copy-limits";
 import type { SourceRevision } from "../lib/source-revision";
 
 // Returning null means the caller already handled its own failure, so no

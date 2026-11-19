@@ -82,23 +82,14 @@ export const AppHeader = ({
             onOutputViewChange(value);
           }}
         >
-          <TabsList className="h-7 whitespace-nowrap border-border-medium p-0">
-            <TabsTrigger value="agent" data-output-tab="agent" className="h-full px-2 sm:px-4">
+          <TabsList>
+            <TabsTrigger value="agent" data-output-tab="agent">
               {t("app.tab.agent")}
             </TabsTrigger>
-            <TabsTrigger
-              value="trajectory"
-              data-output-tab="trajectory"
-              className="h-full px-2 sm:px-4"
-            >
+            <TabsTrigger value="trajectory" data-output-tab="trajectory">
               {t("app.tab.trajectory")}
             </TabsTrigger>
-            <TabsTrigger
-              value="json"
-              data-output-tab="json"
-              translate="no"
-              className="h-full px-2 sm:px-4"
-            >
+            <TabsTrigger value="json" data-output-tab="json" translate="no">
               {jsonTabLabel}
             </TabsTrigger>
           </TabsList>
@@ -140,31 +131,33 @@ export const AppHeader = ({
             {t("source.change")}
           </span>
         </button>
-        <Button
-          className="hidden shrink-0 whitespace-nowrap sm:flex"
-          variant="outline"
-          size="sm"
-          disabled={tableDisabled}
-          onClick={onOpenTable}
-        >
-          {t("table.title")}
-        </Button>
-        {onOpenDiff ? (
+        <div className="hidden items-center gap-2 sm:flex">
           <Button
-            className="hidden shrink-0 whitespace-nowrap sm:flex"
+            className="shrink-0 whitespace-nowrap"
             variant="outline"
             size="sm"
-            onClick={onOpenDiff}
+            disabled={tableDisabled}
+            onClick={onOpenTable}
           >
-            {t("diff.title")}
+            {t("table.title")}
           </Button>
-        ) : null}
+          {onOpenDiff ? (
+            <Button
+              className="shrink-0 whitespace-nowrap"
+              variant="outline"
+              size="sm"
+              onClick={onOpenDiff}
+            >
+              {t("diff.title")}
+            </Button>
+          ) : null}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
-                size="sm"
-                className="uq-icon-button size-7 shrink-0 px-0 sm:hidden"
+                size="icon"
+                className="uq-icon-button shrink-0 sm:hidden"
                 aria-label={t("toolbar.more")}
               >
                 <DotsThreeIcon className="size-4" />
@@ -172,11 +165,7 @@ export const AppHeader = ({
             }
           />
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              className={tableDisabled ? "text-text-tertiary" : undefined}
-              disabled={tableDisabled}
-              onClick={onOpenTable}
-            >
+            <DropdownMenuItem disabled={tableDisabled} onClick={onOpenTable}>
               {t("table.title")}
             </DropdownMenuItem>
             {onOpenDiff ? (
@@ -191,7 +180,7 @@ export const AppHeader = ({
             render={
               <Button
                 size="sm"
-                className="uq-icon-button shrink-0 whitespace-nowrap px-2"
+                className="uq-icon-button shrink-0 whitespace-nowrap"
                 disabled={!enabled}
                 aria-label={t("toolbar.export")}
                 title={t("toolbar.export")}
@@ -203,27 +192,21 @@ export const AppHeader = ({
           />
           <DropdownMenuContent align="end">
             {onOpenReport ? (
-              <DropdownMenuItem className="text-[11px]" onClick={onOpenReport}>
-                {t("report.title")}
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onOpenReport}>{t("report.title")}</DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem className="text-[11px]" title={copyHint} onClick={onCopyJsonl}>
+            <DropdownMenuItem title={copyHint} onClick={onCopyJsonl}>
               <ListBulletsIcon className="mr-2 size-3.5" />
               {t("toolbar.copyJsonl")}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[11px]"
-              title={copyHint}
-              onClick={onCopyFormattedJson}
-            >
+            <DropdownMenuItem title={copyHint} onClick={onCopyFormattedJson}>
               <ClipboardTextIcon className="mr-2 size-3.5" />
               {t("toolbar.copyFormattedJson")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onClick={onExportJsonl}>
+            <DropdownMenuItem onClick={onExportJsonl}>
               <DownloadSimpleIcon className="mr-2 size-3.5" />
               {t("toolbar.exportJsonl")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-[11px]" onClick={onExportFormattedJson}>
+            <DropdownMenuItem onClick={onExportFormattedJson}>
               <BracketsCurlyIcon className="mr-2 size-3.5" />
               {t("toolbar.exportJson")}
             </DropdownMenuItem>

@@ -159,8 +159,8 @@ const ConversationTurn = ({
         <span className="flex-1" />
         <Button
           variant="ghost"
-          size="sm"
-          className="uq-icon-button h-6 w-6 shrink-0 px-0"
+          size="icon-xs"
+          className="uq-icon-button shrink-0"
           aria-label={t("agent.openInJsonl")}
           onClick={() => onOpenRecord(event.recordId)}
         >
