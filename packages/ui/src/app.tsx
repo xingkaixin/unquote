@@ -1,10 +1,14 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ParseResult } from "@unquote/core";
 import { AppHeader } from "./components/app-header";
 import { deferredComponent } from "./components/deferred-component";
 import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
 import { Toaster } from "./components/sonner";
-import { SourceImportPanel } from "./components/source-import-panel";
+import {
+  getTransferFile,
+  isPotentialFileDrag,
+  SourceImportPanel,
+} from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
 import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
@@ -254,6 +258,47 @@ export const UnquoteApp = ({
     },
     [recordWorkspace.agent.openEndpoint, setOutputView],
   );
+
+  useEffect(() => {
+    if (!hasData) {
+      return;
+    }
+
+    const handleWindowDragOver = (event: globalThis.DragEvent) => {
+      if (
+        event.defaultPrevented ||
+        !event.dataTransfer ||
+        !isPotentialFileDrag(event.dataTransfer)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleWindowDrop = (event: globalThis.DragEvent) => {
+      if (
+        event.defaultPrevented ||
+        !event.dataTransfer ||
+        !isPotentialFileDrag(event.dataTransfer)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const file = getTransferFile(event.dataTransfer);
+      if (file) {
+        void handleFileDrop(file, "auto");
+        setActiveOverlay(null);
+      }
+    };
+
+    window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("drop", handleWindowDrop);
+    return () => {
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("drop", handleWindowDrop);
+    };
+  }, [handleFileDrop, hasData]);
 
   // Global shortcut command table. Shortcuts are read via a ref inside the
   // hook (listener mounts once), so this array can be a fresh literal every

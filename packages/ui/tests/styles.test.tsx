@@ -20,4 +20,8 @@ describe("styles.css cascade", () => {
   it("layers the shared 11px control size so call sites can override it", () => {
     expect(css).toMatch(/@layer components \{\s*\.uq-text-11 \{/);
   });
+
+  it("declares dynamic viewport height after 100vh on the shell", () => {
+    expect(css).toMatch(/\.uq-shell \{[^}]*height:\s*100vh;\s*height:\s*100dvh;/);
+  });
 });

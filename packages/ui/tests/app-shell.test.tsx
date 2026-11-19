@@ -493,5 +493,38 @@ describe("UnquoteApp", () => {
       expect(screen.queryByText("nested json")).not.toBeInTheDocument();
       expect(screen.getAllByText("customerId").length).toBeGreaterThan(0);
     });
+
+    it("imports a file dropped onto the window while a workspace is active", async () => {
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput='{"initial":true}' />
+        </I18nProvider>,
+      );
+      await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+
+      const droppedFile = new File(['{"dropped":42}'], "dropped.json", {
+        type: "application/json",
+      });
+      const dataTransfer = {
+        files: [droppedFile],
+        items: [{ kind: "file", getAsFile: () => droppedFile }],
+        types: ["Files"],
+        dropEffect: "none",
+      };
+
+      const dragOverEvent = new Event("dragover", { bubbles: true, cancelable: true });
+      Object.defineProperty(dragOverEvent, "dataTransfer", { value: dataTransfer });
+      window.dispatchEvent(dragOverEvent);
+      expect(dragOverEvent.defaultPrevented).toBe(true);
+      expect(dataTransfer.dropEffect).toBe("copy");
+
+      const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
+      Object.defineProperty(dropEvent, "dataTransfer", { value: dataTransfer });
+      window.dispatchEvent(dropEvent);
+      expect(dropEvent.defaultPrevented).toBe(true);
+
+      await waitFor(() => expect(sourceButton()).toHaveTextContent("dropped.json"));
+      await waitFor(() => expect(screen.getByText("dropped")).toBeInTheDocument());
+    });
   });
 });

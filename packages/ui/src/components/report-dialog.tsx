@@ -1,8 +1,11 @@
 import { Dialog } from "@base-ui/react/dialog";
+import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "../i18n/context";
 import type { MessageKey } from "../i18n/i18n";
+import { writeClipboardText } from "../lib/clipboard";
+import { isCopyTextAboveThreshold } from "../lib/copy-limits";
 import { downloadBlob } from "../lib/record-export";
 import { Button } from "./button";
 
@@ -72,6 +75,17 @@ export const ReportDialog = <Report extends ReportPreview>({
       if (!controller.signal.aborted) setBusy(false);
     }
   };
+  const handleCopyMarkdown = async (markdown: string) => {
+    if (isCopyTextAboveThreshold(markdown)) {
+      toast.warning(t("toolbar.copyBlocked"));
+      return;
+    }
+    if (await writeClipboardText(markdown)) {
+      toast.success(t("report.copiedMarkdown"));
+    } else {
+      toast.error(t("copy.failed"));
+    }
+  };
   return (
     <Dialog.Root
       open
@@ -133,6 +147,18 @@ export const ReportDialog = <Report extends ReportPreview>({
                     {t("report.cancel")}
                   </Button>
                 ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!result}
+                  onClick={() => {
+                    if (result) {
+                      void handleCopyMarkdown(result.markdown);
+                    }
+                  }}
+                >
+                  {t("report.copyMarkdown")}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

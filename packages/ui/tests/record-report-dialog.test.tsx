@@ -10,6 +10,11 @@ afterEach(cleanup);
 
 it("requires a current preview before export and invalidates it when redactions change", async () => {
   const user = userEvent.setup();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
   const text = '{"token":"secret"}';
   render(
     <I18nProvider>
@@ -22,16 +27,24 @@ it("requires a current preview before export and invalidates it when redactions 
     </I18nProvider>,
   );
   await screen.findByRole("dialog");
+  expect(screen.getByRole("button", { name: "Copy Markdown" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Download JSONL" })).toBeDisabled();
   fireEvent.change(screen.getByRole("textbox", { name: "Redact paths, one per line" }), {
     target: { value: "$.token" },
   });
   await user.click(screen.getByRole("button", { name: "Build preview" }));
   expect(await screen.findByText("1 records · 1 values redacted")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy Markdown" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Download JSONL" })).toBeEnabled();
   expect(screen.getByText(/# Unquote report/)).not.toHaveTextContent("secret");
+
+  await user.click(screen.getByRole("button", { name: "Copy Markdown" }));
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("# Unquote report"));
+  expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining("secret"));
+
   fireEvent.change(screen.getByRole("textbox", { name: "Redact paths, one per line" }), {
     target: { value: "$.other" },
   });
+  expect(screen.getByRole("button", { name: "Copy Markdown" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Download JSONL" })).toBeDisabled();
 });

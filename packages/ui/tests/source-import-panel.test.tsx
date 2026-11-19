@@ -231,6 +231,11 @@ describe("SourceImportPanel file interactions", () => {
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     const click = vi.spyOn(fileInput, "click");
 
+    expect(fileInput.accept).toContain(".sse");
+    expect(fileInput.accept).toContain(".ndjson");
+    expect(fileInput.accept).toContain(".log");
+    expect(fileInput.accept).toContain("text/event-stream");
+
     fireEvent.click(screen.getByRole("button", { name: "Choose file…" }));
     expect(click).toHaveBeenCalledOnce();
 
@@ -424,5 +429,27 @@ describe("SourceImportPanel file interactions", () => {
 
     expect(props.onSampleSelect).toHaveBeenCalledWith(sample);
     expect(props.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("recognizes pasted SSE filenames and event-stream clipboard payloads", async () => {
+    installClipboardRead(async () => [
+      {
+        types: ["text/event-stream"],
+        getType: vi.fn(async () => ({ text: async () => 'data: {"ok":true}\n\n' })),
+      },
+    ]);
+    const { props } = renderPanel();
+
+    pasteFileName("/tmp/stream.sse");
+
+    await waitFor(() => expect(props.onCommit).toHaveBeenCalledOnce());
+    expect(vi.mocked(props.onCommit).mock.calls[0]?.[0]).toMatchObject({
+      kind: "file",
+      mode: "auto",
+      file: {
+        name: "stream.sse",
+        type: "text/event-stream",
+      },
+    });
   });
 });
