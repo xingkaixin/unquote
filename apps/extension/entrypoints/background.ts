@@ -29,37 +29,6 @@ const registerContextMenu = async () => {
   });
 };
 
-const openOptionsPage = async (handoffId?: string) => {
-  const optionsUrl = new URL(browser.runtime.getURL("/options.html"));
-  if (handoffId) {
-    optionsUrl.searchParams.set(handoffQueryParameter, handoffId);
-    await browser.tabs.create({
-      url: optionsUrl.href,
-    });
-    return;
-  }
-
-  try {
-    const existingTabs = await browser.tabs.query({ url: optionsUrl.href });
-    const existingTab = existingTabs.find((tab) => tab.id !== undefined);
-    if (existingTab?.id !== undefined) {
-      await browser.tabs.update(existingTab.id, { active: true });
-      if (existingTab.windowId !== undefined) {
-        await browser.windows
-          .update(existingTab.windowId, { focused: true })
-          .catch(() => undefined);
-      }
-      return;
-    }
-  } catch {
-    // Fall back to opening a new tab if querying or focusing an existing tab fails.
-  }
-
-  await browser.tabs.create({
-    url: optionsUrl.href,
-  });
-};
-
 export default defineBackground(() => {
   void handoffs.sweep();
 
@@ -72,12 +41,12 @@ export default defineBackground(() => {
   });
 
   browser.action.onClicked.addListener(async () => {
-    await openOptionsPage();
+    await browser.runtime.openOptionsPage();
   });
 
   browser.commands.onCommand.addListener(async (command) => {
     if (command === "open_unquote") {
-      await openOptionsPage();
+      await browser.runtime.openOptionsPage();
     }
   });
 
@@ -92,7 +61,9 @@ export default defineBackground(() => {
     }
 
     const handoffId = await handoffs.create(selection);
-    await openOptionsPage(handoffId ?? "failed");
+    const url = new URL(browser.runtime.getURL("/options.html"));
+    url.searchParams.set(handoffQueryParameter, handoffId ?? "failed");
+    await browser.tabs.create({ url: url.href });
   });
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime messages are untrusted until the message type and handoff id are validated.

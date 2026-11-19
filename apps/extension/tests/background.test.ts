@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => {
       getMessage: vi.fn((name: string) => (name === "openInUnquote" ? "Unquote で開く" : "")),
     },
     runtime: {
+      openOptionsPage: vi.fn(async () => undefined),
       getURL: vi.fn((path: string) => `chrome-extension://extension-id${path}`),
       onInstalled: {
         addListener: vi.fn((listener: () => Promise<void>) => {
@@ -102,15 +103,6 @@ const mocks = vi.hoisted(() => {
     },
     tabs: {
       create: vi.fn(async (_options: { url: string }) => undefined),
-      query: vi.fn(
-        async (_queryInfo: {
-          url: string;
-        }): Promise<Array<{ id?: number; windowId?: number }>> => [],
-      ),
-      update: vi.fn(async (_tabId: number, _updateProperties: { active: boolean }) => undefined),
-    },
-    windows: {
-      update: vi.fn(async (_windowId: number, _updateInfo: { focused: boolean }) => undefined),
     },
   };
 
@@ -145,7 +137,6 @@ describe("extension background", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.storageValues.clear();
-    mocks.browser.tabs.query.mockResolvedValue([]);
   });
 
   it("recreates the selection context menu cleanly from the browser locale", async () => {
@@ -173,41 +164,18 @@ describe("extension background", () => {
     await mocks.listeners.onCommand?.("unsupported");
     await mocks.listeners.onCommand?.("open_unquote");
 
-    expect(mocks.browser.tabs.create).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.runtime.getURL).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.runtime.getURL).toHaveBeenCalledWith("/options.html");
-    for (const [options] of mocks.browser.tabs.create.mock.calls) {
-      expect(new URL(options.url).protocol).toBe("chrome-extension:");
-      expect(new URL(options.url).pathname).toBe("/options.html");
-    }
-  });
-
-  it("focuses an existing options tab for action click and command without creating a duplicate", async () => {
-    mocks.browser.tabs.query.mockResolvedValue([{ id: 7, windowId: 3 }]);
-
-    await mocks.listeners.onActionClick?.();
-    await mocks.listeners.onCommand?.("open_unquote");
-
-    expect(mocks.browser.tabs.query).toHaveBeenCalledWith({
-      url: "chrome-extension://extension-id/options.html",
-    });
-    expect(mocks.browser.tabs.update).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.tabs.update).toHaveBeenCalledWith(7, { active: true });
-    expect(mocks.browser.windows.update).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.windows.update).toHaveBeenCalledWith(3, { focused: true });
+    expect(mocks.browser.runtime.openOptionsPage).toHaveBeenCalledTimes(2);
     expect(mocks.browser.tabs.create).not.toHaveBeenCalled();
   });
 
-  it("still opens a new tab for selection handoff when an options tab is already open", async () => {
-    mocks.browser.tabs.query.mockResolvedValue([{ id: 7, windowId: 3 }]);
-
+  it("opens a separate tab for selection handoff", async () => {
     await mocks.listeners.onContextMenuClick?.({
       menuItemId: menuId,
       selectionText: "payload",
     });
 
     expect(mocks.browser.tabs.create).toHaveBeenCalledOnce();
-    expect(mocks.browser.tabs.update).not.toHaveBeenCalled();
+    expect(mocks.browser.runtime.openOptionsPage).not.toHaveBeenCalled();
     expect(getOpenedUrl().searchParams.get("handoff")).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
