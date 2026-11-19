@@ -114,8 +114,16 @@ export const useWorkspaceSession = (
   );
 
   const selectPath = useCallback(
-    (selection: SelectedPath, stringifiedPathChain: readonly string[] = []) => {
-      dispatchSelection({ type: "selectPath", selection });
+    (
+      selection: SelectedPath,
+      stringifiedPathChain: readonly string[] = [],
+      options?: { scroll?: boolean },
+    ) => {
+      dispatchSelection({
+        type: "selectPath",
+        selection,
+        ...(options?.scroll === false ? { scroll: false } : {}),
+      });
       if (stringifiedPathChain.length > 0) {
         setExpandedPaths((current) =>
           addExpandedStringifiedPaths(current, selection.recordId, stringifiedPathChain),
@@ -126,13 +134,18 @@ export const useWorkspaceSession = (
   );
 
   const selectNode = useCallback(
-    (record: JsonlRecord, row: TreeRow) => selectPath(createSelectionFromRow(record, row)),
+    (record: JsonlRecord, row: TreeRow) =>
+      selectPath(createSelectionFromRow(record, row), [], { scroll: false }),
     [selectPath],
   );
 
   const selectRecord = useCallback(
-    (record: JsonlRecord) => {
-      dispatchSelection({ type: "selectRecord", recordId: record.id });
+    (record: JsonlRecord, options?: { scroll?: boolean }) => {
+      dispatchSelection({
+        type: "selectRecord",
+        recordId: record.id,
+        ...(options?.scroll === false ? { scroll: false } : {}),
+      });
     },
     [dispatchSelection],
   );

@@ -209,4 +209,45 @@ describe("JsonTree", () => {
     );
     expect(onTogglePath).not.toHaveBeenCalled();
   });
+
+  it("moves focus to the first child when pressing ArrowRight on an expanded container", () => {
+    const { record } = renderTree(new Set(["$.payload"]));
+    const tree = screen.getByRole("tree");
+
+    fireEvent.keyDown(tree, { key: "ArrowRight" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload`);
+
+    fireEvent.keyDown(tree, { key: "ArrowRight" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.payload.answer`);
+  });
+
+  it("syncs keyboard focus to a jumped path so ArrowDown continues from the jumped row", () => {
+    const record = parseInput('{"first":1,"second":2,"third":3}').records[0]!;
+    render(
+      <I18nProvider>
+        <JsonTree
+          record={record}
+          expandedStringifiedPaths={new Set()}
+          searchMatches={[]}
+          activeMatchPath="$.second"
+          scrollIntent={{ kind: "path", recordId: record.id, pathText: "$.second" }}
+          selectedPath={null}
+          actions={{
+            togglePath: vi.fn(),
+            copyRecord: vi.fn(),
+            copyRawLine: vi.fn(),
+            copyError: vi.fn(),
+            selectNode: vi.fn(),
+            requestFullRecord: vi.fn(),
+          }}
+        />
+      </I18nProvider>,
+    );
+
+    const tree = screen.getByRole("tree");
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.second`);
+
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    expect(tree).toHaveAttribute("aria-activedescendant", `${record.id}:$.third`);
+  });
 });

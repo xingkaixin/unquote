@@ -97,7 +97,8 @@ describe("UnquoteApp", () => {
       expect(screen.getByText("selection")).toBeInTheDocument();
     });
 
-    it("renders the empty state with disabled workspace chrome", () => {
+    it("renders the empty state with disabled workspace chrome", async () => {
+      const user = userEvent.setup();
       render(
         <I18nProvider>
           <UnquoteApp />
@@ -108,6 +109,18 @@ describe("UnquoteApp", () => {
       expect(screen.getByText("No data loaded · waiting for import")).toBeInTheDocument();
       expect(sourceButton()).toHaveTextContent("No data loaded");
       expect(screen.getByRole("textbox", { name: "Search or jump" })).toBeDisabled();
+
+      // Cmd+K stays blocked when no data is loaded, matching the disabled header button.
+      await user.keyboard("{Meta>}k{/Meta}");
+      expect(
+        screen.queryByRole("dialog", { name: "Find, jump, and commands" }),
+      ).not.toBeInTheDocument();
+
+      // Opening the import dialog with no data stays non-dismissible on Escape.
+      await user.click(sourceButton());
+      expect(await screen.findByRole("dialog", { name: "Import data" })).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(screen.getByRole("dialog", { name: "Import data" })).toBeInTheDocument();
     });
 
     it("gives the header chrome controls one bordered treatment", () => {

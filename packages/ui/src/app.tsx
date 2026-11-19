@@ -263,7 +263,7 @@ export const UnquoteApp = ({
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
       allowInTextEditing: true,
       handler: () => {
-        if (activeOverlay === "import") {
+        if (!hasData || activeOverlay === "import") {
           return false;
         }
 
@@ -275,6 +275,10 @@ export const UnquoteApp = ({
       allowInTextEditing: true,
       // Escape never preventDefault()s: it has no browser default to suppress here.
       handler: () => {
+        if (activeOverlay === "import" && !hasData) {
+          return false;
+        }
+
         setActiveOverlay(null);
         return false;
       },
@@ -282,7 +286,11 @@ export const UnquoteApp = ({
     {
       matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
       handler: () => {
-        if (!recordWorkspace.model.active.selectedPath || activeOverlay !== null) {
+        if (
+          outputView !== "json" ||
+          !recordWorkspace.model.active.selectedPath ||
+          activeOverlay !== null
+        ) {
           return false;
         }
         // A non-empty window selection means the user is copying selected text,
@@ -484,7 +492,15 @@ export const UnquoteApp = ({
         {activeOverlay ? (
           <DeferredLoadBoundary resetKey={activeOverlay}>
             {activeOverlay === "import" ? (
-              <ImportDialog open dismissible={hasData} onClose={() => setActiveOverlay(null)}>
+              <ImportDialog
+                open
+                dismissible={hasData}
+                onClose={() => {
+                  if (hasData) {
+                    setActiveOverlay(null);
+                  }
+                }}
+              >
                 {importPanel("h-[220px]")}
               </ImportDialog>
             ) : null}

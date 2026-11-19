@@ -670,5 +670,26 @@ describe("UnquoteApp", () => {
         "true",
       );
     });
+
+    it("does not copy a hidden JSON selection on Cmd+C while in Agent view", async () => {
+      const user = await renderCodexAgentView();
+      const writeText = vi.fn();
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+      });
+
+      await user.click(screen.getByRole("tab", { name: "JSONL" }));
+      await waitFor(() => expect(document.getElementById("record-1")).toBeInTheDocument());
+      await user.click(screen.getAllByRole("treeitem")[1]!);
+
+      await user.click(screen.getByRole("tab", { name: "Agent" }));
+      await waitFor(() =>
+        expect(document.querySelector(".uq-shell")).toHaveAttribute("data-output-view", "agent"),
+      );
+
+      fireEvent.keyDown(window, { key: "c", metaKey: true });
+      expect(writeText).not.toHaveBeenCalled();
+    });
   });
 });
