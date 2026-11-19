@@ -342,8 +342,8 @@ export const AgentTrajectoryOverview = ({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="size-7 shrink-0 p-0"
+                  size="icon"
+                  className="shrink-0"
                   aria-label={t("trajectory.zoomIn")}
                   disabled={controlsDisabled}
                   onClick={() => zoom(ZOOM_FACTOR)}
@@ -360,8 +360,8 @@ export const AgentTrajectoryOverview = ({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="size-7 shrink-0 p-0"
+                  size="icon"
+                  className="shrink-0"
                   aria-label={t("trajectory.zoomOut")}
                   disabled={controlsDisabled}
                   onClick={() => zoom(1 / ZOOM_FACTOR)}
@@ -378,8 +378,8 @@ export const AgentTrajectoryOverview = ({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="size-7 shrink-0 p-0"
+                  size="icon"
+                  className="shrink-0"
                   aria-label={t("trajectory.reset")}
                   disabled={controlsDisabled}
                   onClick={reset}

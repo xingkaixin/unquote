@@ -16,7 +16,7 @@ export const LocaleToggle = () => {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button size="sm" className="uq-icon-button h-7 w-7 px-0" aria-label={t("locale.toggle")}>
+          <Button size="icon" className="uq-icon-button" aria-label={t("locale.toggle")}>
             <TranslateIcon className="size-4" />
           </Button>
         }

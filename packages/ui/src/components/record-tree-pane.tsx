@@ -69,8 +69,8 @@ export const RecordTreePane = ({
         <Button
           data-benchmark-action="expand-all"
           variant="outline"
-          size="sm"
-          className="h-6 gap-1.5 rounded-sm px-2.5"
+          size="xs"
+          radius="sm"
           onClick={onExpandAll}
         >
           <ArrowsOutLineVerticalIcon className="size-3" />
@@ -79,8 +79,8 @@ export const RecordTreePane = ({
         <Button
           data-benchmark-action="collapse-all"
           variant="outline"
-          size="sm"
-          className="h-6 gap-1.5 rounded-sm px-2.5"
+          size="xs"
+          radius="sm"
           disabled={expandedNestedCount === 0}
           onClick={onCollapseAll}
         >
@@ -89,8 +89,8 @@ export const RecordTreePane = ({
         </Button>
         <Button
           variant="ghost"
-          size="sm"
-          className="uq-icon-button h-6 w-6 px-0"
+          size="icon-xs"
+          className="uq-icon-button"
           aria-label={t("tree.copyRecord")}
           onClick={() => actions.copyRecord(record)}
         >

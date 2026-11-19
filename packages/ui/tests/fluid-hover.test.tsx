@@ -1,7 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { animate } from "framer-motion/dom/mini";
 import { FluidHover } from "../src/components/fluid-hover";
 import { Tabs, TabsList, TabsTrigger } from "../src/components/tabs";
 import {
@@ -75,9 +74,19 @@ async function expectActive(element: HTMLElement) {
   await waitFor(() => expect(element).toHaveAttribute("data-fluid-hover-active"));
 }
 
+function stubAnimate(element: HTMLElement) {
+  const animateMock = vi.fn(() => ({
+    cancel: vi.fn(),
+    commitStyles: vi.fn(),
+  }));
+  Object.defineProperty(element, "animate", { configurable: true, value: animateMock });
+  return animateMock;
+}
+
 describe("FluidHover", () => {
   it("keeps one nearest highlight across gaps, skips disabled items, and leaves gap clicks inert", async () => {
     const { container, first, disabled, last, highlight, onClick } = renderList();
+    const animateMock = stubAnimate(highlight);
     move(container, 20, 15);
     await expectActive(first);
     move(container, 20, 75);
@@ -89,6 +98,13 @@ describe("FluidHover", () => {
       width: "80px",
       height: "30px",
     });
+    expect(animateMock).toHaveBeenLastCalledWith(
+      [
+        expect.objectContaining({ transform: expect.any(String), opacity: expect.any(String) }),
+        { transform: "translate(0px, 80px)", width: "80px", height: "30px", opacity: "1" },
+      ],
+      { duration: 80, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
     fireEvent.click(container, { clientX: 20, clientY: 75 });
     expect(onClick).not.toHaveBeenCalled();
     fireEvent.click(last);
@@ -97,6 +113,7 @@ describe("FluidHover", () => {
 
   it("cancels a queued hover when the pointer leaves and starts a new entry at its own row", async () => {
     const { container, first, last, highlight } = renderList();
+    const animateMock = stubAnimate(highlight);
     move(container, 20, 15);
     fireEvent.pointerLeave(container);
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -104,7 +121,10 @@ describe("FluidHover", () => {
     move(container, 20, 95);
     await expectActive(last);
     expect(highlight).toHaveStyle({ transform: "translate(0px, 80px)" });
-    expect(animate).toHaveBeenLastCalledWith(highlight, { opacity: 1 }, { duration: 0.08 });
+    expect(animateMock).toHaveBeenLastCalledWith(
+      [{ opacity: expect.any(String) }, { opacity: "1" }],
+      { duration: 80, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
   });
 
   it("ignores touch hover and clears the mouse decoration on keyboard input", async () => {
@@ -126,12 +146,16 @@ describe("FluidHover", () => {
       vi.fn(() => ({ ...media, matches: true })),
     );
     const { container, first, last, highlight } = renderList();
+    const animateMock = stubAnimate(highlight);
     move(container, 20, 15);
     await expectActive(first);
     move(container, 20, 95);
     await expectActive(last);
     expect(highlight).toHaveStyle({ transform: "translate(0px, 80px)" });
-    expect(animate).toHaveBeenLastCalledWith(highlight, { opacity: 1 }, { duration: 0.08 });
+    expect(animateMock).toHaveBeenLastCalledWith(
+      [{ opacity: expect.any(String) }, { opacity: "1" }],
+      { duration: 80, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
   });
 
   it("clears a removed target and picks a replacement using its current element", async () => {

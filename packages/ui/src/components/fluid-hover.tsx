@@ -1,12 +1,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { animate } from "framer-motion/dom/mini";
-import { spring } from "framer-motion";
 import { prefersReducedMotion } from "../lib/motion-preference";
 import { cn } from "../lib/utils";
 
 // Adapted from https://www.fluidfunctionalism.com/docs/fluid-hover for fixed
 // Base UI menus and tabs. Clicks and keyboard focus remain with the primitives.
-const travel = { type: spring, duration: 0.08, bounce: 0 };
+const hoverEaseOut = "cubic-bezier(0.23, 1, 0.32, 1)";
+
+const travelDurationMs = 80;
+
+const fadeOutDurationMs = 60;
 
 const itemSelector = "[data-fluid-hover-item]";
 
@@ -20,9 +22,43 @@ export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis
     let items: HTMLElement[] = [];
     let active: HTMLElement | null = null;
     let frame: number | undefined;
-    let animation: ReturnType<typeof animate> | undefined;
+    let animation: Animation | undefined;
     let point: { x: number; y: number } | null = null;
     const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+
+    function stopAnimation(commit: boolean) {
+      if (!animation) return;
+      if (commit && typeof animation.commitStyles === "function") {
+        try {
+          animation.commitStyles();
+        } catch {
+          // Element may be detached during unmount or DOM mutation.
+        }
+      }
+      animation.cancel();
+      animation = undefined;
+    }
+
+    function animateHighlight(to: Record<string, string>, duration: number) {
+      if (duration <= 0 || typeof highlight.animate !== "function") {
+        Object.assign(highlight.style, to);
+        return;
+      }
+
+      const computed = getComputedStyle(highlight);
+      const from: Record<string, string> = {};
+      for (const key of Object.keys(to)) {
+        from[key] =
+          computed.getPropertyValue(key) ||
+          highlight.style.getPropertyValue(key) ||
+          (key === "opacity" ? "0" : "none");
+      }
+      Object.assign(highlight.style, to);
+      animation = highlight.animate([from, to], {
+        duration,
+        easing: hoverEaseOut,
+      });
+    }
 
     function clear(event?: Event) {
       if (frame !== undefined) cancelAnimationFrame(frame);
@@ -32,14 +68,9 @@ export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis
       active.removeAttribute("data-fluid-hover-active");
       active = null;
       container.removeAttribute("data-hovering");
-      animation?.stop();
-      animation = animate(
-        highlight,
-        { opacity: 0 },
-        {
-          duration: event?.type === "keydown" ? 0 : 0.06,
-        },
-      );
+      const duration = event?.type === "keydown" ? 0 : fadeOutDurationMs;
+      stopAnimation(duration > 0);
+      animateHighlight({ opacity: "0" }, duration);
     }
 
     function pick(snap = false) {
@@ -89,19 +120,12 @@ export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis
         width: `${active.offsetWidth}px`,
         height: `${active.offsetHeight}px`,
       };
-      animation?.stop();
+      stopAnimation(true);
       if (first || snap || prefersReducedMotion()) {
         Object.assign(highlight.style, target);
-        animation = animate(highlight, { opacity: 1 }, { duration: 0.08 });
+        animateHighlight({ opacity: "1" }, travelDurationMs);
       } else {
-        animation = animate(
-          highlight,
-          { ...target, opacity: 1 },
-          {
-            ...travel,
-            opacity: { duration: 0.08 },
-          },
-        );
+        animateHighlight({ ...target, opacity: "1" }, travelDurationMs);
       }
     }
 
@@ -141,7 +165,7 @@ export function FluidHover({ children, axis = "y" }: { children: ReactNode; axis
     motionQuery.addEventListener("change", clear);
     return () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
-      animation?.stop();
+      stopAnimation(false);
       active?.removeAttribute("data-fluid-hover-active");
       container.removeAttribute("data-hovering");
       observer.disconnect();

@@ -299,7 +299,8 @@ export const SourceImportPanel = ({
           <Button
             type="button"
             variant="outline"
-            className="h-8 px-3.5 text-[11px]"
+            size={null}
+            className="h-8 gap-2 px-3.5"
             onClick={() => {
               invalidateCandidateAcquisition();
               fileInputRef.current?.click();
@@ -328,7 +329,8 @@ export const SourceImportPanel = ({
           <Button
             type="button"
             variant="secondary"
-            className="h-8 px-4 text-[11px]"
+            size={null}
+            className="h-8 gap-2 px-4"
             onClick={commitDraft}
             disabled={!initialFile && detection.kind === "empty"}
           >
@@ -346,8 +348,9 @@ export const SourceImportPanel = ({
               key={sample.id}
               type="button"
               variant="outline"
-              size="sm"
-              className="rounded-sm px-2.5 text-[10px]"
+              size={null}
+              radius="sm"
+              className="h-7 gap-2 px-2.5 text-[10px]"
               onClick={() => {
                 invalidateCandidateAcquisition();
                 onSampleSelect(sample);
@@ -367,8 +370,9 @@ export const SourceImportPanel = ({
               key={option}
               type="button"
               variant={mode === option ? "selected" : "outline"}
-              size="sm"
-              className="rounded-sm px-2.5 font-mono"
+              size={null}
+              radius="sm"
+              className="h-7 gap-2 px-2.5 font-mono"
               aria-pressed={mode === option}
               translate={option === "auto" ? undefined : "no"}
               onClick={() => {

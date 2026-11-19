@@ -31,23 +31,39 @@ export const DropdownMenuContent = ({
 );
 
 const itemClassName =
-  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono uq-text-11 uppercase tracking-[0.08em] text-text-secondary outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
+  "flex cursor-pointer select-none items-center rounded-none px-3 py-2 font-mono uq-text-11 uppercase tracking-[0.08em] outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent data-highlighted:bg-surface-200 data-highlighted:text-text-primary";
 
 export const DropdownMenuItem = ({
   className,
+  disabled,
   ...props
 }: React.ComponentProps<typeof Menu.Item>) => (
-  <Menu.Item data-fluid-hover-item className={cn(itemClassName, className)} {...props} />
+  <Menu.Item
+    data-fluid-hover-item
+    disabled={disabled}
+    className={cn(
+      itemClassName,
+      disabled ? "text-text-tertiary" : "text-text-secondary",
+      className,
+    )}
+    {...props}
+  />
 );
 
 export const DropdownMenuRadioItem = ({
   className,
   closeOnClick = true,
+  disabled,
   ...props
 }: React.ComponentProps<typeof Menu.RadioItem>) => (
   <Menu.RadioItem
     data-fluid-hover-item
-    className={cn(itemClassName, className)}
+    disabled={disabled}
+    className={cn(
+      itemClassName,
+      disabled ? "text-text-tertiary" : "text-text-secondary",
+      className,
+    )}
     closeOnClick={closeOnClick}
     {...props}
   />

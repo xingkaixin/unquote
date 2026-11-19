@@ -218,21 +218,11 @@ export const JsonTree = memo(function JsonTree({
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => actions.copyRawLine(record)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => actions.copyRawLine(record)}>
               <CopyIcon className="size-3" />
               {t("error.copyRawLine")}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => actions.copyError(record)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => actions.copyError(record)}>
               <CopyIcon className="size-3" />
               {t("error.copyDetails")}
             </Button>

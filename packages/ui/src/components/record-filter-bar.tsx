@@ -43,8 +43,9 @@ export const RecordFilterBar = ({
               key={filter.mode}
               type="button"
               variant={mode === filter.mode ? "selected" : "outline"}
-              size="sm"
-              className="h-6 shrink-0 whitespace-nowrap rounded-sm px-2.5"
+              size="xs"
+              radius="sm"
+              className="shrink-0 whitespace-nowrap"
               aria-pressed={mode === filter.mode}
               onClick={() => onChange(filter.mode)}
             >
