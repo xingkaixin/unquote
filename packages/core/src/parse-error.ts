@@ -101,6 +101,7 @@ const scanSourceLocation = (
       foundTarget = true;
     } else if (foundTarget && targetLine !== undefined && lineNumber === targetLine + 1) {
       contextLines.push(currentLine);
+      break;
     }
 
     previousLine = currentLine;
