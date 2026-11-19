@@ -16,11 +16,45 @@ const handoffAlarms: HandoffAlarms = browser.alarms;
 
 const handoffs = createSelectionHandoffStore(handoffStorage, handoffAlarms);
 
+const registerContextMenu = async () => {
+  try {
+    await browser.contextMenus.removeAll();
+  } catch {
+    // Recreate the menu even if clearing fails on a host runtime.
+  }
+  browser.contextMenus.create({
+    id: OPEN_MENU_ID,
+    title: browser.i18n.getMessage("openInUnquote"),
+    contexts: ["selection"],
+  });
+};
+
 const openOptionsPage = async (handoffId?: string) => {
   const optionsUrl = new URL(browser.runtime.getURL("/options.html"));
   if (handoffId) {
     optionsUrl.searchParams.set(handoffQueryParameter, handoffId);
+    await browser.tabs.create({
+      url: optionsUrl.href,
+    });
+    return;
   }
+
+  try {
+    const existingTabs = await browser.tabs.query({ url: optionsUrl.href });
+    const existingTab = existingTabs.find((tab) => tab.id !== undefined);
+    if (existingTab?.id !== undefined) {
+      await browser.tabs.update(existingTab.id, { active: true });
+      if (existingTab.windowId !== undefined) {
+        await browser.windows
+          .update(existingTab.windowId, { focused: true })
+          .catch(() => undefined);
+      }
+      return;
+    }
+  } catch {
+    // Fall back to opening a new tab if querying or focusing an existing tab fails.
+  }
+
   await browser.tabs.create({
     url: optionsUrl.href,
   });
@@ -33,12 +67,8 @@ export default defineBackground(() => {
     void handoffs.handleAlarm(alarm);
   });
 
-  browser.runtime.onInstalled.addListener(() => {
-    browser.contextMenus.create({
-      id: OPEN_MENU_ID,
-      title: browser.i18n.getMessage("openInUnquote"),
-      contexts: ["selection"],
-    });
+  browser.runtime.onInstalled.addListener(async () => {
+    await registerContextMenu();
   });
 
   browser.action.onClicked.addListener(async () => {

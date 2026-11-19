@@ -277,6 +277,45 @@ describe("selection handoff", () => {
     await expect(handoffs.claim(claimMessage(firstHandoffId))).resolves.toBe("");
   });
 
+  it("sweeps expired handoffs before writing so stale entries do not trigger quota errors", async () => {
+    const maxBytes = 64;
+    const storage = new MemoryStorage();
+    storage.values.set(handoffStorageKey(firstHandoffId), {
+      input: "x".repeat(48),
+      expiresAt: 99,
+    });
+    const set = vi.fn<HandoffSessionStorage["set"]>(async (items) => {
+      const next = new Map(storage.values);
+      Object.entries(items).forEach(([key, value]) => next.set(key, value));
+      const totalChars = [...next.values()].reduce<number>(
+        (sum, entry) =>
+          sum +
+          (entry && typeof entry === "object" && "input" in entry && typeof entry.input === "string"
+            ? entry.input.length
+            : 0),
+        0,
+      );
+      if (totalChars > maxBytes) {
+        throw new Error("QUOTA_BYTES quota exceeded");
+      }
+      await storage.set(items);
+    });
+    const boundedStorage: HandoffSessionStorage = {
+      get: (key) => storage.get(key),
+      remove: (key) => storage.remove(key),
+      set,
+    };
+    const handoffs = createSelectionHandoffStore(boundedStorage, new MemoryAlarms(), {
+      createId: () => secondHandoffId,
+      now: () => 100,
+    });
+
+    await expect(handoffs.create("y".repeat(48))).resolves.toBe(secondHandoffId);
+    expect(set).toHaveBeenCalledOnce();
+    expect(storage.values.has(handoffStorageKey(firstHandoffId))).toBe(false);
+    expect(storage.values.has(handoffStorageKey(secondHandoffId))).toBe(true);
+  });
+
   it("reads only a valid handoff ID from the options URL", () => {
     expect(getHandoffIdFromSearch(`?handoff=${firstHandoffId}`)).toBe(firstHandoffId);
     expect(getHandoffIdFromSearch("?handoff=selection-text")).toBeNull();

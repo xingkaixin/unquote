@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
       menuItemId: string | number;
       selectionText?: string;
     }) => Promise<void>;
-    onInstalled?: () => void;
+    onInstalled?: () => Promise<void>;
     onMessage?: (
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The browser listener accepts untrusted messages, including the malformed fixtures below.
       message: unknown,
@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => {
     },
     contextMenus: {
       create: vi.fn(),
+      removeAll: vi.fn(async () => undefined),
       onClicked: {
         addListener: vi.fn(
           (
@@ -64,7 +65,7 @@ const mocks = vi.hoisted(() => {
     runtime: {
       getURL: vi.fn((path: string) => `chrome-extension://extension-id${path}`),
       onInstalled: {
-        addListener: vi.fn((listener: () => void) => {
+        addListener: vi.fn((listener: () => Promise<void>) => {
           listeners.onInstalled = listener;
         }),
       },
@@ -101,6 +102,15 @@ const mocks = vi.hoisted(() => {
     },
     tabs: {
       create: vi.fn(async (_options: { url: string }) => undefined),
+      query: vi.fn(
+        async (_queryInfo: {
+          url: string;
+        }): Promise<Array<{ id?: number; windowId?: number }>> => [],
+      ),
+      update: vi.fn(async (_tabId: number, _updateProperties: { active: boolean }) => undefined),
+    },
+    windows: {
+      update: vi.fn(async (_windowId: number, _updateInfo: { focused: boolean }) => undefined),
     },
   };
 
@@ -135,17 +145,22 @@ describe("extension background", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.storageValues.clear();
+    mocks.browser.tabs.query.mockResolvedValue([]);
   });
 
-  it("creates the selection context menu from the browser locale", () => {
-    mocks.listeners.onInstalled?.();
+  it("recreates the selection context menu cleanly from the browser locale", async () => {
+    await mocks.listeners.onInstalled?.();
 
+    expect(mocks.browser.contextMenus.removeAll).toHaveBeenCalledOnce();
     expect(mocks.browser.i18n.getMessage).toHaveBeenCalledWith("openInUnquote");
     expect(mocks.browser.contextMenus.create).toHaveBeenCalledWith({
       id: menuId,
       title: "Unquote で開く",
       contexts: ["selection"],
     });
+    expect(mocks.browser.contextMenus.removeAll.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.browser.contextMenus.create.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("sweeps retained handoffs when the background starts", () => {
@@ -165,6 +180,35 @@ describe("extension background", () => {
       expect(new URL(options.url).protocol).toBe("chrome-extension:");
       expect(new URL(options.url).pathname).toBe("/options.html");
     }
+  });
+
+  it("focuses an existing options tab for action click and command without creating a duplicate", async () => {
+    mocks.browser.tabs.query.mockResolvedValue([{ id: 7, windowId: 3 }]);
+
+    await mocks.listeners.onActionClick?.();
+    await mocks.listeners.onCommand?.("open_unquote");
+
+    expect(mocks.browser.tabs.query).toHaveBeenCalledWith({
+      url: "chrome-extension://extension-id/options.html",
+    });
+    expect(mocks.browser.tabs.update).toHaveBeenCalledTimes(2);
+    expect(mocks.browser.tabs.update).toHaveBeenCalledWith(7, { active: true });
+    expect(mocks.browser.windows.update).toHaveBeenCalledTimes(2);
+    expect(mocks.browser.windows.update).toHaveBeenCalledWith(3, { focused: true });
+    expect(mocks.browser.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it("still opens a new tab for selection handoff when an options tab is already open", async () => {
+    mocks.browser.tabs.query.mockResolvedValue([{ id: 7, windowId: 3 }]);
+
+    await mocks.listeners.onContextMenuClick?.({
+      menuItemId: menuId,
+      selectionText: "payload",
+    });
+
+    expect(mocks.browser.tabs.create).toHaveBeenCalledOnce();
+    expect(mocks.browser.tabs.update).not.toHaveBeenCalled();
+    expect(getOpenedUrl().searchParams.get("handoff")).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it("ignores unrelated or empty context-menu selections", async () => {
