@@ -210,6 +210,14 @@ describe("record insight", () => {
     }
   });
 
+  it("accepts progress on stderr from a successful command", () => {
+    const { records } = parseInput(
+      '{"status":"success","exitCode":0,"stderr":"Downloading dependencies…"}',
+      { forcedFormat: "jsonl" },
+    );
+    expect(createRecordInsight(records[0]!)?.kind).not.toBe("error");
+  });
+
   it("still classifies explicit error keys and error event or level values as errors", () => {
     const result = parseInput(
       [
@@ -217,7 +225,7 @@ describe("record insight", () => {
         JSON.stringify({ err: "ECONNRESET" }),
         JSON.stringify({ exception: "ValueError" }),
         JSON.stringify({ stack: "Error: boom\n  at run" }),
-        JSON.stringify({ stderr: "permission denied" }),
+        JSON.stringify({ status: "failed", stderr: "permission denied" }),
         JSON.stringify({ level: "error", message: "request dropped" }),
         JSON.stringify({ type: "error", message: "rate limited" }),
         JSON.stringify({ status: "failed", message: "job aborted" }),

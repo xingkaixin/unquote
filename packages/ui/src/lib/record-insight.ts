@@ -119,8 +119,7 @@ const classifyInsightField = (
     normalized === "error" ||
     normalized === "exception" ||
     normalized === "err" ||
-    normalized === "stack" ||
-    normalized === "stderr"
+    normalized === "stack"
   ) {
     return "error";
   }
