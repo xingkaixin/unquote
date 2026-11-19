@@ -176,7 +176,7 @@ The default interactive transition is 150ms for color, background, border, and s
 Use `--ease-out` for short entrances, exits, and disclosure. Dropdowns and dialogs transition
 transform and opacity for 180ms; disclosures (`.uq-collapse`) animate their grid rows for 180ms.
 Floating bars rise 8px and fade in for 180ms, and leave in 140ms. The hover highlight uses a
-short, non-bouncing spring.
+short, non-bouncing 80ms ease-out curve via the Web Animations API.
 
 Respect `prefers-reduced-motion: reduce`:
 

@@ -25,7 +25,7 @@ export default defineConfig({
       include: [
         "packages/core/src/**/*.ts",
         "packages/ui/src/**/*.{ts,tsx}",
-        "apps/web/src/**/*.ts",
+        "apps/web/src/**/*.{ts,tsx}",
         "apps/extension/src/**/*.{ts,tsx}",
         "apps/extension/entrypoints/background.ts",
         "apps/extension/entrypoints/options/main.tsx",

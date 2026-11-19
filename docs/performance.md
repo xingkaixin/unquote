@@ -100,17 +100,18 @@ each surface:
   background;
 - initial CSS includes the stylesheets referenced by that surface's built HTML.
 
-Static Web pages are measured separately because their styles are not downloaded
-with the application entry. Each static page has a 10,000 byte / 3,000 byte gzip
-CSS budget.
+Static Web pages (localized changelogs and static guides) are measured
+separately because their styles are not downloaded with the application entry.
+Each static page has a 10,000 byte / 3,000 byte gzip CSS budget.
 
-The current Web build measures about 610 KiB / 198 KiB gzip for initial JS and
-843 KiB / 275 KiB gzip for all UI JS. The extension carries a small options-page
-wrapper and measures about 612 KiB / 197 KiB gzip initially and 845 KiB / 274
-KiB gzip in total. The ceilings preserve limited growth headroom without
-permitting the previous 706 KiB initial payload to return. Chunk layout is
-deliberately not budgeted because bundler releases may regroup the same modules
-without changing the amount of JavaScript loaded by either surface.
+The current Web build measures about 569 KiB / 184 KiB gzip for initial JS and
+806 KiB / 263 KiB gzip for all UI JS. The extension carries a small options-page
+wrapper and measures about 571 KiB / 184 KiB gzip initially and 808 KiB / 263
+KiB gzip in total. Record export formatting and download logic is loaded on
+demand when a copy or export action runs. The ceilings preserve growth headroom
+without permitting the previous 706 KiB initial payload to return. Chunk layout
+is deliberately not budgeted because bundler releases may regroup the same
+modules without changing the amount of JavaScript loaded by either surface.
 
 | Metric per surface | Budget |
 |---|---:|
@@ -284,7 +285,7 @@ so browsing does not repeatedly hydrate a record that can never enter the cache.
 
 ## Local analysis workspaces
 
-Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 870,000 bytes / 285,000 bytes gzip. The combined extension measurement is approximately 845 KiB / 274 KiB gzip.
+Comparison, record tables, field profiles, problem excerpt export and turn report export are loaded on demand. The combined total UI budget is 870,000 bytes / 285,000 bytes gzip. The combined extension measurement is approximately 808 KiB / 263 KiB gzip.
 
 Comparison accepts up to 512 KiB per input, visits at most 50,000 nodes and caps changes at 5,000. It yields every 250 nodes and displays 50 differences per page. Value previews retain at most 1,000 UTF-16 code units plus omission markers, preserve Unicode code points, and label omitted content. Changed scalar previews show context around the first difference.
 
@@ -310,30 +311,34 @@ value cannot fail a query merely because it is too large to display.
 ## Fluid hover integration
 
 Fixed menus and output tabs share one decorative hover highlight. Motion uses
-Framer Motion’s native mini entry point and the fast, non-bouncing spring from
-Fluid Functionalism. Click targets and keyboard navigation remain with Base UI;
-virtualized records and trajectories do not use this effect.
+the native Web Animations API with a fast, non-bouncing 80 ms ease-out curve
+(falling back to direct inline styles when `Element.prototype.animate` is
+unavailable) and snaps geometry immediately under `prefers-reduced-motion:
+reduce`. Click targets and keyboard navigation remain with Base UI; virtualized
+records and trajectories do not use this effect.
 
-The effect adds approximately 13.4 KiB (5.2 KiB gzip) of initial JavaScript and
-0.5 KiB of CSS, within the budgets above.
+The effect requires no third-party motion runtime and adds about 0.5 KiB of CSS,
+within the budgets above.
 
 ## Web loading and fonts
 
 IBM Plex Sans and JetBrains Mono are bundled from pinned Fontsource variable-font
-packages. The app and localized changelogs share the same font declarations;
-Unicode ranges keep unused character subsets off the network. Vite emits every
-WOFF2 file as a separate hashed asset, including the small Cyrillic extension
-subset, so font binaries stay out of render-blocking CSS and work with
-`font-src 'self'`. The two Latin subsets total 86,116 bytes across all weights.
+packages. `packages/ui/src/fonts.css` declares only the `latin` and `latin-ext`
+variable-font subsets so unused Cyrillic, Greek, and Vietnamese subsets are not
+emitted into CSS or extension packages. The app, localized changelogs, and
+static guides share those font declarations; Vite emits the four WOFF2 files as
+separate hashed assets so font binaries stay out of render-blocking CSS and work
+with `font-src 'self'`. The two `latin` subsets total 86,116 bytes across all
+weights (132,276 bytes including `latin-ext`).
 
-The font declarations previously downloaded from Google now count toward the
-local CSS budgets. The app and extension measure 42,049 bytes / 8,953 bytes gzip;
-each changelog measures 9,775 bytes / 2,599 bytes gzip. Raw CSS ceilings are
-43,000 and 10,000 bytes respectively; gzip and JavaScript ceilings are unchanged.
-
-Before the floating turn-report bar, the app measured 8,998 bytes gzip, 2 bytes under the 9,000
-byte ceiling. With the bar it measures 42,860 bytes / 9,116 bytes gzip, so the initial CSS gzip
-ceiling rose to 9,200 bytes.
+Static changelogs and guide pages import shared base chrome from
+`apps/web/src/static-page.css` instead of layering guide styles on top of
+`changelog.css`. The font declarations count toward the local CSS budgets: the
+Web app measures 40,510 bytes / 8,774 bytes gzip, the extension measures 40,287
+bytes / 8,739 bytes gzip, each changelog measures 7,542 bytes / 2,306 bytes
+gzip, and each guide page measures 6,139 bytes / 1,987 bytes gzip. Ceilings
+remain 43,000 bytes / 9,200 bytes gzip for the application surfaces and 10,000
+bytes / 3,000 bytes gzip for each static page.
 
 Workers Static Assets serves hashed `/assets/` files with a one-year immutable
 browser cache through `apps/web/public/_headers`. HTML keeps the default
