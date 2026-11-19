@@ -52,6 +52,21 @@ const staticPages = [
     root: "dist/web",
     html: "dist/web/ja/changelog/index.html",
   },
+  {
+    name: "web guide jsonl-viewer",
+    root: "dist/web",
+    html: "dist/web/jsonl-viewer/index.html",
+  },
+  {
+    name: "web guide json-unescape",
+    root: "dist/web",
+    html: "dist/web/json-unescape/index.html",
+  },
+  {
+    name: "web guide agent-log-viewer",
+    root: "dist/web",
+    html: "dist/web/agent-log-viewer/index.html",
+  },
 ];
 
 const assetPathsFromHtml = (surface, extension) => {
