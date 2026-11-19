@@ -1,10 +1,9 @@
 import type { LocalFileAccess } from "./local-file-source";
 import { reportDiagnostic } from "./diagnostics";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
-import { parseInput } from "@unquote/core";
 import type { ParseResult } from "@unquote/core";
+import type { createMemorySearch } from "./memory-search";
 import { startPerfMeasure } from "./perf";
-import { searchRecords } from "./record-search";
 import type { SearchOptions, SearchResultSet, SearchResultWindow } from "./record-search";
 import type { SearchErrorKind } from "./search-lifecycle";
 import type { SourceRevision } from "./source-revision";
@@ -57,8 +56,8 @@ const buildSearchRequest = (
         ...(windowIndexes ? { windowIndexes } : {}),
       };
 
-const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileSearchAccess | null) =>
-  sourceAccess && sourceAccess.size > largeFileSearchBytes
+const getSearchWorkerTimeoutMs = (sourceAccess: LocalFileSearchAccess | null, text: string) =>
+  (sourceAccess ? sourceAccess.size : text.length) >= largeFileSearchBytes
     ? largeFileSearchWorkerTimeoutMs
     : searchWorkerTimeoutMs;
 
@@ -89,6 +88,10 @@ export const createSearchExecutor = (): SearchExecutor => {
     () => new Worker(new URL("../worker/search-worker.ts", import.meta.url), { type: "module" }),
   );
   let workerSourceRevision: SourceRevision | null = null;
+  let mainThreadCache: {
+    sourceRevision: SourceRevision;
+    search: ReturnType<typeof createMemorySearch>;
+  } | null = null;
 
   return {
     run(
@@ -142,6 +145,12 @@ export const createSearchExecutor = (): SearchExecutor => {
           return;
         }
         if (sourceAccess) {
+          mainThreadCache = null;
+          if (!isWithinMainThreadBudget(sourceAccess.size)) {
+            workerRun.finish();
+            fail("too-large");
+            return;
+          }
           fallbackController = new AbortController();
           sourceAccess
             .search(query, options, fallbackController.signal, windowIndexes)
@@ -161,17 +170,40 @@ export const createSearchExecutor = (): SearchExecutor => {
             });
           return;
         }
-        if (!isWithinMainThreadBudget(text.length)) {
+        if (!isWithinMainThreadBudget(text.length * 2)) {
           workerRun.finish();
           fail("too-large");
           return;
         }
 
-        const result = parseInput(text, forcedFormat ? { forcedFormat } : {});
-        const searchResult = searchRecords(result.records, query, options, windowIndexes);
-        workerRun.finish();
-        finishRequestMeasure();
-        complete(searchResult);
+        if (mainThreadCache?.sourceRevision === sourceRevision) {
+          const searchResult = mainThreadCache.search(query, options, windowIndexes);
+          workerRun.finish();
+          finishRequestMeasure();
+          complete(searchResult);
+          return;
+        }
+
+        void import("./memory-search")
+          .then(({ createTextMemorySearch }) => {
+            if (!workerRun.isActive()) {
+              return;
+            }
+            const search = createTextMemorySearch(text, forcedFormat);
+            mainThreadCache = { sourceRevision, search };
+            const searchResult = search(query, options, windowIndexes);
+            if (workerRun.finish()) {
+              finishRequestMeasure();
+              complete(searchResult);
+            }
+          })
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values and promise rejections are not restricted to Error instances.
+          .catch((error: unknown) => {
+            if (workerRun.finish()) {
+              reportDiagnostic("search.main-thread-text", error);
+              fail("worker-error");
+            }
+          });
       };
 
       if (!workerRun.available) {
@@ -195,11 +227,14 @@ export const createSearchExecutor = (): SearchExecutor => {
           if (sendText) {
             workerSourceRevision = sourceRevision;
           }
-          workerRun.setTimeout(() => {
-            if (workerRun.cancel()) {
-              fail("timeout");
-            }
-          }, getSearchWorkerTimeoutMs(sourceAccess));
+          workerRun.setTimeout(
+            () => {
+              if (workerRun.cancel()) {
+                fail("timeout");
+              }
+            },
+            getSearchWorkerTimeoutMs(sourceAccess, text),
+          );
         }
       }
 
@@ -214,6 +249,7 @@ export const createSearchExecutor = (): SearchExecutor => {
     dispose() {
       workerRunner.dispose();
       workerSourceRevision = null;
+      mainThreadCache = null;
     },
   };
 };

@@ -61,6 +61,7 @@ describe("useQueryInteraction", () => {
     expect(query.current.snapshot.searchStatus).toBe("pending");
 
     await act(() => vi.advanceTimersByTimeAsync(1));
+    await act(() => vi.dynamicImportSettled());
     expect(query.current.snapshot.searchStatus).toBe("complete");
   });
 

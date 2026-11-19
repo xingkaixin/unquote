@@ -430,6 +430,22 @@ describe("useSearchWorker", () => {
     expect(worker.terminated).toBe(true);
   });
 
+  it("extends the timeout for a large in-memory text search", async () => {
+    const text = `{"blob":"${"x".repeat(1_000_000)}"}`;
+    render(<Probe query="blob" text={text} />);
+    const worker = MockWorker.instances[0]!;
+
+    await act(() => vi.advanceTimersByTimeAsync(searchWorkerTimeoutMs));
+    expect(worker.terminated).toBe(false);
+
+    await act(() =>
+      vi.advanceTimersByTimeAsync(largeFileSearchWorkerTimeoutMs - searchWorkerTimeoutMs),
+    );
+    expect(worker.terminated).toBe(true);
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("timeout");
+  });
+
   it("reports a worker error response", () => {
     const { rerender } = render(<Probe query="a" text="text" />);
     const worker = MockWorker.instances[0]!;
@@ -447,10 +463,11 @@ describe("useSearchWorker", () => {
     );
   });
 
-  it("falls back to a main-thread search when the worker cannot be constructed", () => {
+  it("falls back to a main-thread search when the worker cannot be constructed", async () => {
     MockWorker.failConstruction = true;
 
     render(<Probe query="hello" text='{"a":"hello"}' />);
+    await act(() => vi.dynamicImportSettled());
 
     expect(MockWorker.instances).toHaveLength(0);
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
@@ -529,25 +546,39 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("idle");
   });
 
-  it("falls back to a synchronous main-thread search when Worker is unavailable", () => {
+  it("falls back to a main-thread search when Worker is unavailable", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
     render(<Probe query="hello" text='{"a":"hello"}' />);
+    await act(() => vi.dynamicImportSettled());
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
   });
 
-  it("retains the search index when the main-thread memory fallback loads a window", () => {
+  it("retains the search index and reuses parsed records in the main-thread memory fallback", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
-    const text = Array.from({ length: 200 }, () => '{"value":"needle"}').join("\n");
-    render(<Probe query="needle" text={text} windowIndexes={Float64Array.from([128])} />);
+    const core = await import("@unquote/core");
+    const parseSpy = vi.spyOn(core, "parseInput");
+    const text = Array.from({ length: 200 }, (_, index) =>
+      JSON.stringify({ value: index === 0 ? "needle alpha" : "needle" }),
+    ).join("\n");
+    const { rerender } = render(
+      <Probe query="needle" text={text} windowIndexes={Float64Array.from([128])} />,
+    );
+    await act(() => vi.dynamicImportSettled());
     const initialIndex = renderLog.at(-1)?.result?.matchLineNumbers;
     expect(initialIndex).toHaveLength(200);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Load window" }));
 
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-129");
     expect(renderLog.at(-1)?.result?.matchLineNumbers).toBe(initialIndex);
+
+    rerender(<Probe query="alpha" text={text} />);
+    expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    parseSpy.mockRestore();
   });
 
   it("retains the search index when the main-thread file fallback loads a window", async () => {
@@ -821,11 +852,11 @@ describe("useSearchWorker", () => {
   it("refuses an oversized in-memory search rather than blocking the main thread", () => {
     Reflect.deleteProperty(globalThis, "Worker");
     const parse = vi.spyOn(JSON, "parse");
-    const text = `{"pad":"${"x".repeat(mainThreadWorkBudgetBytes)}"}`;
+    const text = `{"pad":"${"x".repeat(Math.floor(mainThreadWorkBudgetBytes / 2))}"}`;
 
     render(<Probe query="pad" text={text} />);
 
-    // Neither the synchronous parse nor the search is entered.
+    // Neither the fallback parse nor the search is entered.
     expect(parse).not.toHaveBeenCalled();
     expect(screen.getByTestId("status")).toHaveTextContent("error");
     expect(screen.getByTestId("error-kind")).toHaveTextContent("too-large");
@@ -835,10 +866,11 @@ describe("useSearchWorker", () => {
   it.each([
     ["a plain query", "hello", defaultOptions],
     ["a jq path query", "$.a", { ...defaultOptions, syntax: "jq" as const }],
-  ])("searches %s within the budget", (_label, query, options) => {
+  ])("searches %s within the budget", async (_label, query, options) => {
     Reflect.deleteProperty(globalThis, "Worker");
 
     render(<Probe query={query} text='{"a":"hello"}' options={options} />);
+    await act(() => vi.dynamicImportSettled());
 
     expect(screen.getByTestId("status")).toHaveTextContent("complete");
     expect(screen.getByTestId("record-id")).toHaveTextContent("record-1");
@@ -853,18 +885,19 @@ describe("useSearchWorker", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("pending");
   });
 
-  it("keeps a file-backed search on its chunked path regardless of size", async () => {
+  it("refuses an oversized file-backed fallback search rather than blocking the main thread", async () => {
     Reflect.deleteProperty(globalThis, "Worker");
     const file = new File(["{}"], "big.jsonl");
-    Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes * 4 });
+    Object.defineProperty(file, "size", { value: mainThreadWorkBudgetBytes + 1 });
     const search = vi.fn().mockResolvedValue(resultStub("from-file"));
     const access = { ...createLocalFileAccess(file), search };
 
     render(<Probe query="a" text="" access={access} />);
     await act(async () => undefined);
 
-    expect(search).toHaveBeenCalledOnce();
-    expect(screen.getByTestId("record-id")).toHaveTextContent("from-file");
+    expect(search).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status")).toHaveTextContent("error");
+    expect(screen.getByTestId("error-kind")).toHaveTextContent("too-large");
   });
 
   it("refuses a regex fallback before calling a file-backed search", async () => {
