@@ -1,6 +1,6 @@
 import { SourceReadLimitError } from "./local-file-reader";
 import type { JsonNode, JsonlRecord, ParseResult } from "@unquote/core";
-import { isPreviewRecord, stringifyJsonNodeBounded } from "@unquote/core";
+import { isPreviewRecord, stringifyJsonNodeWithLimits } from "@unquote/core";
 import {
   copyBytesLimit,
   copyRecordLimit,
@@ -74,17 +74,17 @@ class CopyPayloadWriter {
   }
 }
 
-const boundedRecordText = (record: JsonlRecord, indent: number, maxLength: number) =>
-  stringifyJsonNodeBounded(copyNodeFor(record), maxLength, { indent });
+const boundedRecordText = (record: JsonlRecord, indent: number, maxBytes: number) =>
+  stringifyJsonNodeWithLimits(copyNodeFor(record), { maxBytes }, { indent });
 
 const appendRecord = (writer: CopyPayloadWriter, record: JsonlRecord, indent: number) => {
   const serialized = boundedRecordText(record, indent, writer.remainingBytes);
-  return !serialized.truncated && writer.append(serialized.text);
+  return serialized.complete && writer.append(serialized.text);
 };
 
 const appendIndentedRecord = (writer: CopyPayloadWriter, record: JsonlRecord) => {
   const serialized = boundedRecordText(record, 2, writer.remainingBytes);
-  if (serialized.truncated || !writer.append("  ")) {
+  if (!serialized.complete || !writer.append("  ")) {
     return false;
   }
 
@@ -220,25 +220,28 @@ const createExportPartsBuilder = (
   return {
     bodyFor(record) {
       const serialized = boundedRecordText(record, format === "jsonl" ? 0 : 2, remainingBytes);
-      if (serialized.truncated) {
+      if (!serialized.complete) {
         throw new ExportSizeLimitError();
       }
-      if (format === "array") {
-        let indentationBytes = 2;
-        for (const character of serialized.text) {
-          if (character === "\n") indentationBytes += 2;
-        }
-        if (
-          indentationBytes > remainingBytes ||
-          utf8ByteLengthWithin(serialized.text, remainingBytes - indentationBytes) === null
-        ) {
-          throw new ExportSizeLimitError();
-        }
+      if (format !== "array") {
+        return serialized.text;
       }
-      const body =
-        format === "array" ? `  ${serialized.text.replace(/\n/g, "\n  ")}` : serialized.text;
-      requireBytes(body);
-      return body;
+
+      let indentationBytes = 2;
+      for (
+        let newline = serialized.text.indexOf("\n");
+        newline >= 0;
+        newline = serialized.text.indexOf("\n", newline + 1)
+      ) {
+        indentationBytes += 2;
+      }
+      if (
+        indentationBytes > remainingBytes ||
+        utf8ByteLengthWithin(serialized.text, remainingBytes - indentationBytes) === null
+      ) {
+        throw new ExportSizeLimitError();
+      }
+      return `  ${serialized.text.replace(/\n/g, "\n  ")}`;
     },
     addBody(body) {
       if (format === "json" && count > 0) {

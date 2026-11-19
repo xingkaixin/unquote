@@ -75,11 +75,21 @@ const readSearchWindow = async (
   signal: AbortSignal,
   windowIndexes: ArrayLike<number>,
 ): Promise<SearchResultSet | null> => {
+  if (signal.aborted) {
+    return null;
+  }
   const requests = requestSearchWindow(cache.result, windowIndexes);
-  const records = await readJsonlRecordsByLine(file, new Set(requests.keys()), signal);
-  return signal.aborted
-    ? null
-    : materializeSearchWindow(cache, requests, (line) => records.get(line));
+  try {
+    const records = await readJsonlRecordsByLine(file, new Set(requests.keys()), signal);
+    return signal.aborted
+      ? null
+      : materializeSearchWindow(cache, requests, (line) => records.get(line));
+  } catch (error) {
+    if (signal.aborted) {
+      return null;
+    }
+    throw error;
+  }
 };
 
 export const createLocalFileSearch = (file: File) => {

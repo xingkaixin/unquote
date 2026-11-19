@@ -13,6 +13,8 @@ const loadWorker = async () => {
   return workerScope;
 };
 
+const encodeChunk = (text: string) => new TextEncoder().encode(text);
+
 const dispatch = (workerScope: WorkerScope, data: ParserRequest) => {
   workerScope.onmessage?.(new MessageEvent("message", { data }));
 };
@@ -86,9 +88,8 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "broken.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: 64,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
 
     const workerScope = await loadWorker();
@@ -109,14 +110,15 @@ describe("parser worker dispatch", () => {
     });
   });
 
-  it("posts an error when decoder stream setup fails", async () => {
+  it("posts an error when stream reader setup fails", async () => {
     // SAFETY: This File fixture implements only the stream protocol consumed by the worker, with controlled reads and failures.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "broken.jsonl",
+      size: 64,
       stream: () => ({
-        pipeThrough: () => {
-          throw new Error("decoder failed");
+        getReader: () => {
+          throw new Error("reader failed");
         },
       }),
     } as unknown as File;
@@ -132,11 +134,14 @@ describe("parser worker dispatch", () => {
   });
 
   it("transfers Preview Records in compact form", async () => {
+    const payload = encodeChunk(
+      '{"type":"message","message":"ready","payload":"{\\"nested\\":true}"}\n',
+    );
     const reader = {
       read: vi
         .fn()
         .mockResolvedValueOnce({
-          value: '{"type":"message","message":"ready","payload":"{\\"nested\\":true}"}\n',
+          value: payload,
           done: false,
         })
         .mockResolvedValueOnce({ value: undefined, done: true }),
@@ -146,9 +151,8 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "preview.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: payload.byteLength,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
 
     const workerScope = await loadWorker();
@@ -185,10 +189,11 @@ describe("parser worker dispatch", () => {
       "null",
       "{bad}",
     ].join("\n");
+    const payload = encodeChunk(`${chunk}\n`);
     const reader = {
       read: vi
         .fn()
-        .mockResolvedValueOnce({ value: `${chunk}\n`, done: false })
+        .mockResolvedValueOnce({ value: payload, done: false })
         .mockResolvedValueOnce({ value: undefined, done: true }),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
@@ -196,9 +201,8 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "variants.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: payload.byteLength,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
 
     const workerScope = await loadWorker();
@@ -208,6 +212,11 @@ describe("parser worker dispatch", () => {
         expect.objectContaining({ type: "complete-stats", requestId: 1 }),
       ),
     );
+
+    const complete = workerScope.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message.type === "complete-stats");
+    expect(complete?.lineCheckpoints?.length).toBeGreaterThan(0);
 
     const records = workerScope.postMessage.mock.calls
       .map(([message]) => message)
@@ -237,10 +246,11 @@ describe("parser worker dispatch", () => {
   it("parses each top-level file line once for records and agent tracking", async () => {
     const validLine = '{"value":1}';
     const invalidLine = "{bad}";
+    const payload = encodeChunk(`${validLine}\n${invalidLine}\n`);
     const reader = {
       read: vi
         .fn()
-        .mockResolvedValueOnce({ value: `${validLine}\n${invalidLine}\n`, done: false })
+        .mockResolvedValueOnce({ value: payload, done: false })
         .mockResolvedValueOnce({ value: undefined, done: true }),
       cancel: vi.fn().mockResolvedValue(undefined),
     };
@@ -248,9 +258,8 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "single-parse.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: payload.byteLength,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
     const parse = vi.spyOn(JSON, "parse");
     const workerScope = await loadWorker();
@@ -361,11 +370,11 @@ describe("parser worker dispatch", () => {
   });
 
   it("cancels a reader superseded after a successful read", async () => {
-    let resolveRead: ((result: ReadableStreamReadResult<string>) => void) | undefined;
+    let resolveRead: ((result: ReadableStreamReadResult<Uint8Array>) => void) | undefined;
     const reader = {
       read: vi.fn(
         () =>
-          new Promise<ReadableStreamReadResult<string>>((resolve) => {
+          new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
             resolveRead = resolve;
           }),
       ),
@@ -375,16 +384,15 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "old.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: 64,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
 
     const workerScope = await loadWorker();
     dispatch(workerScope, { type: "file-jsonl", requestId: 1, file });
     await vi.waitFor(() => expect(reader.read).toHaveBeenCalledOnce());
     dispatch(workerScope, { type: "parse", requestId: 2, input: "{}" });
-    resolveRead?.({ value: '{"stale":true}\n', done: false });
+    resolveRead?.({ value: encodeChunk('{"stale":true}\n'), done: false });
 
     await vi.waitFor(() => expect(reader.cancel).toHaveBeenCalledOnce());
     expect(workerScope.postMessage).not.toHaveBeenCalledWith(
@@ -398,7 +406,7 @@ describe("parser worker dispatch", () => {
     const reader = {
       read: vi.fn(
         () =>
-          new Promise<ReadableStreamReadResult<string>>((_resolve, reject) => {
+          new Promise<ReadableStreamReadResult<Uint8Array>>((_resolve, reject) => {
             rejectRead = reject;
           }),
       ),
@@ -408,9 +416,8 @@ describe("parser worker dispatch", () => {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The controlled File fixture exposes the stream reader path used in this test.
     const file = {
       name: "old.jsonl",
-      stream: () => ({
-        pipeThrough: () => ({ getReader: () => reader }),
-      }),
+      size: 64,
+      stream: () => ({ getReader: () => reader }),
     } as unknown as File;
 
     const workerScope = await loadWorker();

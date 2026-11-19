@@ -7,6 +7,7 @@ import { belongsToSourceRevision } from "./source-revision";
 import type { SourceRevision } from "./source-revision";
 import type { RecordAppend } from "./record-sequence";
 import { isWithinMainThreadBudget } from "./main-thread-budget";
+import { seedJsonlLineCheckpoints } from "./local-file-reader";
 import { createStreamPublisher } from "./stream-publisher";
 import { createWorkerRequestRunner } from "./worker-lifecycle";
 import type { WorkerRun } from "./worker-lifecycle";
@@ -286,6 +287,9 @@ export const createParserExecutor = (): ParserExecutor => {
         if (message.type === "complete-result") {
           applyParsedText(message);
           return;
+        }
+        if (sourceFile && message.lineCheckpoints) {
+          seedJsonlLineCheckpoints(sourceFile, message.lineCheckpoints);
         }
         commit((current) => ({
           sourceRevision,

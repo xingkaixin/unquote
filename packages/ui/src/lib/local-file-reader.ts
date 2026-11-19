@@ -7,12 +7,12 @@ const lineCheckpointLimit = 64;
 // Byte buckets bound repeated I/O; line-count spacing cannot when records vary in size.
 const checkpointByteBucketCount = lineCheckpointLimit - 1;
 
-interface LineCheckpoint {
+export interface LineCheckpoint {
   lineNumber: number;
   byteOffset: number;
 }
 
-class JsonlLineIndex {
+export class JsonlLineIndex {
   private readonly byteBucketSize: number;
   private readonly checkpointsByBucket = new Map<number, LineCheckpoint>();
   private frontierLineNumber = 1;
@@ -58,6 +58,23 @@ class JsonlLineIndex {
       this.checkpointsByBucket.set(bucket, { lineNumber, byteOffset });
     }
   }
+
+  exportCheckpoints(): LineCheckpoint[] {
+    const checkpoints = [...this.checkpointsByBucket.values()];
+    if (this.frontierByteOffset > 0) {
+      checkpoints.push({
+        lineNumber: this.frontierLineNumber,
+        byteOffset: this.frontierByteOffset,
+      });
+    }
+    return checkpoints;
+  }
+
+  seedCheckpoints(checkpoints: readonly LineCheckpoint[]) {
+    for (const checkpoint of checkpoints) {
+      this.addCheckpoint(checkpoint.lineNumber, checkpoint.byteOffset);
+    }
+  }
 }
 
 const jsonlLineIndexes = new WeakMap<File, JsonlLineIndex>();
@@ -69,6 +86,12 @@ const lineIndexFor = (file: File) => {
     jsonlLineIndexes.set(file, index);
   }
   return index;
+};
+
+export const seedJsonlLineCheckpoints = (file: File, checkpoints: readonly LineCheckpoint[]) => {
+  if (checkpoints.length > 0) {
+    lineIndexFor(file).seedCheckpoints(checkpoints);
+  }
 };
 
 // Distinguishable from a genuine read failure, which the caller surfaces to
@@ -299,15 +322,31 @@ export class SourceReadLimitError extends Error {
   }
 }
 
-export const readJsonlLinesByNumber = async (
+const emptyBytes = new Uint8Array(0);
+
+interface ScanJsonlLinesOptions {
+  signal?: AbortSignal | undefined;
+  maxBytes?: number | undefined;
+  batchMaxLines?: number | undefined;
+  batchMaxBytes?: number | undefined;
+  onBatch?: ((lines: Map<number, string>) => void | Promise<void>) | undefined;
+}
+
+const scanJsonlLinesByNumber = async (
   file: File,
-  lineNumbers: Set<number>,
-  signal?: AbortSignal,
-  maxBytes = Number.POSITIVE_INFINITY,
-) => {
-  const lines = new Map<number, string>();
+  lineNumbers: ReadonlySet<number>,
+  {
+    signal,
+    maxBytes = Number.POSITIVE_INFINITY,
+    batchMaxLines = Number.POSITIVE_INFINITY,
+    batchMaxBytes = Number.POSITIVE_INFINITY,
+    onBatch,
+  }: ScanJsonlLinesOptions = {},
+): Promise<Map<number, string>> => {
+  signal?.throwIfAborted();
+  const collected = new Map<number, string>();
   if (lineNumbers.size === 0) {
-    return lines;
+    return collected;
   }
 
   let firstRequestedLine = Number.POSITIVE_INFINITY;
@@ -321,27 +360,74 @@ export const readJsonlLinesByNumber = async (
   const slicedFile = file.slice(scanRange.start.byteOffset, scanRange.end?.byteOffset ?? file.size);
 
   if (typeof slicedFile.stream !== "function") {
-    if (file.size > maxBytes) {
+    if (!onBatch && file.size > maxBytes) {
       throw new SourceReadLimitError();
     }
+    const matched: Array<[number, string]> = [];
     await readJsonlFileLines(
       file,
       (line, lineNumber) => {
         if (lineNumbers.has(lineNumber)) {
-          lines.set(lineNumber, line);
+          matched.push([lineNumber, line]);
         }
-        return lines.size < lineNumbers.size;
+        return matched.length < lineNumbers.size;
       },
       signal,
     );
-    return lines;
+    signal?.throwIfAborted();
+    if (!onBatch) {
+      for (const [lineNumber, line] of matched) {
+        collected.set(lineNumber, line);
+      }
+      return collected;
+    }
+
+    const encoder = new TextEncoder();
+    let totalBytes = 0;
+    let batch = new Map<number, string>();
+    let batchBytes = 0;
+    for (const [lineNumber, line] of matched) {
+      signal?.throwIfAborted();
+      const lineBytes = encoder.encode(line).byteLength;
+      if (totalBytes + lineBytes > maxBytes) {
+        if (batch.size > 0) {
+          await onBatch(batch);
+          signal?.throwIfAborted();
+        }
+        throw new SourceReadLimitError();
+      }
+      totalBytes += lineBytes;
+      if (batch.size > 0 && batchBytes + lineBytes > batchMaxBytes) {
+        await onBatch(batch);
+        signal?.throwIfAborted();
+        batch = new Map();
+        batchBytes = 0;
+      }
+      batch.set(lineNumber, line);
+      batchBytes += lineBytes;
+      if (batch.size >= batchMaxLines || batchBytes >= batchMaxBytes) {
+        await onBatch(batch);
+        signal?.throwIfAborted();
+        batch = new Map();
+        batchBytes = 0;
+      }
+    }
+    if (batch.size > 0) {
+      await onBatch(batch);
+      signal?.throwIfAborted();
+    }
+    return collected;
   }
 
   const reader = slicedFile.stream().getReader();
   let lineNumber = scanRange.start.lineNumber;
   let absoluteOffset = scanRange.start.byteOffset;
   let lineChunks: Uint8Array[] = [];
+  let lineChunkBytes = 0;
   let collectedBytes = 0;
+  let matchedCount = 0;
+  let batch = collected;
+  let batchBytes = 0;
   let stopped = false;
   let readerCanceled = false;
   const decoder = new TextDecoder();
@@ -355,49 +441,71 @@ export const readJsonlLinesByNumber = async (
   const withoutCarriageReturn = (bytes: Uint8Array) =>
     bytes.at(-1) === 13 ? bytes.subarray(0, -1) : bytes;
 
-  // Only a line split across chunks needs its pieces merged; the common case
-  // decodes the chunk's own bytes in place.
-  const decodeCollectedLine = () => {
-    const [only] = lineChunks;
-    if (lineChunks.length === 1 && only) {
-      return decoder.decode(withoutCarriageReturn(only));
+  const flushBatch = async () => {
+    if (!onBatch || batch.size === 0) {
+      return;
+    }
+    const ready = batch;
+    batch = new Map();
+    batchBytes = 0;
+    await onBatch(ready);
+    signal?.throwIfAborted();
+  };
+
+  const decodeLine = (trailing: Uint8Array) => {
+    if (lineChunks.length === 0) {
+      const trimmed = withoutCarriageReturn(trailing);
+      return { text: decoder.decode(trimmed), byteLength: trimmed.byteLength };
     }
 
-    const byteLength = lineChunks.reduce((total, chunk) => total + chunk.byteLength, 0);
-    const bytes = new Uint8Array(byteLength);
+    const bytes = new Uint8Array(lineChunkBytes + trailing.byteLength);
     let writeOffset = 0;
     for (const chunk of lineChunks) {
       bytes.set(chunk, writeOffset);
       writeOffset += chunk.byteLength;
     }
-    return decoder.decode(withoutCarriageReturn(bytes));
+    bytes.set(trailing, writeOffset);
+    lineChunks = [];
+    lineChunkBytes = 0;
+    const trimmed = withoutCarriageReturn(bytes);
+    return { text: decoder.decode(trimmed), byteLength: trimmed.byteLength };
   };
 
-  // Locating a line only needs newline positions, so bytes are collected for
-  // requested lines alone: skipped lines advance the counters and nothing else.
-  const collectLineBytes = (bytes: Uint8Array) => {
-    if (lineNumbers.has(lineNumber)) {
-      collectedBytes += bytes.byteLength;
-      if (collectedBytes > maxBytes) {
-        throw new SourceReadLimitError();
-      }
-      lineChunks.push(bytes.slice());
+  const emitLine = async (trailing: Uint8Array) => {
+    const rawLineBytes = lineChunkBytes + trailing.byteLength;
+    const hasTrailingCr =
+      trailing.byteLength > 0
+        ? trailing[trailing.byteLength - 1] === 13
+        : lineChunks.at(-1)?.at(-1) === 13;
+    const effectiveLineBytes = hasTrailingCr ? rawLineBytes - 1 : rawLineBytes;
+    if (collectedBytes + effectiveLineBytes > maxBytes) {
+      await flushBatch();
+      throw new SourceReadLimitError();
     }
-  };
 
-  const processLine = () => {
-    if (lineChunks.length > 0) {
-      lines.set(lineNumber, decodeCollectedLine());
-      lineChunks = [];
+    const decoded = decodeLine(trailing);
+    collectedBytes += decoded.byteLength;
+    matchedCount += 1;
+    if (onBatch && batch.size > 0 && batchBytes + decoded.byteLength > batchMaxBytes) {
+      await flushBatch();
     }
-    return lines.size < lineNumbers.size;
+    batch.set(lineNumber, decoded.text);
+    batchBytes += decoded.byteLength;
+    if (onBatch && (batch.size >= batchMaxLines || batchBytes >= batchMaxBytes)) {
+      await flushBatch();
+    }
+    return matchedCount < lineNumbers.size;
   };
 
   try {
     while (!stopped && !signal?.aborted) {
       const { value, done } = await reader.read();
+      signal?.throwIfAborted();
       if (done) {
-        processLine();
+        if (lineChunks.length > 0) {
+          await emitLine(emptyBytes);
+        }
+        await flushBatch();
         break;
       }
       if (!value) {
@@ -410,26 +518,38 @@ export const readJsonlLinesByNumber = async (
           continue;
         }
 
-        collectLineBytes(value.subarray(segmentStart, index));
-        stopped = !processLine();
+        if (lineNumbers.has(lineNumber)) {
+          stopped = !(await emitLine(value.subarray(segmentStart, index)));
+        }
         lineNumber += 1;
         lineIndex.addCheckpoint(lineNumber, absoluteOffset + index + 1);
         segmentStart = index + 1;
-        if (stopped) {
+        if (stopped || signal?.aborted) {
+          stopped = true;
           break;
         }
       }
 
-      if (!stopped && segmentStart < value.byteLength) {
-        collectLineBytes(value.subarray(segmentStart));
+      if (
+        !stopped &&
+        !signal?.aborted &&
+        segmentStart < value.byteLength &&
+        lineNumbers.has(lineNumber)
+      ) {
+        const segment = value.subarray(segmentStart);
+        // Check against the cumulative budget before buffering an oversized partial line.
+        if (collectedBytes + lineChunkBytes + segment.byteLength > maxBytes + 1) {
+          await flushBatch();
+          throw new SourceReadLimitError();
+        }
+        lineChunks.push(segment.slice());
+        lineChunkBytes += segment.byteLength;
       }
       absoluteOffset += value.byteLength;
     }
   } catch (error) {
     stopped = true;
-    if (!signal?.aborted) {
-      throw error;
-    }
+    throw signal?.aborted ? signal.reason : error;
   } finally {
     signal?.removeEventListener("abort", cancelReader);
     if ((stopped || signal?.aborted) && !readerCanceled) {
@@ -437,7 +557,29 @@ export const readJsonlLinesByNumber = async (
     }
   }
 
-  return lines;
+  signal?.throwIfAborted();
+  return collected;
+};
+
+export const readJsonlLinesByNumber = (
+  file: File,
+  lineNumbers: ReadonlySet<number>,
+  signal?: AbortSignal,
+  maxBytes = Number.POSITIVE_INFINITY,
+) => scanJsonlLinesByNumber(file, lineNumbers, { signal, maxBytes });
+
+export const streamJsonlLineBatches = async (
+  file: File,
+  lineNumbers: ReadonlySet<number>,
+  onBatch: (lines: Map<number, string>) => void | Promise<void>,
+  options: {
+    signal?: AbortSignal | undefined;
+    maxBytes?: number | undefined;
+    batchMaxLines?: number | undefined;
+    batchMaxBytes?: number | undefined;
+  } = {},
+) => {
+  await scanJsonlLinesByNumber(file, lineNumbers, { ...options, onBatch });
 };
 
 export const readJsonlRecordsByLine = async (

@@ -51,7 +51,7 @@ const createWorkerRequest = <Response>(
   { onMessage, onFailure, onTerminate }: WorkerRequestOptions<Response>,
 ): WorkerRequest => {
   let active = true;
-  let timeoutId: number | null = null;
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
 
   const removeListeners = () => {
     worker.removeEventListener("message", onMessage);
@@ -66,7 +66,7 @@ const createWorkerRequest = <Response>(
 
     active = false;
     if (timeoutId !== null) {
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
       timeoutId = null;
     }
     removeListeners();
@@ -112,9 +112,9 @@ const createWorkerRequest = <Response>(
         return;
       }
       if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       }
-      timeoutId = window.setTimeout(callback, timeoutMs);
+      timeoutId = globalThis.setTimeout(callback, timeoutMs);
     },
   };
 

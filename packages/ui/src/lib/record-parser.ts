@@ -41,7 +41,7 @@ export const createRecordParser = (): RecordParser => {
   let busy = false;
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason can be any value and must reach the pending rejection unchanged.
   let cancelActive: ((reason: unknown) => void) | null = null;
-  let idleTimeoutId: number | null = null;
+  let idleTimeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
 
   const release = () => {
     busy = false;
@@ -51,7 +51,7 @@ export const createRecordParser = (): RecordParser => {
     if (next) {
       next();
     } else {
-      idleTimeoutId = window.setTimeout(() => {
+      idleTimeoutId = globalThis.setTimeout(() => {
         idleTimeoutId = null;
         runner.dispose();
       }, recordParserIdleTimeoutMs);
@@ -85,7 +85,7 @@ export const createRecordParser = (): RecordParser => {
       });
     }
     if (idleTimeoutId !== null) {
-      window.clearTimeout(idleTimeoutId);
+      globalThis.clearTimeout(idleTimeoutId);
       idleTimeoutId = null;
     }
     busy = true;

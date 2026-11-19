@@ -57,7 +57,7 @@ describe("search worker", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     vi.doUnmock("../src/lib/record-search");
-    vi.doUnmock("../src/lib/local-file-source");
+    vi.doUnmock("../src/lib/local-file-search");
     vi.doUnmock("@unquote/core");
   });
 
@@ -288,16 +288,16 @@ describe("search worker", () => {
     expect(windowResponse.window.matches).toMatchObject([{ recordId: "record-2" }]);
   });
 
-  it("reuses file access for windows within one source revision", async () => {
+  it("reuses file search for windows within one source revision", async () => {
     const result = {
       total: 0,
       matchLineNumbers: new Float64Array(),
       window: { matchIndexes: new Float64Array(), matches: [] },
     };
     const search = vi.fn().mockResolvedValue(result);
-    const createLocalFileAccess = vi.fn(() => ({ search }));
+    const createLocalFileSearch = vi.fn(() => search);
     // oxlint-disable-next-line anti-slop/no-module-mocking -- Observe worker request delegation and result transfer without duplicating file-search tests.
-    vi.doMock("../src/lib/local-file-source", () => ({ createLocalFileAccess }));
+    vi.doMock("../src/lib/local-file-search", () => ({ createLocalFileSearch }));
     const file = new File(["{}"], "payload.jsonl");
     const workerScope = await loadWorker();
 
@@ -321,7 +321,7 @@ describe("search worker", () => {
     });
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(2));
 
-    expect(createLocalFileAccess).toHaveBeenCalledTimes(1);
+    expect(createLocalFileSearch).toHaveBeenCalledTimes(1);
     expect(search).toHaveBeenCalledTimes(2);
 
     dispatch(workerScope, {
@@ -333,7 +333,7 @@ describe("search worker", () => {
       options: defaultOptions,
     });
     await vi.waitFor(() => expect(workerScope.postMessage).toHaveBeenCalledTimes(3));
-    expect(createLocalFileAccess).toHaveBeenCalledTimes(2);
+    expect(createLocalFileSearch).toHaveBeenCalledTimes(2);
   });
 
   it("reports an error instead of empty matches when a file read fails", async () => {
