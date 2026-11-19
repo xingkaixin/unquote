@@ -62,46 +62,22 @@ const ToolCard = ({
   block,
   title,
   status,
-  selected,
-  selectionToken,
+  expanded,
   selectLabel,
-  onSelect,
+  onToggle,
 }: {
   block: Extract<AgentContentBlock, { type: "tool_use" | "tool_result" }>;
   title: string;
   status: AgentToolStatus;
-  selected: boolean;
-  selectionToken: AgentDetailSelection | null;
+  expanded: boolean;
   selectLabel: string;
-  onSelect: () => void;
+  onToggle: () => void;
 }) => {
   const { t } = useTranslation();
-  const [collapsed, setCollapsed] = useState(false);
-  const [prevSelected, setPrevSelected] = useState(selected);
-  const [prevSelectionToken, setPrevSelectionToken] = useState(selectionToken);
-
-  if (selected !== prevSelected || selectionToken !== prevSelectionToken) {
-    setPrevSelected(selected);
-    setPrevSelectionToken(selectionToken);
-    if (collapsed) {
-      setCollapsed(false);
-    }
-  }
-
-  const expanded = selected && !collapsed;
   const fields = useMemo(
     () => (expanded ? parseToolFields(block.text) : null),
     [block.text, expanded],
   );
-
-  const handleToggle = () => {
-    if (expanded) {
-      setCollapsed(true);
-      return;
-    }
-    setCollapsed(false);
-    onSelect();
-  };
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface-100">
@@ -111,7 +87,7 @@ const ToolCard = ({
         aria-label={selectLabel}
         aria-pressed={expanded}
         className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-        onClick={handleToggle}
+        onClick={onToggle}
       >
         <span className="shrink-0 font-mono text-[12px] text-accent">{expanded ? "▾" : "▸"}</span>
         <span className="shrink-0 whitespace-nowrap font-mono text-[12.5px] font-medium text-text-primary">
@@ -155,14 +131,14 @@ const ConversationTurn = ({
   entry,
   model,
   selected,
-  selectionToken,
+  expanded,
   onSelect,
   onOpenRecord,
 }: {
   entry: AgentConversationEntry;
   model: AgentSessionModel;
   selected: boolean;
-  selectionToken: AgentDetailSelection | null;
+  expanded: boolean;
   onSelect: (itemId: string) => void;
   onOpenRecord: (recordId: string) => void;
 }) => {
@@ -228,10 +204,9 @@ const ConversationTurn = ({
                 : config.label
           }
           status={model.resolveToolStatus(item)}
-          selected={selected}
-          selectionToken={selectionToken}
+          expanded={expanded}
           selectLabel={selectLabel}
-          onSelect={() => onSelect(item.id)}
+          onToggle={() => onSelect(item.id)}
         />
       ) : (
         <div
@@ -301,6 +276,16 @@ export const AgentConversationPane = ({
   onExportTurns,
 }: AgentConversationPaneProps) => {
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState<{
+    id: string;
+    selection: AgentDetailSelection | null;
+  } | null>(null);
+  if (
+    collapsed &&
+    (collapsed.id !== selectedConversationId || collapsed.selection !== detailSelection)
+  ) {
+    setCollapsed(null);
+  }
   const turnBarOpen = selectedTurns.size > 0;
   // The bar stays mounted to fade out, so it keeps the last non-zero count
   // instead of showing "0 turns selected" while it leaves.
@@ -360,6 +345,8 @@ export const AgentConversationPane = ({
   }, [detailSelection, selectedConversationId]);
 
   const renderTurn = (entry: AgentConversationEntry) => {
+    const selected = entry.item.id === selectedConversationId;
+    const expanded = selected && !collapsed;
     const turn = turnStartById.get(entry.item.id);
     return (
       <>
@@ -369,9 +356,17 @@ export const AgentConversationPane = ({
         <ConversationTurn
           entry={entry}
           model={model}
-          selected={selectedConversationId === entry.item.id}
-          selectionToken={selectedConversationId === entry.item.id ? detailSelection : null}
-          onSelect={onSelectItem}
+          selected={selected}
+          expanded={expanded}
+          onSelect={(id) => {
+            const block = entry.item.block;
+            if (expanded && (block?.type === "tool_use" || block?.type === "tool_result")) {
+              setCollapsed({ id, selection: detailSelection });
+            } else {
+              setCollapsed(null);
+              onSelectItem(id);
+            }
+          }}
           onOpenRecord={onOpenRecord}
         />
       </>

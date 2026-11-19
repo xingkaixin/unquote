@@ -479,10 +479,18 @@ describe("AgentConversationPane", () => {
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     rerenderWith({
+      entries: [],
+      selectedConversationId: "item-1",
+      detailSelection: initialSelection,
+    });
+    rerenderWith({ entries, selectedConversationId: "item-1", detailSelection: initialSelection });
+    const remounted = screen.getByRole("button", { name: /^Conversation:/ });
+    expect(remounted).toHaveAttribute("aria-pressed", "false");
+    rerenderWith({
       selectedConversationId: "item-1",
       detailSelection: { kind: "event", id: "event-1", recordId: "record-1" },
     });
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(remounted).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("cmd")).toBeInTheDocument();
   });
 });
