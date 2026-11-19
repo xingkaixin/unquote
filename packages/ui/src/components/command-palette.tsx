@@ -155,11 +155,12 @@ export const CommandPalette = ({
   const handlePaletteKeyDown = (event: KeyboardEvent<HTMLInputElement>, preferAction: boolean) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if ((preferAction || actionSelected) && visibleActions[activeIndex]) {
-        runAction(visibleActions[activeIndex]!);
+      const action = visibleActions[activeIndex];
+      if (action && (preferAction || actionSelected)) {
+        runAction(action);
         return;
       }
-      runPrimary();
+      if (!preferAction) runPrimary();
       return;
     }
     if (event.key === "Escape") {

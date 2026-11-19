@@ -78,7 +78,7 @@ describe("CommandPalette", () => {
 
   it("filters commands and runs the keyboard-selected action", async () => {
     const user = userEvent.setup();
-    const callbacks = renderPalette();
+    const callbacks = renderPalette({ inputValue: "needle" });
     const commandFilter = screen.getByRole("textbox", { name: "Filter commands..." });
     const input = screen.getByRole("combobox", { name: "Search or jump" });
 
@@ -99,12 +99,15 @@ describe("CommandPalette", () => {
 
   it("handles an empty command result and escape without selecting a filter", async () => {
     const user = userEvent.setup();
-    const callbacks = renderPalette();
+    const callbacks = renderPalette({ inputValue: "needle" });
     const commandFilter = screen.getByRole("textbox", { name: "Filter commands..." });
     const input = screen.getByRole("combobox", { name: "Search or jump" });
 
     await user.type(commandFilter, "no such command");
     expect(screen.queryAllByRole("option")).toHaveLength(0);
+    fireEvent.keyDown(commandFilter, { key: "Enter" });
+    expect(callbacks.onSearch).not.toHaveBeenCalled();
+    expect(callbacks.onClose).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowUp" });
     fireEvent.keyDown(input, { key: "Enter" });

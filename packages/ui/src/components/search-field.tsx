@@ -52,7 +52,7 @@ export const SearchField = ({
 
   return (
     <form
-      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
+      className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmitQuery(inputRef.current?.value ?? query);
@@ -87,7 +87,7 @@ export const SearchField = ({
           }
         }}
         placeholder={t("command.placeholder")}
-        className="uq-search min-w-0 flex-1 bg-transparent font-mono text-[12px] text-text-primary outline-none disabled:opacity-40"
+        className="uq-search min-w-[6ch] flex-1 bg-transparent font-mono text-[12px] text-text-primary outline-none disabled:opacity-40"
       />
       {jq ? (
         <span className={badgeClass} title={t("search.jq")}>
@@ -118,11 +118,17 @@ export const SearchField = ({
         </button>
       ) : null}
       {hasQuery && errorLabel ? (
-        <span role="status" className="shrink-0 font-mono text-[10.5px] text-error">
+        <span
+          role="status"
+          className="order-last basis-full break-words font-mono text-[10.5px] text-error sm:order-none sm:basis-auto"
+        >
           {errorLabel}
         </span>
       ) : hasQuery && searchStatus === "pending" ? (
-        <span role="status" className="shrink-0 font-mono text-[10.5px] text-text-tertiary">
+        <span
+          role="status"
+          className="order-last basis-full font-mono text-[10.5px] text-text-tertiary sm:order-none sm:basis-auto"
+        >
           {t("search.searching")}
         </span>
       ) : hasMatches ? (
