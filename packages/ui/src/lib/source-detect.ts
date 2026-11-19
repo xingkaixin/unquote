@@ -9,6 +9,8 @@ export type SourceDetection =
 
 export const sourceDetectionProbeByteBudget = 64 * 1024;
 
+export const largeFileJsonlProbeByteBudget = 256 * 1024;
+
 export const sourceDetectionLineBudget = 40;
 
 const parses = (text: string) => {
@@ -25,7 +27,19 @@ interface DraftLines {
   precision: "exact" | "lower-bound";
   probe: string[];
   firstNonWhitespace: string | null;
+  incompleteLineFirstChar: string | null;
 }
+
+const isJsonContainerStart = (char: string | null) => char === "{" || char === "[";
+
+const lastNonWhitespaceChar = (text: string) => {
+  for (let index = text.length - 1; index >= 0; index -= 1) {
+    if (text.charCodeAt(index) > 32) {
+      return text[index] ?? null;
+    }
+  }
+  return null;
+};
 
 const trimLine = (text: string, start: number, end: number) => {
   while (start < end && text.charCodeAt(start) <= 32) {
@@ -37,13 +51,14 @@ const trimLine = (text: string, start: number, end: number) => {
   return { start, end };
 };
 
-const scanLines = (text: string): DraftLines => {
+const scanLines = (text: string, byteBudget: number): DraftLines => {
   const probe: string[] = [];
   let count = 0;
   let bytes = 0;
   let index = 0;
   let lineStart = 0;
   let firstNonWhitespace: string | null = null;
+  let incompleteLineFirstChar: string | null = null;
 
   const collectLine = (end: number, complete: boolean) => {
     const trimmed = trimLine(text, lineStart, end);
@@ -51,6 +66,8 @@ const scanLines = (text: string): DraftLines => {
       count += 1;
       if (complete) {
         probe.push(text.slice(trimmed.start, trimmed.end));
+      } else {
+        incompleteLineFirstChar = text[trimmed.start] ?? null;
       }
     }
   };
@@ -71,11 +88,11 @@ const scanLines = (text: string): DraftLines => {
       }
     }
 
-    if (bytes + byteWidth > sourceDetectionProbeByteBudget) {
+    if (bytes + byteWidth > byteBudget) {
       break;
     }
 
-    if (firstNonWhitespace === null && code > 32) {
+    if (firstNonWhitespace === null && code > 32 && code !== 0xfeff) {
       firstNonWhitespace = text[index] ?? null;
     }
 
@@ -89,20 +106,45 @@ const scanLines = (text: string): DraftLines => {
 
   if (index === text.length) {
     collectLine(index, true);
-    return { count, precision: "exact", probe, firstNonWhitespace };
+    return { count, precision: "exact", probe, firstNonWhitespace, incompleteLineFirstChar };
   }
 
   collectLine(index, false);
-  return { count, precision: "lower-bound", probe, firstNonWhitespace };
+  return { count, precision: "lower-bound", probe, firstNonWhitespace, incompleteLineFirstChar };
 };
 
-export const detectSourceFormat = (text: string): SourceDetection => {
-  const scan = scanLines(text);
+const isJsonlScan = (scan: DraftLines) => {
+  if (scan.count <= 1) {
+    return false;
+  }
+  if (scan.probe.length === 1) {
+    return (
+      scan.precision === "lower-bound" &&
+      isJsonContainerStart(scan.incompleteLineFirstChar) &&
+      parses(scan.probe[0]!)
+    );
+  }
+  if (scan.probe.length < 2) {
+    return false;
+  }
+
+  let validCount = 0;
+  for (const line of scan.probe) {
+    if (parses(line)) {
+      validCount += 1;
+    }
+  }
+
+  return validCount >= 2 && validCount * 2 > scan.probe.length;
+};
+
+export const detectSourceFormatInBudget = (text: string, byteBudget: number): SourceDetection => {
+  const scan = scanLines(text, byteBudget);
   if (scan.count === 0 && scan.precision === "exact") {
     return { kind: "empty" };
   }
 
-  if (scan.count > 1 && scan.probe.length > 1 && scan.probe.every(parses)) {
+  if (isJsonlScan(scan)) {
     return {
       kind: "jsonl",
       lines: scan.count,
@@ -114,10 +156,14 @@ export const detectSourceFormat = (text: string): SourceDetection => {
     return { kind: "sse" };
   }
 
+  const lastChar = scan.precision === "exact" ? null : lastNonWhitespaceChar(text);
   const looksLikeJson =
     scan.precision === "exact"
       ? parses(text.trim())
-      : (scan.firstNonWhitespace === "{" && text.at(-1) === "}") ||
-        (scan.firstNonWhitespace === "[" && text.at(-1) === "]");
+      : (scan.firstNonWhitespace === "{" && lastChar === "}") ||
+        (scan.firstNonWhitespace === "[" && lastChar === "]");
   return looksLikeJson ? { kind: "json" } : { kind: "invalid" };
 };
+
+export const detectSourceFormat = (text: string): SourceDetection =>
+  detectSourceFormatInBudget(text, sourceDetectionProbeByteBudget);

@@ -382,7 +382,7 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     });
   });
 
-  it("normalizes task notifications as system prompts that still open a turn", () => {
+  it("normalizes task notifications as system events without opening a turn", () => {
     const builder = claudeTranscriptAdapter.createBuilder();
     builder.push(
       parsedLine(
@@ -403,17 +403,65 @@ describe("claudeTranscriptAdapter: detection-and-normalization", () => {
     expect(session.events[0]).toMatchObject({
       category: "system",
       label: "task-notification",
-      turnIndex: 1,
     });
+    expect(session.events[0]?.turnIndex).toBeUndefined();
     expect(conversationItems(session).map((item) => item.role)).toEqual(["system"]);
     expect(session.events[0]?.sessionEvidence).toEqual([
-      { kind: "turn-lifecycle", phase: "start", turnId: "prompt-notification" },
       {
         kind: "model-output",
         role: "system",
         conversationItemId: "conv-1-block-0",
-        turnId: "prompt-notification",
       },
     ]);
+  });
+
+  it("does not start a new turn for task notifications or meta user records", () => {
+    const builder = claudeTranscriptAdapter.createBuilder();
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-1",
+          timestamp: 100,
+          message: { content: "Start work" },
+        },
+        1,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          isMeta: true,
+          promptId: "prompt-meta",
+          timestamp: 150,
+          message: { content: "Injected harness metadata" },
+        },
+        2,
+      ),
+    );
+    builder.push(
+      parsedLine(
+        {
+          type: "user",
+          promptId: "prompt-notif",
+          timestamp: 200,
+          message: {
+            content:
+              "<task-notification>\n<task-id>agent-1</task-id>\n<status>completed</status>\n</task-notification>",
+          },
+        },
+        3,
+      ),
+    );
+
+    const session = builder.finish([]);
+
+    expect(session.events.map((event) => event.turnIndex)).toEqual([1, 1, 1]);
+    expect(
+      session.events
+        .flatMap((event) => event.sessionEvidence ?? [])
+        .filter((evidence) => evidence.kind === "turn-lifecycle"),
+    ).toEqual([{ kind: "turn-lifecycle", phase: "start", turnId: "prompt-1" }]);
   });
 });

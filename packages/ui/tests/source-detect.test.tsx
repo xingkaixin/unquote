@@ -94,6 +94,41 @@ describe("detectSourceFormat", () => {
     parse.mockRestore();
   });
 
+  it.each(["\n", "\r\n", "  \r\n"])(
+    "classifies an over-budget JSON document with trailing whitespace %j as json",
+    (trailing) => {
+      const objectDoc = `{"blob":"${"x".repeat(70 * 1024)}"}${trailing}`;
+      const arrayDoc = `["${"x".repeat(70 * 1024)}"]${trailing}`;
+
+      expect(detectSourceFormat(objectDoc)).toEqual({ kind: "json" });
+      expect(detectSourceFormat(arrayDoc)).toEqual({ kind: "json" });
+    },
+  );
+
+  it("detects JSONL when the first line is corrupt but the remaining probe lines are valid JSON", () => {
+    expect(detectSourceFormat('corrupt-header\n{"a":1}\n{"b":2}\n')).toEqual({
+      kind: "jsonl",
+      lines: 3,
+      precision: "exact",
+    });
+    expect(detectSourceFormat('{"broken":\n{"a":1}\n{"b":2}\n{"c":3}\n')).toEqual({
+      kind: "jsonl",
+      lines: 4,
+      precision: "exact",
+    });
+  });
+
+  it("detects JSONL when the first line fits the probe and the second JSON record is cut off by the budget", () => {
+    const line1 = JSON.stringify({ blob: "a".repeat(45 * 1024) });
+    const line2 = JSON.stringify({ blob: "b".repeat(45 * 1024) });
+
+    expect(detectSourceFormat(`${line1}\n${line2}\n`)).toEqual({
+      kind: "jsonl",
+      lines: 2,
+      precision: "lower-bound",
+    });
+  });
+
   it("still rejects an over-budget draft that is not shaped like JSON", () => {
     expect(detectSourceFormat("x".repeat(70 * 1024))).toEqual({ kind: "invalid" });
     // Over the budget the shape check is all that is left, so a bracketed
@@ -106,11 +141,10 @@ describe("detectSourceFormat", () => {
     const document = `{\n${Array.from({ length: 40_000 }, (_, index) => `  "k${index}": "${"x".repeat(20)}",`).join("\n")}\n  "last": 1\n}`;
     const parse = vi.spyOn(JSON, "parse");
 
-    // Every line here is a JSON fragment, so the probe fails on line 1 and the
-    // whole draft is judged by its brackets rather than parsed.
     expect(document.length).toBeGreaterThan(64 * 1024);
     expect(detectSourceFormat(document)).toEqual({ kind: "json" });
-    expect(parse).toHaveBeenCalledTimes(1);
+    expect(parse.mock.calls.length).toBeLessThanOrEqual(sourceDetectionLineBudget);
+    expect(parse).not.toHaveBeenCalledWith(document);
 
     parse.mockRestore();
   });

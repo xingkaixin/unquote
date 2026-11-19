@@ -1,5 +1,5 @@
 import { createFullJsonlRecord } from "./record-builder.js";
-import type { FullJsonlRecord, LosslessJsonValue, ParseOptions } from "./types.js";
+import type { FullJsonlRecord, JsonNode, LosslessJsonValue, ParseOptions } from "./types.js";
 import { resolveMaxDepth } from "./utils.js";
 
 const sseFieldNames = ["data", "event", "id", "retry"] as const;
@@ -86,19 +86,48 @@ export const createSseRecordReader = (options: ParseOptions = {}): SseRecordRead
   let block: SseEventBlock | null = null;
   let isFirstLine = true;
 
-  const dispatch = () => {
+  const dispatch = (): FullJsonlRecord | null => {
     const current = block;
     block = null;
     if (!current || current.data.length === 0) {
       return null;
     }
 
+    const joinedData = current.data.join("\n");
+    const retryRawValue = current.retry?.replace(/^0+(?=\d)/, "");
     const entries: Record<string, LosslessJsonValue> = {};
-    if (current.event !== undefined) entries.event = current.event;
-    if (current.id !== undefined) entries.id = current.id;
-    if (current.retry !== undefined) entries.retry = current.retry;
-    entries.data = current.data.join("\n");
-    return createFullJsonlRecord({ type: "object", entries }, current.lineNumber, maxDepth);
+    const children: Record<string, JsonNode> = {};
+    if (current.event !== undefined) {
+      entries.event = current.event;
+      children.event = { kind: "string", value: current.event };
+    }
+    if (current.id !== undefined) {
+      entries.id = current.id;
+      children.id = { kind: "string", value: current.id };
+    }
+    if (retryRawValue !== undefined) {
+      entries.retry = { type: "number", rawValue: retryRawValue };
+      children.retry = { kind: "number", value: Number(retryRawValue), rawValue: retryRawValue };
+    }
+    entries.data = joinedData;
+
+    // Build the Record shell and summary without expanding SSE metadata fields.
+    const baseRecord = createFullJsonlRecord({ type: "object", entries }, current.lineNumber, 0);
+    if (maxDepth === 0) {
+      return baseRecord;
+    }
+
+    const dataNode = createFullJsonlRecord(
+      { type: "object", entries: { data: joinedData } },
+      current.lineNumber,
+      maxDepth,
+    ).node;
+    children.data =
+      dataNode.kind === "object" && dataNode.children?.data
+        ? dataNode.children.data
+        : { kind: "string", value: joinedData };
+
+    return { ...baseRecord, node: { kind: "object", children } };
   };
 
   const pushLine = (rawLine: string, lineNumber: number) => {

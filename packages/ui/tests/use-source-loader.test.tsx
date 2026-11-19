@@ -360,7 +360,7 @@ describe("useSourceLoader", () => {
     ["large single-line JSON", `{"blob":"${"x".repeat(1_000_000)}"}`],
     [
       "JSONL with no complete line in the probe",
-      oversizedContents(`{"blob":"${"x".repeat(70 * 1024)}"}\n{"i":2}\n`),
+      oversizedContents(`{"blob":"${"x".repeat(300 * 1024)}"}\n{"i":2}\n`),
     ],
   ])("keeps ambiguous %s on the full-read path", async (_, contents) => {
     const { file, stream } = createStreamFile(contents, "misleading.jsonl");
@@ -371,6 +371,27 @@ describe("useSourceLoader", () => {
     expect(snapshot(result.current).sourceAccess).toBeNull();
     expect(snapshot(result.current).importedFile).toBe(file);
     expect(stream).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["a lone opening brace on the first line", '{\n{"i":2}\n{"i":3}\n'],
+    ["a corrupt first line", 'not json\n{"i":2}\n{"i":3}\n'],
+    ["a first line over 64 KiB", `{"blob":"${"x".repeat(70 * 1024)}"}\n{"i":2}\n`],
+    [
+      "first two lines exceeding 64 KiB together",
+      `{"blob":"${"a".repeat(45 * 1024)}"}\n{"blob":"${"b".repeat(45 * 1024)}"}\n`,
+    ],
+  ])("streams an oversized JSONL file with %s in auto mode", async (_, contents) => {
+    const { file, stream } = createStreamFile(contents, "oversized.jsonl");
+    Object.defineProperty(file, "size", { value: maxInMemorySourceBytes + 1 });
+    const { result } = setup();
+
+    await act(() => result.current.onFileDrop(file, "auto"));
+
+    expect(snapshot(result.current).sourceAccess?.getFile()).toBe(file);
+    expect(snapshot(result.current).importedFile).toBeNull();
+    expect(stream).not.toHaveBeenCalled();
+    expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
   it.each(["auto", "json"] as const)(

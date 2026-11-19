@@ -1,4 +1,5 @@
-import type { JsonlRecord } from "@unquote/core";
+import { parseInput } from "@unquote/core";
+import type { JsonlRecord, ParseResult } from "@unquote/core";
 import { searchRecords } from "./record-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
 import { hasSameSearch, materializeSearchWindow, requestSearchWindow } from "./search-window";
@@ -45,3 +46,6 @@ export const createMemorySearch = (records: JsonlRecord[]) => {
     return result;
   };
 };
+
+export const createTextMemorySearch = (text: string, forcedFormat?: ParseResult["format"]) =>
+  createMemorySearch(parseInput(text, forcedFormat ? { forcedFormat } : {}).records);

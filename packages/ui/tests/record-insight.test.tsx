@@ -50,7 +50,8 @@ describe("record insight", () => {
       timestamp: "2026-05-15T10:02:12Z",
       status: "failed",
       event: "retry",
-      error: "tool timeout",
+      error: "failed",
+      message: "tool timeout",
     });
     expect(tool).toMatchObject({
       kind: "tool",
@@ -189,6 +190,54 @@ describe("record insight", () => {
       role: "user",
     });
     expect(insight?.error).toBeUndefined();
+  });
+
+  it("does not classify ordinary message prose containing error words as errors", () => {
+    const result = parseInput(
+      [
+        JSON.stringify({ role: "assistant", content: "Fixed the timeout error in the parser." }),
+        JSON.stringify({ message: "Retry failed attempts after an exception occurs." }),
+        JSON.stringify({ msg: "fatal panic handling docs" }),
+        JSON.stringify({ summary: "No error found during check" }),
+      ].join("\n"),
+      { forcedFormat: "jsonl" },
+    );
+
+    for (const record of result.records) {
+      const insight = createRecordInsight(record);
+      expect(insight?.kind).toBe("message");
+      expect(insight?.error).toBeUndefined();
+    }
+  });
+
+  it("accepts progress on stderr from a successful command", () => {
+    const { records } = parseInput(
+      '{"status":"success","exitCode":0,"stderr":"Downloading dependencies…"}',
+      { forcedFormat: "jsonl" },
+    );
+    expect(createRecordInsight(records[0]!)?.kind).not.toBe("error");
+  });
+
+  it("still classifies explicit error keys and error event or level values as errors", () => {
+    const result = parseInput(
+      [
+        JSON.stringify({ error: "boom" }),
+        JSON.stringify({ err: "ECONNRESET" }),
+        JSON.stringify({ exception: "ValueError" }),
+        JSON.stringify({ stack: "Error: boom\n  at run" }),
+        JSON.stringify({ status: "failed", stderr: "permission denied" }),
+        JSON.stringify({ level: "error", message: "request dropped" }),
+        JSON.stringify({ type: "error", message: "rate limited" }),
+        JSON.stringify({ status: "failed", message: "job aborted" }),
+      ].join("\n"),
+      { forcedFormat: "jsonl" },
+    );
+
+    for (const record of result.records) {
+      const insight = createRecordInsight(record);
+      expect(insight?.kind).toBe("error");
+      expect(insight?.error).toBeDefined();
+    }
   });
 
   it("does not split surrogate pairs in insight titles", () => {

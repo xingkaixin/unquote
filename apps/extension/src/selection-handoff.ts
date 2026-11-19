@@ -183,6 +183,7 @@ export const createSelectionHandoffStore = (
       if (!Number.isFinite(expiresAt)) {
         return null;
       }
+      await reconcile();
       try {
         await storage.set({ [handoffKey(handoffId)]: { input, expiresAt } });
       } catch {

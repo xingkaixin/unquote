@@ -2,11 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
-import {
-  createLocalFileAccess,
-  readFileHead,
-  type LocalFileAccess,
-} from "../lib/local-file-source";
+import { readFileHead, readFileText } from "../lib/local-file-reader";
+import type { LocalFileAccess } from "../lib/local-file-source";
 import {
   createImportedFileSourceRevision,
   createStreamingFileSourceRevision,
@@ -14,7 +11,12 @@ import {
   type PublishedSourceRevision,
 } from "../lib/published-source";
 import type { SourceMode } from "../lib/source-candidate";
-import { detectSourceFormat, sourceDetectionProbeByteBudget } from "../lib/source-detect";
+import {
+  detectSourceFormat,
+  detectSourceFormatInBudget,
+  largeFileJsonlProbeByteBudget,
+  sourceDetectionProbeByteBudget,
+} from "../lib/source-detect";
 import type { SourceRevision } from "../lib/source-revision";
 
 const largeSourceStreamBytes = 1_000_000;
@@ -24,6 +26,8 @@ const largeSourceStreamBytes = 1_000_000;
 export const maxInMemorySourceBytes = 64 * 1024 * 1024;
 
 const sourceDetectionFileProbeBytes = sourceDetectionProbeByteBudget + 1;
+
+const largeFileJsonlProbeBytes = largeFileJsonlProbeByteBudget + 1;
 
 interface ReadingSourceOperation {
   kind: "reading";
@@ -104,20 +108,21 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     fileImportIdRef.current = requestId;
     abortActiveRead();
 
-    const isLargeFile = file.size > largeSourceStreamBytes;
-    if (isLargeFile && sourceMode === "jsonl") {
+    const publishStreamingFile = async (mode: "auto" | "jsonl") => {
+      const { createLocalFileAccess } = await import("../lib/local-file-source");
+      if (fileImportIdRef.current !== requestId) {
+        return;
+      }
+      activeReadRef.current = null;
       publishSource(
-        createStreamingFileSourceRevision(
-          nextSourceRevision(),
-          createLocalFileAccess(file),
-          sourceMode,
-        ),
+        createStreamingFileSourceRevision(nextSourceRevision(), createLocalFileAccess(file), mode),
       );
-      return;
-    }
+    };
 
+    const isLargeFile = file.size > largeSourceStreamBytes;
     const controller = new AbortController();
     activeReadRef.current = controller;
+    const isCancelled = () => fileImportIdRef.current !== requestId || controller.signal.aborted;
     setState((current) => ({
       source: current.source,
       operation: { kind: "reading", requestId, file, progress: 0 },
@@ -125,20 +130,35 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
 
     let text: string;
     try {
+      if (isLargeFile && sourceMode === "jsonl") {
+        await publishStreamingFile(sourceMode);
+        return;
+      }
+
       if (isLargeFile && sourceMode === "auto") {
         const head = await readFileHead(file, sourceDetectionFileProbeBytes, controller.signal);
-        if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
+        if (isCancelled()) {
           return;
         }
-        if (detectSourceFormat(head).kind === "jsonl") {
-          activeReadRef.current = null;
-          publishSource(
-            createStreamingFileSourceRevision(
-              nextSourceRevision(),
-              createLocalFileAccess(file),
-              sourceMode,
-            ),
+        let detected = detectSourceFormat(head);
+        if (
+          detected.kind !== "jsonl" &&
+          detected.kind !== "sse" &&
+          head.length > 0 &&
+          file.size > sourceDetectionFileProbeBytes
+        ) {
+          const extendedHead = await readFileHead(
+            file,
+            largeFileJsonlProbeBytes,
+            controller.signal,
           );
+          if (isCancelled()) {
+            return;
+          }
+          detected = detectSourceFormatInBudget(extendedHead, largeFileJsonlProbeByteBudget);
+        }
+        if (detected.kind === "jsonl") {
+          await publishStreamingFile(sourceMode);
           return;
         }
       }
@@ -154,9 +174,9 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
         return;
       }
 
-      const access = createLocalFileAccess(file);
-      try {
-        text = await access.readText((nextProgress) => {
+      text = await readFileText(
+        file,
+        (nextProgress) => {
           if (fileImportIdRef.current === requestId) {
             setState((current) =>
               current.operation.kind === "reading" && current.operation.requestId === requestId
@@ -167,13 +187,12 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
                 : current,
             );
           }
-        }, controller.signal);
-      } finally {
-        access.dispose();
-      }
+        },
+        controller.signal,
+      );
     } catch (error) {
       // An abort is the caller's own doing, not a failure to report.
-      if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
+      if (isCancelled()) {
         return;
       }
 
@@ -187,7 +206,7 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       return;
     }
 
-    if (fileImportIdRef.current !== requestId || controller.signal.aborted) {
+    if (isCancelled()) {
       return;
     }
     activeReadRef.current = null;

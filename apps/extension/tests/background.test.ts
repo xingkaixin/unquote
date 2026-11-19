@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
       menuItemId: string | number;
       selectionText?: string;
     }) => Promise<void>;
-    onInstalled?: () => void;
+    onInstalled?: () => Promise<void>;
     onMessage?: (
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The browser listener accepts untrusted messages, including the malformed fixtures below.
       message: unknown,
@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => {
     },
     contextMenus: {
       create: vi.fn(),
+      removeAll: vi.fn(async () => undefined),
       onClicked: {
         addListener: vi.fn(
           (
@@ -62,9 +63,10 @@ const mocks = vi.hoisted(() => {
       getMessage: vi.fn((name: string) => (name === "openInUnquote" ? "Unquote で開く" : "")),
     },
     runtime: {
+      openOptionsPage: vi.fn(async () => undefined),
       getURL: vi.fn((path: string) => `chrome-extension://extension-id${path}`),
       onInstalled: {
-        addListener: vi.fn((listener: () => void) => {
+        addListener: vi.fn((listener: () => Promise<void>) => {
           listeners.onInstalled = listener;
         }),
       },
@@ -137,15 +139,19 @@ describe("extension background", () => {
     mocks.storageValues.clear();
   });
 
-  it("creates the selection context menu from the browser locale", () => {
-    mocks.listeners.onInstalled?.();
+  it("recreates the selection context menu cleanly from the browser locale", async () => {
+    await mocks.listeners.onInstalled?.();
 
+    expect(mocks.browser.contextMenus.removeAll).toHaveBeenCalledOnce();
     expect(mocks.browser.i18n.getMessage).toHaveBeenCalledWith("openInUnquote");
     expect(mocks.browser.contextMenus.create).toHaveBeenCalledWith({
       id: menuId,
       title: "Unquote で開く",
       contexts: ["selection"],
     });
+    expect(mocks.browser.contextMenus.removeAll.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.browser.contextMenus.create.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("sweeps retained handoffs when the background starts", () => {
@@ -158,13 +164,19 @@ describe("extension background", () => {
     await mocks.listeners.onCommand?.("unsupported");
     await mocks.listeners.onCommand?.("open_unquote");
 
-    expect(mocks.browser.tabs.create).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.runtime.getURL).toHaveBeenCalledTimes(2);
-    expect(mocks.browser.runtime.getURL).toHaveBeenCalledWith("/options.html");
-    for (const [options] of mocks.browser.tabs.create.mock.calls) {
-      expect(new URL(options.url).protocol).toBe("chrome-extension:");
-      expect(new URL(options.url).pathname).toBe("/options.html");
-    }
+    expect(mocks.browser.runtime.openOptionsPage).toHaveBeenCalledTimes(2);
+    expect(mocks.browser.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it("opens a separate tab for selection handoff", async () => {
+    await mocks.listeners.onContextMenuClick?.({
+      menuItemId: menuId,
+      selectionText: "payload",
+    });
+
+    expect(mocks.browser.tabs.create).toHaveBeenCalledOnce();
+    expect(mocks.browser.runtime.openOptionsPage).not.toHaveBeenCalled();
+    expect(getOpenedUrl().searchParams.get("handoff")).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it("ignores unrelated or empty context-menu selections", async () => {
