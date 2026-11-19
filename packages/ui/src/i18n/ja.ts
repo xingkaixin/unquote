@@ -379,6 +379,8 @@ export const ja: Messages = {
   "search.next": "次の一致",
   "search.clear": "検索をクリア",
   "search.jq": "JSONPath / jq 構文",
+  "search.searching": "検索中…",
+  "search.invalidRegex": "正規表現が無効",
   "search.timeout": "検索がタイムアウトしました",
   "search.failed": "検索に失敗しました",
   "search.tooLargeWithoutWorker": "バックグラウンドワーカーなしで検索するにはデータが大きすぎます",

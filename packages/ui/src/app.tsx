@@ -123,10 +123,12 @@ export const UnquoteApp = ({
     toolbarQuery,
     commandInput,
     pathError,
+    pathErrorReason,
     pathMatchCount,
     currentPathMatchIndex,
     currentMatchIndex,
     mode: queryMode,
+    searchRegexInvalid,
     searchStatus,
     searchErrorKind,
     fileOverview,
@@ -186,6 +188,53 @@ export const UnquoteApp = ({
     recordWorkspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
     setActiveOverlay(null);
   };
+
+  const handleToolbarQueryChange = useCallback(
+    (value: string) => {
+      queryIntent.changeToolbarQuery(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleToolbarQuerySubmit = useCallback(
+    (value: string) => {
+      queryIntent.submitToolbarQuery(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handlePreviousResult = useCallback(() => {
+    queryIntent.previousResult();
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
+  const handleNextResult = useCallback(() => {
+    queryIntent.nextResult();
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
+  const handleCommandSearch = useCallback(
+    (value: string) => {
+      queryIntent.searchFromCommand(value);
+      if (value.trim()) {
+        setOutputView("json");
+      }
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleCommandFilterChange = useCallback(
+    (filter: typeof recordFilter) => {
+      queryIntent.setFilter(filter);
+      setOutputView("json");
+    },
+    [queryIntent, setOutputView],
+  );
+  const handleSelectFailed = useCallback(() => {
+    queryIntent.setFilter("errors");
+    setOutputView("json");
+  }, [queryIntent, setOutputView]);
 
   const handleOpenRecord = useCallback(
     (recordId: string) => {
@@ -292,6 +341,13 @@ export const UnquoteApp = ({
     ],
   );
   const toolbarInPathMode = queryMode === "path";
+  const searchFieldError = searchRegexInvalid
+    ? t("search.invalidRegex")
+    : toolbarInPathMode && pathErrorReason === "invalid"
+      ? pathError
+      : searchStatus === "error"
+        ? t("search.failed")
+        : null;
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
       initialDraft={sourceImport.draft}
@@ -380,11 +436,16 @@ export const UnquoteApp = ({
             matchCount: toolbarInPathMode ? pathMatchCount : matchCount,
             currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
             disabled: !hasData,
-            onQueryChange: queryIntent.changeToolbarQuery,
-            onSubmitQuery: queryIntent.submitToolbarQuery,
+            searchStatus,
+            errorLabel: searchFieldError,
+            regex: searchRegex,
+            jq: searchJq,
+            caseSensitive: searchCaseSensitive,
+            onQueryChange: handleToolbarQueryChange,
+            onSubmitQuery: handleToolbarQuerySubmit,
             onClearQuery: queryIntent.clearToolbarQuery,
-            onPrevMatch: queryIntent.previousResult,
-            onNextMatch: queryIntent.nextResult,
+            onPrevMatch: handlePreviousResult,
+            onNextMatch: handleNextResult,
           }}
           onOpenCommandPalette={handleOpenCommandPalette}
           theme={theme}
@@ -408,7 +469,7 @@ export const UnquoteApp = ({
         <StatusBar
           summary={hasData ? toolbarSummary : t("status.empty")}
           failedCount={result.stats.failed}
-          onSelectFailed={() => queryIntent.setFilter("errors")}
+          onSelectFailed={handleSelectFailed}
           maxDepth={fileOverview.structurePrecision === "exact" ? fileOverview.maxDepth : null}
           expandedNestedCount={recordWorkspace.model.active.expandedNestedCount}
           sourceStatus={sourceFileStatus}
@@ -470,12 +531,12 @@ export const UnquoteApp = ({
                 nestedFilterScope={recordWorkspace.model.filter.nestedScope}
                 onClose={() => setActiveOverlay(null)}
                 onInputChange={queryIntent.changeCommandInput}
-                onSearch={queryIntent.searchFromCommand}
-                onJumpPath={queryIntent.submitToolbarQuery}
+                onSearch={handleCommandSearch}
+                onJumpPath={handleToolbarQuerySubmit}
                 onRegexChange={(value) => queryIntent.setOption("regex", value)}
                 onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
                 onJqChange={(value) => queryIntent.setOption("jq", value)}
-                onFilterChange={queryIntent.setFilter}
+                onFilterChange={handleCommandFilterChange}
               />
             ) : null}
           </DeferredLoadBoundary>

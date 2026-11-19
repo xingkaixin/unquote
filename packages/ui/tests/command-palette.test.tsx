@@ -136,4 +136,28 @@ describe("CommandPalette", () => {
 
     expect(screen.getByRole("option", { name: "Top-level nested" })).toBeInTheDocument();
   });
+
+  it("stays in search mode when regex or jq is active for path-like input", () => {
+    const callbacks = renderPalette({ inputValue: "$.payload", regex: true });
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+
+    expect(screen.getByText("Find")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(callbacks.onSearch).toHaveBeenCalledWith("$.payload");
+    expect(callbacks.onJumpPath).not.toHaveBeenCalled();
+  });
+
+  it("runs the arrow-selected filter on Enter even when search input is non-empty", () => {
+    const callbacks = renderPalette({ inputValue: "needle" });
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(callbacks.onFilterChange).toHaveBeenCalledWith("errors");
+    expect(callbacks.onSearch).not.toHaveBeenCalled();
+    expect(callbacks.onClose).toHaveBeenCalledTimes(1);
+  });
 });

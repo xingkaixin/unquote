@@ -1,3 +1,4 @@
+import XIcon from "@phosphor-icons/core/regular/x.svg?react";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import type { NestedFilterScope, RecordFilterMode } from "../lib/record-filter";
@@ -12,7 +13,7 @@ export interface RecordFilterBarProps {
 }
 
 // `matches` and `errors` stay reachable from the command palette and the status
-// bar's failed count, so the bar itself only carries the content-shape filters.
+// bar's failed count; show an active chip here only while one of them is active.
 const barFilters: ReadonlyArray<{ mode: RecordFilterMode; label: MessageKey }> = [
   { mode: "all", label: "filter.all" },
   { mode: "tool", label: "filter.tools" },
@@ -29,6 +30,12 @@ export const RecordFilterBar = ({
   nestedScope,
 }: RecordFilterBarProps) => {
   const { t } = useTranslation();
+  const activeExtraFilter =
+    mode === "errors"
+      ? ({ mode: "errors", label: "filter.errors" } as const)
+      : mode === "matches"
+        ? ({ mode: "matches", label: "filter.matches" } as const)
+        : null;
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-50 px-3.5 py-1">
@@ -53,6 +60,21 @@ export const RecordFilterBar = ({
             </Button>
           );
         })}
+        {activeExtraFilter ? (
+          <Button
+            key={activeExtraFilter.mode}
+            type="button"
+            variant="selected"
+            size="xs"
+            radius="sm"
+            className="shrink-0 whitespace-nowrap"
+            aria-pressed
+            onClick={() => onChange("all")}
+          >
+            {t(activeExtraFilter.label)}
+            <XIcon className="size-3" aria-hidden="true" />
+          </Button>
+        ) : null}
       </div>
       <span className="shrink-0 whitespace-nowrap font-mono text-[10.5px] text-text-tertiary">
         {t("filter.hint", { shown, total })}

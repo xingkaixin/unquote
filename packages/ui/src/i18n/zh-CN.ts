@@ -370,6 +370,8 @@ export const zhCN: Messages = {
   "search.next": "下一个匹配",
   "search.clear": "清除搜索",
   "search.jq": "JSONPath / jq 语法",
+  "search.searching": "搜索中…",
+  "search.invalidRegex": "正则无效",
   "search.timeout": "搜索超时",
   "search.failed": "搜索失败",
   "search.tooLargeWithoutWorker": "内容过大，没有后台 Worker 时无法搜索",

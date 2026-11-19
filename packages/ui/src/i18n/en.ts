@@ -374,6 +374,8 @@ export const en = {
   "search.next": "Next match",
   "search.clear": "Clear search",
   "search.jq": "JSONPath / jq syntax",
+  "search.searching": "Searching…",
+  "search.invalidRegex": "Invalid regex",
   "search.timeout": "Search timed out",
   "search.failed": "Search failed",
   "search.tooLargeWithoutWorker": "Too large to search without a background worker",

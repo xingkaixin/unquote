@@ -645,5 +645,30 @@ describe("UnquoteApp", () => {
         modelSpy.mockRestore();
       }
     });
+
+    it("switches from Agent or Trajectory view to JSON when searching or filtering failed records", async () => {
+      const user = userEvent.setup();
+      render(
+        <I18nProvider>
+          <UnquoteApp initialInput={`${codexRolloutSource}\nnot-json`} />
+        </I18nProvider>,
+      );
+
+      const shell = document.querySelector<HTMLElement>(".uq-shell")!;
+      await waitFor(() => expect(shell).toHaveAttribute("data-output-view", "agent"));
+
+      await user.type(getToolbarInput(), "exec_command");
+      await waitFor(() => expect(shell).toHaveAttribute("data-output-view", "json"));
+
+      await user.click(screen.getByRole("tab", { name: "Trajectory" }));
+      await waitFor(() => expect(shell).toHaveAttribute("data-output-view", "trajectory"));
+
+      await user.click(screen.getByRole("button", { name: "1 failed" }));
+      await waitFor(() => expect(shell).toHaveAttribute("data-output-view", "json"));
+      expect(screen.getByRole("button", { name: "Errors" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
   });
 });

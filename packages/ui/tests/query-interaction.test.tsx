@@ -24,8 +24,40 @@ describe("query-interaction", () => {
     expect(isPathLikeQuery(".payload")).toBe(true);
     expect(isPathLikeQuery("[0]")).toBe(true);
     expect(isPathLikeQuery("  $.x")).toBe(true);
+    expect(isPathLikeQuery("$[")).toBe(true);
+    expect(isPathLikeQuery("$.")).toBe(true);
     expect(isPathLikeQuery("needle")).toBe(false);
+    expect(isPathLikeQuery("[DONE]")).toBe(false);
+    expect(isPathLikeQuery("$schema")).toBe(false);
+    expect(isPathLikeQuery("...")).toBe(false);
     expect(isPathLikeQuery("")).toBe(false);
+    expect(isPathLikeQuery("$.payload", "regex")).toBe(false);
+    expect(isPathLikeQuery(".payload", "jq")).toBe(false);
+  });
+
+  it("never hijacks regex or jq queries into path mode", () => {
+    let state = reduceQueryInteraction(createInitialQueryInteractionState(), {
+      type: "setSearchOption",
+      kind: "regex",
+      on: true,
+    });
+    state = reduceQueryInteraction(state, { type: "toolbarQueryChange", value: "[0-9]+" });
+    expect(state.modeState).toEqual({ mode: "search", query: "[0-9]+", currentMatchIndex: 0 });
+
+    state = reduceQueryInteraction(state, { type: "submitToolbarQuery", value: "$.*" });
+    expect(state.modeState).toEqual({ mode: "search", query: "$.*", currentMatchIndex: 0 });
+
+    const fromPath = reduceQueryInteraction(pathState("$.payload"), {
+      type: "setSearchOption",
+      kind: "jq",
+      on: true,
+    });
+    expect(fromPath.searchSyntax).toBe("jq");
+    expect(fromPath.modeState).toEqual({
+      mode: "search",
+      query: "$.payload",
+      currentMatchIndex: 0,
+    });
   });
 
   it("starts in an explicit idle mode", () => {
