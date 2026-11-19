@@ -215,9 +215,22 @@ export const AgentTrajectoryOverview = ({
       measuredWidth === null ? 0 : trajectoryOverviewBucketCount(measuredWidth, timeFactCount),
     [measuredWidth, timeFactCount],
   );
+  const timeScale = useMemo(
+    () => createTrajectoryTimeScale(presentation, activeViewport),
+    [activeViewport, presentation],
+  );
+  const spans = useMemo(
+    () =>
+      trajectoryOverviewSpans(presentation, activeViewport, trajectoryOverviewSpanLimit, timeScale),
+    [activeViewport, presentation, timeScale],
+  );
   const overview = useMemo(
-    () => createAgentTrajectoryOverview(presentation, activeViewport, bucketCount),
-    [activeViewport, bucketCount, presentation],
+    () =>
+      createAgentTrajectoryOverview(presentation, activeViewport, bucketCount, {
+        scale: timeScale,
+        includeLanes: spans === null,
+      }),
+    [activeViewport, bucketCount, presentation, spans, timeScale],
   );
 
   useEffect(() => {
@@ -240,14 +253,6 @@ export const AgentTrajectoryOverview = ({
   }, [domain?.end, domain?.start]);
 
   const selectedRange = domain ? clampTrajectoryRange(timeRange, domain) : null;
-  const timeScale = useMemo(
-    () => createTrajectoryTimeScale(presentation, activeViewport),
-    [activeViewport?.end, activeViewport?.start, presentation],
-  );
-  const spans = useMemo(
-    () => trajectoryOverviewSpans(presentation, activeViewport, trajectoryOverviewSpanLimit),
-    [activeViewport?.end, activeViewport?.start, presentation],
-  );
   // Left tick anchors the viewport in absolute time; the middle and right
   // ticks read as offsets so zooming stays legible without repeating dates.
   // The middle tick follows the compressed axis so it lands mid-chart.

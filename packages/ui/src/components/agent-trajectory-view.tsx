@@ -1,7 +1,7 @@
-import { useDeferredValue, useEffect, useMemo } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { isFullRecord, isParsed, stringifyJsonNodeBounded } from "@unquote/core";
-import type { JsonlRecord } from "@unquote/core";
+import type { FullJsonNode, JsonlRecord } from "@unquote/core";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import type {
@@ -23,6 +23,7 @@ import {
 import type { TrajectoryFilters } from "../lib/trajectory-filters";
 import { AgentTrajectoryDetail, type TrajectoryRawJson } from "./agent-trajectory-detail";
 import {
+  formatLocaleNumber,
   formatTrajectoryDuration,
   trajectoryKindMessageKey,
   trajectoryStatusMessageKey,
@@ -55,7 +56,7 @@ const formatMetricNumber = (value: number | undefined, locale: string) => {
   if (value === undefined || !Number.isFinite(value)) {
     return MISSING_METRIC_VALUE;
   }
-  return new Intl.NumberFormat(locale).format(value);
+  return formatLocaleNumber(value, locale);
 };
 
 const MetricChip = ({
@@ -290,6 +291,20 @@ const TrajectoryHeaderBar = ({
 // one click away.
 const RAW_JSON_CHARACTER_LIMIT = 20_000;
 
+const rawJsonPreviewCache = new WeakMap<FullJsonNode, TrajectoryRawJson>();
+
+const getCachedRawJson = (node: FullJsonNode): TrajectoryRawJson => {
+  let cached = rawJsonPreviewCache.get(node);
+  if (!cached) {
+    cached = {
+      kind: "full",
+      ...stringifyJsonNodeBounded(node, RAW_JSON_CHARACTER_LIMIT, { indent: 2 }),
+    };
+    rawJsonPreviewCache.set(node, cached);
+  }
+  return cached;
+};
+
 export interface AgentTrajectoryViewProps {
   model: AgentSessionModel;
   // Streamed sources hold Preview Records; these swap in and request the
@@ -321,19 +336,6 @@ export const AgentTrajectoryView = ({
     () => new Map(presentation.items.map((item) => [item.item.id, item])),
     [presentation],
   );
-  const resolveRawJson = (recordId: string): TrajectoryRawJson | null => {
-    const resolved = resolveRecordById(recordId);
-    if (!resolved || !isParsed(resolved)) {
-      return null;
-    }
-    if (!isFullRecord(resolved)) {
-      return { kind: "preview" };
-    }
-    const preview = stringifyJsonNodeBounded(resolved.node, RAW_JSON_CHARACTER_LIMIT, {
-      indent: 2,
-    });
-    return { kind: "full", ...preview };
-  };
   const filteredPresentation = useMemo(
     () =>
       filterAgentTrajectoryPresentation(presentation, {
@@ -347,6 +349,32 @@ export const AgentTrajectoryView = ({
   );
   const selectedItemId = detailSelection?.kind === "trajectory" ? detailSelection.id : undefined;
   const selectedItem = selectedItemId ? (itemsById.get(selectedItemId) ?? null) : null;
+
+  const selectedRawJson = useMemo(() => {
+    const rawById = new Map<string, TrajectoryRawJson>();
+    if (!selectedItem) {
+      return rawById;
+    }
+    for (const { recordId } of trajectoryRawRecordsFor(selectedItem.item)) {
+      if (rawById.has(recordId)) {
+        continue;
+      }
+      const resolved = resolveRecordById(recordId);
+      if (!resolved || !isParsed(resolved)) {
+        continue;
+      }
+      rawById.set(
+        recordId,
+        isFullRecord(resolved) ? getCachedRawJson(resolved.node) : { kind: "preview" },
+      );
+    }
+    return rawById;
+  }, [resolveRecordById, selectedItem]);
+
+  const resolveRawJson = useCallback(
+    (recordId: string): TrajectoryRawJson | null => selectedRawJson.get(recordId) ?? null,
+    [selectedRawJson],
+  );
 
   // Ask a streamed source for the Full Records of the selected item's raw
   // blocks; the cache update re-renders the detail pane with the JSON.
@@ -362,39 +390,44 @@ export const AgentTrajectoryView = ({
     }
   }, [requestFullRecordById, resolveRecordById, selectedItem]);
 
-  const selectItem = (itemId: string) => {
-    const selection = model.selectTrajectory(itemId);
-    if (!selection || selection.kind !== "trajectory") {
-      return;
-    }
-    onDetailSelectionChange(selection);
-  };
+  const selectItem = useCallback(
+    (itemId: string) => {
+      const selection = model.selectTrajectory(itemId);
+      if (!selection || selection.kind !== "trajectory") {
+        return;
+      }
+      onDetailSelectionChange(selection);
+    },
+    [model, onDetailSelectionChange],
+  );
 
-  const selectedTrajectorySelection = () => {
+  const selectedTrajectorySelection = useCallback(() => {
     if (!selectedItem) {
       return null;
     }
 
     const selection = model.selectTrajectory(selectedItem.item.id);
     return selection?.kind === "trajectory" ? selection : null;
-  };
+  }, [model, selectedItem]);
 
-  const openSelection = (selection: AgentDetailSelection, endpoint: AgentCanonicalSelection) => {
-    onOpenRecord(selection, endpoint.recordId);
-  };
+  const openSelectedItemSelection = useCallback(
+    (endpoint: AgentCanonicalSelection) => {
+      const selection = selectedTrajectorySelection();
+      if (!selection) {
+        return;
+      }
 
-  const openSelectedItemSelection = (endpoint: AgentCanonicalSelection) => {
-    const selection = selectedTrajectorySelection();
-    if (!selection) {
-      return;
-    }
+      onOpenRecord(selection, endpoint.recordId);
+    },
+    [onOpenRecord, selectedTrajectorySelection],
+  );
 
-    openSelection(selection, endpoint);
-  };
-
-  const openUnattachedWarning = (warning: AgentCanonicalSelection) => {
-    openSelection(selectedTrajectorySelection() ?? warning, warning);
-  };
+  const openUnattachedWarning = useCallback(
+    (warning: AgentCanonicalSelection) => {
+      onOpenRecord(selectedTrajectorySelection() ?? warning, warning.recordId);
+    },
+    [onOpenRecord, selectedTrajectorySelection],
+  );
 
   return (
     <div data-trajectory-ready className="uq-agent-shell flex min-h-0 flex-1 flex-col">

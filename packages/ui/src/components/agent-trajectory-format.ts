@@ -63,13 +63,38 @@ export const trajectoryWarningMessageKey = (warning: AgentTrajectoryWarning): Me
   }
 };
 
+const numberFormatCache = new Map<string, Intl.NumberFormat>();
+
+const cachedNumberFormat = (key: string, locale: string, options?: Intl.NumberFormatOptions) => {
+  let formatter = numberFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    numberFormatCache.set(key, formatter);
+  }
+  return formatter;
+};
+
+export const formatLocaleNumber = (value: number, locale: string) =>
+  cachedNumberFormat(`int:${locale}`, locale).format(value);
+
+// Sub-dollar costs keep four decimals so a cheap session does not read as $0.00.
+export const formatLocaleCurrencyUSD = (value: number, locale: string) => {
+  const precision = value > 0.5 ? 2 : 4;
+  return cachedNumberFormat(`usd:${precision}:${locale}`, locale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: precision,
+  }).format(value);
+};
+
 export const formatTrajectoryDuration = (durationMs: number | undefined, locale: Locale) => {
   if (durationMs === undefined || !Number.isFinite(durationMs) || durationMs < 0) {
     return "";
   }
 
   if (durationMs < 1_000) {
-    return new Intl.NumberFormat(locale, {
+    return cachedNumberFormat(`ms:${locale}`, locale, {
       style: "unit",
       unit: "millisecond",
       unitDisplay: "narrow",
@@ -78,7 +103,7 @@ export const formatTrajectoryDuration = (durationMs: number | undefined, locale:
   }
 
   if (durationMs < 60_000) {
-    return new Intl.NumberFormat(locale, {
+    return cachedNumberFormat(`s:${locale}`, locale, {
       style: "unit",
       unit: "second",
       unitDisplay: "narrow",
@@ -87,7 +112,7 @@ export const formatTrajectoryDuration = (durationMs: number | undefined, locale:
   }
 
   if (durationMs < 3_600_000) {
-    return new Intl.NumberFormat(locale, {
+    return cachedNumberFormat(`m:${locale}`, locale, {
       style: "unit",
       unit: "minute",
       unitDisplay: "narrow",
@@ -95,7 +120,7 @@ export const formatTrajectoryDuration = (durationMs: number | undefined, locale:
     }).format(durationMs / 60_000);
   }
 
-  return new Intl.NumberFormat(locale, {
+  return cachedNumberFormat(`h:${locale}`, locale, {
     style: "unit",
     unit: "hour",
     unitDisplay: "narrow",

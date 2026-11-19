@@ -172,8 +172,12 @@ export const trajectoryOverviewSpans = (
   presentation: AgentTrajectoryPresentation,
   viewport: AgentTrajectoryTimeRange | null,
   limit: number,
+  precomputedScale?: TrajectoryTimeScale | null,
 ): AgentTrajectoryOverviewSpan[] | null => {
-  const scale = createTrajectoryTimeScale(presentation, viewport);
+  const scale =
+    precomputedScale !== undefined
+      ? precomputedScale
+      : createTrajectoryTimeScale(presentation, viewport);
   if (!scale || !Number.isFinite(limit) || limit <= 0) {
     return null;
   }

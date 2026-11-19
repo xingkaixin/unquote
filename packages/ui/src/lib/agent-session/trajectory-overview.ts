@@ -1,7 +1,7 @@
 import type { AgentTrajectoryStatus } from "./session-types";
 import type { AgentTrajectoryItemKind } from "./trajectory-types";
 import type { AgentTrajectoryLane, AgentTrajectoryPresentation } from "./trajectory-presentation";
-import { createTrajectoryTimeScale } from "./trajectory-time-scale";
+import { createTrajectoryTimeScale, type TrajectoryTimeScale } from "./trajectory-time-scale";
 import {
   clampTrajectoryRangeToDomain,
   finiteTrajectoryNumber,
@@ -115,10 +115,16 @@ const safeBucketCount = (bucketCount: number) =>
     ? Math.min(MAXIMUM_BUCKET_COUNT, Math.floor(bucketCount))
     : 0;
 
+export interface AgentTrajectoryOverviewOptions {
+  scale?: TrajectoryTimeScale | null;
+  includeLanes?: boolean;
+}
+
 export const createAgentTrajectoryOverview = (
   presentation: AgentTrajectoryPresentation,
   viewport: AgentTrajectoryTimeRange | null,
   bucketCount: number,
+  options?: AgentTrajectoryOverviewOptions,
 ): AgentTrajectoryOverview => {
   const domain = validTrajectoryRange(presentation.timeDomain);
   const count = safeBucketCount(bucketCount);
@@ -132,24 +138,32 @@ export const createAgentTrajectoryOverview = (
   }
 
   const activeViewport = clampTrajectoryRangeToDomain(domain, viewport);
-  const scale = createTrajectoryTimeScale(presentation, activeViewport);
-  const lanes: Record<AgentTrajectoryLane, MutableOverviewBucket[]> = {
-    activity: emptyBuckets(count),
-    model: emptyBuckets(count),
-    tool: emptyBuckets(count),
-  };
+  const scale =
+    options && "scale" in options
+      ? options.scale
+      : createTrajectoryTimeScale(presentation, activeViewport);
+  const includeLanes = options?.includeLanes !== false;
+  const lanes: Record<AgentTrajectoryLane, MutableOverviewBucket[]> | null = includeLanes
+    ? {
+        activity: emptyBuckets(count),
+        model: emptyBuckets(count),
+        tool: emptyBuckets(count),
+      }
+    : null;
   const turnBoundaries = emptyBuckets(count);
   const bucketIndex = (time: number) =>
     scale
       ? Math.min(count - 1, Math.max(0, Math.floor(scale.toRatio(time) * count)))
       : bucketIndexFor(time, activeViewport, count);
 
-  for (const item of presentation.items) {
-    if (!item.interval || !trajectoryRangesOverlap(item.interval, activeViewport)) {
-      continue;
+  if (lanes) {
+    for (const item of presentation.items) {
+      if (!item.interval || !trajectoryRangesOverlap(item.interval, activeViewport)) {
+        continue;
+      }
+      const index = bucketIndex(midpoint(item.interval));
+      includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status, item.item.kind);
     }
-    const index = bucketIndex(midpoint(item.interval));
-    includeBucketFact(lanes[item.lane][index]!, item.interval, item.item.status, item.item.kind);
   }
 
   for (const turn of presentation.groups) {
@@ -170,11 +184,13 @@ export const createAgentTrajectoryOverview = (
   return {
     viewport: activeViewport,
     bucketCount: count,
-    lanes: {
-      activity: finalizeBuckets(lanes.activity),
-      model: finalizeBuckets(lanes.model),
-      tool: finalizeBuckets(lanes.tool),
-    },
+    lanes: lanes
+      ? {
+          activity: finalizeBuckets(lanes.activity),
+          model: finalizeBuckets(lanes.model),
+          tool: finalizeBuckets(lanes.tool),
+        }
+      : { activity: [], model: [], tool: [] },
     turnBoundaries: finalizeBuckets(turnBoundaries),
   };
 };

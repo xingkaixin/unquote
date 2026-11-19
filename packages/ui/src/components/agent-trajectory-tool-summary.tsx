@@ -3,7 +3,7 @@ import {
   truncateTrajectoryDisplayText,
   type AgentTrajectoryToolSummary,
 } from "../lib/agent-session/trajectory-presentation";
-import { formatTrajectoryDuration } from "./agent-trajectory-format";
+import { formatLocaleNumber, formatTrajectoryDuration } from "./agent-trajectory-format";
 
 const MISSING_VALUE = "—";
 
@@ -19,7 +19,7 @@ export const AgentTrajectoryToolSummaryTable = ({
   onToolNameChange,
 }: AgentTrajectoryToolSummaryTableProps) => {
   const { locale, t } = useTranslation();
-  const formatCount = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const formatCount = (value: number) => formatLocaleNumber(value, locale);
   const headerClass = "px-2 py-1 font-normal uq-label";
 
   return (

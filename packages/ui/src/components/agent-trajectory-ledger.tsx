@@ -323,11 +323,7 @@ export const AgentTrajectoryLedger = ({
             return renderRow(row, virtualItem.index, {
               virtualIndex: virtualItem.index,
               style: { transform: `translateY(${virtualItem.start}px)` },
-              onMeasure: (node) => {
-                if (node) {
-                  rowVirtualizer.measureElement(node);
-                }
-              },
+              onMeasure: rowVirtualizer.measureElement,
             });
           })}
         </div>
