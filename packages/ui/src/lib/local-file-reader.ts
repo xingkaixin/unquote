@@ -462,7 +462,6 @@ const scanJsonlLinesByNumber = async (
         if (lineChunks.length > 0) {
           await emitLine(emptyBytes);
         }
-        await flushBatch();
         break;
       }
       if (!value) {
@@ -515,6 +514,7 @@ const scanJsonlLinesByNumber = async (
   }
 
   signal?.throwIfAborted();
+  await flushBatch();
   return collected;
 };
 

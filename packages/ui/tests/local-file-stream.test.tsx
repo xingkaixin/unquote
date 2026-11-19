@@ -1,3 +1,4 @@
+import { File as NodeFile } from "node:buffer";
 import { type JsonlRecord, parseJsonlRecordLine, stringifyJsonNode } from "@unquote/core";
 import { afterEach, expect, it, vi } from "vitest";
 import { createLocalFileAccess } from "../src/lib/local-file-source";
@@ -13,6 +14,20 @@ class ControlledWorker extends MockWorkerEvents {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+it("delivers the last partial batch when the final requested line ends in a newline", async () => {
+  vi.stubGlobal("File", NodeFile);
+  const access = createLocalFileAccess(new File(["1\n2\n3\n"], "records.jsonl"));
+  const lines: number[] = [];
+  try {
+    await access.streamRecords(new Set([1, 2]), (record) => {
+      lines.push(record.lineNumber);
+    });
+    expect(lines).toEqual([1, 2]);
+  } finally {
+    access.dispose();
+  }
 });
 
 it("streams large records through the worker and waits for consumption before parsing the next", async () => {
