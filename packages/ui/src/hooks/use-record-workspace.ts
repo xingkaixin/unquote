@@ -9,7 +9,7 @@ import {
   getExpandedStringifiedPaths,
   groupExpandedStringifiedPaths,
 } from "../lib/record-expansion";
-import { isCopyRecordCountAboveThreshold } from "../lib/record-export";
+import { isCopyRecordCountAboveThreshold } from "../lib/copy-limits";
 import { recordContainsStringifiedJson } from "../lib/record-filter";
 import type { NestedFilterScope } from "../lib/record-filter";
 import type { RecordViewActions } from "../lib/record-view";

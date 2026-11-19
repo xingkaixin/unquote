@@ -250,6 +250,7 @@ describe("useExportActions", () => {
 
     // Started outside `act` so the faster copy below can overtake it.
     const bulkCopy = result.current.onCopyJsonl();
+    await vi.waitFor(() => expect(getFullRecords).toHaveBeenCalled());
     await act(async () => {
       await result.current.onCopyRecordError(failedRecord);
     });
@@ -279,6 +280,7 @@ describe("useExportActions", () => {
     const { result, rerender } = renderActions({ getFullRecords });
 
     const copy = result.current.onCopyJsonl();
+    await vi.waitFor(() => expect(getFullRecords).toHaveBeenCalled());
     rerender({ sourceRevision: 1 });
     await act(async () => {
       resolvePending(validRecords);
@@ -301,6 +303,7 @@ describe("useExportActions", () => {
     const { result, rerender } = renderActions({ getFullRecords });
 
     const copy = result.current.onCopyJsonl();
+    await vi.waitFor(() => expect(getFullRecords).toHaveBeenCalled());
     rerender({ sourceRevision: 1 });
     await act(async () => {
       await copy;

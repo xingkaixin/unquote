@@ -1,7 +1,7 @@
 import type { JsonNode, JsonlRecord } from "@unquote/core";
 import { stringifyJsonNodeWithLimits } from "@unquote/core";
 import { isArrayElementPath } from "./path-codec";
-import { copyBytesLimit } from "./record-export";
+import { copyBytesLimit } from "./copy-limits";
 import { resolveTreePath } from "./tree-path";
 import type { SelectedPath } from "./workspace-selection";
 
