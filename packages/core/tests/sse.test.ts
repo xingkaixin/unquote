@@ -77,6 +77,55 @@ describe("SSE Records", () => {
     });
   });
 
+  it("keeps SSE metadata unexpanded while still expanding data", () => {
+    const parseSingle = (input: string) => {
+      const record = parseInput(input, { forcedFormat: "sse" }).records[0];
+      if (
+        !record ||
+        !isFullRecord(record) ||
+        record.node.kind !== "object" ||
+        !record.node.children
+      ) {
+        throw new Error("Expected an object Record");
+      }
+      return { record, children: record.node.children };
+    };
+
+    const numericIdAndBoolEvent = parseSingle(
+      'event: true\nid: 42\nretry: 1500\ndata: "{\\"a\\":1}"',
+    );
+    expect(numericIdAndBoolEvent.children.event).toEqual({ kind: "string", value: "true" });
+    expect(numericIdAndBoolEvent.children.id).toEqual({ kind: "string", value: "42" });
+    expect(numericIdAndBoolEvent.children.retry).toEqual({
+      kind: "number",
+      value: 1500,
+      rawValue: "1500",
+    });
+    expect(numericIdAndBoolEvent.children.data).toMatchObject({
+      kind: "object",
+      rawString: '"{\\"a\\":1}"',
+      children: {
+        a: { kind: "number", value: 1, rawValue: "1" },
+      },
+    });
+
+    const nullEventAndLeadingZeroRetry = parseSingle("event: null\nretry: 001500\ndata: x");
+    expect(nullEventAndLeadingZeroRetry.children.event).toEqual({
+      kind: "string",
+      value: "null",
+    });
+    expect(nullEventAndLeadingZeroRetry.children.retry).toEqual({
+      kind: "number",
+      value: 1500,
+      rawValue: "1500",
+    });
+    expect(recordJson(nullEventAndLeadingZeroRetry.record)).toEqual({
+      event: "null",
+      retry: 1500,
+      data: "x",
+    });
+  });
+
   it("follows the WHATWG field, comment, and dispatch rules", () => {
     const result = parseInput(anthropicStream);
 
