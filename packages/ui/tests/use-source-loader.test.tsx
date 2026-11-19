@@ -374,6 +374,7 @@ describe("useSourceLoader", () => {
   });
 
   it.each([
+    ["a lone opening brace on the first line", '{\n{"i":2}\n{"i":3}\n'],
     ["a corrupt first line", 'not json\n{"i":2}\n{"i":3}\n'],
     ["a first line over 64 KiB", `{"blob":"${"x".repeat(70 * 1024)}"}\n{"i":2}\n`],
     [

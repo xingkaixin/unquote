@@ -141,11 +141,10 @@ describe("detectSourceFormat", () => {
     const document = `{\n${Array.from({ length: 40_000 }, (_, index) => `  "k${index}": "${"x".repeat(20)}",`).join("\n")}\n  "last": 1\n}`;
     const parse = vi.spyOn(JSON, "parse");
 
-    // Every line here is a JSON fragment, so the probe fails on line 1 and the
-    // whole draft is judged by its brackets rather than parsed.
     expect(document.length).toBeGreaterThan(64 * 1024);
     expect(detectSourceFormat(document)).toEqual({ kind: "json" });
-    expect(parse).toHaveBeenCalledTimes(1);
+    expect(parse.mock.calls.length).toBeLessThanOrEqual(sourceDetectionLineBudget);
+    expect(parse).not.toHaveBeenCalledWith(document);
 
     parse.mockRestore();
   });

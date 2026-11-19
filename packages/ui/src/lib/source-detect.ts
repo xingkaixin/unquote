@@ -41,8 +41,6 @@ const lastNonWhitespaceChar = (text: string) => {
   return null;
 };
 
-export const isPrettyJsonHead = (text: string) => /^\uFEFF?\s*[{[][ \t]*\r?\n/.test(text);
-
 const trimLine = (text: string, start: number, end: number) => {
   while (start < end && text.charCodeAt(start) <= 32) {
     start += 1;
@@ -130,15 +128,9 @@ const isJsonlScan = (scan: DraftLines) => {
     return false;
   }
 
-  const first = scan.probe[0]!;
-  const firstValid = parses(first);
-  if (!firstValid && isJsonContainerStart(first)) {
-    return false;
-  }
-
-  let validCount = firstValid ? 1 : 0;
-  for (let index = 1; index < scan.probe.length; index += 1) {
-    if (parses(scan.probe[index]!)) {
+  let validCount = 0;
+  for (const line of scan.probe) {
+    if (parses(line)) {
       validCount += 1;
     }
   }

@@ -14,7 +14,6 @@ import type { SourceMode } from "../lib/source-candidate";
 import {
   detectSourceFormat,
   detectSourceFormatInBudget,
-  isPrettyJsonHead,
   largeFileJsonlProbeByteBudget,
   sourceDetectionProbeByteBudget,
 } from "../lib/source-detect";
@@ -121,11 +120,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     };
 
     const isLargeFile = file.size > largeSourceStreamBytes;
-    if (isLargeFile && sourceMode === "jsonl") {
-      await publishStreamingFile(sourceMode);
-      return;
-    }
-
     const controller = new AbortController();
     activeReadRef.current = controller;
     const isCancelled = () => fileImportIdRef.current !== requestId || controller.signal.aborted;
@@ -136,6 +130,11 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
 
     let text: string;
     try {
+      if (isLargeFile && sourceMode === "jsonl") {
+        await publishStreamingFile(sourceMode);
+        return;
+      }
+
       if (isLargeFile && sourceMode === "auto") {
         const head = await readFileHead(file, sourceDetectionFileProbeBytes, controller.signal);
         if (isCancelled()) {
@@ -146,8 +145,7 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
           detected.kind !== "jsonl" &&
           detected.kind !== "sse" &&
           head.length > 0 &&
-          file.size > sourceDetectionFileProbeBytes &&
-          !isPrettyJsonHead(head)
+          file.size > sourceDetectionFileProbeBytes
         ) {
           const extendedHead = await readFileHead(
             file,
