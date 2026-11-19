@@ -525,7 +525,7 @@ const codexEventRules = {
     projectEvidence: codexTokenUsageEvidence,
   },
   sub_agent_activity: {
-    category: "unknown",
+    category: "meta",
     turnIdSource: "payload",
     projectEvidence: (payload, turnId) =>
       payload.kind === "started"
@@ -533,7 +533,7 @@ const codexEventRules = {
         : undefined,
   },
   context_compacted: {
-    category: "unknown",
+    category: "meta",
     turnIdSource: "current",
     projectEvidence: (_payload, turnId) => ({
       kind: "compaction",
@@ -628,7 +628,7 @@ const projectCodexResponseItem = (
     }
     case "agent-message":
       return {
-        category: "unknown",
+        category: "system",
         kind: item.itemType,
         label: item.itemType,
         preview: "",
@@ -803,14 +803,20 @@ const projectCodexEvent = (
       ),
     };
   }
+  if (envelopeType === "compacted") {
+    return {
+      category: "meta",
+      kind: envelopeType,
+      label: envelopeType,
+      preview: "",
+      sessionEvidence: { kind: "compaction", ...withTurnId(context.turnId) },
+    };
+  }
   return {
     category: "unknown",
     kind: envelopeType,
     label: envelopeType,
     preview: "",
-    ...(envelopeType === "compacted"
-      ? { sessionEvidence: { kind: "compaction", ...withTurnId(context.turnId) } }
-      : {}),
   };
 };
 

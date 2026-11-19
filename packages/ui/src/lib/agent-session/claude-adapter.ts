@@ -580,10 +580,11 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
       const isToolResultTurn =
         type === "user" && blocks.some((block) => block.type === "tool_result");
       const notification = type === "user" ? claudeTaskNotification(record) : undefined;
+      const isMeta = getBoolean(record, "isMeta");
       const timestamp = parseTimestamp(record.timestamp);
 
       let leadingLifecycle: AgentSessionEvidence[] = [];
-      if (type === "user" && !isToolResultTurn) {
+      if (type === "user" && !isToolResultTurn && notification === undefined && !isMeta) {
         leadingLifecycle = promptTurnLifecycle(getString(record, "promptId"));
       }
       if (currentTurn && timestamp !== undefined) {
@@ -627,7 +628,7 @@ const createClaudeBuilder = (fileName?: string): AgentAdapterBuilder => {
 
       let items: AgentConversationItem[] = [];
       if (type === "user") {
-        if (isToolResultTurn || !getBoolean(record, "isMeta")) {
+        if (isToolResultTurn || !isMeta) {
           items = attachBlockItems(event, blocks, notification === undefined ? "user" : "system");
         }
       } else if (type === "assistant") {

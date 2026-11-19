@@ -99,6 +99,11 @@ describe("codexRolloutAdapter: supplemental-events", () => {
       undefined,
     ]);
     expect(session.events[3]?.category).toBe("meta");
+    expect(session.events[4]?.category).toBe("meta");
+    expect(session.events[5]?.category).toBe("meta");
+    expect(session.events[7]?.category).toBe("meta");
+    expect(session.events[8]?.category).toBe("meta");
+    expect(session.events[9]?.category).toBe("system");
     expect(session.events[10]?.category).toBe("tool");
     expect(session.events[9]?.conversationItems[0]).not.toHaveProperty("block");
     for (const event of session.events) {

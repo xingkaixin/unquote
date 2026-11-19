@@ -53,8 +53,6 @@ const maxInsightTitleLength = 96;
 const errorLikePattern =
   /(^|[-_\s.])(error|exception|failed|failure|fatal|panic|timeout)([-_\s.]|$)/i;
 
-const agentsInstructionsPattern = /(^|\n)\s*#\s*AGENTS\.md instructions\b/i;
-
 const truncateText = (value: string, maxLength: number) =>
   value.length <= maxLength ? value : `${truncateAtCodePointBoundary(value, maxLength)}...`;
 
@@ -117,7 +115,13 @@ const classifyInsightField = (
     return "tool";
   }
 
-  if (normalized === "error" || normalized === "exception" || normalized === "err") {
+  if (
+    normalized === "error" ||
+    normalized === "exception" ||
+    normalized === "err" ||
+    normalized === "stack" ||
+    normalized === "stderr"
+  ) {
     return "error";
   }
 
@@ -139,8 +143,6 @@ const classifyInsightField = (
 };
 
 const isErrorLikeValue = (value: string) => errorLikePattern.test(value);
-
-const isInstructionsText = (value: string) => agentsInstructionsPattern.test(value);
 
 const getKeyDepth = (pathSegments: readonly TreePathSegment[]) => {
   let depth = 0;
@@ -190,9 +192,10 @@ const addPrimitiveInsightHits = (
   const keyDepth = getKeyDepth(pathSegments);
   addHit(hits, field, key, value, pathText, keyDepth);
   if (
-    (field === "level" || field === "status" || field === "message") &&
-    isErrorLikeValue(value) &&
-    !isInstructionsText(value)
+    (field === "level" ||
+      field === "status" ||
+      (field === "event" && normalizeKey(key) !== "name")) &&
+    isErrorLikeValue(value)
   ) {
     addHit(hits, "error", key, value, pathText, keyDepth);
   }
@@ -240,16 +243,19 @@ const compareHits = (left: RecordInsightHit, right: RecordInsightHit) =>
 
 const getErrorHitPriority = (hit: RecordInsightHit) => {
   const key = normalizeKey(hit.key);
-  if (key === "error" || key === "exception" || key === "err") {
+  if (
+    key === "error" ||
+    key === "exception" ||
+    key === "err" ||
+    key === "stack" ||
+    key === "stderr"
+  ) {
     return 0;
   }
-  if (key === "message" || key === "msg" || key === "content" || key === "text") {
+  if (key === "level" || key === "severity" || key === "status" || key === "state") {
     return 1;
   }
-  if (key === "level" || key === "severity" || key === "status" || key === "state") {
-    return 2;
-  }
-  return 3;
+  return 2;
 };
 
 const compareFieldHits = (
