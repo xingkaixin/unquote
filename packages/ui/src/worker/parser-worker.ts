@@ -5,6 +5,7 @@ import { serializeDiagnosticError } from "../lib/diagnostics";
 import type { DiagnosticError } from "../lib/diagnostics";
 import { createJsonlIngestion } from "../lib/jsonl-ingestion";
 import { drainJsonlLines } from "../lib/jsonl-lines";
+import { JsonlLineIndex, type LineCheckpoint } from "../lib/local-file-reader";
 import { parseText, type ParserProgress } from "../lib/parse-text";
 
 export type StreamFormat = "jsonl" | "sse";
@@ -58,6 +59,7 @@ export type ParserWorkerResponse =
       stats: ParseResult["stats"];
       agentSession: AgentSession | null;
       progress: ParserProgress;
+      lineCheckpoints?: LineCheckpoint[];
     }
   | {
       type: "error";
@@ -154,13 +156,18 @@ const progressFromSession = (session: StreamSession, done: boolean): ParserProgr
   };
 };
 
-const postSessionComplete = (requestId: number, session: StreamSession) => {
+const postSessionComplete = (
+  requestId: number,
+  session: StreamSession,
+  lineCheckpoints?: LineCheckpoint[],
+) => {
   self.postMessage({
     type: "complete-stats",
     requestId,
     stats: statsFromSession(session),
     agentSession: session.records.finishAgentSession(),
     progress: progressFromSession(session, true),
+    ...(lineCheckpoints && lineCheckpoints.length > 0 ? { lineCheckpoints } : {}),
   } satisfies ParserWorkerResponse);
 };
 
@@ -240,11 +247,14 @@ const parseJson = ({
 };
 
 const parseJsonlFile = async (requestId: number, file: File, session: StreamSession) => {
-  let reader: ReadableStreamDefaultReader<string> | null = null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   let failure: { error: unknown } | null = null;
 
   try {
-    reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+    reader = file.stream().getReader();
+    const decoder = new TextDecoder();
+    const lineIndex = new JsonlLineIndex(file.size ?? 0);
+    let absoluteByteOffset = 0;
 
     while (true) {
       if (requestId !== latestRequestId) {
@@ -256,11 +266,26 @@ const parseJsonlFile = async (requestId: number, file: File, session: StreamSess
         return;
       }
 
-      processStreamChunk(requestId, session, value ?? "", done);
       if (done) {
-        postSessionComplete(requestId, session);
+        processStreamChunk(requestId, session, decoder.decode(), true);
+        postSessionComplete(requestId, session, lineIndex.exportCheckpoints());
         return;
       }
+
+      if (!value) {
+        continue;
+      }
+
+      let checkpointLineNumber = session.lineNumber;
+      for (let index = 0; index < value.byteLength; index += 1) {
+        if (value[index] === 10) {
+          checkpointLineNumber += 1;
+          lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + index + 1);
+        }
+      }
+      absoluteByteOffset += value.byteLength;
+
+      processStreamChunk(requestId, session, decoder.decode(value, { stream: true }), false);
     }
   } catch (error) {
     failure = { error };

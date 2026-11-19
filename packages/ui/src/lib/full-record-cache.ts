@@ -21,6 +21,13 @@ const estimateRecordBytes = (record: JsonlRecord) => {
     const value = pending.pop();
     if (typeof value === "string") {
       bytes += 24 + value.length * 2;
+    } else if (Array.isArray(value)) {
+      bytes += 64;
+      for (let index = 0; index < value.length; index += 1) {
+        bytes += 32;
+        if (bytes > fullRecordCacheBytesLimit) return fullRecordCacheBytesLimit + 1;
+        pending.push(value[index]);
+      }
     } else if (value && typeof value === "object") {
       bytes += 64;
       for (const key in value) {

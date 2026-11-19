@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import type { ComponentProps } from "react";
 import { useTranslation } from "../i18n/context";
 import type { Locale } from "../i18n/i18n";
@@ -7,7 +8,11 @@ import type {
   AgentSessionReportedTotals,
 } from "../lib/agent-session";
 import { agentParseWarningMessageKey } from "./agent-session-format";
-import { formatTrajectoryDuration } from "./agent-trajectory-format";
+import {
+  formatLocaleCurrencyUSD,
+  formatLocaleNumber,
+  formatTrajectoryDuration,
+} from "./agent-trajectory-format";
 import { Button } from "./button";
 
 export interface AgentFactsPaneProps {
@@ -16,45 +21,22 @@ export interface AgentFactsPaneProps {
   onOpenRecord: (recordId: string) => void;
 }
 
-const metricItems = (
-  session: AgentSession,
-  model: AgentSessionModel,
-  t: ReturnType<typeof useTranslation>["t"],
-) => {
-  const toolCount = model.conversation.filter(
-    ({ item }) => item.role === "tool_call" || item.role === "tool_result",
-  ).length;
-  return [
-    { label: t("agent.metric.events"), value: model.events.length },
-    { label: t("agent.metric.messages"), value: model.conversation.length },
-    { label: t("agent.metric.turns"), value: model.turnCount },
-    { label: t("agent.metric.tools"), value: toolCount },
-  ];
-};
-
-// Sub-dollar costs keep four decimals so a cheap session does not read as $0.00.
-const formatCostUSD = (value: number, locale: Locale) =>
-  new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: value > 0.5 ? 2 : 4,
-  }).format(value);
-
 const reportedItems = (
   totals: AgentSessionReportedTotals,
   locale: Locale,
   t: ReturnType<typeof useTranslation>["t"],
 ) => {
-  const count = new Intl.NumberFormat(locale);
   const items: { label: string; value: string }[] = [];
   if (totals.costUSD !== undefined) {
-    items.push({ label: t("agent.reported.cost"), value: formatCostUSD(totals.costUSD, locale) });
+    items.push({
+      label: t("agent.reported.cost"),
+      value: formatLocaleCurrencyUSD(totals.costUSD, locale),
+    });
   }
   if (totals.linesAdded !== undefined && totals.linesRemoved !== undefined) {
     items.push({
       label: t("agent.reported.lines"),
-      value: `+${count.format(totals.linesAdded)} −${count.format(totals.linesRemoved)}`,
+      value: `+${formatLocaleNumber(totals.linesAdded, locale)} −${formatLocaleNumber(totals.linesRemoved, locale)}`,
     });
   }
   if (totals.apiDurationMs !== undefined) {
@@ -95,11 +77,31 @@ const Chip = ({ children, tone }: { children: string; tone: string }) => (
   </span>
 );
 
-export const AgentFactsPane = ({ session, model, onOpenRecord }: AgentFactsPaneProps) => {
+export const AgentFactsPane = memo(({ session, model, onOpenRecord }: AgentFactsPaneProps) => {
   const { locale, t } = useTranslation();
-  const metrics = metricItems(session, model, t);
+  const toolCount = useMemo(() => {
+    let count = 0;
+    for (const { item } of model.conversation) {
+      if (item.role === "tool_call" || item.role === "tool_result") {
+        count += 1;
+      }
+    }
+    return count;
+  }, [model.conversation]);
+  const metrics = useMemo(
+    () => [
+      { label: t("agent.metric.events"), value: model.events.length },
+      { label: t("agent.metric.messages"), value: model.conversation.length },
+      { label: t("agent.metric.turns"), value: model.turnCount },
+      { label: t("agent.metric.tools"), value: toolCount },
+    ],
+    [model.conversation.length, model.events.length, model.turnCount, t, toolCount],
+  );
   const totals = session.meta.reportedTotals;
-  const reported = totals ? reportedItems(totals, locale, t) : [];
+  const reported = useMemo(
+    () => (totals ? reportedItems(totals, locale, t) : []),
+    [locale, t, totals],
+  );
   const hiddenWarningCount = Math.max(0, session.parseWarningCount - session.parseWarnings.length);
   const location = [session.meta.cwd, session.meta.version ? `v${session.meta.version}` : ""]
     .filter(Boolean)
@@ -208,4 +210,4 @@ export const AgentFactsPane = ({ session, model, onOpenRecord }: AgentFactsPaneP
       ) : null}
     </div>
   );
-};
+});

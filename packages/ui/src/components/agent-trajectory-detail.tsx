@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { MessageKey } from "../i18n/i18n";
 import { useTranslation } from "../i18n/context";
 import { formatClockTime } from "../lib/format";
@@ -258,213 +259,218 @@ export interface AgentTrajectoryDetailProps {
   onOpenUnattachedWarning: (selection: AgentCanonicalSelection) => void;
 }
 
-export const AgentTrajectoryDetail = ({
-  item,
-  unattachedWarningGroups,
-  resolveRawJson,
-  onOpenSelection,
-  onOpenUnattachedWarning,
-}: AgentTrajectoryDetailProps) => {
-  const { locale, t } = useTranslation();
+export const AgentTrajectoryDetail = memo(
+  ({
+    item,
+    unattachedWarningGroups,
+    resolveRawJson,
+    onOpenSelection,
+    onOpenUnattachedWarning,
+  }: AgentTrajectoryDetailProps) => {
+    const { locale, t } = useTranslation();
 
-  if (!item) {
+    if (!item) {
+      return (
+        <div
+          data-trajectory-detail-item-token=""
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
+        >
+          <h2 className="uq-label m-0">{t("trajectory.detail")}</h2>
+          <p className="m-0 text-[12px] text-text-tertiary">{t("trajectory.detailEmpty")}</p>
+          <UnattachedWarningGroups
+            groups={unattachedWarningGroups}
+            onOpenUnattachedWarning={onOpenUnattachedWarning}
+          />
+        </div>
+      );
+    }
+
+    const trajectoryItem = item.item;
+    const actions = detailActionsFor(trajectoryItem);
+    const warningActions = warningActionVisibility(item.warningGroups, actions);
+    const canonicalLabel = boundedNonEmptyText(item.detail?.event.label);
+    const toolName =
+      trajectoryItem.kind === "tool" ? boundedNonEmptyText(trajectoryItem.toolName) : undefined;
+    const callId =
+      trajectoryItem.kind === "tool" &&
+      trajectoryItem.callId !== undefined &&
+      trajectoryItem.callId.length > 0
+        ? truncateTrajectoryDisplayText(trajectoryItem.callId)
+        : undefined;
+    const turnIndex = trajectoryItem.turnIndex ?? item.turn?.turnIndex;
+    const metadata = [
+      t("trajectory.line", { line: trajectoryItem.lineNumber }),
+      turnIndex === undefined ? "" : t("trajectory.turn", { turn: turnIndex }),
+    ].filter(Boolean);
+    const time =
+      finiteNumber(trajectoryItem.timestamp) === undefined
+        ? ""
+        : formatClockTime(trajectoryItem.timestamp, locale);
+    const duration =
+      trajectoryItem.kind === "tool"
+        ? formatTrajectoryDuration(trajectoryItem.durationMs, locale)
+        : "";
+    const startedAt =
+      trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.startedAt) !== undefined
+        ? formatClockTime(trajectoryItem.startedAt, locale)
+        : "";
+    const endedAt =
+      trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.endedAt) !== undefined
+        ? formatClockTime(trajectoryItem.endedAt, locale)
+        : "";
+    const derivedStep =
+      trajectoryItem.kind === "assistant" || trajectoryItem.kind === "reasoning"
+        ? trajectoryItem.step
+        : undefined;
+    const retry =
+      trajectoryItem.kind === "api-error" ? trajectoryRetryValue(trajectoryItem, t) : "";
+    const retryDelay =
+      trajectoryItem.kind === "api-error"
+        ? formatTrajectoryDuration(trajectoryItem.retryInMs, locale)
+        : "";
+    const tokenUsageFacts = tokenUsageFactsFor(trajectoryItem);
+    const rawRecords = trajectoryRawRecordsFor(trajectoryItem);
+    const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
+    const summary = truncateTrajectoryDisplayText(item.summary) || kind;
+    const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
+    const hasDetailFacts = Boolean(
+      time ||
+      duration ||
+      startedAt ||
+      endedAt ||
+      toolName ||
+      callId ||
+      derivedStep ||
+      retry ||
+      retryDelay,
+    );
+
     return (
       <div
-        data-trajectory-detail-item-token=""
+        data-trajectory-detail-item-token={item.ordinal}
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
       >
         <h2 className="uq-label m-0">{t("trajectory.detail")}</h2>
-        <p className="m-0 text-[12px] text-text-tertiary">{t("trajectory.detailEmpty")}</p>
+
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="m-0 break-words text-[14px] leading-5 text-text-primary">{summary}</p>
+          {canonicalLabel ? (
+            <p className="m-0 break-words font-mono text-[11px] text-text-secondary">
+              {canonicalLabel}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-xs border border-border-medium px-1.5 py-0.5 font-mono text-[10.5px] text-text-secondary">
+              {kind}
+            </span>
+            <span
+              className={`rounded-xs border px-1.5 py-0.5 font-mono text-[10.5px] ${statusTone[trajectoryItem.status]}`}
+            >
+              {status}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-x-2 gap-y-1 font-mono text-[11px] text-text-secondary">
+          {metadata.map((entry) => (
+            <span key={entry}>{entry}</span>
+          ))}
+        </div>
+
+        {hasDetailFacts ? (
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-3">
+            {time ? <DetailFact label={t("trajectory.time")} value={time} /> : null}
+            {duration ? <DetailFact label={t("trajectory.duration")} value={duration} /> : null}
+            {startedAt ? <DetailFact label={t("trajectory.startedAt")} value={startedAt} /> : null}
+            {endedAt ? <DetailFact label={t("trajectory.endedAt")} value={endedAt} /> : null}
+            {toolName ? <DetailFact label={t("trajectory.kind.tool")} value={toolName} /> : null}
+            {callId ? (
+              <DetailFact label={t("trajectory.callId")} value={callId} preserveWhitespace />
+            ) : null}
+            {retry ? <DetailFact label={t("trajectory.retry")} value={retry} /> : null}
+            {retryDelay ? (
+              <DetailFact label={t("trajectory.retryDelay")} value={retryDelay} />
+            ) : null}
+            {derivedStep ? (
+              <DetailFact
+                label={t("trajectory.derivedStep", { step: derivedStep.index })}
+                value={t("trajectory.derivedStepHint")}
+              />
+            ) : null}
+          </dl>
+        ) : null}
+
+        {tokenUsageFacts.length > 0 ? (
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-border pt-3">
+            {tokenUsageFacts.map((fact) => (
+              <DetailFact key={fact.labelKey} label={t(fact.labelKey)} value={fact.value} />
+            ))}
+          </dl>
+        ) : null}
+
+        {rawRecords.map((record) => (
+          <RawJsonBlock
+            key={`${record.role}:${record.recordId}`}
+            title={t(rawRecordMessageKey[record.role])}
+            raw={resolveRawJson(record.recordId)}
+          />
+        ))}
+
+        <div className="flex flex-wrap gap-2">
+          {actions.map((action) => (
+            <Button
+              key={action.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenSelection(action.selection)}
+            >
+              {t(action.labelKey)}
+            </Button>
+          ))}
+        </div>
+
+        {item.warningGroups.length > 0 ? (
+          <section className="flex flex-col gap-2" aria-labelledby="trajectory-detail-warnings">
+            <h3 id="trajectory-detail-warnings" className="uq-label m-0">
+              {t("trajectory.warnings")}
+            </h3>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {item.warningGroups.map((group, index) => {
+                const warning = group.warning;
+                return (
+                  <li
+                    key={warning.kind}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning px-2 py-1.5 text-[11px] text-warning"
+                  >
+                    <span>
+                      {t(trajectoryWarningMessageKey(warning))} · {group.count} ·{" "}
+                      {t("trajectory.line", { line: warning.lineNumber })}
+                    </span>
+                    {warningActions[index] ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`${t("trajectory.openRecord")}: ${t("trajectory.line", {
+                          line: warning.lineNumber,
+                        })}`}
+                        onClick={() => onOpenSelection(warning.selection)}
+                      >
+                        {t("trajectory.openRecord")}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
         <UnattachedWarningGroups
           groups={unattachedWarningGroups}
           onOpenUnattachedWarning={onOpenUnattachedWarning}
         />
       </div>
     );
-  }
-
-  const trajectoryItem = item.item;
-  const actions = detailActionsFor(trajectoryItem);
-  const warningActions = warningActionVisibility(item.warningGroups, actions);
-  const canonicalLabel = boundedNonEmptyText(item.detail?.event.label);
-  const toolName =
-    trajectoryItem.kind === "tool" ? boundedNonEmptyText(trajectoryItem.toolName) : undefined;
-  const callId =
-    trajectoryItem.kind === "tool" &&
-    trajectoryItem.callId !== undefined &&
-    trajectoryItem.callId.length > 0
-      ? truncateTrajectoryDisplayText(trajectoryItem.callId)
-      : undefined;
-  const turnIndex = trajectoryItem.turnIndex ?? item.turn?.turnIndex;
-  const metadata = [
-    t("trajectory.line", { line: trajectoryItem.lineNumber }),
-    turnIndex === undefined ? "" : t("trajectory.turn", { turn: turnIndex }),
-  ].filter(Boolean);
-  const time =
-    finiteNumber(trajectoryItem.timestamp) === undefined
-      ? ""
-      : formatClockTime(trajectoryItem.timestamp, locale);
-  const duration =
-    trajectoryItem.kind === "tool"
-      ? formatTrajectoryDuration(trajectoryItem.durationMs, locale)
-      : "";
-  const startedAt =
-    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.startedAt) !== undefined
-      ? formatClockTime(trajectoryItem.startedAt, locale)
-      : "";
-  const endedAt =
-    trajectoryItem.kind === "tool" && finiteNumber(trajectoryItem.endedAt) !== undefined
-      ? formatClockTime(trajectoryItem.endedAt, locale)
-      : "";
-  const derivedStep =
-    trajectoryItem.kind === "assistant" || trajectoryItem.kind === "reasoning"
-      ? trajectoryItem.step
-      : undefined;
-  const retry = trajectoryItem.kind === "api-error" ? trajectoryRetryValue(trajectoryItem, t) : "";
-  const retryDelay =
-    trajectoryItem.kind === "api-error"
-      ? formatTrajectoryDuration(trajectoryItem.retryInMs, locale)
-      : "";
-  const tokenUsageFacts = tokenUsageFactsFor(trajectoryItem);
-  const rawRecords = trajectoryRawRecordsFor(trajectoryItem);
-  const kind = t(trajectoryKindMessageKey[trajectoryItem.kind]);
-  const summary = truncateTrajectoryDisplayText(item.summary) || kind;
-  const status = t(trajectoryStatusMessageKey[trajectoryItem.status]);
-  const hasDetailFacts = Boolean(
-    time ||
-    duration ||
-    startedAt ||
-    endedAt ||
-    toolName ||
-    callId ||
-    derivedStep ||
-    retry ||
-    retryDelay,
-  );
-
-  return (
-    <div
-      data-trajectory-detail-item-token={item.ordinal}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
-    >
-      <h2 className="uq-label m-0">{t("trajectory.detail")}</h2>
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <p className="m-0 break-words text-[14px] leading-5 text-text-primary">{summary}</p>
-        {canonicalLabel ? (
-          <p className="m-0 break-words font-mono text-[11px] text-text-secondary">
-            {canonicalLabel}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-xs border border-border-medium px-1.5 py-0.5 font-mono text-[10.5px] text-text-secondary">
-            {kind}
-          </span>
-          <span
-            className={`rounded-xs border px-1.5 py-0.5 font-mono text-[10.5px] ${statusTone[trajectoryItem.status]}`}
-          >
-            {status}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-x-2 gap-y-1 font-mono text-[11px] text-text-secondary">
-        {metadata.map((entry) => (
-          <span key={entry}>{entry}</span>
-        ))}
-      </div>
-
-      {hasDetailFacts ? (
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-3">
-          {time ? <DetailFact label={t("trajectory.time")} value={time} /> : null}
-          {duration ? <DetailFact label={t("trajectory.duration")} value={duration} /> : null}
-          {startedAt ? <DetailFact label={t("trajectory.startedAt")} value={startedAt} /> : null}
-          {endedAt ? <DetailFact label={t("trajectory.endedAt")} value={endedAt} /> : null}
-          {toolName ? <DetailFact label={t("trajectory.kind.tool")} value={toolName} /> : null}
-          {callId ? (
-            <DetailFact label={t("trajectory.callId")} value={callId} preserveWhitespace />
-          ) : null}
-          {retry ? <DetailFact label={t("trajectory.retry")} value={retry} /> : null}
-          {retryDelay ? <DetailFact label={t("trajectory.retryDelay")} value={retryDelay} /> : null}
-          {derivedStep ? (
-            <DetailFact
-              label={t("trajectory.derivedStep", { step: derivedStep.index })}
-              value={t("trajectory.derivedStepHint")}
-            />
-          ) : null}
-        </dl>
-      ) : null}
-
-      {tokenUsageFacts.length > 0 ? (
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-border pt-3">
-          {tokenUsageFacts.map((fact) => (
-            <DetailFact key={fact.labelKey} label={t(fact.labelKey)} value={fact.value} />
-          ))}
-        </dl>
-      ) : null}
-
-      {rawRecords.map((record) => (
-        <RawJsonBlock
-          key={`${record.role}:${record.recordId}`}
-          title={t(rawRecordMessageKey[record.role])}
-          raw={resolveRawJson(record.recordId)}
-        />
-      ))}
-
-      <div className="flex flex-wrap gap-2">
-        {actions.map((action) => (
-          <Button
-            key={action.id}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenSelection(action.selection)}
-          >
-            {t(action.labelKey)}
-          </Button>
-        ))}
-      </div>
-
-      {item.warningGroups.length > 0 ? (
-        <section className="flex flex-col gap-2" aria-labelledby="trajectory-detail-warnings">
-          <h3 id="trajectory-detail-warnings" className="uq-label m-0">
-            {t("trajectory.warnings")}
-          </h3>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {item.warningGroups.map((group, index) => {
-              const warning = group.warning;
-              return (
-                <li
-                  key={warning.kind}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning px-2 py-1.5 text-[11px] text-warning"
-                >
-                  <span>
-                    {t(trajectoryWarningMessageKey(warning))} · {group.count} ·{" "}
-                    {t("trajectory.line", { line: warning.lineNumber })}
-                  </span>
-                  {warningActions[index] ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`${t("trajectory.openRecord")}: ${t("trajectory.line", {
-                        line: warning.lineNumber,
-                      })}`}
-                      onClick={() => onOpenSelection(warning.selection)}
-                    >
-                      {t("trajectory.openRecord")}
-                    </Button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-      <UnattachedWarningGroups
-        groups={unattachedWarningGroups}
-        onOpenUnattachedWarning={onOpenUnattachedWarning}
-      />
-    </div>
-  );
-};
+  },
+);

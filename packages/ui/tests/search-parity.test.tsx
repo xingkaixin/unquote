@@ -169,6 +169,7 @@ describe("search parity between memory and file search paths", () => {
     ["quote", "a Unicode-escaped string"],
     ["a/b", "an escaped solidus"],
     [String.raw`\n`, "an escaped control character"],
+    ["nbreak", "an escape letter adjacent to text"],
     ["0.0000001", "a source number label"],
     ["6", "a synthesized container-count label"],
   ])("preserves parity for %s in %s", async (query) => {
@@ -180,6 +181,24 @@ describe("search parity between memory and file search paths", () => {
     expect(memoryMatches).toEqual(
       expect.arrayContaining([expect.objectContaining({ recordId: "record-3" })]),
     );
+  });
+
+  it("preserves parity for exact path search across nested and stringified paths", async () => {
+    const { memoryMatches } = await expectParity("$.payload.items[0].deep.deeper.deepest", {
+      syntax: "path",
+      caseSensitive: false,
+    });
+
+    expect(memoryMatches).toEqual([
+      {
+        recordId: "record-1",
+        pathText: "$.payload.items[0].deep.deeper.deepest",
+        keyRanges: [],
+        valueRanges: [],
+        pathRanges: [],
+        stringifiedPathChain: ["$.payload"],
+      },
+    ]);
   });
 
   it("records separate memory and file search timings", async () => {

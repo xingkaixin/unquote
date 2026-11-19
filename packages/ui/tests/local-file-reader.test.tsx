@@ -1,7 +1,11 @@
-import { readJsonlLinesByNumber, SourceReadLimitError } from "../src/lib/local-file-reader";
+import {
+  readJsonlFileLines,
+  readJsonlLinesByNumber,
+  seedJsonlLineCheckpoints,
+  SourceReadLimitError,
+} from "../src/lib/local-file-reader";
 import { createStreamFile } from "./helpers/stub-file";
 import { describe, expect, it } from "vitest";
-import { readJsonlFileLines } from "../src/lib/local-file-reader";
 
 const createLineFile = (contents: string, streamed: boolean) => {
   const file = new File([contents], "payload.jsonl", { type: "application/jsonl" });
@@ -82,4 +86,59 @@ it("rejects oversized requested lines before collecting the full source", async 
   await expect(readJsonlLinesByNumber(file, new Set([1]), undefined, 8)).resolves.toEqual(
     new Map([[1, '"中文"']]),
   );
+});
+
+it("rejects with AbortError when aborted mid-read instead of returning partial lines", async () => {
+  const controller = new AbortController();
+  let readCount = 0;
+  const encoder = new TextEncoder();
+  const file = new File(['{"a":1}\n{"b":2}\n'], "abort.jsonl");
+  Object.defineProperty(file, "slice", {
+    value: () => ({
+      stream: () =>
+        new ReadableStream<Uint8Array>({
+          pull(streamController) {
+            readCount += 1;
+            if (readCount === 1) {
+              streamController.enqueue(encoder.encode('{"a":1}\n'));
+              controller.abort();
+            } else {
+              streamController.enqueue(encoder.encode('{"b":2}\n'));
+              streamController.close();
+            }
+          },
+        }),
+    }),
+  });
+
+  await expect(
+    readJsonlLinesByNumber(file, new Set([1, 2]), controller.signal),
+  ).rejects.toMatchObject({ name: "AbortError" });
+});
+
+it("uses seeded checkpoints for the first random line read", async () => {
+  const contents = '{"line":1}\n{"line":2}\n{"line":3}\n';
+  const bytes = new TextEncoder().encode(contents);
+  const sliceStarts: number[] = [];
+  const file = new File([contents], "seeded.jsonl");
+  Object.defineProperty(file, "slice", {
+    value: (start = 0, end = bytes.byteLength) => {
+      sliceStarts.push(start);
+      return {
+        stream: () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(bytes.slice(start, end));
+              controller.close();
+            },
+          }),
+      };
+    },
+  });
+
+  seedJsonlLineCheckpoints(file, [{ lineNumber: 3, byteOffset: contents.indexOf('{"line":3}') }]);
+  const lines = await readJsonlLinesByNumber(file, new Set([3]));
+
+  expect(sliceStarts).toEqual([contents.indexOf('{"line":3}')]);
+  expect(lines).toEqual(new Map([[3, '{"line":3}']]));
 });

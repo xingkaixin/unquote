@@ -62,12 +62,29 @@ const hasJsonNumber = (value: string, start: number) => {
   return hasOnlyTrailingJsonWhitespace(value, index);
 };
 
+const skipTrailingJsonWhitespace = (value: string, start: number) => {
+  let index = value.length - 1;
+  while (index >= start && isJsonWhitespace(value[index]!)) {
+    index--;
+  }
+  return index;
+};
+
 export const mightBeStringifiedJson = (value: string) => {
   const start = skipJsonWhitespace(value, 0);
   const first = value[start];
 
   if (first === "{" || first === "[" || first === '"') {
-    return true;
+    const end = skipTrailingJsonWhitespace(value, start);
+    if (end <= start) {
+      return false;
+    }
+    const last = value[end];
+    return (
+      (first === "{" && last === "}") ||
+      (first === "[" && last === "]") ||
+      (first === '"' && last === '"')
+    );
   }
   if (first === "t") {
     return hasJsonLiteral(value, start, "true");

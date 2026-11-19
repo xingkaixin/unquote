@@ -163,42 +163,41 @@ const normalizedMaxLength = (maxLength: number) =>
 const normalizedOptionalLimit = (limit: number | undefined) =>
   limit === undefined ? undefined : normalizedMaxLength(limit);
 
-const textEncoder = new TextEncoder();
-
 const stringChunkSize = 16_384;
 
-const utf8Width = (value: string, index: number) => {
-  const first = value.charCodeAt(index);
-  if (first <= 0x7f) {
-    return { bytes: 1, codeUnits: 1 };
-  }
-  if (first <= 0x7ff) {
-    return { bytes: 2, codeUnits: 1 };
-  }
-  if (first >= 0xd800 && first <= 0xdbff) {
-    const second = value.charCodeAt(index + 1);
-    if (second >= 0xdc00 && second <= 0xdfff) {
-      return { bytes: 4, codeUnits: 2 };
-    }
-  }
-  return { bytes: 3, codeUnits: 1 };
-};
-
 const utf8PrefixWithin = (value: string, byteLimit: number) => {
-  const encodedLength = textEncoder.encode(value).byteLength;
-  if (encodedLength <= byteLimit) {
-    return { bytes: encodedLength, codeUnits: value.length };
+  if (byteLimit <= 0 || value.length === 0) {
+    return { bytes: 0, codeUnits: 0 };
   }
 
   let bytes = 0;
   let index = 0;
-  while (index < value.length) {
-    const width = utf8Width(value, index);
-    if (bytes + width.bytes > byteLimit) {
+  const { length } = value;
+  while (index < length) {
+    const first = value.charCodeAt(index);
+    let charBytes: number;
+    let codeUnits = 1;
+    if (first <= 0x7f) {
+      charBytes = 1;
+    } else if (first <= 0x7ff) {
+      charBytes = 2;
+    } else if (first >= 0xd800 && first <= 0xdbff && index + 1 < length) {
+      const second = value.charCodeAt(index + 1);
+      if (second >= 0xdc00 && second <= 0xdfff) {
+        charBytes = 4;
+        codeUnits = 2;
+      } else {
+        charBytes = 3;
+      }
+    } else {
+      charBytes = 3;
+    }
+
+    if (bytes + charBytes > byteLimit) {
       break;
     }
-    bytes += width.bytes;
-    index += width.codeUnits;
+    bytes += charBytes;
+    index += codeUnits;
   }
   return { bytes, codeUnits: index };
 };
@@ -231,18 +230,27 @@ const createWriter = (limits: JsonSerializationLimits): SerializationWriter => {
     }
 
     if (maxBytes !== undefined) {
-      const prefix = utf8PrefixWithin(output, maxBytes - byteLength);
-      output = output.slice(0, prefix.codeUnits);
+      const remaining = maxBytes - byteLength;
+      const same = output === value;
+      const prefix = output ? utf8PrefixWithin(output, remaining) : null;
+      if (prefix && prefix.codeUnits > 0) {
+        if (prefix.codeUnits < output.length) {
+          output = output.slice(0, prefix.codeUnits);
+        }
+        chunks.push(output);
+        characterLength += output.length;
+      }
+      if (!byteLimitExceeded) {
+        const measured = same && prefix ? prefix : utf8PrefixWithin(value, remaining);
+        byteLength += measured.bytes;
+        byteLimitExceeded = measured.codeUnits < value.length;
+      }
+      return shouldContinue();
     }
+
     if (output) {
       chunks.push(output);
       characterLength += output.length;
-    }
-
-    if (!byteLimitExceeded && maxBytes !== undefined) {
-      const prefix = utf8PrefixWithin(value, maxBytes - byteLength);
-      byteLength += prefix.bytes;
-      byteLimitExceeded = prefix.codeUnits < value.length;
     }
     return shouldContinue();
   };
@@ -330,7 +338,10 @@ const serializeJsonNode = (
         break;
       }
       if (container.length === 0) {
-        writer.append(container.kind === "array" ? "]" : "}");
+        if (!writer.append(container.kind === "array" ? "]" : "}")) {
+          complete = false;
+          break;
+        }
         continue;
       }
       if (pretty && !writer.append("\n")) {

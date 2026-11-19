@@ -368,18 +368,27 @@ export const materializeJsonNumber = (rawValue: string, options: MaterializeOpti
   );
 };
 
-const defineValue = (
-  target: Record<string, unknown> | unknown[],
-  key: string | number,
+type MaterializeTask =
+  | { source: LosslessJsonValue; target: unknown[]; index: number }
+  | { source: LosslessJsonValue; target: Record<string, unknown>; key: string };
+
+const assignMaterializedTarget = (
+  task: MaterializeTask,
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
   value: unknown,
 ) => {
-  Object.defineProperty(target, key, {
-    configurable: true,
-    enumerable: true,
-    writable: true,
-    value,
-  });
+  if ("index" in task) {
+    task.target[task.index] = value;
+  } else if (task.key === "__proto__") {
+    Object.defineProperty(task.target, task.key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value,
+    });
+  } else {
+    task.target[task.key] = value;
+  }
 };
 
 export const materializeLosslessValue = (
@@ -387,47 +396,39 @@ export const materializeLosslessValue = (
   options: MaterializeOptions = {},
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- Materialized JSON has no application schema; callers must narrow its decoded value.
 ): unknown => {
-  let output: unknown;
-  const pending: Array<{
-    source: LosslessJsonValue;
-    target: Record<string, unknown> | unknown[] | null;
-    key: string | number;
-  }> = [{ source: root, target: null, key: 0 }];
+  const rootBox: unknown[] = [];
+  const pending: MaterializeTask[] = [{ source: root, target: rootBox, index: 0 }];
 
   while (pending.length > 0) {
-    const { source, target, key } = pending.pop()!;
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON decoding and materialization carry arbitrary values until each kind is inspected.
-    const assign = (value: unknown) => {
-      if (target) {
-        defineValue(target, key, value);
-      } else {
-        output = value;
-      }
-    };
+    const task = pending.pop()!;
+    const { source } = task;
+
     if (source === null || typeof source === "string" || typeof source === "boolean") {
-      assign(source);
+      assignMaterializedTarget(task, source);
       continue;
     }
     if (source.type === "number") {
-      assign(materializeJsonNumber(source.rawValue, options));
+      assignMaterializedTarget(task, materializeJsonNumber(source.rawValue, options));
       continue;
     }
 
-    const container: Record<string, unknown> | unknown[] = source.type === "array" ? [] : {};
-    assign(container);
     if (source.type === "array") {
+      const array: unknown[] = [];
+      assignMaterializedTarget(task, array);
       for (let index = source.items.length - 1; index >= 0; index -= 1) {
-        pending.push({ source: source.items[index]!, target: container, key: index });
+        pending.push({ source: source.items[index]!, target: array, index });
       }
       continue;
     }
 
+    const object: Record<string, unknown> = {};
+    assignMaterializedTarget(task, object);
     const keys = Object.keys(source.entries);
     for (let index = keys.length - 1; index >= 0; index -= 1) {
       const childKey = keys[index]!;
-      pending.push({ source: source.entries[childKey]!, target: container, key: childKey });
+      pending.push({ source: source.entries[childKey]!, target: object, key: childKey });
     }
   }
 
-  return output;
+  return rootBox[0];
 };

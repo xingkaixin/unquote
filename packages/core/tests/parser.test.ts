@@ -17,6 +17,7 @@ import {
   parseJsonlRecordLineWithValue,
   parsePreviewJsonlRecordLineWithValue,
 } from "../src/ingestion";
+import { mightBeStringifiedJson } from "../src/json-probe";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -609,5 +610,38 @@ describe("probeJsonl", () => {
 
   it("returns empty counts for empty input", () => {
     expect(probeJsonl("")).toEqual({ sampledLines: 0, isLikelyJsonl: false });
+  });
+});
+
+describe("mightBeStringifiedJson", () => {
+  it("requires matching closing delimiters for containers and strings", () => {
+    expect(mightBeStringifiedJson("[2026-11-19] INFO starting server")).toBe(false);
+    expect(mightBeStringifiedJson("[tool_result] ok")).toBe(false);
+    expect(mightBeStringifiedJson("{note} trailing text")).toBe(false);
+    expect(mightBeStringifiedJson('"quoted" trailing')).toBe(false);
+    expect(mightBeStringifiedJson("{")).toBe(false);
+    expect(mightBeStringifiedJson("[")).toBe(false);
+    expect(mightBeStringifiedJson('"')).toBe(false);
+
+    expect(mightBeStringifiedJson("{}")).toBe(true);
+    expect(mightBeStringifiedJson('  {"a":1} \n')).toBe(true);
+    expect(mightBeStringifiedJson("[1, 2]")).toBe(true);
+    expect(mightBeStringifiedJson('""')).toBe(true);
+  });
+});
+
+describe("createPreviewJsonlRecord root stringified JSON", () => {
+  it("marks root stringified JSON as a stringified preview without expanding", () => {
+    const inner = JSON.stringify({ payload: "x".repeat(200) });
+    const line = JSON.stringify(inner);
+    const record = parsePreviewJsonlRecordLine(line, 1);
+
+    expect(record.status).toBe("preview");
+    expect(record.node).toEqual({
+      kind: "string",
+      value: inner.slice(0, 160),
+      stringifiedPreview: true,
+      valueLength: inner.length,
+    });
   });
 });

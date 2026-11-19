@@ -106,4 +106,58 @@ describe("stringifyJsonNodeWithLimits", () => {
     expect(result.nodeLimitExceeded).toBe(true);
     expect(reads).toBe(1);
   });
+
+  it.each<{ name: string; node: JsonNode; opening: string }>([
+    { name: "empty array", node: { kind: "array", children: [] }, opening: "[" },
+    { name: "empty object", node: { kind: "object", children: {} }, opening: "{" },
+  ])("marks $name incomplete when its closing bracket exceeds limits", ({ node, opening }) => {
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 1 })).toEqual({
+      text: opening,
+      complete: false,
+      characterLimitExceeded: false,
+      byteLimitExceeded: true,
+      nodeLimitExceeded: false,
+    });
+    expect(stringifyJsonNodeWithLimits(node, { maxCharacters: 1 })).toEqual({
+      text: opening,
+      complete: false,
+      characterLimitExceeded: true,
+      byteLimitExceeded: false,
+      nodeLimitExceeded: false,
+    });
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 2 })).toEqual({
+      text: opening === "[" ? "[]" : "{}",
+      complete: true,
+      characterLimitExceeded: false,
+      byteLimitExceeded: false,
+      nodeLimitExceeded: false,
+    });
+  });
+
+  it("measures multi-byte UTF-8 widths accurately without splitting code points", () => {
+    // 1-byte quote + 2-byte 'é' + 3-byte '中' + 4-byte '😀' + 1-byte quote = 11 bytes.
+    const node: JsonNode = { kind: "string", value: "é中😀" };
+
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 11 })).toEqual({
+      text: '"é中😀"',
+      complete: true,
+      characterLimitExceeded: false,
+      byteLimitExceeded: false,
+      nodeLimitExceeded: false,
+    });
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 9 })).toEqual({
+      text: '"é中',
+      complete: false,
+      characterLimitExceeded: false,
+      byteLimitExceeded: true,
+      nodeLimitExceeded: false,
+    });
+    expect(stringifyJsonNodeWithLimits(node, { maxBytes: 5 })).toEqual({
+      text: '"é',
+      complete: false,
+      characterLimitExceeded: false,
+      byteLimitExceeded: true,
+      nodeLimitExceeded: false,
+    });
+  });
 });

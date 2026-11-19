@@ -1,5 +1,4 @@
-import { createLocalFileAccess } from "../lib/local-file-source";
-import type { LocalFileAccess } from "../lib/local-file-source";
+import { createLocalFileSearch } from "../lib/local-file-search";
 import { parseInput } from "@unquote/core";
 import type { ParseResult } from "@unquote/core";
 import type { SourceRevision } from "../lib/source-revision";
@@ -48,7 +47,11 @@ type SearchSourceCache =
       sourceRevision: SourceRevision;
       search: ReturnType<typeof createMemorySearch>;
     }
-  | { kind: "file"; sourceRevision: SourceRevision; access: LocalFileAccess };
+  | {
+      kind: "file";
+      sourceRevision: SourceRevision;
+      search: ReturnType<typeof createLocalFileSearch>;
+    };
 
 let sourceCache: SearchSourceCache | null = null;
 
@@ -87,9 +90,9 @@ const searchFile = ({
   windowIndexes,
 }: Extract<SearchRequest, { type: "search-file" }>): Promise<SearchResultSet | null> => {
   if (sourceCache?.kind !== "file" || sourceCache.sourceRevision !== sourceRevision) {
-    sourceCache = { kind: "file", sourceRevision, access: createLocalFileAccess(file) };
+    sourceCache = { kind: "file", sourceRevision, search: createLocalFileSearch(file) };
   }
-  return sourceCache.access.search(query, options, new AbortController().signal, windowIndexes);
+  return sourceCache.search(query, options, new AbortController().signal, windowIndexes);
 };
 
 // Never include the raw error, input text, or query in the posted message —

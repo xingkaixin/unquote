@@ -199,39 +199,37 @@ export const createFullJsonlRecord = (
 const truncatePreviewString = (value: string) =>
   truncateAtCodePointBoundary(value, maxPreviewStringLength);
 
-const projectPreviewNode = (node: FullJsonNode): PreviewJsonNode => {
-  if (node.rawString !== undefined) {
-    const valueLength = node.rawString.length;
+const createPreviewNode = (value: LosslessJsonValue): PreviewJsonNode => {
+  if (value === null) {
+    return { kind: "null", value };
+  }
+  if (typeof value === "boolean") {
+    return { kind: "boolean", value };
+  }
+  if (typeof value === "string") {
+    const valueLength = value.length;
+    const truncated = truncatePreviewString(value);
+    if (isStringifiedJson(value)) {
+      return {
+        kind: "string",
+        value: truncated,
+        stringifiedPreview: true,
+        ...(valueLength > maxPreviewStringLength ? { valueLength } : {}),
+      };
+    }
     return {
       kind: "string",
-      value: truncatePreviewString(node.rawString),
-      stringifiedPreview: true,
+      value: truncated,
       ...(valueLength > maxPreviewStringLength ? { valueLength } : {}),
     };
   }
-  if (node.kind === "object") {
-    const childCount =
-      node.children === undefined
-        ? Object.keys(node.value.entries).length
-        : Object.keys(node.children).length;
-    return { kind: "object", childCount, preview: true };
+  if (value.type === "number") {
+    return { kind: "number", value: Number(value.rawValue), rawValue: value.rawValue };
   }
-
-  if (node.kind === "array") {
-    const childCount = node.children === undefined ? node.value.items.length : node.children.length;
-    return { kind: "array", childCount, preview: true };
+  if (value.type === "object") {
+    return { kind: "object", childCount: Object.keys(value.entries).length, preview: true };
   }
-
-  if (node.kind === "string") {
-    const valueLength = node.value.length;
-    return {
-      kind: "string",
-      value: truncatePreviewString(node.value),
-      ...(valueLength > maxPreviewStringLength ? { valueLength } : {}),
-    };
-  }
-
-  return node;
+  return { kind: "array", childCount: value.items.length, preview: true };
 };
 
 const createRecordPreview = (value: LosslessJsonValue) => {
@@ -277,7 +275,7 @@ export const createPreviewJsonlRecord = (
   lineNumber: number,
 ): PreviewJsonlRecord => {
   const id = `record-${lineNumber}`;
-  const node = projectPreviewNode(buildNode(value, 0, 0));
+  const node = createPreviewNode(value);
   const preview = createRecordPreview(value);
 
   return {

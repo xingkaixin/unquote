@@ -214,13 +214,16 @@ const serveStatic = (rootDir) =>
           ".js": "text/javascript; charset=utf-8",
           ".css": "text/css; charset=utf-8",
           ".json": "application/json; charset=utf-8",
+          ".woff2": "font/woff2",
+          ".svg": "image/svg+xml",
+          ".webp": "image/webp",
         }[extension] ?? "application/octet-stream";
 
       response.setHeader("Content-Type", contentType);
       fs.createReadStream(filePath).pipe(response);
     });
 
-    server.listen(4173, "127.0.0.1", () => resolve(server));
+    server.listen(0, "127.0.0.1", () => resolve(server));
   });
 
 const waitForDebugger = async (getDebuggerPort, getDiagnostics) => {
@@ -289,7 +292,7 @@ const connectTarget = async (getDebuggerPort, getDiagnostics) => {
     });
 
   const close = async () => {
-    await fetch(`http://127.0.0.1:${remoteDebuggingPort}/json/close/${target.id}`, {
+    await fetch(`http://127.0.0.1:${debuggerPort}/json/close/${target.id}`, {
       method: "PUT",
     }).catch(() => null);
     socket.close();
@@ -388,13 +391,13 @@ const evaluateBrowserScenario = async (client, operation, input) => {
   return result.result.value;
 };
 
-const runRenderFixture = async (client, fixture) => {
+const runRenderFixture = async (client, fixture, baseUrl) => {
   debug(`Rendering ${fixture.path}`);
   const agentTrajectoryMetric = agentTrajectoryMetricForScenario(fixture.scenario);
   if (agentTrajectoryMetric) {
     await clearPerformanceMeasure(client, agentTrajectoryMetric.entryName);
   }
-  await client.invoke("Page.navigate", { url: "http://127.0.0.1:4173/" });
+  await client.invoke("Page.navigate", { url: baseUrl });
   await evaluateBrowserScenario(client, "waitForBenchmarkFileInput");
   // A DOM nodeId would be discarded if DOMContentLoaded fires after the input
   // mounts (cold first load); a Runtime objectId survives until navigation.
@@ -479,6 +482,12 @@ const benchmarkRender = async (fixturesInfo) => {
   ensureFile(chromePath);
 
   const server = await serveStatic(webDist);
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    server.close();
+    throw new Error("Benchmark static server did not expose a TCP port");
+  }
+  const baseUrl = `http://127.0.0.1:${address.port}/`;
   debug("Starting Chrome for the render benchmark");
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "unquote-bench-"));
   const chromeArguments = [
@@ -544,12 +553,12 @@ const benchmarkRender = async (fixturesInfo) => {
     for (const fixture of fixturesInfo) {
       debug(`Benchmarking render fixture ${fixture.path}`);
       for (let index = 0; index < warmupRuns; index += 1) {
-        await runRenderFixture(client, fixture);
+        await runRenderFixture(client, fixture, baseUrl);
       }
 
       const runs = [];
       for (let index = 0; index < sampleRuns; index += 1) {
-        runs.push(await runRenderFixture(client, fixture));
+        runs.push(await runRenderFixture(client, fixture, baseUrl));
       }
 
       const agentTrajectoryMetric = agentTrajectoryMetricForScenario(fixture.scenario);
@@ -608,9 +617,8 @@ const main = async () => {
   debug("Reading fixture metadata");
   const fixturesInfo = fixtures.map(fixtureInfo);
   debug(`Running ${fixturesInfo.length} fixture(s)${renderOnly ? " in render-only mode" : ""}`);
-  const [core, render] = renderOnly
-    ? [{}, await benchmarkRender(fixturesInfo)]
-    : await Promise.all([benchmarkCore(fixturesInfo), benchmarkRender(fixturesInfo)]);
+  const core = renderOnly ? {} : await benchmarkCore(fixturesInfo);
+  const render = await benchmarkRender(fixturesInfo);
   const budgetFailures = collectBenchmarkGateFailures(fixturesInfo, render, budgets, sampleRuns);
 
   const report = {

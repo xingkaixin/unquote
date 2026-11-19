@@ -12,27 +12,26 @@ export const drainJsonlLines = (
   done: boolean,
   onLine: (line: string) => boolean | void,
 ): JsonlLineScanResult => {
-  const text = buffer + chunk;
   let lineStart = 0;
-  let newlineIndex = text.indexOf("\n", lineStart);
+  let newlineIndex = chunk.indexOf("\n");
+  let prefix = buffer;
 
   while (newlineIndex >= 0) {
-    const line = stripLineEndCarriageReturn(text.slice(lineStart, newlineIndex));
+    const slice = chunk.slice(lineStart, newlineIndex);
+    const line = stripLineEndCarriageReturn(prefix ? prefix + slice : slice);
+    prefix = "";
     if (onLine(line) === false) {
-      return { buffer: text.slice(newlineIndex + 1), stopped: true };
+      return { buffer: chunk.slice(newlineIndex + 1), stopped: true };
     }
 
     lineStart = newlineIndex + 1;
-    newlineIndex = text.indexOf("\n", lineStart);
+    newlineIndex = chunk.indexOf("\n", lineStart);
   }
 
-  const tail = text.slice(lineStart);
+  const remainder = lineStart === 0 ? chunk : chunk.slice(lineStart);
+  const tail = prefix ? prefix + remainder : remainder;
   if (done && tail) {
-    if (onLine(stripLineEndCarriageReturn(tail)) === false) {
-      return { buffer: "", stopped: true };
-    }
-
-    return { buffer: "", stopped: false };
+    return { buffer: "", stopped: onLine(stripLineEndCarriageReturn(tail)) === false };
   }
 
   return { buffer: tail, stopped: false };

@@ -1,11 +1,6 @@
 import { stringifyJsonNode } from "@unquote/core";
 import type { JsonlRecord } from "@unquote/core";
-import {
-  readFileText,
-  readJsonlFileLines,
-  readJsonlLinesByNumber,
-  SourceReadLimitError,
-} from "./local-file-reader";
+import { readFileText, readJsonlLinesByNumber, streamJsonlLineBatches } from "./local-file-reader";
 import { createRecordParser } from "./record-parser";
 import { createLocalFileSearch } from "./local-file-search";
 import type { SearchOptions, SearchResultSet } from "./record-search";
@@ -44,6 +39,10 @@ export interface LocalFileAccess {
     windowIndexes?: ArrayLike<number>,
   ) => Promise<SearchResultSet | null>;
 }
+
+const streamBatchMaxLines = 32;
+
+const streamBatchMaxBytes = 256 * 1024;
 
 const formatRecordText = (record: JsonlRecord) =>
   record.status === "failed" ? record.rawLine : stringifyJsonNode(record.node);
@@ -89,26 +88,26 @@ export const createLocalFileAccess = (file: File): LocalFileAccess => {
     streamRecords: async (lineNumbers, onRecord, signal, maxBytes) => {
       signal?.throwIfAborted();
       if (lineNumbers.size === 0) return;
-      let remaining = lineNumbers.size;
-      let readBytes = 0;
-      const encoder = new TextEncoder();
-      await readJsonlFileLines(
+      await streamJsonlLineBatches(
         file,
-        async (line, lineNumber) => {
-          if (!lineNumbers.has(lineNumber)) return true;
-          if (maxBytes !== undefined) {
-            readBytes += encoder.encode(line).byteLength;
-            if (readBytes > maxBytes) throw new SourceReadLimitError();
-          }
-          const records = await recordParser.parse(new Map([[lineNumber, line]]), signal);
+        lineNumbers,
+        async (batch) => {
           signal?.throwIfAborted();
-          const record = records.get(lineNumber);
-          if (!record) throw new Error(`Record line ${lineNumber} was not found`);
-          await onRecord(record);
-          remaining -= 1;
-          return remaining > 0;
+          const records = await recordParser.parse(batch, signal);
+          signal?.throwIfAborted();
+          for (const lineNumber of batch.keys()) {
+            const record = records.get(lineNumber);
+            if (!record) throw new Error(`Record line ${lineNumber} was not found`);
+            await onRecord(record);
+            signal?.throwIfAborted();
+          }
         },
-        signal,
+        {
+          signal,
+          maxBytes,
+          batchMaxLines: streamBatchMaxLines,
+          batchMaxBytes: streamBatchMaxBytes,
+        },
       );
       signal?.throwIfAborted();
     },
