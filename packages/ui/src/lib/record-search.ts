@@ -1,5 +1,12 @@
 import type { JsonlRecord, JsonNode } from "@unquote/core";
-import { hasJsonNodeChildren, isParsed, isStringifiedNode } from "@unquote/core";
+import {
+  DEFAULT_MAX_DEPTH,
+  hasJsonNodeChildren,
+  isParsed,
+  isStringifiedNode,
+  mightBeStringifiedJson,
+  parseJsonlRecordLine,
+} from "@unquote/core";
 import {
   formatJsonValueLabel,
   getSearchableJsonValueLabelLength,
@@ -47,6 +54,7 @@ export const searchResultWindowSize = 128;
 
 export interface SearchResultCollector {
   addRecord: (record: JsonlRecord) => void;
+  addRawJsonLine: (line: string, lineNumber: number) => void;
   finish: () => SearchResultSet;
 }
 
@@ -99,10 +107,51 @@ export const normalizeSearchWindowIndexes = (indexes?: ArrayLike<number>) => {
 
 const containerLabelOnlyPattern = /^[\d[\]{}]+$/;
 
+const numberQueryCharsPattern = /^[0-9.\-+eE]+$/;
+
+const isAsciiOnly = (value: string) => {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) > 0x7f) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
+
 // oxlint-disable-next-line no-control-regex -- Matches JSON-escapable control characters, quotes, backslashes, and surrogates.
 const jsonEscapablePattern = /[\x00-\x1f"\\\ud800-\udfff]/;
 
+// oxlint-disable-next-line no-control-regex -- Matches control characters and surrogates whose JSON.stringify form introduces letters or hex digits.
+const controlOrSurrogatePattern = /[\x00-\x1f\ud800-\udfff]/;
+
 const hasJsonEscapableChar = (value: string) => jsonEscapablePattern.test(value);
+
+type RawJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | RawJsonValue[]
+  | { [key: string]: RawJsonValue };
+
+const parseRawJsonValue = (input: string): RawJsonValue =>
+  // SAFETY: JSON.parse returns only primitives, arrays, and plain objects matching RawJsonValue.
+  JSON.parse(input) as RawJsonValue;
+
+const fastTrim = (value: string) => {
+  const length = value.length;
+  if (length === 0) {
+    return "";
+  }
+  const first = value.charCodeAt(0);
+  const last = value.charCodeAt(length - 1);
+  if (first > 32 && first < 127 && last > 32 && last < 127) {
+    return value;
+  }
+  return value.trim();
+};
 
 const matchExactPath = (root: JsonNode, segments: readonly TreePathSegment[]) => {
   let node: JsonNode = root;
@@ -135,23 +184,159 @@ const createCollector = (
 ): InternalSearchResultCollector => {
   const testPattern = new RegExp(pattern.source, pattern.flags.replace("g", ""));
   const usePlainSubstring = options.syntax === "text" && !!query;
+  const minAsciiQueryLength =
+    usePlainSubstring && !options.caseSensitive && isAsciiOnly(query) ? query.length : 0;
   const matchesPattern =
     usePlainSubstring && options.caseSensitive
       ? (text: string) => text.includes(query)
-      : testPattern.sticky
-        ? (text: string) => {
-            testPattern.lastIndex = 0;
-            return testPattern.test(text);
-          }
-        : (text: string) => testPattern.test(text);
+      : minAsciiQueryLength > 0
+        ? (text: string) => text.length >= minAsciiQueryLength && testPattern.test(text)
+        : testPattern.sticky
+          ? (text: string) => {
+              testPattern.lastIndex = 0;
+              return testPattern.test(text);
+            }
+          : (text: string) => testPattern.test(text);
   const plainStringQuerySafe = usePlainSubstring && !hasJsonEscapableChar(query);
   const canMatchContainerLabel = !usePlainSubstring || containerLabelOnlyPattern.test(query);
+  const canMatchNumber = !usePlainSubstring || numberQueryCharsPattern.test(query);
+  const plainAsciiProbeSafe =
+    usePlainSubstring && !unsafeRawProbePattern.test(query) && !canMatchContainerLabel;
+  const matchesNull = options.syntax !== "path" && matchesPattern("null");
+  const matchesTrue = options.syntax !== "path" && matchesPattern("true");
+  const matchesFalse = options.syntax !== "path" && matchesPattern("false");
+  const canCountRawLines = usePlainSubstring && !canMatchNumber;
   const exactPathSegments =
     options.syntax === "path" && query !== undefined ? parseTreePath(query) : null;
   const requestedIndexes = normalizeSearchWindowIndexes(windowIndexes);
   const matchLineNumbers: number[] = [];
   const materializedIndexes: number[] = [];
   const matches: SearchMatch[] = [];
+
+  const matchesRawString = (value: string) => {
+    if (plainStringQuerySafe) {
+      if (matchesPattern(value)) {
+        return true;
+      }
+      if (hasJsonEscapableChar(value)) {
+        return matchesPattern(JSON.stringify(value));
+      }
+      return false;
+    }
+    return matchesPattern(JSON.stringify(value));
+  };
+
+  const matchesKey = (keyText: string | null) => Boolean(keyText && matchesPattern(keyText));
+
+  const countRawValueMatches = (
+    value: RawJsonValue,
+    keyText: string | null,
+    depth: number,
+    pendingCounts: { count: number },
+  ): void => {
+    if (typeof value === "string") {
+      if (
+        plainAsciiProbeSafe &&
+        !matchesPattern(value) &&
+        !value.includes("\\u") &&
+        !controlOrSurrogatePattern.test(value)
+      ) {
+        if (matchesKey(keyText)) {
+          pendingCounts.count += 1;
+        }
+        return;
+      }
+
+      if (depth <= DEFAULT_MAX_DEPTH) {
+        let current = value;
+        let hasParsedLayer = false;
+        while (true) {
+          const trimmed = fastTrim(current);
+          if (!trimmed || !mightBeStringifiedJson(trimmed)) {
+            break;
+          }
+          try {
+            const parsed = parseRawJsonValue(trimmed);
+            hasParsedLayer = true;
+            if (typeof parsed !== "string" || parsed === current) {
+              countRawValueMatches(parsed, keyText, depth, pendingCounts);
+              return;
+            }
+            current = parsed;
+          } catch {
+            break;
+          }
+        }
+        if (hasParsedLayer) {
+          if (matchesKey(keyText) || matchesRawString(current)) {
+            pendingCounts.count += 1;
+          }
+          return;
+        }
+      }
+
+      if (matchesKey(keyText) || matchesRawString(value)) {
+        pendingCounts.count += 1;
+      }
+      return;
+    }
+
+    if (value === null) {
+      if (matchesKey(keyText) || matchesNull) {
+        pendingCounts.count += 1;
+      }
+      return;
+    }
+
+    if (typeof value === "boolean") {
+      if (matchesKey(keyText) || (value ? matchesTrue : matchesFalse)) {
+        pendingCounts.count += 1;
+      }
+      return;
+    }
+
+    if (typeof value === "number") {
+      if (matchesKey(keyText)) {
+        pendingCounts.count += 1;
+      }
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      if (matchesKey(keyText) || (canMatchContainerLabel && matchesPattern(`[${value.length}]`))) {
+        pendingCounts.count += 1;
+      }
+      if (depth < DEFAULT_MAX_DEPTH) {
+        for (let index = 0; index < value.length; index += 1) {
+          countRawValueMatches(value[index]!, null, depth + 1, pendingCounts);
+        }
+      }
+      return;
+    }
+
+    if (canMatchContainerLabel) {
+      const keys = Object.keys(value);
+      if (matchesKey(keyText) || matchesPattern(`{${keys.length}}`)) {
+        pendingCounts.count += 1;
+      }
+      if (depth < DEFAULT_MAX_DEPTH) {
+        for (let index = 0; index < keys.length; index += 1) {
+          const childKey = keys[index]!;
+          countRawValueMatches(value[childKey]!, childKey, depth + 1, pendingCounts);
+        }
+      }
+      return;
+    }
+
+    if (matchesKey(keyText)) {
+      pendingCounts.count += 1;
+    }
+    if (depth < DEFAULT_MAX_DEPTH) {
+      for (const childKey in value) {
+        countRawValueMatches(value[childKey]!, childKey, depth + 1, pendingCounts);
+      }
+    }
+  };
 
   const recordMatch = (lineNumber: number, createMatch: () => SearchMatch) => {
     const matchIndex = matchLineNumbers.length;
@@ -171,7 +356,7 @@ const createCollector = (
     const keySegment = context.pathSegments.at(-1);
     const keyText = keySegment?.kind === "key" ? keySegment.value : null;
     const pathOnly = options.syntax === "path";
-    const keyMatched = !pathOnly && keyText ? matchesPattern(keyText) : false;
+    const keyMatched = !pathOnly && matchesKey(keyText);
 
     let valueText: string | undefined;
     let valueMatched = false;
@@ -225,33 +410,61 @@ const createCollector = (
     });
   };
 
+  const addRecord = (record: JsonlRecord) => {
+    if (!isParsed(record)) {
+      return;
+    }
+
+    if (exactPathSegments) {
+      const hit = matchExactPath(record.node, exactPathSegments);
+      if (hit) {
+        recordMatch(record.lineNumber, () => ({
+          recordId: record.id,
+          pathText: hit.pathText,
+          keyRanges: [],
+          valueRanges: [],
+          pathRanges: [],
+          stringifiedPathChain: hit.stringifiedPathChain,
+        }));
+      }
+      return;
+    }
+
+    walkJsonNode(record.node, (context) => addContext(context, record.id, record.lineNumber), {
+      jsonPath: "$",
+      stringifiedAncestors: [],
+      lazyPath: options.syntax === "text" || options.syntax === "regex",
+    });
+  };
+
   return {
     addContext,
-    addRecord(record) {
-      if (!isParsed(record)) {
-        return;
-      }
-
-      if (exactPathSegments) {
-        const hit = matchExactPath(record.node, exactPathSegments);
-        if (hit) {
-          recordMatch(record.lineNumber, () => ({
-            recordId: record.id,
-            pathText: hit.pathText,
-            keyRanges: [],
-            valueRanges: [],
-            pathRanges: [],
-            stringifiedPathChain: hit.stringifiedPathChain,
-          }));
+    addRecord,
+    addRawJsonLine(line, lineNumber) {
+      if (
+        canCountRawLines &&
+        !requestedIndexes &&
+        matchLineNumbers.length >= searchResultWindowSize
+      ) {
+        let parsed: RawJsonValue;
+        try {
+          parsed = parseRawJsonValue(line);
+        } catch {
+          return;
+        }
+        const pendingCounts = { count: 0 };
+        countRawValueMatches(parsed, null, 0, pendingCounts);
+        for (let index = 0; index < pendingCounts.count; index += 1) {
+          matchLineNumbers.push(lineNumber);
         }
         return;
       }
 
-      walkJsonNode(record.node, (context) => addContext(context, record.id, record.lineNumber), {
-        jsonPath: "$",
-        stringifiedAncestors: [],
-        lazyPath: options.syntax === "text" || options.syntax === "regex",
-      });
+      try {
+        addRecord(parseJsonlRecordLine(line, lineNumber));
+      } catch {
+        // Invalid lines have no record tree and therefore cannot produce a search match.
+      }
     },
     finish: () => ({
       total: matchLineNumbers.length,

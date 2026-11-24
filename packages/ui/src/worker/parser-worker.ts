@@ -69,7 +69,11 @@ export type ParserWorkerResponse =
       error: DiagnosticError;
     };
 
-const batchSize = 64;
+const initialBatchSize = 64;
+
+const steadyBatchSize = 512;
+
+const steadyBatchThreshold = 256;
 
 let latestRequestId = 0;
 
@@ -100,6 +104,14 @@ const postAgentSessionDetected = (requestId: number) => {
   } satisfies ParserWorkerResponse);
 };
 
+const isBlankLine = (line: string) => {
+  if (line.length === 0) {
+    return true;
+  }
+  const first = line.charCodeAt(0);
+  return (first <= 32 || first >= 0x80) && line.trim().length === 0;
+};
+
 const createJsonlRecordStream = (
   requestId: number,
   compactForTransfer: boolean,
@@ -108,7 +120,7 @@ const createJsonlRecordStream = (
   const ingestion = createJsonlIngestion(fileName, () => postAgentSessionDetected(requestId));
   return {
     pushLine: (line, lineNumber) => {
-      if (!line.trim()) {
+      if (isBlankLine(line)) {
         return null;
       }
       return compactForTransfer
@@ -204,7 +216,8 @@ const pushRecord = (requestId: number, session: StreamSession, record: JsonlReco
 
   session.recordCount += 1;
   session.batch.push(record);
-  if (session.recordCount === 1 || session.batch.length >= batchSize) {
+  const limit = session.recordCount < steadyBatchThreshold ? initialBatchSize : steadyBatchSize;
+  if (session.recordCount === 1 || session.batch.length >= limit) {
     postBatch(requestId, session, false);
   }
 };
@@ -277,11 +290,11 @@ const parseJsonlFile = async (requestId: number, file: File, session: StreamSess
       }
 
       let checkpointLineNumber = session.lineNumber;
-      for (let index = 0; index < value.byteLength; index += 1) {
-        if (value[index] === 10) {
-          checkpointLineNumber += 1;
-          lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + index + 1);
-        }
+      let newlinePos = value.indexOf(10, 0);
+      while (newlinePos !== -1) {
+        checkpointLineNumber += 1;
+        lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + newlinePos + 1);
+        newlinePos = value.indexOf(10, newlinePos + 1);
       }
       absoluteByteOffset += value.byteLength;
 

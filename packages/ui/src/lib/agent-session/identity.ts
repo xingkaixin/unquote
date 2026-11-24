@@ -18,11 +18,9 @@ export interface CanonicalAgentSession {
 }
 
 export const agentSelectionKey = (selection: AgentCanonicalSelection) =>
-  JSON.stringify([
-    selection.kind,
-    selection.recordId,
-    selection.kind === "record" ? null : selection.id,
-  ]);
+  selection.kind === "record"
+    ? `record:${selection.recordId}`
+    : `${selection.kind}:${selection.recordId.length}:${selection.recordId}:${selection.id}`;
 
 export const canonicalizeAgentSession = (session: AgentSession): CanonicalAgentSession => {
   const events: CanonicalAgentEvent[] = [];

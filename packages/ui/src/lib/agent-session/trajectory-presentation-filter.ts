@@ -95,6 +95,24 @@ export const filterAgentTrajectoryPresentation = (
   const status = filter.status ?? "all";
   const toolName = filter.toolName ?? null;
   const timeRange = validTrajectoryRange(filter.timeRange);
+
+  if (!query && kind === "all" && status === "all" && toolName === null && !timeRange) {
+    const ledgerRows: AgentTrajectoryLedgerRow[] = [];
+    const setSize = presentation.items.length;
+    let positionInSet = 0;
+    for (const group of presentation.groups) {
+      if (group.items.length === 0) {
+        continue;
+      }
+      ledgerRows.push({ type: "turn-header", group });
+      for (const item of group.items) {
+        positionInSet += 1;
+        ledgerRows.push({ type: "item", group, item, positionInSet, setSize });
+      }
+    }
+    return { visibleItems: presentation.items, ledgerRows };
+  }
+
   const visibleItems: AgentTrajectoryPresentationItem[] = [];
   const visibleItemSet = new Set<AgentTrajectoryPresentationItem>();
   for (const item of presentation.items) {
