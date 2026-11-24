@@ -622,4 +622,37 @@ describe("useSourceLoader", () => {
     expect(counted.pulled()).toBeLessThanOrEqual(pulledBeforeAbort + 1);
     expect(snapshot(result.current).sourceText).toBe("replacement");
   });
+
+  it("drops a stale read failure toast when a newer source supersedes it while the toaster loads", async () => {
+    let releaseToaster: (() => void) | null = null;
+    const { result } = renderHook(
+      () =>
+        useSourceLoader({
+          initialInput: "",
+          onToastRequired: () =>
+            new Promise<void>((resolve) => {
+              releaseToaster = resolve;
+            }),
+        }),
+      { wrapper },
+    );
+
+    const { file: broken } = createFailingStreamFile(new Error("disk gone"), "broken.json");
+    let dropPromise: Promise<void> | undefined;
+    act(() => {
+      dropPromise = result.current.onFileDrop(broken);
+    });
+
+    await waitFor(() => expect(releaseToaster).not.toBeNull());
+    act(() => {
+      result.current.onSourceChange('{"fresh":true}');
+      releaseToaster?.();
+    });
+    await act(async () => {
+      await dropPromise;
+    });
+
+    expect(toastMocks.error).not.toHaveBeenCalled();
+    expect(snapshot(result.current).sourceText).toBe('{"fresh":true}');
+  });
 });

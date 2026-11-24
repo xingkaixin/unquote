@@ -1,69 +1,114 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ParseResult } from "@unquote/core";
-import { AppHeader } from "./components/app-header";
-import { deferredComponent } from "./components/deferred-component";
-import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
-import { Toaster } from "./components/sonner";
 import {
-  getTransferFile,
-  isPotentialFileDrag,
-  SourceImportPanel,
-} from "./components/source-import-panel";
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
+import { AppHeader } from "./components/app-header";
+import { DeferredComponentLoadError, deferredComponent } from "./components/deferred-component";
+import { DeferredLoadBoundary } from "./components/deferred-load-boundary";
+import type {
+  ActiveOverlay,
+  LoadedWorkspaceShellProps,
+  PendingSampleExpansion,
+  PendingSearchFocus,
+  PendingToolbarSearch,
+  WorkspaceShellDataset,
+} from "./components/loaded-workspace-shell";
+import { SourceImportPanel } from "./components/source-import-panel";
 import type { SourceSampleOption } from "./components/source-import-panel";
 import { StatusBar } from "./components/status-bar";
 import { TooltipProvider } from "./components/tooltip";
 import { useTranslation } from "./i18n/context";
 import type { Locale } from "./i18n/i18n";
-import { useDesktopWorkspace } from "./hooks/use-desktop-workspace";
-import { useGlobalShortcuts } from "./hooks/use-global-shortcuts";
-import { useOutputView } from "./hooks/use-output-view";
-import { useParser } from "./hooks/use-parser";
-import { useQueryInteraction } from "./hooks/use-query-interaction";
-import { useRecordWorkspace } from "./hooks/use-record-workspace";
-import { useThemePreference } from "./hooks/use-theme-preference";
-import { useTrajectoryFilters } from "./hooks/use-trajectory-filters";
+import { useDeferredComponent } from "./hooks/use-deferred-component";
 import { useSourceLoader } from "./hooks/use-source-loader";
-import type { AgentDetailSelection } from "./lib/agent-session/session-types";
+import { useThemePreference } from "./hooks/use-theme-preference";
 import { formatFileSize } from "./lib/format";
 import { projectSourceImport, projectSourceView } from "./lib/published-source";
-import { sourceSamples } from "./lib/source-samples";
 import type { SourceCandidate } from "./lib/source-candidate";
-import { toolbarSummary as buildToolbarSummary } from "./lib/toolbar-summary";
-
-const AgentOutput = deferredComponent(() =>
-  import("./components/agent-output").then(({ AgentOutput }) => AgentOutput),
-);
-
-const CommandPalette = deferredComponent(() =>
-  import("./components/command-palette").then(({ CommandPalette }) => CommandPalette),
-);
+import type { SourceRevision } from "./lib/source-revision";
+import { sourceSamples } from "./lib/source-samples";
 
 const ImportDialog = deferredComponent(() =>
   import("./components/import-dialog").then(({ ImportDialog }) => ImportDialog),
-);
-
-const RecordWorkspace = deferredComponent(() =>
-  import("./components/record-workspace").then(({ RecordWorkspace }) => RecordWorkspace),
-);
-
-const formatParseMode = (format: ParseResult["format"]) => format.toUpperCase();
-
-const RecordReportDialog = deferredComponent(() =>
-  import("./components/record-report-dialog").then(({ RecordReportDialog }) => RecordReportDialog),
-);
-
-const RecordTableDialog = deferredComponent(() =>
-  import("./components/record-table-dialog").then(({ RecordTableDialog }) => RecordTableDialog),
 );
 
 const JsonDiffDialog = deferredComponent(() =>
   import("./components/json-diff-dialog").then(({ JsonDiffDialog }) => JsonDiffDialog),
 );
 
-type ActiveOverlay = "import" | "command" | "diff" | "table" | "report" | null;
+const DeferredToaster = deferredComponent(() =>
+  import("./components/sonner").then(({ Toaster }) => Toaster),
+);
+
+let loadedWorkspaceShell: ComponentType<LoadedWorkspaceShellProps> | null = null;
+
+let pendingWorkspaceShell: Promise<ComponentType<LoadedWorkspaceShellProps>> | null = null;
+
+const preloadWorkspaceShell = () => {
+  pendingWorkspaceShell ??= import("./components/loaded-workspace-shell").then(
+    ({ LoadedWorkspaceShell }) => {
+      loadedWorkspaceShell = LoadedWorkspaceShell;
+      return LoadedWorkspaceShell;
+    },
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Loader rejections are not restricted to Error instances.
+    (error: unknown) => {
+      pendingWorkspaceShell = null;
+      throw error;
+    },
+  );
+  return pendingWorkspaceShell;
+};
+
+interface WorkspaceShellSlotProps {
+  workspaceProps: Omit<LoadedWorkspaceShellProps, "handoffSearchFocusRef">;
+  fallback: ReactNode;
+}
+
+const WorkspaceShellSlot = ({ workspaceProps, fallback }: WorkspaceShellSlotProps) => {
+  const deferred = useDeferredComponent(preloadWorkspaceShell, loadedWorkspaceShell === null);
+  const handoffSearchFocusRef = useRef<PendingSearchFocus | null>(null);
+  const mountedWorkspaceRef = useRef(false);
+
+  if (deferred.failed) {
+    throw new DeferredComponentLoadError();
+  }
+
+  const Component = loadedWorkspaceShell ?? deferred.component;
+  if (Component && !mountedWorkspaceRef.current && typeof document !== "undefined") {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && active.dataset.benchmarkAction === "search-input") {
+      handoffSearchFocusRef.current = {
+        selectionStart: active.selectionStart,
+        selectionEnd: active.selectionEnd,
+        selectionDirection: active.selectionDirection,
+      };
+    }
+  }
+
+  useLayoutEffect(() => {
+    if (Component) {
+      mountedWorkspaceRef.current = true;
+    }
+  }, [Component]);
+
+  return Component ? (
+    <Component {...workspaceProps} handoffSearchFocusRef={handoffSearchFocusRef} />
+  ) : (
+    fallback
+  );
+};
+
+const noop = () => undefined;
 
 export interface UnquoteAppProps {
   initialInput?: string;
+  toastHostActive?: boolean;
   renderWelcome?: (
     controls: ReactNode,
     onSelectSample: (sample: SourceSampleOption) => void,
@@ -75,73 +120,85 @@ export interface UnquoteAppProps {
 
 export const UnquoteApp = ({
   initialInput = "",
+  toastHostActive = false,
   renderWelcome,
   changelogUrls,
   chromeWebStoreUrl,
   edgeAddonsUrl,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
-  const isDesktop = useDesktopWorkspace();
+  const [toastActivated, setToastActivated] = useState(toastHostActive);
+  const ensureToasterMounted = useCallback(async () => {
+    setToastActivated(true);
+    await DeferredToaster.preload();
+    const { waitForToasterMount } = await import("./components/sonner");
+    await waitForToasterMount();
+  }, []);
   const {
     source,
     operation,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
-  } = useSourceLoader({ initialInput });
+  } = useSourceLoader({ initialInput, onToastRequired: ensureToasterMounted });
   const sourceImport = useMemo(() => projectSourceImport(source), [source]);
   const sourceView = useMemo(() => projectSourceView(source), [source]);
   const { theme, setTheme } = useThemePreference();
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
-  const {
-    sourceRevision: resultRevision,
-    result,
-    progress,
-    agentSession,
-    recordAppend,
-  } = useParser({ source, onAgentSessionDetected: AgentOutput.preload });
-  const hasData = sourceView.hasData;
-
-  const translateError = useCallback(
-    (reason: "invalid" | "not-found") => t(reason === "invalid" ? "path.invalid" : "path.notFound"),
-    [t],
+  const [pendingSampleExpansion, setPendingSampleExpansion] =
+    useState<PendingSampleExpansion | null>(null);
+  const [pendingToolbarSearch, setPendingToolbarSearch] = useState<PendingToolbarSearch | null>(
+    null,
   );
-  const query = useQueryInteraction({
-    source,
-    resultRevision,
-    result,
-    recordAppend,
-    translateError,
-  });
-  const recordWorkspace = useRecordWorkspace({
-    source,
-    result,
-    agentSession,
-    query,
-  });
-  const {
-    searchQuery,
-    searchRegex,
-    searchCaseSensitive,
-    searchJq,
-    recordFilter,
-    toolbarQuery,
-    commandInput,
-    pathError,
-    pathErrorReason,
-    pathMatchCount,
-    currentPathMatchIndex,
-    currentMatchIndex,
-    mode: queryMode,
-    searchRegexInvalid,
-    searchStatus,
-    searchErrorKind,
-    fileOverview,
-    visibleStats,
-    matchCount,
-  } = query.snapshot;
-  const { intent: queryIntent } = query;
-  const { outputView, setOutputView } = useOutputView(resultRevision, agentSession);
-  const trajectoryFilters = useTrajectoryFilters(resultRevision);
+  const hasData = sourceView.hasData;
+  const [workspaceActive, setWorkspaceActive] = useState(hasData);
+  const [shellDataset, setShellDataset] = useState<WorkspaceShellDataset>(() => ({
+    parseState: hasData ? "pending" : "complete",
+    agentSession: "false",
+    outputView: "json",
+    searchQuery: "",
+    searchState: "idle",
+    expandedNested: 0,
+  }));
+  const handleShellDatasetChange = useCallback((next: WorkspaceShellDataset) => {
+    setShellDataset((current) =>
+      current.parseState === next.parseState &&
+      current.agentSession === next.agentSession &&
+      current.outputView === next.outputView &&
+      current.searchQuery === next.searchQuery &&
+      current.searchState === next.searchState &&
+      current.expandedNested === next.expandedNested
+        ? current
+        : next,
+    );
+  }, []);
+
+  if (hasData && !workspaceActive) {
+    setWorkspaceActive(true);
+  }
+
+  if ((toastHostActive || operation.kind === "reading") && !toastActivated) {
+    setToastActivated(true);
+  }
+
+  // Warm the workspace chunk after first paint so file drop and sample
+  // activation skip module loading without bloating initial JS.
+  useEffect(() => {
+    if (workspaceActive || loadedWorkspaceShell) {
+      return;
+    }
+
+    const warm = () => {
+      void preloadWorkspaceShell().catch(() => undefined);
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(warm, { timeout: 1000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = window.setTimeout(warm, 200);
+    return () => window.clearTimeout(timer);
+  }, [workspaceActive]);
 
   const sampleOptions = useMemo<SourceSampleOption[]>(
     () => [
@@ -173,12 +230,10 @@ export const UnquoteApp = ({
     [t],
   );
 
-  const handleOpenCommandPalette = useCallback(() => {
-    queryIntent.prepareCommandInput();
-    setActiveOverlay("command");
-  }, [queryIntent]);
-
   const commitSourceCandidate = (candidate: SourceCandidate) => {
+    void preloadWorkspaceShell().catch(() => undefined);
+    setPendingSampleExpansion(null);
+    setPendingToolbarSearch(null);
     if (candidate.kind === "text") {
       handleSourceChange(candidate.text, candidate.mode);
     } else {
@@ -188,219 +243,24 @@ export const UnquoteApp = ({
   };
 
   const handleSampleSelect = (sample: SourceSampleOption) => {
+    void preloadWorkspaceShell().catch(() => undefined);
+    setPendingToolbarSearch(null);
     const nextRevision = handleSourceChange(sample.value, "auto");
-    recordWorkspace.setSampleExpansions(nextRevision, sample.expandedPathsByRecord);
+    setPendingSampleExpansion({
+      revision: nextRevision,
+      expandedPathsByRecord: sample.expandedPathsByRecord,
+    });
     setActiveOverlay(null);
   };
 
-  const handleToolbarQueryChange = useCallback(
-    (value: string) => {
-      queryIntent.changeToolbarQuery(value);
-      if (value.trim()) {
-        setOutputView("json");
-      }
-    },
-    [queryIntent, setOutputView],
-  );
-  const handleToolbarQuerySubmit = useCallback(
-    (value: string) => {
-      queryIntent.submitToolbarQuery(value);
-      if (value.trim()) {
-        setOutputView("json");
-      }
-    },
-    [queryIntent, setOutputView],
-  );
-  const handlePreviousResult = useCallback(() => {
-    queryIntent.previousResult();
-    setOutputView("json");
-  }, [queryIntent, setOutputView]);
-  const handleNextResult = useCallback(() => {
-    queryIntent.nextResult();
-    setOutputView("json");
-  }, [queryIntent, setOutputView]);
-  const handleCommandSearch = useCallback(
-    (value: string) => {
-      queryIntent.searchFromCommand(value);
-      if (value.trim()) {
-        setOutputView("json");
-      }
-    },
-    [queryIntent, setOutputView],
-  );
-  const handleCommandFilterChange = useCallback(
-    (filter: typeof recordFilter) => {
-      queryIntent.setFilter(filter);
-      setOutputView("json");
-    },
-    [queryIntent, setOutputView],
-  );
-  const handleSelectFailed = useCallback(() => {
-    queryIntent.setFilter("errors");
-    setOutputView("json");
-  }, [queryIntent, setOutputView]);
+  const handleConsumeSampleExpansion = useCallback((revision: SourceRevision) => {
+    setPendingSampleExpansion((current) => (current?.revision === revision ? null : current));
+  }, []);
 
-  const handleOpenRecord = useCallback(
-    (recordId: string) => {
-      if (recordWorkspace.agent.openRecord(recordId)) {
-        setOutputView("json");
-      }
-    },
-    [recordWorkspace.agent.openRecord, setOutputView],
-  );
-  const handleOpenTrajectoryRecord = useCallback(
-    (selection: AgentDetailSelection, endpointRecordId: string) => {
-      if (!recordWorkspace.agent.openEndpoint(selection, endpointRecordId, { reveal: true })) {
-        return;
-      }
+  const handleConsumeToolbarSearch = useCallback(() => {
+    setPendingToolbarSearch(null);
+  }, []);
 
-      setOutputView("json");
-    },
-    [recordWorkspace.agent.openEndpoint, setOutputView],
-  );
-
-  useEffect(() => {
-    if (!hasData) {
-      return;
-    }
-
-    const handleWindowDragOver = (event: globalThis.DragEvent) => {
-      if (
-        event.defaultPrevented ||
-        !event.dataTransfer ||
-        !isPotentialFileDrag(event.dataTransfer)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-    };
-
-    const handleWindowDrop = (event: globalThis.DragEvent) => {
-      if (
-        event.defaultPrevented ||
-        !event.dataTransfer ||
-        !isPotentialFileDrag(event.dataTransfer)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      const file = getTransferFile(event.dataTransfer);
-      if (file) {
-        void handleFileDrop(file, "auto");
-        setActiveOverlay(null);
-      }
-    };
-
-    window.addEventListener("dragover", handleWindowDragOver);
-    window.addEventListener("drop", handleWindowDrop);
-    return () => {
-      window.removeEventListener("dragover", handleWindowDragOver);
-      window.removeEventListener("drop", handleWindowDrop);
-    };
-  }, [handleFileDrop, hasData]);
-
-  // Global shortcut command table. Shortcuts are read via a ref inside the
-  // hook (listener mounts once), so this array can be a fresh literal every
-  // render without churn.
-  useGlobalShortcuts([
-    {
-      matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k",
-      allowInTextEditing: true,
-      handler: () => {
-        if (!hasData || activeOverlay === "import") {
-          return false;
-        }
-
-        handleOpenCommandPalette();
-      },
-    },
-    {
-      matches: (event) => event.key === "Escape",
-      allowInTextEditing: true,
-      // Escape never preventDefault()s: it has no browser default to suppress here.
-      handler: () => {
-        if (activeOverlay === "import" && !hasData) {
-          return false;
-        }
-
-        setActiveOverlay(null);
-        return false;
-      },
-    },
-    {
-      matches: (event) => (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c",
-      handler: () => {
-        if (
-          outputView !== "json" ||
-          !recordWorkspace.model.active.selectedPath ||
-          activeOverlay !== null
-        ) {
-          return false;
-        }
-        // A non-empty window selection means the user is copying selected text,
-        // not a subtree — let the browser's default copy proceed.
-        const selectedText = window.getSelection?.()?.toString() ?? "";
-        if (selectedText) {
-          return false;
-        }
-
-        void recordWorkspace.model.intent.copySelectedValue();
-      },
-    },
-  ]);
-
-  const readingFile = operation.kind === "reading" ? operation.file : null;
-  const sourceFileStatus = readingFile
-    ? t("input.readingFile", {
-        name: readingFile.name,
-        size: formatFileSize(readingFile.size),
-      })
-    : sourceView.file
-      ? t(progress.done ? "input.loadedFile" : "input.parsingFile", {
-          name: sourceView.file.name,
-          size: formatFileSize(sourceView.file.size),
-          processed: result.stats.total,
-        })
-      : undefined;
-  const sourceFileBusy = Boolean(readingFile || (sourceView.file && !progress.done));
-  const toolbarSummary = useMemo(
-    () =>
-      buildToolbarSummary(
-        {
-          progress,
-          stats: result.stats,
-          visibleStats,
-          recordFilter,
-          searchQuery,
-          searchStatus,
-          searchErrorKind,
-          pathError,
-          matchCount,
-        },
-        t,
-      ),
-    [
-      matchCount,
-      pathError,
-      progress,
-      recordFilter,
-      result.stats,
-      searchErrorKind,
-      searchQuery,
-      searchStatus,
-      t,
-      visibleStats,
-    ],
-  );
-  const toolbarInPathMode = queryMode === "path";
-  const searchFieldError = searchRegexInvalid
-    ? t("search.invalidRegex")
-    : toolbarInPathMode && pathErrorReason === "invalid"
-      ? pathError
-      : searchStatus === "error"
-        ? t("search.failed")
-        : null;
   const importPanel = (textareaClassName: string) => (
     <SourceImportPanel
       initialDraft={sourceImport.draft}
@@ -412,30 +272,7 @@ export const UnquoteApp = ({
       textareaClassName={textareaClassName}
     />
   );
-  const recordsReady = progress.done && resultRevision === source.sourceRevision;
-  const output = (
-    <DeferredLoadBoundary resetKey={`${resultRevision}:${outputView}`}>
-      {agentSession && outputView !== "json" ? (
-        <AgentOutput
-          // Turn selections belong to one Source Revision.
-          key={resultRevision}
-          session={agentSession}
-          outputView={outputView}
-          isDesktop={isDesktop}
-          filters={trajectoryFilters}
-          detailSelection={recordWorkspace.agent.detailSelection}
-          reportSource={recordsReady ? { source, records: result.records } : undefined}
-          resolveRecordById={recordWorkspace.agent.resolveRecordById}
-          requestFullRecordById={recordWorkspace.agent.requestFullRecordById}
-          onDetailSelectionChange={recordWorkspace.agent.selectDetail}
-          onOpenRecord={handleOpenRecord}
-          onOpenTrajectoryRecord={handleOpenTrajectoryRecord}
-        />
-      ) : (
-        <RecordWorkspace isDesktop={isDesktop} model={recordWorkspace.model} />
-      )}
-    </DeferredLoadBoundary>
-  );
+
   const emptyState = renderWelcome ? (
     renderWelcome(importPanel("h-[180px]"), handleSampleSelect)
   ) : (
@@ -457,152 +294,173 @@ export const UnquoteApp = ({
     </div>
   );
 
+  const readingFile = operation.kind === "reading" ? operation.file : null;
+  const readingProgress = operation.kind === "reading" ? operation.progress : null;
+  const sourceFileStatus = readingFile
+    ? t("input.readingFile", {
+        name: readingFile.name,
+        size: formatFileSize(readingFile.size),
+      })
+    : undefined;
+
+  const shellChrome = (
+    <>
+      <a
+        href="#main-content"
+        className="sr-only fixed left-4 top-2 z-50 bg-surface-100 px-3 py-2 text-[12px] text-text-primary focus:not-sr-only focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {t("app.skipToContent")}
+      </a>
+      <AppHeader
+        enabled={hasData}
+        actionsDisabled={hasData}
+        sourceName={sourceView.file?.name ?? null}
+        onOpenImport={() => setActiveOverlay("import")}
+        onOpenDiff={() => setActiveOverlay("diff")}
+        outputView={null}
+        jsonTabLabel="JSON"
+        onOutputViewChange={noop}
+        search={{
+          query:
+            pendingToolbarSearch?.revision === source.sourceRevision
+              ? pendingToolbarSearch.query
+              : "",
+          matchCount: 0,
+          currentMatchIndex: 0,
+          disabled: !hasData,
+          searchStatus: "idle",
+          errorLabel: null,
+          regex: false,
+          jq: false,
+          caseSensitive: false,
+          onQueryChange: (query) =>
+            setPendingToolbarSearch({
+              revision: source.sourceRevision,
+              query,
+              submitted: false,
+            }),
+          onSubmitQuery: (query) =>
+            setPendingToolbarSearch({
+              revision: source.sourceRevision,
+              query,
+              submitted: true,
+            }),
+          onClearQuery: () => setPendingToolbarSearch(null),
+          onPrevMatch: noop,
+          onNextMatch: noop,
+        }}
+        onOpenCommandPalette={noop}
+        theme={theme}
+        onThemeChange={setTheme}
+        copyBlocked={false}
+        onCopyJsonl={noop}
+        onCopyFormattedJson={noop}
+        onExportJsonl={noop}
+        onExportFormattedJson={noop}
+      />
+
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+      >
+        {hasData ? <h1 className="sr-only">Unquote — {t("empty.headline")}</h1> : emptyState}
+      </main>
+      <StatusBar
+        summary={hasData ? "" : t("status.empty")}
+        failedCount={0}
+        onSelectFailed={noop}
+        maxDepth={null}
+        expandedNestedCount={0}
+        sourceStatus={sourceFileStatus}
+        sourceBusy={Boolean(readingFile)}
+        sourceProgress={readingProgress}
+        hasData={hasData}
+        onClear={() => {
+          setPendingToolbarSearch(null);
+          handleSourceChange("");
+        }}
+        {...(changelogUrls ? { changelogUrls } : {})}
+        {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
+        {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
+      />
+      {!workspaceActive && activeOverlay ? (
+        <DeferredLoadBoundary resetKey={activeOverlay}>
+          {activeOverlay === "import" ? (
+            <ImportDialog
+              open
+              dismissible={false}
+              onClose={() => {
+                if (hasData) {
+                  setActiveOverlay(null);
+                }
+              }}
+            >
+              {importPanel("h-[220px]")}
+            </ImportDialog>
+          ) : null}
+          {activeOverlay === "diff" ? (
+            <JsonDiffDialog
+              key={source.sourceRevision}
+              source={source}
+              records={[]}
+              activeRecord={null}
+              onClose={() => setActiveOverlay(null)}
+            />
+          ) : null}
+        </DeferredLoadBoundary>
+      ) : null}
+      {!workspaceActive && toastActivated ? (
+        <DeferredLoadBoundary resetKey="toaster">
+          <DeferredToaster theme={theme} />
+        </DeferredLoadBoundary>
+      ) : null}
+    </>
+  );
+
   return (
     <TooltipProvider delay={600} closeDelay={0}>
       <div
         className="uq-shell"
         data-source-file={sourceView.streamedFileName ?? ""}
-        data-parse-state={progress.done ? "complete" : "pending"}
-        data-agent-session={agentSession ? "true" : "false"}
-        data-output-view={agentSession ? outputView : "json"}
-        data-search-query={searchQuery}
-        data-search-state={searchStatus}
-        data-expanded-nested={recordWorkspace.model.active.expandedNestedCount}
+        data-parse-state={shellDataset.parseState}
+        data-agent-session={shellDataset.agentSession}
+        data-output-view={shellDataset.outputView}
+        data-search-query={shellDataset.searchQuery}
+        data-search-state={shellDataset.searchState}
+        data-expanded-nested={shellDataset.expandedNested}
       >
-        <a
-          href="#main-content"
-          className="sr-only fixed left-4 top-2 z-50 bg-surface-100 px-3 py-2 text-[12px] text-text-primary focus:not-sr-only focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          {t("app.skipToContent")}
-        </a>
-        <AppHeader
-          enabled={hasData}
-          sourceName={sourceView.file?.name ?? null}
-          onOpenImport={() => setActiveOverlay("import")}
-          onOpenTable={recordsReady ? () => setActiveOverlay("table") : undefined}
-          onOpenDiff={() => setActiveOverlay("diff")}
-          outputView={agentSession ? outputView : null}
-          jsonTabLabel={formatParseMode(result.format)}
-          onOutputViewChange={setOutputView}
-          search={{
-            query: toolbarQuery,
-            matchCount: toolbarInPathMode ? pathMatchCount : matchCount,
-            currentMatchIndex: toolbarInPathMode ? currentPathMatchIndex : currentMatchIndex,
-            disabled: !hasData,
-            searchStatus,
-            errorLabel: searchFieldError,
-            regex: searchRegex,
-            jq: searchJq,
-            caseSensitive: searchCaseSensitive,
-            onQueryChange: handleToolbarQueryChange,
-            onSubmitQuery: handleToolbarQuerySubmit,
-            onClearQuery: queryIntent.clearToolbarQuery,
-            onPrevMatch: handlePreviousResult,
-            onNextMatch: handleNextResult,
-          }}
-          onOpenCommandPalette={handleOpenCommandPalette}
-          theme={theme}
-          onThemeChange={setTheme}
-          copyBlocked={recordWorkspace.toolbar.copyBlocked}
-          onCopyJsonl={recordWorkspace.toolbar.copyJsonl}
-          onCopyFormattedJson={recordWorkspace.toolbar.copyFormattedJson}
-          onExportJsonl={recordWorkspace.toolbar.exportJsonl}
-          onExportFormattedJson={recordWorkspace.toolbar.exportFormattedJson}
-          onOpenReport={recordsReady ? () => setActiveOverlay("report") : undefined}
-        />
-
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="flex min-h-0 flex-1 flex-col focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-        >
-          {hasData ? <h1 className="sr-only">Unquote — {t("empty.headline")}</h1> : null}
-          {hasData ? output : emptyState}
-        </main>
-        <StatusBar
-          summary={hasData ? toolbarSummary : t("status.empty")}
-          failedCount={result.stats.failed}
-          onSelectFailed={handleSelectFailed}
-          maxDepth={fileOverview.structurePrecision === "exact" ? fileOverview.maxDepth : null}
-          expandedNestedCount={recordWorkspace.model.active.expandedNestedCount}
-          sourceStatus={sourceFileStatus}
-          sourceBusy={sourceFileBusy}
-          sourceProgress={operation.kind === "reading" ? operation.progress : null}
-          hasData={hasData}
-          onClear={() => handleSourceChange("")}
-          {...(changelogUrls ? { changelogUrls } : {})}
-          {...(chromeWebStoreUrl ? { chromeWebStoreUrl } : {})}
-          {...(edgeAddonsUrl ? { edgeAddonsUrl } : {})}
-        />
-        {activeOverlay ? (
-          <DeferredLoadBoundary resetKey={activeOverlay}>
-            {activeOverlay === "import" ? (
-              <ImportDialog
-                open
-                dismissible={hasData}
-                onClose={() => {
-                  if (hasData) {
-                    setActiveOverlay(null);
-                  }
-                }}
-              >
-                {importPanel("h-[220px]")}
-              </ImportDialog>
-            ) : null}
-            {activeOverlay === "report" ? (
-              <RecordReportDialog
-                key={source.sourceRevision}
-                source={source}
-                records={resultRevision === source.sourceRevision ? result.records : []}
-                activeLine={recordWorkspace.model.active.record?.lineNumber ?? 1}
-                onClose={() => setActiveOverlay(null)}
-              />
-            ) : null}
-            {activeOverlay === "table" ? (
-              <RecordTableDialog
-                key={source.sourceRevision}
-                source={source}
-                records={resultRevision === source.sourceRevision ? result.records : []}
-                selectedPath={recordWorkspace.model.active.selectedPath ?? undefined}
-                onOpenRecord={handleOpenRecord}
-                onClose={() => setActiveOverlay(null)}
-              />
-            ) : null}
-            {activeOverlay === "diff" ? (
-              <JsonDiffDialog
-                key={source.sourceRevision}
-                source={source}
-                records={resultRevision === source.sourceRevision ? result.records : []}
-                activeRecord={recordWorkspace.model.active.record}
-                onClose={() => setActiveOverlay(null)}
-              />
-            ) : null}
-            {activeOverlay === "command" ? (
-              <CommandPalette
-                open
-                inputValue={commandInput}
-                regex={searchRegex}
-                caseSensitive={searchCaseSensitive}
-                jq={searchJq}
-                matchCount={matchCount}
-                pathMatchCount={pathMatchCount}
-                visibleCount={visibleStats.total}
-                totalCount={result.stats.total}
-                filterMode={recordFilter}
-                nestedFilterScope={recordWorkspace.model.filter.nestedScope}
-                onClose={() => setActiveOverlay(null)}
-                onInputChange={queryIntent.changeCommandInput}
-                onSearch={handleCommandSearch}
-                onJumpPath={handleToolbarQuerySubmit}
-                onRegexChange={(value) => queryIntent.setOption("regex", value)}
-                onCaseSensitiveChange={(value) => queryIntent.setOption("caseSensitive", value)}
-                onJqChange={(value) => queryIntent.setOption("jq", value)}
-                onFilterChange={handleCommandFilterChange}
-              />
-            ) : null}
+        {workspaceActive ? (
+          <DeferredLoadBoundary resetKey="workspace">
+            <WorkspaceShellSlot
+              fallback={shellChrome}
+              workspaceProps={{
+                onShellDatasetChange: handleShellDatasetChange,
+                source,
+                sourceView,
+                readingFile,
+                readingProgress,
+                theme,
+                onThemeChange: setTheme,
+                activeOverlay,
+                onActiveOverlayChange: setActiveOverlay,
+                pendingSampleExpansion,
+                onConsumeSampleExpansion: handleConsumeSampleExpansion,
+                pendingToolbarSearch,
+                onConsumeToolbarSearch: handleConsumeToolbarSearch,
+                onSourceChange: handleSourceChange,
+                onFileDrop: handleFileDrop,
+                emptyState,
+                importPanel,
+                changelogUrls,
+                chromeWebStoreUrl,
+                edgeAddonsUrl,
+              }}
+            />
           </DeferredLoadBoundary>
-        ) : null}
-        <Toaster theme={theme} />
+        ) : (
+          shellChrome
+        )}
       </div>
     </TooltipProvider>
   );

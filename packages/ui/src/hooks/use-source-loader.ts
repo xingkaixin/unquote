@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { useTranslation } from "../i18n/context";
 import { reportDiagnostic } from "../lib/diagnostics";
 import { readFileHead, readFileText } from "../lib/local-file-reader";
@@ -45,9 +44,10 @@ interface SourceLoaderState {
 
 interface UseSourceLoaderParams {
   initialInput: string;
+  onToastRequired?: (() => Promise<void>) | undefined;
 }
 
-export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
+export const useSourceLoader = ({ initialInput, onToastRequired }: UseSourceLoaderParams) => {
   const { t } = useTranslation();
   const [state, setState] = useState<SourceLoaderState>(() => ({
     source: createTextSourceRevision(0, initialInput, "auto"),
@@ -108,8 +108,15 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
     fileImportIdRef.current = requestId;
     abortActiveRead();
 
+    const isLargeFile = file.size > largeSourceStreamBytes;
+    const localFileSourcePromise =
+      isLargeFile && (sourceMode === "jsonl" || sourceMode === "auto")
+        ? import("../lib/local-file-source")
+        : null;
+
     const publishStreamingFile = async (mode: "auto" | "jsonl") => {
-      const { createLocalFileAccess } = await import("../lib/local-file-source");
+      const { createLocalFileAccess } = await (localFileSourcePromise ??
+        import("../lib/local-file-source"));
       if (fileImportIdRef.current !== requestId) {
         return;
       }
@@ -119,7 +126,6 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       );
     };
 
-    const isLargeFile = file.size > largeSourceStreamBytes;
     const controller = new AbortController();
     activeReadRef.current = controller;
     const isCancelled = () => fileImportIdRef.current !== requestId || controller.signal.aborted;
@@ -127,6 +133,17 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
       source: current.source,
       operation: { kind: "reading", requestId, file, progress: 0 },
     }));
+
+    const showFileErrorToast = async (
+      messageKey: "input.fileTooLargeForMemory" | "input.readFailed",
+    ) => {
+      await onToastRequired?.();
+      const { toast } = await import("sonner");
+      if (!mountedRef.current || fileImportIdRef.current !== requestId) {
+        return;
+      }
+      toast.error(t(messageKey));
+    };
 
     let text: string;
     try {
@@ -170,7 +187,7 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
             ? { source: current.source, operation: { kind: "idle" } }
             : current,
         );
-        toast.error(t("input.fileTooLargeForMemory"));
+        await showFileErrorToast("input.fileTooLargeForMemory");
         return;
       }
 
@@ -202,7 +219,7 @@ export const useSourceLoader = ({ initialInput }: UseSourceLoaderParams) => {
           ? { source: current.source, operation: { kind: "idle" } }
           : current,
       );
-      toast.error(t("input.readFailed"));
+      await showFileErrorToast("input.readFailed");
       return;
     }
 
