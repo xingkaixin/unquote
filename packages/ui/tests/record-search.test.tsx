@@ -178,3 +178,130 @@ describe("exact path search", () => {
     expect(buildSearchPattern("$[", options)).toBeNull();
   });
 });
+
+describe("raw JSONL line search counting past the materialized window", () => {
+  const seedWindow = (
+    collector: ReturnType<typeof createSearchResultCollector>,
+    seedLine: string,
+    count = 130,
+  ) => {
+    for (let index = 1; index <= count; index += 1) {
+      collector.addRawJsonLine(seedLine, index);
+    }
+    return count;
+  };
+
+  it("matches full record search across primitives, nested JSON, arrays, and invalid lines", () => {
+    const query = "needle";
+    const pattern = buildSearchPattern(query, defaultOptions)!;
+    const collector = createSearchResultCollector(pattern, defaultOptions, undefined, query);
+    const offset = seedWindow(collector, '{"seed":"needle"}');
+
+    const lines = [
+      '{"plain":"has needle","skip":"other","flag":true,"empty":null,"count":42}',
+      JSON.stringify({
+        wrapped: JSON.stringify({ inner: "NEEDLE", items: ["x", "needle"], n: 1 }),
+        cleanNested: JSON.stringify({ a: 1, b: "miss" }),
+        doubleWrapped: JSON.stringify(JSON.stringify("needle")),
+        brokenNested: "{not json",
+        unicodeEscaped: '{"u":"\\u006eedle"}',
+        escapedControl: "line1\nline2",
+      }),
+      '{"needle":[1,false,null,{"nested":true}]}',
+      "{not-valid-json",
+    ];
+    lines.forEach((line, index) => collector.addRawJsonLine(line, offset + index + 1));
+
+    const actual = collector.finish();
+    const expected = searchRecords(
+      parseInput(
+        [...Array.from({ length: offset }, () => '{"seed":"needle"}'), ...lines].join("\n"),
+        { forcedFormat: "jsonl" },
+      ).records,
+      query,
+      defaultOptions,
+    )!;
+
+    expect(actual.total).toBe(expected.total);
+    expect([...actual.matchLineNumbers]).toEqual([...expected.matchLineNumbers]);
+  });
+
+  it("handles numbers, non-canonical JSON numbers, booleans, null, and container counts", () => {
+    const cases: Array<{ query: string; options: SearchOptions; lines: string[] }> = [
+      {
+        query: "123",
+        options: defaultOptions,
+        lines: [
+          '{"a":123,"b":-0,"c":1.20,"d":1e5,"e":0.0000001,"f":12345678901234567890}',
+          '{"s":"{\\"num\\":12345678901234567890}","neg":-0.5}',
+          '{"ok":123,"arr":[123,456]}',
+        ],
+      },
+      {
+        query: "{2}",
+        options: defaultOptions,
+        lines: ['{"a":1,"b":2}', '{"x":[1,2]}'],
+      },
+      {
+        query: "true",
+        options: { syntax: "text", caseSensitive: true },
+        lines: ['{"a":true,"b":false,"c":null,"d":"true"}'],
+      },
+      {
+        query: "false|null",
+        options: { syntax: "regex", caseSensitive: false },
+        lines: ['{"a":false,"b":null,"c":true,"d":"other"}'],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const pattern = buildSearchPattern(testCase.query, testCase.options)!;
+      const collector = createSearchResultCollector(
+        pattern,
+        testCase.options,
+        undefined,
+        testCase.query,
+      );
+      const seedLine = testCase.lines[0]!;
+      const offset = seedWindow(collector, seedLine);
+      testCase.lines.forEach((line, index) => collector.addRawJsonLine(line, offset + index + 1));
+      const actual = collector.finish();
+
+      const allLines = [...Array.from({ length: offset }, () => seedLine), ...testCase.lines];
+      const expected = searchRecords(
+        parseInput(allLines.join("\n"), { forcedFormat: "jsonl" }).records,
+        testCase.query,
+        testCase.options,
+      )!;
+
+      expect(actual.total).toBe(expected.total);
+      expect([...actual.matchLineNumbers]).toEqual([...expected.matchLineNumbers]);
+    }
+  });
+
+  it("matches empty keys identically to Record traversal and locates every counted match in later windows", () => {
+    const query = "^$|needle";
+    const options: SearchOptions = { syntax: "regex", caseSensitive: false };
+    const pattern = buildSearchPattern(query, options)!;
+    const collector = createSearchResultCollector(pattern, options, undefined, query);
+    const lines = [
+      ...Array.from({ length: 128 }, () => '{"seed":"needle"}'),
+      '{"":"needle"}',
+      '{"":"plain"}',
+    ];
+    lines.forEach((line, index) => collector.addRawJsonLine(line, index + 1));
+
+    const actual = collector.finish();
+    const records = parseInput(lines.join("\n"), { forcedFormat: "jsonl" }).records;
+    const expected = searchRecords(records, query, options)!;
+
+    expect(actual.total).toBe(expected.total);
+    expect([...actual.matchLineNumbers]).toEqual([...expected.matchLineNumbers]);
+
+    const tailCollector = createSearchResultCollector(pattern, options, [actual.total - 1], query);
+    lines.forEach((line, index) => tailCollector.addRawJsonLine(line, index + 1));
+    const tail = tailCollector.finish();
+    expect(tail.window.matches).toHaveLength(1);
+    expect([...tail.window.matchIndexes]).toEqual([actual.total - 1]);
+  });
+});

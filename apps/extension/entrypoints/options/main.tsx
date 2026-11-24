@@ -1,5 +1,4 @@
 import React, { useEffect } from "react";
-import { toast } from "sonner";
 import ReactDOM from "react-dom/client";
 import { I18nProvider, UnquoteApp } from "@unquote/ui";
 import "@unquote/ui/styles.css";
@@ -14,15 +13,27 @@ const root = ReactDOM.createRoot(document.getElementById("root")!);
 
 const OptionsApp = ({ initialInput }: { initialInput: string | null }) => {
   useEffect(() => {
-    if (initialInput === null) {
+    if (initialInput !== null) {
+      return;
+    }
+
+    let active = true;
+    void import("sonner").then(({ toast }) => {
+      if (!active) {
+        return;
+      }
       toast.error(browser.i18n.getMessage("selectionImportFailed"), {
         id: "selection-import-failed",
         duration: Infinity,
       });
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, [initialInput]);
 
-  return <UnquoteApp initialInput={initialInput ?? ""} />;
+  return <UnquoteApp initialInput={initialInput ?? ""} toastHostActive={initialInput === null} />;
 };
 
 const initialize = async () => {

@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 export interface AppHeaderProps {
   enabled: boolean;
+  actionsDisabled?: boolean | undefined;
   sourceName: string | null;
   onOpenImport: () => void;
   onOpenTable?: (() => void) | undefined;
@@ -42,6 +43,7 @@ export interface AppHeaderProps {
 
 export const AppHeader = ({
   enabled,
+  actionsDisabled = false,
   sourceName,
   onOpenImport,
   onOpenTable,
@@ -104,7 +106,7 @@ export const AppHeader = ({
                 type="button"
                 className="shrink-0 rounded-xs border border-border px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
                 onClick={onOpenCommandPalette}
-                disabled={!enabled}
+                disabled={!enabled || actionsDisabled}
                 aria-label={t("command.openShort")}
               >
                 <span aria-hidden="true">{shortcut}</span>
@@ -181,7 +183,7 @@ export const AppHeader = ({
               <Button
                 size="sm"
                 className="uq-icon-button shrink-0 whitespace-nowrap"
-                disabled={!enabled}
+                disabled={!enabled || actionsDisabled}
                 aria-label={t("toolbar.export")}
                 title={t("toolbar.export")}
               >

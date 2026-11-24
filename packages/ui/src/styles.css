@@ -173,8 +173,8 @@ a,
 }
 
 .uq-dialog-popup {
-  /* Base UI Dialog has no --transform-origin like the dropdown anchor; the popup is
-     centered, so it should grow from its top-center rather than a trigger point. */
+  /* Dialog popups are centered rather than anchored to a trigger, so they grow
+     from top-center instead of using --transform-origin. */
   transform-origin: 50% 0%;
   transition:
     transform 180ms var(--ease-out),

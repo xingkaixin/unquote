@@ -285,11 +285,11 @@ export const readJsonlFileLines = async (
       }
 
       let checkpointLineNumber = lineNumber;
-      for (let index = 0; index < value.byteLength; index += 1) {
-        if (value[index] === 10) {
-          checkpointLineNumber += 1;
-          lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + index + 1);
-        }
+      let newlinePos = value.indexOf(10, 0);
+      while (newlinePos !== -1) {
+        checkpointLineNumber += 1;
+        lineIndex.addCheckpoint(checkpointLineNumber, absoluteByteOffset + newlinePos + 1);
+        newlinePos = value.indexOf(10, newlinePos + 1);
       }
 
       const drained = drainJsonlLines(
@@ -469,21 +469,19 @@ const scanJsonlLinesByNumber = async (
       }
 
       let segmentStart = 0;
-      for (let index = 0; index < value.byteLength; index++) {
-        if (value[index] !== 10) {
-          continue;
-        }
-
+      let newlinePos = value.indexOf(10, 0);
+      while (newlinePos !== -1) {
         if (lineNumbers.has(lineNumber)) {
-          stopped = !(await emitLine(value.subarray(segmentStart, index)));
+          stopped = !(await emitLine(value.subarray(segmentStart, newlinePos)));
         }
         lineNumber += 1;
-        lineIndex.addCheckpoint(lineNumber, absoluteOffset + index + 1);
-        segmentStart = index + 1;
+        lineIndex.addCheckpoint(lineNumber, absoluteOffset + newlinePos + 1);
+        segmentStart = newlinePos + 1;
         if (stopped || signal?.aborted) {
           stopped = true;
           break;
         }
+        newlinePos = value.indexOf(10, segmentStart);
       }
 
       if (

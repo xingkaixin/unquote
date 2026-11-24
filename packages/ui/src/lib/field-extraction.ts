@@ -107,22 +107,32 @@ const walkPreviewBranch = (
   metrics.maxDepth = getPreviewMaxDepth(preview);
   metrics.nestedCount = (preview.nestedFieldKeys ?? []).length;
 
-  for (const [key, value] of Object.entries(preview.fields)) {
-    onField?.({
-      key,
-      pathSegments: getPreviewPathSegments(key),
-      pathText: getPreviewPath(key),
-      primitiveValue: getPrimitiveValue(value),
-    });
+  if (onField) {
+    const fields = preview.fields;
+    for (const key in fields) {
+      if (!Object.hasOwn(fields, key)) {
+        continue;
+      }
+      onField({
+        key,
+        pathSegments: getPreviewPathSegments(key),
+        pathText: getPreviewPath(key),
+        primitiveValue: getPrimitiveValue(fields[key]!),
+      });
+    }
   }
 
-  if (onContainer) {
-    for (const [key, kind] of Object.entries(preview.containers ?? {})) {
+  if (onContainer && preview.containers) {
+    const containers = preview.containers;
+    for (const key in containers) {
+      if (!Object.hasOwn(containers, key)) {
+        continue;
+      }
       onContainer({
         key,
         pathSegments: getPreviewPathSegments(key),
         pathText: getPreviewPath(key),
-        kind,
+        kind: containers[key]!,
         getChildValue: () => null,
       });
     }

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { ComponentType } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { useDeferredComponent } from "../hooks/use-deferred-component";
@@ -10,8 +10,24 @@ import type { AgentTrajectoryViewProps } from "./agent-trajectory-view";
 import { AgentSessionView, type AgentReportSource } from "./agent-session-view";
 import { DeferredLoadError } from "./deferred-load-error";
 
-const loadAgentTrajectoryView = (): Promise<ComponentType<AgentTrajectoryViewProps>> =>
-  import("./agent-trajectory-view").then(({ AgentTrajectoryView }) => AgentTrajectoryView);
+let loadedAgentTrajectoryView: ComponentType<AgentTrajectoryViewProps> | null = null;
+
+let trajectoryViewPromise: Promise<ComponentType<AgentTrajectoryViewProps>> | null = null;
+
+const loadAgentTrajectoryView = (): Promise<ComponentType<AgentTrajectoryViewProps>> => {
+  trajectoryViewPromise ??= import("./agent-trajectory-view").then(
+    ({ AgentTrajectoryView }) => {
+      loadedAgentTrajectoryView = AgentTrajectoryView;
+      return AgentTrajectoryView;
+    },
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Loader rejections are not restricted to Error instances.
+    (error: unknown) => {
+      trajectoryViewPromise = null;
+      throw error;
+    },
+  );
+  return trajectoryViewPromise;
+};
 
 interface AgentOutputProps {
   session: AgentSession;
@@ -41,8 +57,15 @@ export const AgentOutput = ({
   onOpenTrajectoryRecord,
 }: AgentOutputProps) => {
   const model = useMemo(() => createAgentSessionModel(session), [session]);
-  const trajectoryView = useDeferredComponent(loadAgentTrajectoryView, outputView === "trajectory");
-  const LoadedAgentTrajectoryView = trajectoryView.component;
+  const trajectoryView = useDeferredComponent(
+    loadAgentTrajectoryView,
+    outputView === "trajectory" && loadedAgentTrajectoryView === null,
+  );
+  const LoadedAgentTrajectoryView = loadedAgentTrajectoryView ?? trajectoryView.component;
+
+  useEffect(() => {
+    void loadAgentTrajectoryView().catch(() => undefined);
+  }, []);
 
   if (outputView === "agent") {
     return (

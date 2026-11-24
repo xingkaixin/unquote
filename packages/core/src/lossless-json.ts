@@ -278,6 +278,208 @@ const parseWithSourceContext = (input: string) =>
     return value as string | boolean | null;
   }) as LosslessJsonValue;
 
+export const hasNonCanonicalJsonNumber = (input: string): boolean => {
+  const length = input.length;
+  let index = 0;
+
+  while (index < length) {
+    const code = input.charCodeAt(index);
+    if (code === 34) {
+      index += 1;
+      while (index < length) {
+        const nextQuote = input.indexOf('"', index);
+        if (nextQuote === -1) {
+          return true;
+        }
+        let backslashIndex = nextQuote - 1;
+        while (backslashIndex >= index && input.charCodeAt(backslashIndex) === 92) {
+          backslashIndex -= 1;
+        }
+        index = nextQuote + 1;
+        if (((nextQuote - 1 - backslashIndex) & 1) === 0) {
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (code === 45 || (code >= 48 && code <= 57)) {
+      const negative = code === 45;
+      if (negative) {
+        index += 1;
+      }
+      const intStart = index;
+      while (index < length) {
+        const digit = input.charCodeAt(index);
+        if (digit < 48 || digit > 57) {
+          break;
+        }
+        index += 1;
+      }
+      const intLength = index - intStart;
+      if (intLength === 0) {
+        return true;
+      }
+
+      const firstDigit = input.charCodeAt(intStart);
+      const next = index < length ? input.charCodeAt(index) : 0;
+      if (next === 101 || next === 69) {
+        return true;
+      }
+      if (next === 46) {
+        if (negative && intLength === 1 && firstDigit === 48) {
+          return true;
+        }
+        index += 1;
+        const fracStart = index;
+        let leadingFractionZeros = 0;
+        let countingZeros = intLength === 1 && firstDigit === 48;
+        while (index < length) {
+          const digit = input.charCodeAt(index);
+          if (digit < 48 || digit > 57) {
+            break;
+          }
+          if (countingZeros) {
+            if (digit === 48) {
+              leadingFractionZeros += 1;
+            } else {
+              countingZeros = false;
+            }
+          }
+          index += 1;
+        }
+        const fracLength = index - fracStart;
+        const afterFraction = index < length ? input.charCodeAt(index) : 0;
+        if (
+          fracLength === 0 ||
+          afterFraction === 101 ||
+          afterFraction === 69 ||
+          input.charCodeAt(index - 1) === 48 ||
+          leadingFractionZeros >= 6 ||
+          intLength + fracLength > 14
+        ) {
+          return true;
+        }
+        continue;
+      }
+
+      if (intLength >= 16 || (negative && intLength === 1 && firstDigit === 48)) {
+        return true;
+      }
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return false;
+};
+
+export type NativeJsonArray = NativeJsonValue[];
+
+export type NativeJsonObject = { [key: string]: NativeJsonValue };
+
+export type NativeJsonValue = string | number | boolean | null | NativeJsonArray | NativeJsonObject;
+
+export const parseNativeJson = (input: string): NativeJsonValue =>
+  // SAFETY: JSON.parse returns only primitives, arrays, and plain objects matching NativeJsonValue.
+  JSON.parse(input) as NativeJsonValue;
+
+export const nativeToLosslessObject = (record: NativeJsonObject): LosslessJsonObjectValue =>
+  // SAFETY: nativeToLosslessValue maps every plain object root to a LosslessJsonObjectValue.
+  nativeToLosslessValue(record) as LosslessJsonObjectValue;
+
+export const nativeToLosslessArray = (items: NativeJsonArray): LosslessJsonArrayValue =>
+  // SAFETY: nativeToLosslessValue maps every array root to a LosslessJsonArrayValue.
+  nativeToLosslessValue(items) as LosslessJsonArrayValue;
+
+export const nativeToLosslessValue = (root: NativeJsonValue): LosslessJsonValue => {
+  if (root === null || typeof root === "string" || typeof root === "boolean") {
+    return root;
+  }
+  if (typeof root === "number") {
+    return { type: "number", rawValue: String(root) };
+  }
+
+  const converted = new WeakMap<
+    NativeJsonObject | NativeJsonArray,
+    LosslessJsonObjectValue | LosslessJsonArrayValue
+  >();
+  const pending: Array<{ value: NativeJsonObject | NativeJsonArray; visited: boolean }> = [
+    { value: root, visited: false },
+  ];
+
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (!current.visited) {
+      pending.push({ value: current.value, visited: true });
+      if (Array.isArray(current.value)) {
+        for (let index = 0; index < current.value.length; index += 1) {
+          const child = current.value[index]!;
+          if (child !== null && typeof child === "object") {
+            pending.push({ value: child, visited: false });
+          }
+        }
+      } else {
+        const record = current.value;
+        for (const key in record) {
+          if (Object.hasOwn(record, key)) {
+            const child = record[key]!;
+            if (child !== null && typeof child === "object") {
+              pending.push({ value: child, visited: false });
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    if (Array.isArray(current.value)) {
+      const items: LosslessJsonValue[] = [];
+      for (let index = 0; index < current.value.length; index += 1) {
+        const child = current.value[index]!;
+        items.push(
+          child !== null && typeof child === "object"
+            ? converted.get(child)!
+            : typeof child === "number"
+              ? { type: "number", rawValue: String(child) }
+              : child,
+        );
+      }
+      converted.set(current.value, { type: "array", items });
+      continue;
+    }
+
+    const entries: Record<string, LosslessJsonValue> = {};
+    const record = current.value;
+    for (const key in record) {
+      if (!Object.hasOwn(record, key)) {
+        continue;
+      }
+      const child = record[key]!;
+      const convertedChild: LosslessJsonValue =
+        child !== null && typeof child === "object"
+          ? converted.get(child)!
+          : typeof child === "number"
+            ? { type: "number", rawValue: String(child) }
+            : child;
+      if (key === "__proto__") {
+        Object.defineProperty(entries, key, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: convertedChild,
+        });
+      } else {
+        entries[key] = convertedChild;
+      }
+    }
+    converted.set(current.value, { type: "object", entries });
+  }
+
+  return converted.get(root)!;
+};
+
 export const parseLosslessJson = (input: string): LosslessJsonValue => {
   if (supportsJsonParseSource) {
     try {

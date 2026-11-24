@@ -1,4 +1,4 @@
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "./dialog";
 import { useEffect, useRef, useState } from "react";
 import type { JsonlRecord } from "@unquote/core";
 import { useTranslation } from "../i18n/context";

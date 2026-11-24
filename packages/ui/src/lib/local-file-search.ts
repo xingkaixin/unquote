@@ -1,4 +1,3 @@
-import { parseJsonlRecordLine } from "@unquote/core";
 import { readJsonlFileLines, readJsonlRecordsByLine } from "./local-file-reader";
 import { measurePerfAsync } from "./perf";
 import { buildSearchPattern, createSearchResultCollector } from "./record-search";
@@ -11,6 +10,14 @@ const unsafeRawProbePattern = /[^\x20-\x7e]|["\\/]/;
 const containerBracketPattern = /[[\]{}]/;
 
 const digitsOnlyPattern = /^\d+$/;
+
+const isBlankLine = (line: string) => {
+  if (line.length === 0) {
+    return true;
+  }
+  const first = line.charCodeAt(0);
+  return (first <= 32 || first >= 0x80) && line.trim().length === 0;
+};
 
 const buildRawLineProbe = (
   query: string,
@@ -34,8 +41,9 @@ const buildRawLineProbe = (
   const matcher = options.caseSensitive ? query : new RegExp(searchPattern.source, "i");
   return (line) =>
     line.length >= minLineLength ||
+    line.includes(query) ||
     line.includes("\\u") ||
-    (typeof matcher === "string" ? line.includes(matcher) : matcher.test(line));
+    (typeof matcher !== "string" && matcher.test(line));
 };
 
 const searchJsonlFile = async (
@@ -60,13 +68,8 @@ const searchJsonlFile = async (
           return false;
         }
 
-        if (line.trim() && (!rawLineMayMatch || rawLineMayMatch(line))) {
-          try {
-            collector.addRecord(parseJsonlRecordLine(line, lineNumber));
-          } catch {
-            // Invalid lines have no record tree and therefore cannot produce a search match.
-            return;
-          }
+        if (!isBlankLine(line) && (!rawLineMayMatch || rawLineMayMatch(line))) {
+          collector.addRawJsonLine(line, lineNumber);
         }
       },
       signal,

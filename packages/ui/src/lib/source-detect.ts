@@ -1,4 +1,47 @@
-import { isLikelySse } from "@unquote/core";
+const sseFieldNames = ["data", "event", "id", "retry"] as const;
+
+const sseFieldAt = (input: string, start: number) =>
+  sseFieldNames.find((name) => {
+    if (!input.startsWith(name, start)) {
+      return false;
+    }
+    const next = input[start + name.length];
+    return next === undefined || next === ":" || next === "\n" || next === "\r";
+  });
+
+const isLikelySse = (input: string, sampleLimit = 8) => {
+  let sampled = 0;
+  let hasData = false;
+  let start = input.startsWith("\uFEFF") ? 1 : 0;
+
+  while (sampled < sampleLimit) {
+    let first = start;
+    while (input[first] === " " || input[first] === "\t" || input[first] === "\r") {
+      first += 1;
+    }
+    if (first < input.length && input[first] !== "\n") {
+      if (first !== start) {
+        return false;
+      }
+      sampled += 1;
+      if (input[start] !== ":") {
+        const field = sseFieldAt(input, start);
+        if (!field) {
+          return false;
+        }
+        hasData ||= field === "data";
+      }
+    }
+
+    const newline = input.indexOf("\n", first);
+    if (newline < 0) {
+      break;
+    }
+    start = newline + 1;
+  }
+
+  return hasData;
+};
 
 export type SourceDetection =
   | { kind: "empty" }

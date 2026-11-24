@@ -1,9 +1,10 @@
-const isJsonWhitespace = (character: string) =>
-  character === " " || character === "\t" || character === "\n" || character === "\r";
+const isJsonWhitespaceCode = (code: number) =>
+  code === 32 || code === 9 || code === 10 || code === 13;
 
 const skipJsonWhitespace = (value: string, start: number) => {
   let index = start;
-  while (index < value.length && isJsonWhitespace(value[index]!)) {
+  const length = value.length;
+  while (index < length && isJsonWhitespaceCode(value.charCodeAt(index))) {
     index++;
   }
   return index;
@@ -17,16 +18,21 @@ const hasJsonLiteral = (value: string, start: number, literal: string) =>
 
 const hasJsonNumber = (value: string, start: number) => {
   let index = start;
+  const length = value.length;
 
-  if (value[index] === "-") {
+  if (value.charCodeAt(index) === 45) {
     index++;
   }
 
-  if (value[index] === "0") {
+  if (value.charCodeAt(index) === 48) {
     index++;
   } else {
     const integerStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+    while (index < length) {
+      const code = value.charCodeAt(index);
+      if (code < 48 || code > 57) {
+        break;
+      }
       index++;
     }
     if (index === integerStart) {
@@ -34,10 +40,14 @@ const hasJsonNumber = (value: string, start: number) => {
     }
   }
 
-  if (value[index] === ".") {
+  if (value.charCodeAt(index) === 46) {
     index++;
     const fractionStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+    while (index < length) {
+      const code = value.charCodeAt(index);
+      if (code < 48 || code > 57) {
+        break;
+      }
       index++;
     }
     if (index === fractionStart) {
@@ -45,13 +55,19 @@ const hasJsonNumber = (value: string, start: number) => {
     }
   }
 
-  if (value[index] === "e" || value[index] === "E") {
+  const exponentChar = value.charCodeAt(index);
+  if (exponentChar === 101 || exponentChar === 69) {
     index++;
-    if (value[index] === "+" || value[index] === "-") {
+    const signChar = value.charCodeAt(index);
+    if (signChar === 43 || signChar === 45) {
       index++;
     }
     const exponentStart = index;
-    while (index < value.length && value[index]! >= "0" && value[index]! <= "9") {
+    while (index < length) {
+      const code = value.charCodeAt(index);
+      if (code < 48 || code > 57) {
+        break;
+      }
       index++;
     }
     if (index === exponentStart) {
@@ -64,44 +80,62 @@ const hasJsonNumber = (value: string, start: number) => {
 
 const skipTrailingJsonWhitespace = (value: string, start: number) => {
   let index = value.length - 1;
-  while (index >= start && isJsonWhitespace(value[index]!)) {
+  while (index >= start && isJsonWhitespaceCode(value.charCodeAt(index))) {
     index--;
   }
   return index;
 };
 
 export const mightBeStringifiedJson = (value: string) => {
+  const length = value.length;
+  if (length === 0) {
+    return false;
+  }
   const start = skipJsonWhitespace(value, 0);
-  const first = value[start];
+  if (start >= length) {
+    return false;
+  }
+  const first = value.charCodeAt(start);
 
-  if (first === "{" || first === "[" || first === '"') {
+  if (first === 123 || first === 91 || first === 34) {
     const end = skipTrailingJsonWhitespace(value, start);
     if (end <= start) {
       return false;
     }
-    const last = value[end];
+    const last = value.charCodeAt(end);
     return (
-      (first === "{" && last === "}") ||
-      (first === "[" && last === "]") ||
-      (first === '"' && last === '"')
+      (first === 123 && last === 125) ||
+      (first === 91 && last === 93) ||
+      (first === 34 && last === 34)
     );
   }
-  if (first === "t") {
+  if (first === 116) {
     return hasJsonLiteral(value, start, "true");
   }
-  if (first === "f") {
+  if (first === 102) {
     return hasJsonLiteral(value, start, "false");
   }
-  if (first === "n") {
+  if (first === 110) {
     return hasJsonLiteral(value, start, "null");
   }
-  return first === "-" || (first !== undefined && first >= "0" && first <= "9")
-    ? hasJsonNumber(value, start)
-    : false;
+  return first === 45 || (first >= 48 && first <= 57) ? hasJsonNumber(value, start) : false;
+};
+
+export const fastTrim = (value: string) => {
+  const length = value.length;
+  if (length === 0) {
+    return "";
+  }
+  const first = value.charCodeAt(0);
+  const last = value.charCodeAt(length - 1);
+  if (first > 32 && first < 127 && last > 32 && last < 127) {
+    return value;
+  }
+  return value.trim();
 };
 
 export const isStringifiedJson = (value: string) => {
-  const trimmed = value.trim();
+  const trimmed = fastTrim(value);
   if (!trimmed || !mightBeStringifiedJson(trimmed)) {
     return false;
   }

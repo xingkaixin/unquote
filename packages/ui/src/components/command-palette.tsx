@@ -1,4 +1,4 @@
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "./dialog";
 import AsteriskIcon from "@phosphor-icons/core/regular/asterisk.svg?react";
 import BracketsCurlyIcon from "@phosphor-icons/core/regular/brackets-curly.svg?react";
 import ChatTextIcon from "@phosphor-icons/core/regular/chat-text.svg?react";

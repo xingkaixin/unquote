@@ -216,12 +216,16 @@ export const createAgentTrajectoryPresentation = (
   const presentationItems: AgentTrajectoryPresentationItem[] = [];
   const presentationItemByDraft = new Map<PresentationItemDraft, AgentTrajectoryPresentationItem>();
   for (const draft of drafts) {
+    let cachedSearchText: string | undefined;
     const item: AgentTrajectoryPresentationItem = {
       ordinal: presentationItems.length,
       item: draft.item,
       detail: draft.detail,
       summary: draft.summary,
-      searchText: searchTextFor(draft.item, draft.detail, draft.turn),
+      get searchText() {
+        cachedSearchText ??= searchTextFor(draft.item, draft.detail, draft.turn);
+        return cachedSearchText;
+      },
       lane: draft.lane,
       interval: draft.interval,
       warningGroups: draft.warningGroups.groups,

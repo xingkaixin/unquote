@@ -3,7 +3,7 @@ import { prefersReducedMotion } from "../lib/motion-preference";
 import { cn } from "../lib/utils";
 
 // Adapted from https://www.fluidfunctionalism.com/docs/fluid-hover for fixed
-// Base UI menus and tabs. Clicks and keyboard focus remain with the primitives.
+// dropdown menus and tabs. Clicks and keyboard focus remain with the primitives.
 const hoverEaseOut = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 const travelDurationMs = 80;

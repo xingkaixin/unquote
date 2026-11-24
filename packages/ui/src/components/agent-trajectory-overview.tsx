@@ -1,7 +1,7 @@
 import ArrowCounterClockwiseIcon from "@phosphor-icons/core/regular/arrow-counter-clockwise.svg?react";
 import MagnifyingGlassMinusIcon from "@phosphor-icons/core/regular/magnifying-glass-minus.svg?react";
 import MagnifyingGlassPlusIcon from "@phosphor-icons/core/regular/magnifying-glass-plus.svg?react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../i18n/context";
 import type { AgentTrajectoryItemKind } from "../lib/agent-session";
 import {
@@ -233,14 +233,18 @@ export const AgentTrajectoryOverview = ({
     [activeViewport, bucketCount, presentation, spans, timeScale],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) {
       return;
     }
+    const initialWidth = element.getBoundingClientRect().width;
     if (typeof ResizeObserver === "undefined") {
-      setMeasuredWidth(element.getBoundingClientRect().width);
+      setMeasuredWidth(initialWidth);
       return;
+    }
+    if (initialWidth > 0 && Number.isFinite(initialWidth)) {
+      setMeasuredWidth((current) => (current === initialWidth ? current : initialWidth));
     }
 
     const observer = new ResizeObserver((entries) => {

@@ -71,71 +71,76 @@ const getErrorContainerFallback = (candidate: ContainerCandidate) => {
   return candidate.kind === "array" ? "error array" : "error object";
 };
 
+const insightFieldByNormalizedKey = new Map<string, RecordInsightField>([
+  ["timestamp", "timestamp"],
+  ["time", "timestamp"],
+  ["ts", "timestamp"],
+  ["createdat", "timestamp"],
+  ["created", "timestamp"],
+  ["date", "timestamp"],
+  ["datetime", "timestamp"],
+  ["occurredat", "timestamp"],
+  ["level", "level"],
+  ["severity", "level"],
+  ["status", "status"],
+  ["state", "status"],
+  ["role", "role"],
+  ["speaker", "role"],
+  ["author", "role"],
+  ["event", "event"],
+  ["type", "event"],
+  ["action", "event"],
+  ["operation", "event"],
+  ["tool", "tool"],
+  ["toolname", "tool"],
+  ["functionname", "tool"],
+  ["error", "error"],
+  ["exception", "error"],
+  ["err", "error"],
+  ["stack", "error"],
+  ["message", "message"],
+  ["msg", "message"],
+  ["content", "message"],
+  ["text", "message"],
+  ["summary", "message"],
+]);
+
+const normalizedKeyCache = new Map<string, string>();
+
+const normalizedKeyCacheLimit = 2048;
+
+const cachedNormalizeKey = (key: string): string => {
+  const cached = normalizedKeyCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const normalized = normalizeKey(key);
+  if (normalizedKeyCache.size < normalizedKeyCacheLimit) {
+    normalizedKeyCache.set(key, normalized);
+  }
+  return normalized;
+};
+
 const classifyInsightField = (
   key: string,
   pathSegments: readonly TreePathSegment[],
 ): RecordInsightField | null => {
-  const normalized = normalizeKey(key);
-
-  if (
-    normalized === "timestamp" ||
-    normalized === "time" ||
-    normalized === "ts" ||
-    normalized === "createdat" ||
-    normalized === "created" ||
-    normalized === "date" ||
-    normalized === "datetime" ||
-    normalized === "occurredat"
-  ) {
-    return "timestamp";
+  const direct = insightFieldByNormalizedKey.get(key);
+  if (direct !== undefined) {
+    return direct;
+  }
+  if (key === "name") {
+    return pathSegments.length > 1 && isToolContext(pathSegments.slice(0, -1)) ? "tool" : "event";
   }
 
-  if (normalized === "level" || normalized === "severity") {
-    return "level";
-  }
-
-  if (normalized === "status" || normalized === "state") {
-    return "status";
-  }
-
-  if (normalized === "role" || normalized === "speaker" || normalized === "author") {
-    return "role";
-  }
-
-  if (
-    normalized === "event" ||
-    normalized === "type" ||
-    normalized === "action" ||
-    normalized === "operation"
-  ) {
-    return "event";
-  }
-
-  if (normalized === "tool" || normalized === "toolname" || normalized === "functionname") {
-    return "tool";
-  }
-
-  if (
-    normalized === "error" ||
-    normalized === "exception" ||
-    normalized === "err" ||
-    normalized === "stack"
-  ) {
-    return "error";
-  }
-
-  if (
-    normalized === "message" ||
-    normalized === "msg" ||
-    normalized === "content" ||
-    normalized === "text" ||
-    normalized === "summary"
-  ) {
-    return "message";
+  const normalized = cachedNormalizeKey(key);
+  const mapped = insightFieldByNormalizedKey.get(normalized);
+  if (mapped !== undefined) {
+    return mapped;
   }
 
   if (normalized === "name") {
-    return isToolContext(pathSegments.slice(0, -1)) ? "tool" : "event";
+    return pathSegments.length > 1 && isToolContext(pathSegments.slice(0, -1)) ? "tool" : "event";
   }
 
   return null;

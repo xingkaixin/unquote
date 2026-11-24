@@ -10,14 +10,6 @@ type JsonWalkValue =
   | { kind: "boolean"; value: boolean }
   | { kind: "null"; value: null };
 
-type ResolvedJsonValue = JsonWalkValue & {
-  node: JsonNode;
-  wasStringified: boolean;
-  childCount: number;
-  children?: JsonNode[] | Record<string, JsonNode>;
-  valueLength?: number;
-};
-
 interface JsonWalkMetadata {
   node: JsonNode;
   childCount: number;
@@ -42,64 +34,6 @@ export interface JsonWalkStart {
   lazyPath?: boolean;
 }
 
-const resolveJsonNode = (node: JsonNode): ResolvedJsonValue & { objectKeys?: string[] } => {
-  if (hasJsonNodeChildren(node)) {
-    if (Array.isArray(node.children)) {
-      return {
-        node,
-        value: null,
-        kind: node.kind,
-        wasStringified: isStringifiedNode(node),
-        childCount: node.children.length,
-        children: node.children,
-      };
-    }
-
-    const objectKeys = Object.keys(node.children);
-    return {
-      node,
-      value: null,
-      kind: node.kind,
-      wasStringified: isStringifiedNode(node),
-      childCount: objectKeys.length,
-      children: node.children,
-      objectKeys,
-    };
-  }
-
-  if (node.kind === "object" || node.kind === "array") {
-    const value = null;
-    return {
-      node,
-      value,
-      kind: node.kind,
-      wasStringified: isStringifiedNode(node),
-      childCount: node.preview
-        ? node.childCount
-        : node.kind === "array"
-          ? node.value.items.length
-          : Object.keys(node.value.entries).length,
-    };
-  }
-
-  const shared = { node, wasStringified: isStringifiedNode(node), childCount: 0 };
-  switch (node.kind) {
-    case "string":
-      return {
-        ...shared,
-        kind: "string",
-        value: node.value,
-        ...(typeof node.valueLength === "number" ? { valueLength: node.valueLength } : {}),
-      };
-    case "number":
-      return { ...shared, kind: "number", value: node.rawValue ?? node.value };
-    case "boolean":
-      return { ...shared, kind: "boolean", value: node.value };
-    case "null":
-      return { ...shared, kind: "null", value: null };
-  }
-};
-
 export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: JsonWalkStart = {}) => {
   const pathSegments = [...(start.pathSegments ?? [])];
   const basePath = start.jsonPath ?? "$";
@@ -123,47 +57,140 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
     : undefined;
 
   function walk(node: JsonNode, jsonPath: string, stringifiedAncestors: string[]) {
-    const resolved = resolveJsonNode(node);
-    if (lazyPath && resolved.wasStringified) {
+    const wasStringified = isStringifiedNode(node);
+    if (lazyPath && wasStringified) {
       stringifiedDepths.push(pathSegments.length);
     }
     const stringifiedChain = lazyPath
       ? baseAncestors
-      : resolved.wasStringified
+      : wasStringified
         ? [...stringifiedAncestors, jsonPath]
         : stringifiedAncestors;
-    // SAFETY: The resolver validated this pair; copying generic union fields loses its correlation.
-    const context = {
-      node: resolved.node,
-      kind: resolved.kind,
-      value: resolved.value,
-      childCount: resolved.childCount,
-      ...(typeof resolved.valueLength === "number" ? { valueLength: resolved.valueLength } : {}),
-      jsonPath,
-      stringifiedChain,
-      pathSegments,
-      resolvePath: resolveLazyPath,
-    } as JsonWalkContext;
 
-    if (visit(context) !== false && resolved.children) {
-      if (Array.isArray(resolved.children)) {
-        for (let index = 0; index < resolved.children.length; index += 1) {
+    let children: JsonNode[] | Record<string, JsonNode> | undefined;
+    let objectKeys: string[] | undefined;
+    let context: JsonWalkContext;
+
+    if (hasJsonNodeChildren(node)) {
+      if (Array.isArray(node.children)) {
+        children = node.children;
+        context = {
+          node,
+          kind: "array",
+          value: null,
+          childCount: node.children.length,
+          jsonPath,
+          stringifiedChain,
+          pathSegments,
+          resolvePath: resolveLazyPath,
+        };
+      } else {
+        children = node.children;
+        objectKeys = Object.keys(node.children);
+        context = {
+          node,
+          kind: "object",
+          value: null,
+          childCount: objectKeys.length,
+          jsonPath,
+          stringifiedChain,
+          pathSegments,
+          resolvePath: resolveLazyPath,
+        };
+      }
+    } else if (node.kind === "object" || node.kind === "array") {
+      context = {
+        node,
+        kind: node.kind,
+        value: null,
+        childCount: node.preview
+          ? node.childCount
+          : node.kind === "array"
+            ? node.value.items.length
+            : Object.keys(node.value.entries).length,
+        jsonPath,
+        stringifiedChain,
+        pathSegments,
+        resolvePath: resolveLazyPath,
+      };
+    } else if (node.kind === "string") {
+      context =
+        typeof node.valueLength === "number"
+          ? {
+              node,
+              kind: "string",
+              value: node.value,
+              valueLength: node.valueLength,
+              childCount: 0,
+              jsonPath,
+              stringifiedChain,
+              pathSegments,
+              resolvePath: resolveLazyPath,
+            }
+          : {
+              node,
+              kind: "string",
+              value: node.value,
+              childCount: 0,
+              jsonPath,
+              stringifiedChain,
+              pathSegments,
+              resolvePath: resolveLazyPath,
+            };
+    } else if (node.kind === "number") {
+      context = {
+        node,
+        kind: "number",
+        value: node.rawValue ?? node.value,
+        childCount: 0,
+        jsonPath,
+        stringifiedChain,
+        pathSegments,
+        resolvePath: resolveLazyPath,
+      };
+    } else if (node.kind === "boolean") {
+      context = {
+        node,
+        kind: "boolean",
+        value: node.value,
+        childCount: 0,
+        jsonPath,
+        stringifiedChain,
+        pathSegments,
+        resolvePath: resolveLazyPath,
+      };
+    } else {
+      context = {
+        node,
+        kind: "null",
+        value: null,
+        childCount: 0,
+        jsonPath,
+        stringifiedChain,
+        pathSegments,
+        resolvePath: resolveLazyPath,
+      };
+    }
+
+    if (visit(context) !== false && children) {
+      if (Array.isArray(children)) {
+        for (let index = 0; index < children.length; index += 1) {
           const segment = { kind: "index", value: String(index) } satisfies TreePathSegment;
           pathSegments.push(segment);
           walk(
-            resolved.children[index]!,
+            children[index]!,
             lazyPath ? "" : appendJsonPathSegment(jsonPath, segment),
             stringifiedChain,
           );
           pathSegments.pop();
         }
-      } else if (resolved.objectKeys) {
-        for (let index = 0; index < resolved.objectKeys.length; index += 1) {
-          const key = resolved.objectKeys[index]!;
+      } else if (objectKeys) {
+        for (let index = 0; index < objectKeys.length; index += 1) {
+          const key = objectKeys[index]!;
           const segment = { kind: "key", value: key } satisfies TreePathSegment;
           pathSegments.push(segment);
           walk(
-            resolved.children[key]!,
+            children[key]!,
             lazyPath ? "" : appendJsonPathSegment(jsonPath, segment),
             stringifiedChain,
           );
@@ -172,7 +199,7 @@ export const walkJsonNode = (root: JsonNode, visit: JsonNodeVisitor, start: Json
       }
     }
 
-    if (lazyPath && resolved.wasStringified) {
+    if (lazyPath && wasStringified) {
       stringifiedDepths.pop();
     }
   }
