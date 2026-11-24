@@ -9,9 +9,20 @@ import type {
   ParseResult,
   PreviewJsonlRecord,
 } from "./types.js";
-import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
+import {
+  hasNonCanonicalJsonNumber,
+  materializeLosslessValue,
+  parseLosslessJson,
+  parseNativeJson,
+  type NativeJsonValue,
+} from "./lossless-json.js";
 import { getErrorMessage, getParseErrorMeta } from "./parse-error.js";
-import { createFullJsonlRecord, createPreviewJsonlRecord } from "./record-builder.js";
+import {
+  createFullJsonlRecord,
+  createFullJsonlRecordFromNative,
+  createPreviewJsonlRecord,
+  createPreviewJsonlRecordFromNative,
+} from "./record-builder.js";
 import { isFailedRecord, isParsed, isPreviewRecord } from "./records.js";
 import { stringifyJsonNode } from "./serialization.js";
 import { isLikelySse, parseSseRecords } from "./sse.js";
@@ -45,17 +56,50 @@ export type JsonlRecordIngestionLine<T extends FullJsonlRecord | PreviewJsonlRec
   { record: T; materializeValue: () => unknown } | { record: FailedJsonlRecord };
 
 type JsonlRecordLineSourceResult<T extends FullJsonlRecord | PreviewJsonlRecord> =
-  | { record: T; source: LosslessJsonValue }
+  | { record: T; native: true; value: NativeJsonValue }
+  | { record: T; native: false; source: LosslessJsonValue }
   | { record: FailedJsonlRecord };
+
+const isBlankLine = (line: string) => {
+  if (line.length === 0) {
+    return true;
+  }
+  const first = line.charCodeAt(0);
+  return (first <= 32 || first >= 0x80) && line.trim().length === 0;
+};
+
+const splitLinesFast = (input: string): string[] => {
+  const lines: string[] = [];
+  const length = input.length;
+  let start = 0;
+
+  while (start <= length) {
+    const newline = input.indexOf("\n", start);
+    if (newline === -1) {
+      lines.push(input.slice(start));
+      break;
+    }
+    const end = newline > start && input.charCodeAt(newline - 1) === 13 ? newline - 1 : newline;
+    lines.push(input.slice(start, end));
+    start = newline + 1;
+  }
+
+  return lines;
+};
 
 const parseJsonlRecordLineWith = <T extends FullJsonlRecord | PreviewJsonlRecord>(
   line: string,
   lineNumber: number,
-  createParsedRecord: (value: LosslessJsonValue) => T,
+  createFromNative: (value: NativeJsonValue) => T,
+  createFromLossless: (value: LosslessJsonValue) => T,
 ): JsonlRecordLineSourceResult<T> => {
   try {
+    if (!hasNonCanonicalJsonNumber(line)) {
+      const value = parseNativeJson(line);
+      return { record: createFromNative(value), native: true, value };
+    }
     const source = parseLosslessJson(line);
-    return { record: createParsedRecord(source), source };
+    return { record: createFromLossless(source), native: false, source };
   } catch (error) {
     return { record: createParseErrorRecord(line, lineNumber, error) };
   }
@@ -63,27 +107,39 @@ const parseJsonlRecordLineWith = <T extends FullJsonlRecord | PreviewJsonlRecord
 
 const withApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
   result: JsonlRecordLineSourceResult<T>,
-): JsonlRecordLineResult<T> =>
-  "source" in result
-    ? {
-        record: result.record,
-        value: materializeLosslessValue(result.source, { numbers: "approximate" }),
-      }
-    : result;
+): JsonlRecordLineResult<T> => {
+  if ("native" in result) {
+    return result.native
+      ? { record: result.record, value: result.value }
+      : {
+          record: result.record,
+          value: materializeLosslessValue(result.source, { numbers: "approximate" }),
+        };
+  }
+  return result;
+};
 
 const withLazyApproximateValue = <T extends FullJsonlRecord | PreviewJsonlRecord>(
   result: JsonlRecordLineSourceResult<T>,
-): JsonlRecordIngestionLine<T> =>
-  "source" in result
-    ? {
-        record: result.record,
-        materializeValue: () => materializeLosslessValue(result.source, { numbers: "approximate" }),
-      }
-    : result;
+): JsonlRecordIngestionLine<T> => {
+  if ("native" in result) {
+    return result.native
+      ? { record: result.record, materializeValue: () => result.value }
+      : {
+          record: result.record,
+          materializeValue: () =>
+            materializeLosslessValue(result.source, { numbers: "approximate" }),
+        };
+  }
+  return result;
+};
 
 const parseFullJsonlRecordLine = (line: string, lineNumber: number, maxDepth: number) =>
-  parseJsonlRecordLineWith(line, lineNumber, (value) =>
-    createFullJsonlRecord(value, lineNumber, maxDepth),
+  parseJsonlRecordLineWith(
+    line,
+    lineNumber,
+    (value) => createFullJsonlRecordFromNative(value, lineNumber, maxDepth),
+    (value) => createFullJsonlRecord(value, lineNumber, maxDepth),
   );
 
 export const parseJsonlRecordLineWithValue = (
@@ -103,8 +159,11 @@ export const parseJsonlRecordLine = (
   parseFullJsonlRecordLine(line, lineNumber, resolveMaxDepth(options.maxDepth)).record;
 
 const parsePreviewLine = (line: string, lineNumber: number) => {
-  const result = parseJsonlRecordLineWith(line, lineNumber, (value) =>
-    createPreviewJsonlRecord(value, lineNumber),
+  const result = parseJsonlRecordLineWith(
+    line,
+    lineNumber,
+    (value) => createPreviewJsonlRecordFromNative(value, lineNumber),
+    (value) => createPreviewJsonlRecord(value, lineNumber),
   );
   if (result.record.status !== "failed" || line.length <= 512) return result;
   const record = result.record;
@@ -153,8 +212,9 @@ const parseStrictJsonlLines = <TLine>(
 ): StrictJsonlAttempt<TLine> => {
   const parsedLines: TLine[] = [];
 
-  for (const [index, line] of lines.entries()) {
-    if (!line.trim()) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    if (isBlankLine(line)) {
       continue;
     }
 
@@ -180,11 +240,44 @@ const parseLooseJsonlLines = <TLine>(
 
   for (let index = startIndex; index < lines.length; index += 1) {
     const line = lines[index];
-    if (!line?.trim()) {
+    if (!line || isBlankLine(line)) {
       continue;
     }
 
     parsedLines.push(parseLine(line, index + 1));
+  }
+
+  return parsedLines;
+};
+
+const parseForcedJsonlText = <TLine>(
+  input: string,
+  parseLine: (line: string, lineNumber: number) => TLine,
+): TLine[] => {
+  const parsedLines: TLine[] = [];
+  const length = input.length;
+  let start = 0;
+  let lineNumber = 1;
+
+  while (start <= length) {
+    const newline = input.indexOf("\n", start);
+    const end =
+      newline === -1
+        ? length
+        : newline > start && input.charCodeAt(newline - 1) === 13
+          ? newline - 1
+          : newline;
+    if (end > start) {
+      const line = input.slice(start, end);
+      if (!isBlankLine(line)) {
+        parsedLines.push(parseLine(line, lineNumber));
+      }
+    }
+    if (newline === -1) {
+      break;
+    }
+    start = newline + 1;
+    lineNumber += 1;
   }
 
   return parsedLines;
@@ -200,7 +293,12 @@ const buildSseResult = (input: string, maxDepth: number): ParseResult => {
 };
 
 const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
-  const success = records.filter(isParsed).length;
+  let success = 0;
+  for (let index = 0; index < records.length; index += 1) {
+    if (isParsed(records[index]!)) {
+      success += 1;
+    }
+  }
   return {
     format: "jsonl",
     records,
@@ -214,10 +312,12 @@ const buildJsonlResult = (records: JsonlRecord[]): ParseResult => {
 
 const parseSingleJsonResult = (input: string, maxDepth: number): ParseResult => {
   try {
-    const parsed = parseLosslessJson(input);
+    const record = !hasNonCanonicalJsonNumber(input)
+      ? createFullJsonlRecordFromNative(parseNativeJson(input), 1, maxDepth)
+      : createFullJsonlRecord(parseLosslessJson(input), 1, maxDepth);
     return {
       format: "json",
-      records: [createFullJsonlRecord(parsed, 1, maxDepth)],
+      records: [record],
       stats: { total: 1, success: 1, failed: 0 },
     };
   } catch (error) {
@@ -260,7 +360,7 @@ const parseInputWithJsonlLines = <TLine>(
 ): ParsedInputWithLines<TLine> => {
   const maxDepth = resolveMaxDepth(options.maxDepth);
 
-  if (!input.trim()) {
+  if (isBlankLine(input)) {
     const format = options.forcedFormat ?? detectFormat(input);
     return format === "jsonl"
       ? { format, lines: [] }
@@ -281,14 +381,14 @@ const parseInputWithJsonlLines = <TLine>(
   if (options.forcedFormat === "jsonl") {
     return {
       format: "jsonl",
-      lines: parseLooseJsonlLines(input.split(/\r?\n/), (line, lineNumber) =>
+      lines: parseForcedJsonlText(input, (line, lineNumber) =>
         parseLine(line, lineNumber, maxDepth),
       ),
     };
   }
 
   // Auto: strict JSONL → single JSON → loose JSONL → the JSON error result.
-  const lines = input.split(/\r?\n/);
+  const lines = splitLinesFast(input);
   const strict = parseStrictJsonlLines(
     lines,
     (line, lineNumber) => parseLine(line, lineNumber, maxDepth),

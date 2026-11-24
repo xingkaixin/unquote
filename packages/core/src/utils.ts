@@ -1,5 +1,9 @@
 import type { JsonKind, MaterializeOptions } from "./types.js";
-import { materializeLosslessValue, parseLosslessJson } from "./lossless-json.js";
+import {
+  hasNonCanonicalJsonNumber,
+  materializeLosslessValue,
+  parseLosslessJson,
+} from "./lossless-json.js";
 
 export const DEFAULT_MAX_DEPTH = 100;
 
@@ -27,8 +31,11 @@ export const getJsonKind = (value: unknown): JsonKind => {
   }
 };
 
-export const parseJson = (input: string, options: MaterializeOptions = {}) =>
-  materializeLosslessValue(parseLosslessJson(input), options);
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- Parsed JSON has no application schema; callers narrow the decoded value.
+export const parseJson = (input: string, options: MaterializeOptions = {}): unknown =>
+  options.numbers === "approximate" || !hasNonCanonicalJsonNumber(input)
+    ? JSON.parse(input)
+    : materializeLosslessValue(parseLosslessJson(input), options);
 
 const isHighSurrogate = (codeUnit: number) => codeUnit >= 0xd800 && codeUnit <= 0xdbff;
 
