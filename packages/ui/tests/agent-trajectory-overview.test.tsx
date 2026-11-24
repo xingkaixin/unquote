@@ -535,7 +535,7 @@ describe("AgentTrajectoryOverview", () => {
     const input = rangeStart();
     const before = Number(input.value);
     input.focus();
-    // Base UI handles Arrow keys itself, so one press moves exactly one step.
+    // RangeSlider handles Arrow keys itself, so one press moves exactly one step.
     await user.keyboard("{ArrowRight}");
     expect(document.activeElement).toBe(input);
 

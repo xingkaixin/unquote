@@ -1,4 +1,4 @@
-import { Dialog } from "@base-ui/react/dialog";
+import { Dialog } from "./dialog";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";

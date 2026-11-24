@@ -140,7 +140,7 @@ minimum 44×44px hit area on coarse pointers.
 
 Tab lists sit on `surface-100` with a border; the active trigger takes the accent fill. Tabs and
 dropdown menus share one decorative hover highlight (`components/fluid-hover.tsx`). Click targets
-and keyboard behavior stay with Base UI. Virtualized lists do not use this effect.
+and keyboard behavior stay with the UI primitives. Virtualized lists do not use this effect.
 
 ### Inputs and overlays
 
@@ -191,7 +191,7 @@ search, parsing, selection, or navigation.
 ## Accessibility
 
 - Preserve visible `focus-visible` outlines using the accent token.
-- Maintain semantic roles and keyboard behavior provided by Base UI primitives.
+- Maintain semantic roles and keyboard behavior provided by the shared WAI-ARIA UI primitives.
 - Provide accessible names for icon-only controls.
 - Do not rely on color alone for errors, success, active selection, or syntax meaning.
 - Preserve 44px touch targets for icon controls on coarse pointers.

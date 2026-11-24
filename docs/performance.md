@@ -314,7 +314,7 @@ Fixed menus and output tabs share one decorative hover highlight. Motion uses
 the native Web Animations API with a fast, non-bouncing 80 ms ease-out curve
 (falling back to direct inline styles when `Element.prototype.animate` is
 unavailable) and snaps geometry immediately under `prefers-reduced-motion:
-reduce`. Click targets and keyboard navigation remain with Base UI; virtualized
+reduce`. Click targets and keyboard navigation remain with the UI primitives; virtualized
 records and trajectories do not use this effect.
 
 The effect requires no third-party motion runtime and adds about 0.5 KiB of CSS,
