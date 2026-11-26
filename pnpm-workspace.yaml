@@ -4,9 +4,8 @@ packages:
 
 catalog:
   '@tailwindcss/vite': ^4.3.5
-  # React 19.3 exceeds the current UI JavaScript bundle budgets.
-  react: ~19.2.9
-  react-dom: ~19.2.9
+  react: ^19.3.1
+  react-dom: ^19.3.1
   sonner: ^2.0.8
   tailwindcss: ^4.3.5
   vite: ^8.3.8
@@ -22,3 +21,6 @@ audit:
   ignore:
     # Temporary while the development-only picomatch versions lack fixes.
     - GHSA-fc5q-39xc-vjpf
+
+minimumReleaseAgeExclude:
+  - '@types/node@24.19.4'
