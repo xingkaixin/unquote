@@ -2,12 +2,15 @@ import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
 
-const output = new URL(".cloudflare/output/v0/", root);
+const outputRoot = new URL(".cloudflare/output/", root);
+
+const output = new URL("v1/", outputRoot);
 
 const worker = new URL("workers/default/", output);
 
-// cf --prebuilt consumes Build Output v0 without installing a Cloudflare bundler.
-await rm(output, { recursive: true, force: true });
+// cf --prebuilt consumes Build Output v1 without installing a Cloudflare bundler.
+// Clear the parent output directory so stale v0 artifacts cannot conflict with v1.
+await rm(outputRoot, { recursive: true, force: true });
 
 await mkdir(worker, { recursive: true });
 
