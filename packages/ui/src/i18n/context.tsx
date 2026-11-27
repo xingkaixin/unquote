@@ -11,8 +11,14 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [locale, setLocaleState] = useState<Locale>(detectLocale);
+export const I18nProvider = ({
+  children,
+  initialLocale,
+}: {
+  children: ReactNode;
+  initialLocale?: Locale;
+}) => {
+  const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? detectLocale());
 
   useEffect(() => {
     const previousLang = document.documentElement.getAttribute("lang");

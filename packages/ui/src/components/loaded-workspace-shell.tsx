@@ -3,6 +3,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -95,6 +96,10 @@ export interface LoadedWorkspaceShellProps {
   onThemeChange: (theme: Theme) => void;
   activeOverlay: ActiveOverlay;
   onActiveOverlayChange: (overlay: ActiveOverlay) => void;
+  onParseComplete?:
+    | ((format: ParseResult["format"], mode: SourceMode, agent: boolean) => void)
+    | undefined;
+  onSwitchView?: ((view: "agent" | "trajectory" | "json") => void) | undefined;
   pendingSampleExpansion: PendingSampleExpansion | null;
   onConsumeSampleExpansion: (revision: SourceRevision) => void;
   pendingToolbarSearch: PendingToolbarSearch | null;
@@ -119,6 +124,8 @@ export const LoadedWorkspaceShell = ({
   onThemeChange,
   activeOverlay,
   onActiveOverlayChange,
+  onParseComplete,
+  onSwitchView,
   pendingSampleExpansion,
   onConsumeSampleExpansion,
   pendingToolbarSearch,
@@ -490,6 +497,33 @@ export const LoadedWorkspaceShell = ({
   const outputViewAttr = agentSession ? outputView : "json";
   const expandedNested = recordWorkspace.model.active.expandedNestedCount;
 
+  const reportedParseRevisionRef = useRef<SourceRevision | null>(null);
+  const handleManualOutputViewChange = useCallback(
+    (next: "agent" | "trajectory" | "json") => {
+      if (next !== outputView) {
+        onSwitchView?.(next);
+      }
+      setOutputView(next);
+    },
+    [onSwitchView, outputView, setOutputView],
+  );
+
+  useEffect(() => {
+    if (!hasData || !recordsReady || reportedParseRevisionRef.current === resultRevision) {
+      return;
+    }
+    reportedParseRevisionRef.current = resultRevision;
+    onParseComplete?.(result.format, source.mode, Boolean(agentSession));
+  }, [
+    agentSession,
+    hasData,
+    onParseComplete,
+    recordsReady,
+    result.format,
+    resultRevision,
+    source.mode,
+  ]);
+
   useLayoutEffect(() => {
     onShellDatasetChange({
       parseState,
@@ -525,7 +559,7 @@ export const LoadedWorkspaceShell = ({
         onOpenDiff={() => onActiveOverlayChange("diff")}
         outputView={agentSession ? outputView : null}
         jsonTabLabel={formatParseMode(result.format)}
-        onOutputViewChange={setOutputView}
+        onOutputViewChange={handleManualOutputViewChange}
         search={{
           query: toolbarQuery,
           matchCount: toolbarInPathMode ? pathMatchCount : matchCount,

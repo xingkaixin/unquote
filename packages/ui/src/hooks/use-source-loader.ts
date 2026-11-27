@@ -44,13 +44,18 @@ interface SourceLoaderState {
 
 interface UseSourceLoaderParams {
   initialInput: string;
+  initialMode?: SourceMode | undefined;
   onToastRequired?: (() => Promise<void>) | undefined;
 }
 
-export const useSourceLoader = ({ initialInput, onToastRequired }: UseSourceLoaderParams) => {
+export const useSourceLoader = ({
+  initialInput,
+  initialMode = "auto",
+  onToastRequired,
+}: UseSourceLoaderParams) => {
   const { t } = useTranslation();
   const [state, setState] = useState<SourceLoaderState>(() => ({
-    source: createTextSourceRevision(0, initialInput, "auto"),
+    source: createTextSourceRevision(0, initialInput, initialMode),
     operation: { kind: "idle" },
   }));
   const sourceRevisionRef = useRef<SourceRevision>(state.source.sourceRevision);
