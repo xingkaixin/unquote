@@ -71,11 +71,15 @@ describe("search landing pages", () => {
     },
   );
 
-  it("shows an escaped JSON example that produces the documented output", () => {
-    const document = new JSDOM(renderGuidePage("json-unescape", "en")).window.document;
-    const examples = [...document.querySelectorAll("pre code")].map((node) => node.textContent!);
-    expect(JSON.parse(formatResult(parseInput(examples[0]!)))).toEqual(JSON.parse(examples[1]!));
-  });
+  it.each(["json-unescape", "jsonl-viewer", "agent-log-viewer"] as const)(
+    "shows a %s before/after escaped JSON example that matches parser output",
+    (slug) => {
+      const document = new JSDOM(renderGuidePage(slug, "en")).window.document;
+      const examples = [...document.querySelectorAll("pre code")].map((node) => node.textContent!);
+      expect(examples.length).toBeGreaterThanOrEqual(2);
+      expect(JSON.parse(formatResult(parseInput(examples[0]!)))).toEqual(JSON.parse(examples[1]!));
+    },
+  );
 
   it("shows an SSE example that parses as an SSE stream with expanded JSON", () => {
     const document = new JSDOM(renderGuidePage("sse-viewer", "en")).window.document;
