@@ -9,6 +9,9 @@ const script = fileURLToPath(new URL("../check-ui-bundle-budget.mjs", import.met
 
 const temporaryRoots: string[] = [];
 
+const landingHtml =
+  '<script src="/assets/guide-main.js"></script><link rel="stylesheet" href="/assets/index.css">';
+
 const createBuild = (webHtml: string) => {
   const root = mkdtempSync(join(tmpdir(), "unquote-bundle-budget-"));
   temporaryRoots.push(root);
@@ -17,13 +20,18 @@ const createBuild = (webHtml: string) => {
     "dist/web/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
     "dist/web/zh-CN/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
     "dist/web/ja/changelog/index.html": '<link rel="stylesheet" href="/assets/changelog.css">',
-    "dist/web/jsonl-viewer/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
-    "dist/web/json-unescape/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
-    "dist/web/agent-log-viewer/index.html": '<link rel="stylesheet" href="/assets/guide.css">',
+    "dist/web/jsonl-viewer/index.html": landingHtml,
+    "dist/web/json-unescape/index.html": landingHtml,
+    "dist/web/agent-log-viewer/index.html": landingHtml,
+    "dist/web/sse-viewer/index.html": landingHtml,
+    "dist/web/zh-CN/jsonl-viewer/index.html": landingHtml,
+    "dist/web/zh-CN/json-unescape/index.html": landingHtml,
+    "dist/web/zh-CN/agent-log-viewer/index.html": landingHtml,
+    "dist/web/zh-CN/sse-viewer/index.html": landingHtml,
     "dist/web/assets/index.js": "export {};",
+    "dist/web/assets/guide-main.js": "export {};",
     "dist/web/assets/index.css": "body {}",
     "dist/web/assets/changelog.css": "body {}",
-    "dist/web/assets/guide.css": "body {}",
     "dist/extension/options.html":
       '<script src="./chunks/options.js"></script><link rel="stylesheet" href="./assets/options.css">',
     "dist/extension/chunks/options.js": "export {};",
@@ -61,6 +69,7 @@ describe("UI bundle budget", () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("web: initial JS 10 bytes");
+    expect(result.stdout).toContain("web landing sse-viewer: initial JS 10 bytes");
     expect(result.stdout).toContain("extension: initial JS 10 bytes");
   });
 
@@ -75,10 +84,9 @@ describe("UI bundle budget", () => {
     expect(result.stderr).toContain("exceeds 630000 bytes");
   });
 
-  it("budgets a static page stylesheet independently from the app", () => {
+  it("budgets static changelog stylesheets independently from the app", () => {
     const root = createBuild('<script src="/assets/index.js"></script>');
     writeFileSync(join(root, "dist/web/assets/changelog.css"), "a".repeat(10_001));
-    writeFileSync(join(root, "dist/web/assets/guide.css"), "b".repeat(10_002));
 
     const result = runBudgetCheck(root);
 
@@ -86,9 +94,6 @@ describe("UI bundle budget", () => {
     expect(result.stderr).toContain("web changelog en CSS 10001 bytes");
     expect(result.stderr).toContain("web changelog zh-CN CSS 10001 bytes");
     expect(result.stderr).toContain("web changelog ja CSS 10001 bytes");
-    expect(result.stderr).toContain("web guide jsonl-viewer CSS 10002 bytes");
-    expect(result.stderr).toContain("web guide json-unescape CSS 10002 bytes");
-    expect(result.stderr).toContain("web guide agent-log-viewer CSS 10002 bytes");
     expect(result.stderr).toContain("exceeds 10000 bytes");
     expect(result.stderr).not.toContain("web initial CSS 10001 bytes");
   });

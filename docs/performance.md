@@ -100,9 +100,12 @@ each surface:
   background;
 - initial CSS includes the stylesheets referenced by that surface's built HTML.
 
-Static Web pages (localized changelogs and static guides) are measured
-separately because their styles are not downloaded with the application entry.
-Each static page has a 10,000 byte / 3,000 byte gzip CSS budget.
+Static Web pages (localized changelogs) are measured separately because their
+styles are not downloaded with the application entry. Each static page has a
+10,000 byte / 3,000 byte gzip CSS budget. Interactive topic landing pages
+(`/jsonl-viewer/`, `/json-unescape/`, `/agent-log-viewer/`, `/sse-viewer/`, and
+their `/zh-CN/` counterparts) share the application entry assets and are gated
+against the Web initial JavaScript and CSS budgets.
 
 The current Web build measures about 569 KiB / 184 KiB gzip for initial JS and
 806 KiB / 263 KiB gzip for all UI JS. The extension carries a small options-page
@@ -331,14 +334,13 @@ separate hashed assets so font binaries stay out of render-blocking CSS and work
 with `font-src 'self'`. The two `latin` subsets total 86,116 bytes across all
 weights (132,276 bytes including `latin-ext`).
 
-Static changelogs and guide pages import shared base chrome from
-`apps/web/src/static-page.css` instead of layering guide styles on top of
-`changelog.css`. The font declarations count toward the local CSS budgets: the
-Web app measures 40,510 bytes / 8,774 bytes gzip, the extension measures 40,287
-bytes / 8,739 bytes gzip, each changelog measures 7,542 bytes / 2,306 bytes
-gzip, and each guide page measures 6,139 bytes / 1,987 bytes gzip. Ceilings
-remain 43,000 bytes / 9,200 bytes gzip for the application surfaces and 10,000
-bytes / 3,000 bytes gzip for each static page.
+Static changelogs import base chrome from `apps/web/src/static-page.css`.
+Interactive topic landing pages share the application stylesheet and adopt
+their build-time pre-rendered prose from the DOM instead of bundling localized
+guide copy into client JavaScript. The font declarations count toward the local
+CSS budgets; ceilings remain 43,000 bytes / 9,200 bytes gzip for the
+application surfaces and interactive landing pages, and 10,000 bytes / 3,000
+bytes gzip for each static changelog page.
 
 Workers Static Assets serves hashed `/assets/` files with a one-year immutable
 browser cache through `apps/web/public/_headers`. HTML keeps the default
