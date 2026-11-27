@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Unquote
 
-Last Updated: 2026-10-26
+Last Updated: 2026-11-27
 
 This document records repository-derived listing information. Dashboard-only fields below
 must be confirmed before a store submission; this change does not submit a release.
@@ -24,16 +24,18 @@ local time and UTC without changing the original values.
 
 Compare JSON by path, build filtered record tables, inspect field presence and types, and
 export matching rows as CSV. Select source lines and redact specified fields before
-downloading problem excerpts as Markdown or JSONL. Select Agent conversation turns to
-preview and download redacted Markdown reports with full source content, source line
-references, and paired tool calls and results.
+copying or downloading problem excerpts as Markdown or JSONL. Select Agent conversation turns
+from a floating bar to preview, copy, and download redacted Markdown reports with full source
+content, source line references, and paired tool calls and results.
 
-Open JSON with less waiting, run submitted searches immediately, and keep search and
-record filters accessible on narrow screens.
+Open Unquote faster with a lighter initial bundle, drop files anywhere onto an active
+workspace, step through search matches with Enter / Shift+Enter, and keep search and record
+filters accessible on narrow screens.
 
-Open Unquote from the toolbar or keyboard shortcut, then paste text or open a local file.
-You can also select text on a page and choose Open in Unquote from the context menu. If the
-selection cannot be imported, Unquote explains how to paste it manually or open a file.
+Open Unquote from the toolbar or keyboard shortcut (reusing an open Unquote tab when present),
+then paste text or open a local file. You can also select text on a page and choose Open in
+Unquote from the context menu. If the selection cannot be imported, Unquote explains how to
+paste it manually or open a file.
 
 **Category:** Developer Tools (proposed; confirm dashboard selection).
 
@@ -99,6 +101,7 @@ selected text. Data is not sold, used for unrelated purposes, or used for lendin
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
+| 1.2.6 | 2026-11-27 | Cut initial UI JavaScript by roughly 41% and accelerate large-file parsing, streaming, search, and Trajectory views; add window drag-and-drop, Copy Markdown for reports, floating Agent turn report bar, and search match stepping/filter chips; improve search routing, Agent message selection and tool collapse, JSON tree navigation, SSE metadata handling, and extension tab reuse. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.5 | 2026-10-26 | Add SSE event viewing, JWT and timestamp decoding, Agent turn reports, Claude Code subagent activity and reported totals, per-tool summaries and API retry details; correct Codex tool completion failures and timing. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.4 | 2026-10-10 | Reduce parsing and view-loading delays, run submitted searches immediately, and improve narrow-screen toolbars and search placeholder contrast. No permission or extension data-use changes. | Prepared; not submitted |
 | 1.2.3 | 2026-09-13 | Add JSON comparison, filtered tables and CSV export, field profiles, and redacted problem reports; improve large-record copy/export, selection-import recovery, and hover feedback; bundle fonts locally. | Prepared; not submitted |

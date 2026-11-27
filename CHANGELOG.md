@@ -5,6 +5,32 @@
 > inside this repository, not a notice to external consumers. See
 > [`docs/core-distribution.md`](docs/core-distribution.md).
 
+## [1.2.6] - 2026-11-27
+
+### Added
+
+- Added Copy Markdown to the report dialog so problem excerpts and Agent turn reports can be copied directly to the clipboard.
+- Added window-level drag-and-drop while a workspace is open, along with broader file picker support and clipboard detection for SSE, NDJSON, and `.log` files.
+- Added `Enter` / `Shift+Enter` match stepping and in-field match status in the search box, plus active filter chips for error and search-match filters.
+
+### Changed
+
+- Cut initial UI JavaScript by roughly 41% by splitting the import shell from the loaded workspace, replacing third-party UI and motion runtimes with lightweight WAI-ARIA primitives and native Web Animations, trimming unused font subsets, and lazy-loading record export.
+- Accelerated JSON/JSONL parsing, streaming checkpoints, search traversal, exact-path lookups, and Trajectory/Facts rendering for faster loading and inspection on large files.
+- Floated the Agent turn report selection bar at the bottom of the conversation pane so checking turns no longer shifts messages downward.
+- Upgraded React to 19.3.1, Vite to 8.3.8, and workspace build, test, lint, and CI dependencies within existing bundle budgets.
+- Web and browser-extension app versions, including the Safari host marketing version, bumped to `1.2.6`.
+
+### Fixed
+
+- Kept regex, jq, and literal search queries (such as `[DONE]` or `$schema`) in search mode instead of treating them as path jumps, switched Agent and Trajectory views to JSON when running search or filter actions, executed arrow-selected Command Palette rows on `Enter`, and kept narrow search and command inputs usable.
+- Preserved multiline formatting and text selection in Agent conversation messages via a dedicated header select button, allowed collapsing expanded tool cards back down, and retained collapsed tool state across remounts.
+- Refined JSON tree navigation and layout: bounded collapsed stringified previews, synced the active row on path and search jumps, moved `ArrowRight` into expanded containers, avoided unnecessary center-scrolling on direct tree or rail clicks, widened record rail line numbers, guarded keyboard shortcuts (`Cmd+K`, `Cmd+C`, `Escape`), and sized the workspace shell with `100dvh` on mobile viewports.
+- Kept SSE metadata fields (`event`, `id`, `retry`) unexpanded while preserving numeric `retry` values, and improved large-file JSON/JSONL detection and malformed header error handling.
+- Fixed Agent session categorization for `sub_agent_activity` and `context_compacted`, prevented Claude metadata and task notifications from opening spurious user turns, and tightened Record insight error detection.
+- Fixed search timeouts, main-thread fallback budgets, and delivery of the final streamed record batch.
+- Browser extension toolbar clicks and shortcuts now reuse and focus the existing Unquote tab, reinstall cleanly resets the context menu, and expired selection handoffs are swept before writing new ones.
+
 ## [1.2.5] - 2026-10-26
 
 ### Added

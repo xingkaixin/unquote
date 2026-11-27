@@ -89,6 +89,21 @@ const changelogCopy = {
     versionPrefix: "Version",
     releases: [
       {
+        version: "1.2.6",
+        date: "2026-11-27",
+        dateLabel: "November 27, 2026",
+        title: "Faster startup and parsing, smoother search and Agent workflows",
+        summary:
+          "Unquote loads with roughly 41% less initial JavaScript and parses and searches large files faster. Search routing, tree navigation, Agent conversations, and report exports gain everyday usability fixes.",
+        highlights: [
+          "Open Unquote faster with a smaller initial bundle, deferred workspace loading, and lighter UI primitives, while core parsing, streaming, search, and Trajectory views run faster on large files.",
+          "Drop files anywhere on an open workspace, import SSE, NDJSON, and log files more smoothly, and copy Markdown directly from problem excerpt and Agent turn report dialogs.",
+          "Step through search matches with Enter and Shift+Enter, see active error and match filter chips, and keep literal, regex, and jq queries from jumping into path mode.",
+          "Select text and preserve multiline formatting in Agent messages, collapse tool cards back down, and pick turns from a floating report bar that does not shift the conversation.",
+          "Improve JSON tree keyboard navigation, SSE metadata handling, Agent event categorization, and browser extension tab reuse.",
+        ],
+      },
+      {
         version: "1.2.5",
         date: "2026-10-26",
         dateLabel: "October 26, 2026",
@@ -257,6 +272,21 @@ const changelogCopy = {
     latestSummary: "更新说明只关注用户可以感知的变化，不罗列背后的实现细节。",
     versionPrefix: "版本",
     releases: [
+      {
+        version: "1.2.6",
+        date: "2026-11-27",
+        dateLabel: "2026 年 11 月 27 日",
+        title: "更快的首屏与解析，更顺手的搜索与 Agent 体验",
+        summary:
+          "Unquote 首屏 JavaScript 体积减少约 41%，大文件解析与搜索更快。搜索路由、树导航、Agent 对话与报告导出也迎来多项日常体验修复。",
+        highlights: [
+          "通过更轻的首屏包体、按需加载的工作区与更轻量的基础组件加快打开速度，同时提速大文件的解析、流式导入、搜索与轨迹视图。",
+          "工作区已打开时支持窗口任意位置拖放导入，完善 SSE、NDJSON 与日志文件识别，并在问题片段和 Agent 轮次报告弹窗支持一键复制 Markdown。",
+          "支持在搜索框内按 Enter 和 Shift+Enter 切换匹配、显示错误与匹配筛选标签，并避免字面量、正则和 jq 查询被误判为路径跳转。",
+          "Agent 对话消息保留多行格式与文本选中能力，工具卡片支持重新折叠，悬浮式轮次报告栏勾选时不再推动消息列表。",
+          "改进 JSON 树键盘导航、SSE 元数据处理、Agent 事件分类，以及浏览器扩展对已有标签页的复用。",
+        ],
+      },
       {
         version: "1.2.5",
         date: "2026-10-26",
@@ -430,6 +460,21 @@ const changelogCopy = {
     latestSummary: "実装の詳細ではなく、ユーザーが実感できる変化を中心にまとめています。",
     versionPrefix: "バージョン",
     releases: [
+      {
+        version: "1.2.6",
+        date: "2026-11-27",
+        dateLabel: "2026年11月27日",
+        title: "起動と解析を高速化し、検索と Agent 操作を改善",
+        summary:
+          "初期 JavaScript を約 41% 削減して起動を軽くし、大きなファイルの解析と検索を高速化しました。検索ルーティング、ツリー操作、Agent 会話、レポート出力の使い勝手も改善しています。",
+        highlights: [
+          "初期バンドルの縮小、ワークスペースの遅延読み込み、軽量な UI プリミティブにより起動を高速化し、大きなファイルの解析、ストリーミング、検索、軌跡ビューの応答性を高めました。",
+          "ワークスペース表示中でもウィンドウ全体へのドラッグ＆ドロップに対応し、SSE・NDJSON・ログファイルの取り込みを改善。問題抜粋と Agent ターンレポートから Markdown を直接コピーできます。",
+          "検索欄で Enter / Shift+Enter による一致移動と状態表示に対応し、エラーや一致の絞り込みチップを表示。通常文字列、正規表現、jq クエリがパスジャンプとして誤処理されなくなりました。",
+          "Agent 会話で複数行の書式とテキスト選択を維持し、展開したツールカードを再び折りたためるようにしました。フローティング形式のレポートバーにより、ターン選択時に会話がずれません。",
+          "JSON ツリーのキーボード移動、SSE メタデータの扱い、Agent イベントの分類、ブラウザ拡張の既存タブ再利用を改善しました。",
+        ],
+      },
       {
         version: "1.2.5",
         date: "2026-10-26",
