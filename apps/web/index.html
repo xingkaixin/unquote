@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Unquote expands escaped JSON strings and JSONL files into a searchable tree, runs locally in your browser, and exports the expanded JSON for debugging."
+      content="Local JSON, JSONL, and SSE viewer. Recursively expand escaped JSON strings, inspect Codex and Claude Code session logs, diff payloads, and export CSV in your browser."
     />
     <meta name="robots" content="index, follow" />
     <meta
@@ -20,10 +20,13 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://unquote.xingkaixin.me/" />
     <meta property="og:site_name" content="Unquote" />
-    <meta property="og:title" content="JSON / JSONL Viewer - Expand Escaped JSON | Unquote" />
+    <meta
+      property="og:title"
+      content="JSON, JSONL & SSE Viewer - Expand Escaped JSON & Agent Logs | Unquote"
+    />
     <meta
       property="og:description"
-      content="Expand escaped JSON strings and JSONL files into a searchable tree directly in your browser."
+      content="Expand escaped JSON strings, parse JSONL and SSE streams, and inspect Codex and Claude Code logs locally in your browser."
     />
     <meta property="og:image" content="https://unquote.xingkaixin.me/og-image.png" />
     <meta property="og:image:alt" content="Unquote product logo social preview" />
@@ -34,46 +37,91 @@
     <meta property="og:locale:alternate" content="zh_CN" />
     <meta property="og:locale:alternate" content="ja_JP" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="JSON / JSONL Viewer - Expand Escaped JSON | Unquote" />
+    <meta
+      name="twitter:title"
+      content="JSON, JSONL & SSE Viewer - Expand Escaped JSON & Agent Logs | Unquote"
+    />
     <meta
       name="twitter:description"
-      content="Expand escaped JSON strings and JSONL files into a searchable tree directly in your browser."
+      content="Expand escaped JSON strings, parse JSONL and SSE streams, and inspect Codex and Claude Code logs locally in your browser."
     />
     <meta name="twitter:image" content="https://unquote.xingkaixin.me/og-image.png" />
     <meta name="twitter:image:alt" content="Unquote product logo social preview" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>JSON / JSONL Viewer - Expand Escaped JSON | Unquote</title>
+    <title>JSON, JSONL &amp; SSE Viewer - Expand Escaped JSON &amp; Agent Logs | Unquote</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Unquote",
-        "alternateName": "Unquote JSONL Viewer",
-        "url": "https://unquote.xingkaixin.me/",
-        "image": "https://unquote.xingkaixin.me/og-image.png",
-        "applicationCategory": "DeveloperApplication",
-        "applicationSubCategory": "JSON viewer",
-        "operatingSystem": "Web, Chrome, Edge, Safari",
-        "browserRequirements": "Requires JavaScript and a modern browser.",
-        "releaseNotes": "https://unquote.xingkaixin.me/changelog/",
-        "inLanguage": ["en", "zh-CN", "ja"],
-        "isAccessibleForFree": true,
-        "description": "Unquote expands escaped JSON strings and JSONL files into a searchable tree, runs locally in your browser, and exports the expanded JSON for debugging.",
-        "featureList": [
-          "Recursive expansion of stringified JSON",
-          "JSON and JSONL parsing",
-          "Search across keys, values, and JSONPath-style paths",
-          "Local browser-based processing",
-          "Expanded JSON and JSONL export"
-        ],
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "sameAs": [
-          "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg",
-          "https://microsoftedge.microsoft.com/addons/detail/amdbhljchamjbhknbamkcemccmelegdp"
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "Unquote",
+            "alternateName": [
+              "Unquote JSONL Viewer",
+              "Unquote JSON Unescape",
+              "Unquote SSE Viewer"
+            ],
+            "url": "https://unquote.xingkaixin.me/",
+            "image": "https://unquote.xingkaixin.me/og-image.png",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "JSON, JSONL and SSE viewer",
+            "operatingSystem": "Web, Chrome, Edge, Safari",
+            "browserRequirements": "Requires JavaScript and a modern browser.",
+            "releaseNotes": "https://unquote.xingkaixin.me/changelog/",
+            "inLanguage": ["en", "zh-CN", "ja"],
+            "isAccessibleForFree": true,
+            "description": "Local JSON, JSONL, and SSE viewer that recursively expands stringified JSON, renders Agent and Trajectory views for Codex and Claude Code logs, and runs entirely in your browser.",
+            "featureList": [
+              "Recursive expansion of stringified and escaped JSON",
+              "JSON, JSONL / NDJSON, and WHATWG SSE (text/event-stream) parsing",
+              "Codex rollout and Claude Code transcript Agent and Trajectory views",
+              "Search across keys, values, regex, and jq-style paths",
+              "Local structural JSON diff, record table filtering, field profiles, and CSV export",
+              "Inline JWT and Unix/ISO timestamp decoding in the node inspector",
+              "Lossless JSON number source lexeme preservation",
+              "100% local browser processing with Chrome and Edge extensions"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "sameAs": [
+              "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg",
+              "https://microsoftedge.microsoft.com/addons/detail/amdbhljchamjbhknbamkcemccmelegdp",
+              "https://github.com/xingkaixin/unquote"
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "inLanguage": "en",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What makes Unquote different from a standard JSON formatter?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "A standard formatter only indents outer JSON and leaves escaped JSON strings as raw text. Unquote recursively parses nested stringified JSON, streams large JSONL and SSE files, preserves exact 64-bit numbers, and builds Agent and Trajectory views for Codex and Claude Code logs."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Unquote upload my JSON, JSONL, or Agent session logs?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. All parsing, searching, diffing, and exporting run locally inside your browser or browser extension with no backend storage. You can also redact specified JSON paths before exporting Markdown or JSONL excerpts."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which formats and browser extensions does Unquote support?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Unquote supports JSON, JSONL / NDJSON, WHATWG SSE (text/event-stream), and automatic Agent session detection for Codex rollout and Claude Code transcript JSONL logs. It is available free on the web and as Chrome and Edge extensions."
+                }
+              }
+            ]
+          }
         ]
       }
     </script>
