@@ -14,6 +14,17 @@ export const trackAnalyticsEvent = (event: UnquoteAnalyticsEvent, page: string) 
   }
 
   try {
+    if (event.name === "parse-source" && event.data.input === "text") {
+      const { input: _input, ...rest } = event.data;
+      window.umami?.track?.("paste-json", { ...rest, page });
+      return;
+    }
+
+    if (event.name === "sample-select") {
+      window.umami?.track?.("load-sample", { ...event.data, page });
+      return;
+    }
+
     window.umami?.track?.(event.name, { ...event.data, page });
   } catch {
     // Analytics must never interrupt parsing or viewing workflows.

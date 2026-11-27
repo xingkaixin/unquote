@@ -6,7 +6,7 @@ describe("web analytics bridge", () => {
     vi.unstubAllGlobals();
   });
 
-  it("forwards structured event payloads with the current page tag", () => {
+  it("maps text parses to paste-json, samples to load-sample, and forwards other events", () => {
     const track = vi.fn();
     vi.stubGlobal("window", { umami: { track } });
 
@@ -17,13 +17,31 @@ describe("web analytics bridge", () => {
       },
       "zh-CN:sse-viewer",
     );
+    trackAnalyticsEvent(
+      {
+        name: "parse-source",
+        data: { input: "file", mode: "jsonl", format: "jsonl", agent: "true" },
+      },
+      "en:agent-log-viewer",
+    );
+    trackAnalyticsEvent({ name: "sample-select", data: { sample: "codex-rollout-jsonl" } }, "home");
 
-    expect(track).toHaveBeenCalledWith("parse-source", {
-      input: "text",
+    expect(track).toHaveBeenNthCalledWith(1, "paste-json", {
       mode: "sse",
       format: "sse",
       agent: "false",
       page: "zh-CN:sse-viewer",
+    });
+    expect(track).toHaveBeenNthCalledWith(2, "parse-source", {
+      input: "file",
+      mode: "jsonl",
+      format: "jsonl",
+      agent: "true",
+      page: "en:agent-log-viewer",
+    });
+    expect(track).toHaveBeenNthCalledWith(3, "load-sample", {
+      sample: "codex-rollout-jsonl",
+      page: "home",
     });
   });
 
