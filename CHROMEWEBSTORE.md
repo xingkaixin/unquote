@@ -93,6 +93,12 @@ selected text. Data is not sold, used for unrelated purposes, or used for lendin
 
 **Homepage:** https://unquote.xingkaixin.me/
 
+**Web Guides (include in store description updates):**
+- JSON Unescape: https://unquote.xingkaixin.me/json-unescape/
+- JSONL / NDJSON Viewer: https://unquote.xingkaixin.me/jsonl-viewer/
+- Claude Code, Codex & MCP Agent Log Viewer: https://unquote.xingkaixin.me/agent-log-viewer/
+- SSE Stream Viewer: https://unquote.xingkaixin.me/sse-viewer/
+
 **Support:** https://github.com/xingkaixin/unquote/issues
 
 **Publisher, contact email, visibility, regions:** Confirm current dashboard settings.
