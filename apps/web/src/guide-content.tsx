@@ -34,9 +34,9 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
       title: "JSONL Viewer Online: Open, Search & Inspect NDJSON Files | Unquote",
       heading: "Open and search JSONL / NDJSON files locally",
       description:
-        "Free online JSONL and NDJSON viewer that runs locally in your browser. Inspect records, isolate invalid lines, expand stringified JSON, filter as a table, and export CSV without uploading files.",
+        "Free local JSONL & NDJSON viewer. Stream large logs and OpenAI Batch JSONL, expand escaped JSON strings, isolate invalid lines, filter tables, and export CSV.",
       summary:
-        "Unquote is a free browser-based JSONL and NDJSON viewer. Paste records or drop a local file above to browse each line as a tree, recursively expand escaped JSON strings, isolate invalid lines, and export filtered tables—all processed locally with no account or upload.",
+        "Unquote is a free browser-based JSONL and NDJSON viewer. Paste records or drop a local file above—including OpenAI Batch API outputs and MCP logs—to browse each line as a tree, recursively expand escaped JSON strings, isolate invalid lines, and export filtered CSV tables locally.",
       content: (
         <>
           <section className={sectionClass}>
@@ -63,6 +63,42 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
               A malformed line does not hide valid records. Unquote shows the parse error alongside
               the original source line while every other record stays searchable and readable.
             </p>
+          </section>
+          <section className={sectionClass}>
+            <h2 className={headingClass}>
+              Expand escaped JSON in OpenAI Batch &amp; MCP JSONL logs
+            </h2>
+            <p className={paragraphClass}>
+              OpenAI Batch API outputs, LLM evaluation datasets, and MCP tool logs often wrap tool
+              call arguments as escaped JSON strings inside each JSONL line. Unquote parses every
+              line independently and recursively expands nested JSON strings into a navigable tree.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  Before: raw JSONL line with nested escaped tool arguments
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{"custom_id":"req-1","response":{"body":{"tool_call":"{\\"name\\":\\"lookup\\",\\"arguments\\":\\"{\\\\\\"id\\\\\\":42}\\"}"}}}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  After: recursively expanded tree ready to search and filter
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{\n  "custom_id": "req-1",\n  "response": {\n    "body": {\n      "tool_call": {\n        "name": "lookup",\n        "arguments": { "id": 42 }\n      }\n    }\n  }\n}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+            </div>
           </section>
           <section className={sectionClass}>
             <h2 className={headingClass}>JSONL, NDJSON, and a JSON array</h2>
@@ -114,6 +150,17 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             "Drop your .jsonl or .ndjson file directly into the Unquote input box on this page or click Choose file. Unquote streams and parses each line locally in your browser into a searchable tree, with no login, installation, or file upload required.",
         },
         {
+          question:
+            "Why do JSON validators fail with Unexpected non-whitespace character after JSON on JSONL?",
+          answer:
+            "Standard JSON parsers expect a single root object or array, so they fail as soon as line 2 begins. JSONL stores one complete JSON value per line without outer brackets or trailing commas. Unquote parses each nonblank line independently and isolates trailing commas or truncated lines with their source line numbers.",
+        },
+        {
+          question: "Can Unquote open OpenAI Batch API JSONL output files?",
+          answer:
+            "Yes. Drop an OpenAI Batch .jsonl output file into Unquote to stream records locally, recursively expand escaped tool call arguments inside response bodies, project fields like custom_id and error status into a Record Table, and export filtered rows as CSV.",
+        },
+        {
           question: "Can Unquote open large JSONL files with malformed lines?",
           answer:
             "Yes. Local JSONL files are read incrementally in a background worker with virtualized rendering. If one line contains invalid JSON, Unquote marks only that line with its parse error and original text while keeping all valid records browsable and searchable.",
@@ -129,9 +176,9 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
       title: "JSONL 在线查看器：本地打开、检索与导出 NDJSON 文件 | Unquote",
       heading: "本地打开并检索 JSONL / NDJSON 大文件",
       description:
-        "免费本地 JSONL / NDJSON 在线查看器。在浏览器中流式解析大文件、隔离错误行、递归展开字符串化 JSON、按列筛选并导出 CSV，文件全程不上传。",
+        "免费本地 JSONL / NDJSON 在线查看器。在浏览器中流式解析大文件与 OpenAI Batch JSONL、展开嵌套转义 JSON、隔离错误行、按列筛选并导出 CSV，全程不上传。",
       summary:
-        "Unquote 是运行在本地浏览器中的免费 JSONL / NDJSON 查看器。直接在上方拖入文件或粘贴日志即可逐行树状浏览、展开嵌套转义 JSON、定位格式错误行并导出表格，无需登录也不上传任何内容。",
+        "Unquote 是运行在本地浏览器中的免费 JSONL / NDJSON 查看器。直接在上方拖入文件或粘贴日志（包括 OpenAI Batch 输出和 MCP 日志），即可逐行树状浏览、递归展开转义 JSON、定位格式错误行并导出表格，全程不上传数据。",
       content: (
         <>
           <section className={sectionClass}>
@@ -149,6 +196,40 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
               单行 JSON 格式损坏不会影响整份文件。Unquote
               会在出错行展示具体报错与原始行文本，其余有效记录仍可正常浏览、检索和导出。
             </p>
+          </section>
+          <section className={sectionClass}>
+            <h2 className={headingClass}>展开 OpenAI Batch 与 MCP JSONL 中的多层转义日志</h2>
+            <p className={paragraphClass}>
+              OpenAI Batch API 批量结果、评测数据集和 MCP
+              工具日志常把工具调用参数作为转义字符串嵌在每行 JSONL 里。Unquote
+              逐行独立解析，并自动递归展开多层转义 JSON 字符串，直接检索内层字段。
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  展开前：含多层转义工具参数的原始 JSONL 行
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{"custom_id":"req-1","response":{"body":{"tool_call":"{\\"name\\":\\"lookup\\",\\"arguments\\":\\"{\\\\\\"id\\\\\\":42}\\"}"}}}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  展开后：自动递归还原为可搜索、可筛选的结构树
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{\n  "custom_id": "req-1",\n  "response": {\n    "body": {\n      "tool_call": {\n        "name": "lookup",\n        "arguments": { "id": 42 }\n      }\n    }\n  }\n}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+            </div>
           </section>
           <section className={sectionClass}>
             <h2 className={headingClass}>JSONL、NDJSON 与普通 JSON 数组的区别</h2>
@@ -196,6 +277,16 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             "把 .jsonl 或 .ndjson 文件直接拖到本页上方的输入区，或点击“选择文件”。Unquote 会在浏览器本地逐行解析并生成可搜索的树状视图，无需安装客户端，也不会上传文件内容。",
         },
         {
+          question: "为什么 JSONL 放进普通 JSON 校验工具会报 Unexpected non-whitespace character？",
+          answer:
+            "普通 JSON 解析器只接受单个根对象或根数组，读到第二行就会报语法错误。JSONL 每行一条独立 JSON 且行尾不加逗号。Unquote 会逐行独立解析，即使某行出现尾随逗号或截断损坏，也只标出对应行号而不影响其余记录。",
+        },
+        {
+          question: "可以用 Unquote 查看 OpenAI Batch API 导出的 JSONL 结果文件吗？",
+          answer:
+            "可以。直接把 OpenAI Batch 的 .jsonl 文件拖入 Unquote，即可在本地流式浏览每条批处理记录、自动递归展开响应体里转义的工具调用参数，还能在记录表格中按 custom_id 和错误状态筛选并导出 CSV。",
+        },
+        {
           question: "JSONL 文件很大或者中间有坏行能打开吗？",
           answer:
             "可以。本地 JSONL 文件会通过后台 Worker 流式解析并虚拟化渲染。如果中间有某一行语法错误，Unquote 只会标记该行的解析错误和原始文本，其余有效记录仍可正常查看和检索。",
@@ -213,34 +304,41 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
       title: "JSON Unescape Online: Expand Escaped & Stringified JSON | Unquote",
       heading: "Unescape stringified JSON into a searchable tree",
       description:
-        "Free online JSON unescape tool. Recursively expand escaped JSON strings inside API responses, webhooks, and logs into a structured tree locally in your browser.",
+        "Free local JSON unescape tool. Recursively expand multi-layer escaped JSON strings in LLM API responses, MCP tool calls, webhooks, and logs in your browser.",
       summary:
-        "Unquote recursively parses JSON stored inside escaped JSON strings and displays the result as a searchable tree. Paste an API payload or log record above to inspect nested objects and arrays without manually stripping backslashes—all locally in your browser.",
+        "Unquote recursively parses JSON stored inside escaped JSON strings—including double-encoded LLM API responses and MCP tool call arguments—and displays the result as a searchable tree locally in your browser without manually stripping backslashes.",
       content: (
         <>
           <section className={sectionClass}>
             <h2 className={headingClass}>What is stringified JSON?</h2>
             <p className={paragraphClass}>
-              APIs, webhooks, queues, and LLM tool calls frequently serialize a JSON object as a
-              string field. Quotes and newlines inside that field are escaped with backslashes, so a
-              standard JSON formatter still shows it as an unreadable string.
+              LLM APIs, MCP tool calls, webhooks, and message queues frequently serialize a JSON
+              object as a string field—sometimes two or three layers deep. Quotes and newlines
+              inside that field are escaped with backslashes, so a standard JSON formatter still
+              shows it as an unreadable string.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <figure className="m-0 min-w-0">
                 <figcaption className={captionClass}>
-                  Before: JSON encoded inside the body string
+                  Before: multi-layer escaped MCP tool call arguments
                 </figcaption>
                 <pre tabIndex={0} className={preClass}>
-                  <code>{'{"body":"{\\"user\\":{\\"id\\":42},\\"active\\":true}"}'}</code>
+                  <code>
+                    {
+                      '{"tool":"mcp.github.search","arguments":"{\\"repo\\":\\"unquote\\",\\"query\\":\\"{\\\\\\"state\\\\\\":\\\\\\"open\\\\\\"}\\"}"}'
+                    }
+                  </code>
                 </pre>
               </figure>
               <figure className="m-0 min-w-0">
                 <figcaption className={captionClass}>
-                  After: recursively expanded into an object
+                  After: recursively expanded into a browsable object tree
                 </figcaption>
                 <pre tabIndex={0} className={preClass}>
                   <code>
-                    {'{\n  "body": {\n    "user": { "id": 42 },\n    "active": true\n  }\n}'}
+                    {
+                      '{\n  "tool": "mcp.github.search",\n  "arguments": {\n    "repo": "unquote",\n    "query": { "state": "open" }\n  }\n}'
+                    }
                   </code>
                 </pre>
               </figure>
@@ -290,6 +388,17 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             "Paste your JSON response or log line into the Unquote box above and click Parse. Unquote parses each valid JSON string recursively across nested layers into a structured tree, then lets you search inner keys or copy and export the expanded JSON locally.",
         },
         {
+          question:
+            "Why does JSON.parse fail with Unexpected token or Bad control character on escaped JSON?",
+          answer:
+            'Double-escaped quotes (\\"), unescaped newlines inside string literals, or stray backslashes commonly trigger JSON.parse SyntaxError failures. Unquote parses each layer with a strict JSON parser: valid nested JSON strings expand recursively while non-JSON or malformed strings stay intact instead of breaking the whole payload.',
+        },
+        {
+          question: "Can Unquote unescape MCP tool call arguments and LLM API JSON responses?",
+          answer:
+            "Yes. OpenAI, Anthropic, and MCP tool calls frequently encode structured arguments and results as escaped JSON strings. Paste the raw response or log line above to recursively unescape nested layers, inspect inner fields, and copy clean JSON locally.",
+        },
+        {
           question: "Will JSON unescaping round large 64-bit integer IDs?",
           answer:
             "No. Unquote preserves original JSON number source lexemes through parsing, display, copying, and export. Large integers such as Snowflake or Stripe-style numeric IDs keep every digit intact instead of losing precision in JavaScript floating-point numbers.",
@@ -305,32 +414,38 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
       title: "JSON 去转义在线工具：递归展开字符串化嵌套 JSON | Unquote",
       heading: "把转义 JSON 字符串展开为可检索的结构树",
       description:
-        "免费本地 JSON 去转义工具。自动递归展开 API 响应、Webhook 和日志中的多层转义 JSON 字符串，支持搜索、Diff 对比与导出，全程在浏览器本地运行。",
+        "免费本地 JSON 去转义工具。自动递归展开大模型 API 响应、MCP 工具调用、Webhook 和日志中的多层转义 JSON 字符串，支持搜索、Diff 与导出，全程本地运行。",
       summary:
-        "Unquote 能自动识别并递归解析藏在 JSON 字符串里的多层转义 JSON，直接展开为可浏览、可搜索的树状结构。在上方粘贴接口报文或日志即可查看，无需手动删反斜杠，数据完全留在本地浏览器。",
+        "Unquote 能自动识别并递归解析藏在 JSON 字符串里的多层转义 JSON（常见于大模型 API 响应与 MCP 工具调用参数），直接展开为可浏览、可搜索的树状结构，无需手动删反斜杠，数据完全留在本地浏览器。",
       content: (
         <>
           <section className={sectionClass}>
             <h2 className={headingClass}>什么是字符串化（转义）JSON？</h2>
             <p className={paragraphClass}>
-              在微服务日志、Webhook 回调、消息队列和大模型工具调用参数中，经常会把整段 JSON
-              二次序列化成字符串放进某个字段里。普通 JSON 格式化工具只会把它当成满屏 <code>\"</code>{" "}
-              的纯文本展示。
+              在大模型 API 响应、MCP 工具调用参数、微服务日志与 Webhook 回调中，经常会把整段 JSON
+              二次甚至三次序列化成字符串放进某个字段里。普通 JSON 格式化工具只会把它当成满屏{" "}
+              <code>\"</code> 的纯文本展示。
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <figure className="m-0 min-w-0">
                 <figcaption className={captionClass}>
-                  展开前：body 字段是转义 JSON 字符串
+                  展开前：多层转义的 MCP 工具调用参数字符串
                 </figcaption>
                 <pre tabIndex={0} className={preClass}>
-                  <code>{'{"body":"{\\"user\\":{\\"id\\":42},\\"active\\":true}"}'}</code>
+                  <code>
+                    {
+                      '{"tool":"mcp.github.search","arguments":"{\\"repo\\":\\"unquote\\",\\"query\\":\\"{\\\\\\"state\\\\\\":\\\\\\"open\\\\\\"}\\"}"}'
+                    }
+                  </code>
                 </pre>
               </figure>
               <figure className="m-0 min-w-0">
-                <figcaption className={captionClass}>展开后：递归还原为可浏览对象</figcaption>
+                <figcaption className={captionClass}>展开后：逐层递归还原为可浏览对象树</figcaption>
                 <pre tabIndex={0} className={preClass}>
                   <code>
-                    {'{\n  "body": {\n    "user": { "id": 42 },\n    "active": true\n  }\n}'}
+                    {
+                      '{\n  "tool": "mcp.github.search",\n  "arguments": {\n    "repo": "unquote",\n    "query": { "state": "open" }\n  }\n}'
+                    }
                   </code>
                 </pre>
               </figure>
@@ -372,6 +487,17 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             "把包含转义字符串的完整 JSON 粘贴到本页上方输入框并点击解析即可。Unquote 会自动逐层识别合法的嵌套 JSON 字符串并递归展开为树状结构，方便直接搜索内层字段或导出结果。",
         },
         {
+          question:
+            "为什么转义 JSON 用 JSON.parse 会报 Unexpected token 或 Bad control character？",
+          answer:
+            '常见原因是多层转义引号（\\"）、字符串内夹杂未转义换行符或非法反斜杠导致语法错误。Unquote 逐层使用严格 JSON 解析器：合法的嵌套 JSON 字符串会自动递归展开，不合法或普通文本字符串则原样保留，不会拖垮整条报文。',
+        },
+        {
+          question: "可以直接展开 MCP 工具调用参数或大模型 API 返回的转义 JSON 吗？",
+          answer:
+            "可以。OpenAI、Claude 和 MCP 工具调用常把结构化参数与结果二次序列化成转义字符串。直接粘贴原始报文即可递归展开多层嵌套字段，并在本地搜索、Diff 对比或导出干净的 JSON。",
+        },
+        {
           question: "展开转义 JSON 时大整数 ID 会丢失精度吗？",
           answer:
             "不会。Unquote 在解析、界面展示、复制和导出全链路保留 JSON 数字的原始字面量，雪花 ID 等超过 JavaScript 安全整数范围的数字都不会被四舍五入。",
@@ -386,12 +512,12 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
   },
   "agent-log-viewer": {
     en: {
-      title: "Codex & Claude Code JSONL Log Viewer: Agent Trajectory Tool | Unquote",
-      heading: "Read Codex rollout and Claude Code JSONL session logs",
+      title: "Claude Code & Codex JSONL Log Viewer: MCP & Agent Logs | Unquote",
+      heading: "Claude Code, Codex, and MCP JSONL log viewer",
       description:
-        "Inspect Codex rollout and Claude Code transcript JSONL logs locally in your browser. Follow turns, tool calls, failures, token usage, and timelines with raw record links.",
+        "Local Claude Code & Codex JSONL log viewer. Unescape MCP tool call JSON, trace turns, failures, and token usage, or open OpenAI Batch JSONL in your browser.",
       summary:
-        "Unquote turns Codex rollout and Claude Code transcript JSONL files into structured Agent conversation and Trajectory timeline views. Drop a local session log above to trace tool calls, inspect failures, review token usage, and export redacted turn reports without uploading private code.",
+        "Unquote is a local Claude Code JSONL viewer and Codex rollout log viewer that also unescapes nested MCP tool call JSON. Drop a session log above to follow turns, inspect tool failures and token usage in Trajectory view, and export redacted Markdown reports—without uploading private code.",
       content: (
         <>
           <section className={sectionClass}>
@@ -417,6 +543,40 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             </ol>
           </section>
           <section className={sectionClass}>
+            <h2 className={headingClass}>Unescape nested MCP &amp; Agent tool call JSON</h2>
+            <p className={paragraphClass}>
+              Agent transcripts and MCP tool logs frequently store tool arguments and outputs as
+              multi-layer escaped JSON strings. Unquote recursively unescapes every nested layer
+              automatically so you can read parameters and search inner keys directly.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  Before: raw Agent JSONL record with escaped MCP tool arguments
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{"type":"function_call","name":"mcp.billing.search","arguments":"{\\"customerId\\":\\"cus_42\\",\\"filters\\":\\"{\\\\\\"status\\\\\\":\\\\\\"open\\\\\\"}\\"}"}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  After: recursively expanded arguments in Agent &amp; JSON views
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{\n  "type": "function_call",\n  "name": "mcp.billing.search",\n  "arguments": {\n    "customerId": "cus_42",\n    "filters": { "status": "open" }\n  }\n}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+            </div>
+          </section>
+          <section className={sectionClass}>
             <h2 className={headingClass}>Three views backed by the same source lines</h2>
             <dl className="m-0 grid gap-3 text-sm leading-[23px]">
               <div>
@@ -425,7 +585,8 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
                 </dt>
                 <dd className="m-0 mt-1 text-text-secondary">
                   Groups user prompts, assistant replies, reasoning summaries, tool calls, and
-                  paired results by turn, expanding stringified tool arguments automatically.
+                  paired results by turn, expanding stringified MCP and shell tool arguments
+                  automatically.
                 </dd>
               </div>
               <div>
@@ -461,9 +622,11 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             <h2 className={headingClass}>Supported formats and local privacy</h2>
             <p className={paragraphClass}>
               Agent and Trajectory views activate for recognized Codex rollout and Claude Code
-              transcript JSONL records. Unrecognized agent logs still open cleanly in the general
-              JSONL tree viewer. Because coding agent logs often include prompts, source code, and
-              secrets, all processing runs locally in your browser with zero upload.
+              transcript JSONL records. Other AI logs—including standalone MCP tool logs and OpenAI
+              Batch JSONL files—open cleanly in the general JSONL tree viewer with automatic
+              recursive stringified JSON expansion. Because coding agent logs often include prompts,
+              source code, and secrets, all processing runs locally in your browser with zero
+              upload.
             </p>
           </section>
         </>
@@ -473,6 +636,12 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
           question: "How do I view Claude Code or Codex JSONL session logs locally?",
           answer:
             "Drag a Claude Code transcript JSONL file (typically under ~/.claude/projects/) or a Codex rollout JSONL file (under ~/.codex/sessions/) into Unquote above. It detects the session format locally and renders Agent conversation, Trajectory timeline, and raw JSONL views.",
+        },
+        {
+          question:
+            "Can Unquote unescape nested MCP tool call JSON or open OpenAI Batch JSONL files?",
+          answer:
+            "Yes. Unquote recursively unescapes stringified JSON inside MCP tool call arguments and results across Codex, Claude Code, and generic JSONL logs. OpenAI Batch JSONL files open in the local JSONL viewer where you can expand escaped arguments, filter by custom_id in Record Table, and export CSV.",
         },
         {
           question: "Does Unquote show tool call arguments, failures, and token usage?",
@@ -487,12 +656,12 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
       ],
     },
     "zh-CN": {
-      title: "Codex 与 Claude Code JSONL 日志查看器：Agent 会话与轨迹分析 | Unquote",
-      heading: "本地查看 Codex 与 Claude Code 的 JSONL 会话日志",
+      title: "Claude Code 与 Codex JSONL 日志查看器：MCP 工具调用与轨迹 | Unquote",
+      heading: "本地查看 Claude Code、Codex 与 MCP JSONL 日志",
       description:
-        "在浏览器本地解析 Codex rollout 与 Claude Code transcript JSONL 日志。还原多轮对话、工具调用参数、失败定位、Token 统计与时间轨迹，绝不上传代码与提示词。",
+        "本地解析 Claude Code transcript 与 Codex rollout JSONL 日志。自动展开 MCP 工具调用多层转义 JSON、排查失败与 Token 轨迹，也支持浏览 OpenAI Batch JSONL。",
       summary:
-        "Unquote 能自动识别 Codex rollout 和 Claude Code transcript 的 JSONL 日志，将其转换为可读的 Agent 对话视图与 Trajectory 轨迹时间线。把本地会话文件拖到上方即可排查工具报错、查看耗时与导出脱敏轮次报告，全程本地无上传。",
+        "Unquote 是纯本地的 Claude Code 与 Codex JSONL 日志查看器，支持自动递归展开 MCP 工具调用中的多层转义 JSON。把本地会话文件拖到上方即可按轮次查看对话、在 Trajectory 轨迹视图排查失败和耗时，并导出脱敏报告，全程不上传代码。",
       content: (
         <>
           <section className={sectionClass}>
@@ -511,6 +680,39 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
             </ol>
           </section>
           <section className={sectionClass}>
+            <h2 className={headingClass}>自动递归展开 MCP 与 Agent 工具调用转义 JSON</h2>
+            <p className={paragraphClass}>
+              Agent 会话记录与 MCP 工具调用经常把参数和返回值多层转义成 JSON 字符串。Unquote
+              会在解析时自动逐层展开，无需手动复制去反斜杠即可直接阅读并检索内层字段。
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  展开前：含多层转义 MCP 参数的原始 Agent JSONL 记录
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{"type":"function_call","name":"mcp.billing.search","arguments":"{\\"customerId\\":\\"cus_42\\",\\"filters\\":\\"{\\\\\\"status\\\\\\":\\\\\\"open\\\\\\"}\\"}"}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+              <figure className="m-0 min-w-0">
+                <figcaption className={captionClass}>
+                  展开后：Agent 与 JSON 视图中自动还原的结构化参数
+                </figcaption>
+                <pre tabIndex={0} className={preClass}>
+                  <code>
+                    {
+                      '{\n  "type": "function_call",\n  "name": "mcp.billing.search",\n  "arguments": {\n    "customerId": "cus_42",\n    "filters": { "status": "open" }\n  }\n}'
+                    }
+                  </code>
+                </pre>
+              </figure>
+            </div>
+          </section>
+          <section className={sectionClass}>
             <h2 className={headingClass}>三种视图联动，始终可追溯原始行</h2>
             <dl className="m-0 grid gap-3 text-sm leading-[23px]">
               <div>
@@ -518,9 +720,8 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
                   Agent 视图 — 按轮次阅读对话与工具调用
                 </dt>
                 <dd className="m-0 mt-1 text-text-secondary">
-                  按 Turn
-                  归组用户提示、助手回复、推理摘要、工具调用与配对结果，自动展开转义的工具参数
-                  JSON。
+                  按 Turn 归组用户提示、助手回复、推理摘要、工具调用与配对结果，自动展开转义的 MCP
+                  与命令行工具参数 JSON。
                 </dd>
               </div>
               <div>
@@ -551,9 +752,9 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
           <section className={sectionClass}>
             <h2 className={headingClass}>支持范围与隐私保障</h2>
             <p className={paragraphClass}>
-              Agent 与轨迹视图专门适配 Codex rollout 与 Claude Code transcript JSONL
-              格式；其他自定义 Agent 日志仍可在通用 JSONL
-              视图中完整浏览与展开。会话日志通常包含私有代码与提示词，Unquote
+              Agent 与轨迹视图专门适配 Codex rollout 与 Claude Code transcript JSONL 格式；其他独立
+              MCP 工具日志和 OpenAI Batch JSONL 文件也可在通用 JSONL
+              视图中完整浏览并自动递归展开转义 JSON。会话日志通常包含私有代码与提示词，Unquote
               全程在浏览器本地处理，不经过任何服务端。
             </p>
           </section>
@@ -564,6 +765,11 @@ export const guides: Readonly<Record<GuideSlug, Readonly<Record<GuideLocale, Gui
           question: "怎么在本地查看 Claude Code 或 Codex 的 JSONL 会话日志？",
           answer:
             "直接把 ~/.claude/projects/ 下的 Claude Code transcript 或 ~/.codex/sessions/ 下的 Codex rollout JSONL 文件拖到本页上方即可。Unquote 会在本地自动识别格式，展示对话视图、轨迹时间线和原始 JSONL 记录。",
+        },
+        {
+          question: "支持展开 MCP 工具调用转义 JSON 或查看 OpenAI Batch JSONL 吗？",
+          answer:
+            "支持。Unquote 会在 Codex、Claude Code 和通用 JSONL 日志中自动递归展开 MCP 工具调用参数与结果里的多层转义 JSON；OpenAI Batch JSONL 也会在通用 JSONL 视图中流式打开，支持按 custom_id 筛选并导出 CSV。",
         },
         {
           question: "可以查看工具调用参数、失败原因和 Token 统计吗？",

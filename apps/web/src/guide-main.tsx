@@ -83,8 +83,6 @@ const GuideWelcome = ({ controls, trySampleLabel, onTrySample }: GuideWelcomePro
             <button
               type="button"
               onClick={onTrySample}
-              data-umami-event="try-example"
-              data-umami-event-guide={slug}
               className="rounded-sm py-1 text-sm font-medium text-text-primary underline underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               {trySampleLabel}
