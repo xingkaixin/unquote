@@ -18,6 +18,36 @@ export const sourceSamples = {
     ),
     expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.body"] }],
   },
+  sseStream: {
+    source: [
+      "event: response.output_item.added",
+      `data: ${JSON.stringify({
+        type: "response.output_item.added",
+        item: {
+          id: "fc_01",
+          type: "function_call",
+          name: "billing.search",
+          arguments: JSON.stringify({
+            customerId: "cus_42",
+            status: ["open", "past_due"],
+          }),
+        },
+      })}`,
+      "",
+      "event: response.completed",
+      `data: ${JSON.stringify({
+        type: "response.completed",
+        response: {
+          id: "resp_01",
+          status: "completed",
+          usage: { input_tokens: 184, output_tokens: 62 },
+        },
+      })}`,
+      "",
+      "data: [DONE]",
+    ].join("\n"),
+    expandedPathsByRecord: [{ recordId: "record-1", paths: ["$.data", "$.data.item.arguments"] }],
+  },
   agentToolCallJsonl: {
     source: [
       JSON.stringify({

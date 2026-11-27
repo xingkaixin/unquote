@@ -22,7 +22,7 @@ describe("UnquoteApp", () => {
       );
 
       fireEvent.dragEnter(
-        screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+        screen.getAllByPlaceholderText("Paste JSON, JSONL, or SSE, or drop a file here.")[0]!,
         {
           dataTransfer: {
             files: [],
@@ -43,7 +43,7 @@ describe("UnquoteApp", () => {
       );
 
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const file = new File(['{"pasted":true}'], "payload.json", {
         type: "application/json",
@@ -69,7 +69,7 @@ describe("UnquoteApp", () => {
       );
 
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const dispatched = fireEvent.paste(sourceInput, {
         clipboardData: {
@@ -96,7 +96,7 @@ describe("UnquoteApp", () => {
       );
 
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const dispatched = fireEvent.paste(sourceInput, {
         clipboardData: {
@@ -124,7 +124,7 @@ describe("UnquoteApp", () => {
       );
 
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const dispatched = fireEvent.paste(sourceInput, {
         clipboardData: {
@@ -216,7 +216,7 @@ describe("UnquoteApp", () => {
         </I18nProvider>,
       );
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const failureLine = '{"event":"worker-failure"}\n';
       const file = new File(
@@ -245,7 +245,7 @@ describe("UnquoteApp", () => {
       );
 
       const sourceInput = screen.getAllByPlaceholderText(
-        "Paste JSON / JSONL, or drop a file here.",
+        "Paste JSON, JSONL, or SSE, or drop a file here.",
       )[0]!;
       const longValue = `${"a".repeat(maxTransferStringLength + 32)}needle${"b".repeat(1_000_000)}`;
       const fileContents = [
@@ -309,7 +309,7 @@ describe("UnquoteApp", () => {
       const file = new File([line.repeat(Math.ceil(1_000_001 / line.length))], "large.jsonl");
 
       fireEvent.paste(
-        screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+        screen.getAllByPlaceholderText("Paste JSON, JSONL, or SSE, or drop a file here.")[0]!,
         {
           clipboardData: { files: [file], items: [], types: ["Files"] },
         },

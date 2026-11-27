@@ -52,20 +52,40 @@ const staticPages = [
     root: "dist/web",
     html: "dist/web/ja/changelog/index.html",
   },
+];
+
+const interactiveLandingPages = [
+  { name: "web landing jsonl-viewer", root: "dist/web", html: "dist/web/jsonl-viewer/index.html" },
   {
-    name: "web guide jsonl-viewer",
-    root: "dist/web",
-    html: "dist/web/jsonl-viewer/index.html",
-  },
-  {
-    name: "web guide json-unescape",
+    name: "web landing json-unescape",
     root: "dist/web",
     html: "dist/web/json-unescape/index.html",
   },
   {
-    name: "web guide agent-log-viewer",
+    name: "web landing agent-log-viewer",
     root: "dist/web",
     html: "dist/web/agent-log-viewer/index.html",
+  },
+  { name: "web landing sse-viewer", root: "dist/web", html: "dist/web/sse-viewer/index.html" },
+  {
+    name: "web landing zh-CN/jsonl-viewer",
+    root: "dist/web",
+    html: "dist/web/zh-CN/jsonl-viewer/index.html",
+  },
+  {
+    name: "web landing zh-CN/json-unescape",
+    root: "dist/web",
+    html: "dist/web/zh-CN/json-unescape/index.html",
+  },
+  {
+    name: "web landing zh-CN/agent-log-viewer",
+    root: "dist/web",
+    html: "dist/web/zh-CN/agent-log-viewer/index.html",
+  },
+  {
+    name: "web landing zh-CN/sse-viewer",
+    root: "dist/web",
+    html: "dist/web/zh-CN/sse-viewer/index.html",
   },
 ];
 
@@ -152,6 +172,30 @@ for (const page of staticPages) {
 
   checkBudget(page.name, "CSS", css.bytes, staticPageBudgets.cssBytes);
   checkBudget(page.name, "CSS gzip", css.gzipBytes, staticPageBudgets.cssGzipBytes);
+}
+
+for (const page of interactiveLandingPages) {
+  const initialJsFiles = assetPathsFromHtml(page, ".js");
+  const initialCssFiles = assetPathsFromHtml(page, ".css");
+  const initialJs = measure(initialJsFiles);
+  const initialCss = measure(initialCssFiles);
+
+  if (initialJsFiles.length === 0) {
+    failures.push(`${page.name} has no initial JavaScript assets`);
+  }
+  if (initialCssFiles.length === 0) {
+    failures.push(`${page.name} has no initial CSS assets`);
+  }
+
+  console.log(
+    `${page.name}: initial JS ${formatBytes(initialJs.bytes)}, ${formatBytes(initialJs.gzipBytes)} gzipped; ` +
+      `initial CSS ${formatBytes(initialCss.bytes)}, ${formatBytes(initialCss.gzipBytes)} gzipped`,
+  );
+
+  checkBudget(page.name, "initial JS", initialJs.bytes, budgets.initialJsBytes);
+  checkBudget(page.name, "initial JS gzip", initialJs.gzipBytes, budgets.initialJsGzipBytes);
+  checkBudget(page.name, "initial CSS", initialCss.bytes, budgets.initialCssBytes);
+  checkBudget(page.name, "initial CSS gzip", initialCss.gzipBytes, budgets.initialCssGzipBytes);
 }
 
 if (failures.length > 0) {

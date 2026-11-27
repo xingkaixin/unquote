@@ -23,15 +23,19 @@ export interface StatusBarProps {
 interface ExtensionStoreLinkProps {
   href: string;
   label: string;
+  store: "chrome" | "edge";
 }
 
-const ExtensionStoreLink = ({ href, label }: ExtensionStoreLinkProps) => (
+const ExtensionStoreLink = ({ href, label, store }: ExtensionStoreLinkProps) => (
   <a
     href={href}
     target="_blank"
     rel="noreferrer"
     aria-label={label}
     title={label}
+    data-umami-event="install-extension"
+    data-umami-event-store={store}
+    data-umami-event-source="status-bar"
     className="inline-flex items-center gap-1.5 text-text-tertiary hover:text-accent"
   >
     <StorefrontIcon className="size-3" />
@@ -141,9 +145,11 @@ export const StatusBar = ({
         </a>
       ) : null}
       {chromeWebStoreUrl ? (
-        <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} />
+        <ExtensionStoreLink href={chromeWebStoreUrl} label={t("app.chrome")} store="chrome" />
       ) : null}
-      {edgeAddonsUrl ? <ExtensionStoreLink href={edgeAddonsUrl} label={t("app.edge")} /> : null}
+      {edgeAddonsUrl ? (
+        <ExtensionStoreLink href={edgeAddonsUrl} label={t("app.edge")} store="edge" />
+      ) : null}
     </footer>
   );
 };

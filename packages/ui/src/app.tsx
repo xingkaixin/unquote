@@ -30,9 +30,25 @@ import { useSourceLoader } from "./hooks/use-source-loader";
 import { useThemePreference } from "./hooks/use-theme-preference";
 import { formatFileSize } from "./lib/format";
 import { projectSourceImport, projectSourceView } from "./lib/published-source";
-import type { SourceCandidate } from "./lib/source-candidate";
+import type { SourceCandidate, SourceMode } from "./lib/source-candidate";
 import type { SourceRevision } from "./lib/source-revision";
 import { sourceSamples } from "./lib/source-samples";
+
+export type { SourceMode };
+
+export type UnquoteAnalyticsEvent =
+  | {
+      name: "parse-source";
+      data: {
+        input: "text" | "file";
+        mode: SourceMode;
+        format: "json" | "jsonl" | "sse";
+        agent: "true" | "false";
+      };
+    }
+  | { name: "sample-select"; data: { sample: string } }
+  | { name: "switch-view"; data: { view: "agent" | "trajectory" | "json" } }
+  | { name: "open-tool"; data: { tool: "diff" | "table" | "report" } };
 
 const ImportDialog = deferredComponent(() =>
   import("./components/import-dialog").then(({ ImportDialog }) => ImportDialog),
@@ -108,23 +124,28 @@ const noop = () => undefined;
 
 export interface UnquoteAppProps {
   initialInput?: string;
+  initialMode?: SourceMode;
   toastHostActive?: boolean;
   renderWelcome?: (
     controls: ReactNode,
     onSelectSample: (sample: SourceSampleOption) => void,
+    samples: readonly SourceSampleOption[],
   ) => ReactNode;
   changelogUrls?: Readonly<Record<Locale, string>>;
   chromeWebStoreUrl?: string;
   edgeAddonsUrl?: string;
+  onAnalyticsEvent?: (event: UnquoteAnalyticsEvent) => void;
 }
 
 export const UnquoteApp = ({
   initialInput = "",
+  initialMode = "auto",
   toastHostActive = false,
   renderWelcome,
   changelogUrls,
   chromeWebStoreUrl,
   edgeAddonsUrl,
+  onAnalyticsEvent,
 }: UnquoteAppProps) => {
   const { t } = useTranslation();
   const [toastActivated, setToastActivated] = useState(toastHostActive);
@@ -139,11 +160,21 @@ export const UnquoteApp = ({
     operation,
     onSourceChange: handleSourceChange,
     onFileDrop: handleFileDrop,
-  } = useSourceLoader({ initialInput, onToastRequired: ensureToasterMounted });
+  } = useSourceLoader({ initialInput, initialMode, onToastRequired: ensureToasterMounted });
   const sourceImport = useMemo(() => projectSourceImport(source), [source]);
   const sourceView = useMemo(() => projectSourceView(source), [source]);
   const { theme, setTheme } = useThemePreference();
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
+  const lastInputKindRef = useRef<"text" | "file" | null>(null);
+  const handleActiveOverlayChange = useCallback(
+    (next: ActiveOverlay) => {
+      setActiveOverlay(next);
+      if (next === "diff" || next === "table" || next === "report") {
+        onAnalyticsEvent?.({ name: "open-tool", data: { tool: next } });
+      }
+    },
+    [onAnalyticsEvent],
+  );
   const [pendingSampleExpansion, setPendingSampleExpansion] =
     useState<PendingSampleExpansion | null>(null);
   const [pendingToolbarSearch, setPendingToolbarSearch] = useState<PendingToolbarSearch | null>(
@@ -209,6 +240,12 @@ export const UnquoteApp = ({
         expandedPathsByRecord: sourceSamples.escapedApiResponse.expandedPathsByRecord,
       },
       {
+        id: "sse-stream",
+        label: t("samples.sseStream"),
+        value: sourceSamples.sseStream.source,
+        expandedPathsByRecord: sourceSamples.sseStream.expandedPathsByRecord,
+      },
+      {
         id: "agent-tool-call-jsonl",
         label: t("samples.agentToolCallJsonl"),
         value: sourceSamples.agentToolCallJsonl.source,
@@ -234,6 +271,7 @@ export const UnquoteApp = ({
     void preloadWorkspaceShell().catch(() => undefined);
     setPendingSampleExpansion(null);
     setPendingToolbarSearch(null);
+    lastInputKindRef.current = candidate.kind;
     if (candidate.kind === "text") {
       handleSourceChange(candidate.text, candidate.mode);
     } else {
@@ -245,6 +283,8 @@ export const UnquoteApp = ({
   const handleSampleSelect = (sample: SourceSampleOption) => {
     void preloadWorkspaceShell().catch(() => undefined);
     setPendingToolbarSearch(null);
+    lastInputKindRef.current = null;
+    onAnalyticsEvent?.({ name: "sample-select", data: { sample: sample.id } });
     const nextRevision = handleSourceChange(sample.value, "auto");
     setPendingSampleExpansion({
       revision: nextRevision,
@@ -252,6 +292,33 @@ export const UnquoteApp = ({
     });
     setActiveOverlay(null);
   };
+
+  const handleParseComplete = useCallback(
+    (format: "json" | "jsonl" | "sse", mode: SourceMode, agent: boolean) => {
+      const input = lastInputKindRef.current;
+      if (!input) {
+        return;
+      }
+      lastInputKindRef.current = null;
+      onAnalyticsEvent?.({
+        name: "parse-source",
+        data: {
+          input,
+          mode,
+          format,
+          agent: agent ? "true" : "false",
+        },
+      });
+    },
+    [onAnalyticsEvent],
+  );
+
+  const handleSwitchView = useCallback(
+    (view: "agent" | "trajectory" | "json") => {
+      onAnalyticsEvent?.({ name: "switch-view", data: { view } });
+    },
+    [onAnalyticsEvent],
+  );
 
   const handleConsumeSampleExpansion = useCallback((revision: SourceRevision) => {
     setPendingSampleExpansion((current) => (current?.revision === revision ? null : current));
@@ -274,7 +341,7 @@ export const UnquoteApp = ({
   );
 
   const emptyState = renderWelcome ? (
-    renderWelcome(importPanel("h-[180px]"), handleSampleSelect)
+    renderWelcome(importPanel("h-[180px]"), handleSampleSelect, sampleOptions)
   ) : (
     <div className="uq-import-empty flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-10">
       <div className="my-auto flex w-full max-w-[660px] flex-col gap-6">
@@ -315,8 +382,8 @@ export const UnquoteApp = ({
         enabled={hasData}
         actionsDisabled={hasData}
         sourceName={sourceView.file?.name ?? null}
-        onOpenImport={() => setActiveOverlay("import")}
-        onOpenDiff={() => setActiveOverlay("diff")}
+        onOpenImport={() => handleActiveOverlayChange("import")}
+        onOpenDiff={() => handleActiveOverlayChange("diff")}
         outputView={null}
         jsonTabLabel="JSON"
         onOutputViewChange={noop}
@@ -443,7 +510,9 @@ export const UnquoteApp = ({
                 theme,
                 onThemeChange: setTheme,
                 activeOverlay,
-                onActiveOverlayChange: setActiveOverlay,
+                onActiveOverlayChange: handleActiveOverlayChange,
+                onParseComplete: handleParseComplete,
+                onSwitchView: handleSwitchView,
                 pendingSampleExpansion,
                 onConsumeSampleExpansion: handleConsumeSampleExpansion,
                 pendingToolbarSearch,

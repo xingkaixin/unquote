@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import { addAnalytics } from "../src/analytics";
 import { renderChangelogPage } from "../src/changelog-page";
 import { changelogLocales } from "../src/changelog-routes";
-import { guides } from "../src/guide-content";
 import { renderGuidePage } from "../src/guide-page";
+import { guideLocales, guideSlugs } from "../src/site-links";
 
 const readWebFile = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(`../${relativePath}`, import.meta.url)), "utf8");
@@ -37,7 +37,9 @@ describe("web privacy boundary", () => {
   it.each([
     ["home", readWebFile("index.html")],
     ...changelogLocales.map((locale) => [`changelog ${locale}`, renderChangelogPage(locale)]),
-    ...Object.keys(guides).map((slug) => [slug, renderGuidePage(slug)]),
+    ...guideSlugs.flatMap((slug) =>
+      guideLocales.map((locale) => [`${locale}/${slug}`, renderGuidePage(slug, locale)]),
+    ),
   ])(
     "scopes %s analytics to production without source hashes or session recording",
     (_page, source) => {

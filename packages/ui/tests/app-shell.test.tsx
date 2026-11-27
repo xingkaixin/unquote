@@ -369,9 +369,9 @@ describe("UnquoteApp", () => {
         within(sampleGroup).getByRole("button", { name: "有效/无效混合 JSONL" }),
       ).toBeInTheDocument();
       expect(document.documentElement).toHaveAttribute("lang", "zh-CN");
-      expect(screen.getAllByText("JSON / JSONL 查看器：递归展开转义 JSON").length).toBeGreaterThan(
-        0,
-      );
+      expect(
+        screen.getAllByText("JSON / JSONL / SSE 查看器：递归展开转义 JSON").length,
+      ).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "自动" })).toHaveAttribute("aria-pressed", "true");
     });
 
@@ -400,7 +400,7 @@ describe("UnquoteApp", () => {
       ).toBeInTheDocument();
       expect(document.documentElement).toHaveAttribute("lang", "ja");
       expect(
-        screen.getAllByText("JSON / JSONL ビューアー：エスケープされた JSON を展開").length,
+        screen.getAllByText("JSON / JSONL / SSE ビューアー：エスケープされた JSON を展開").length,
       ).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "自動" })).toHaveAttribute("aria-pressed", "true");
     });

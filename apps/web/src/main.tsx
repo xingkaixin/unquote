@@ -7,12 +7,8 @@ import { initializeThemePreference } from "@unquote/ui/theme-preference";
 import "@unquote/ui/styles.css";
 import { changelogPaths } from "./changelog-routes";
 import { clearLegacySourceHash } from "./legacy-source-hash";
-
-const CHROME_WEB_STORE_URL =
-  "https://chromewebstore.google.com/detail/unquote/ohcepfneflaihakpkkgmnbdgjhnmcjeg";
-
-const EDGE_ADDONS_URL =
-  "https://microsoftedge.microsoft.com/addons/detail/amdbhljchamjbhknbamkcemccmelegdp";
+import { CHROME_WEB_STORE_URL, EDGE_ADDONS_URL } from "./site-links";
+import { trackAnalyticsEvent } from "./telemetry";
 
 initializeThemePreference();
 
@@ -25,6 +21,7 @@ const WebApp = () => {
       changelogUrls={changelogPaths}
       chromeWebStoreUrl={CHROME_WEB_STORE_URL}
       edgeAddonsUrl={EDGE_ADDONS_URL}
+      onAnalyticsEvent={(event) => trackAnalyticsEvent(event, "home")}
       renderWelcome={(controls, onSelectSample) => (
         <ImportWelcome
           t={t}

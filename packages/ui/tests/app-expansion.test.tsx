@@ -54,7 +54,7 @@ describe("UnquoteApp", () => {
       );
 
       fireEvent.paste(
-        screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+        screen.getAllByPlaceholderText("Paste JSON, JSONL, or SSE, or drop a file here.")[0]!,
         {
           clipboardData: { files: [file], items: [], types: ["Files"] },
         },
@@ -92,7 +92,7 @@ describe("UnquoteApp", () => {
       );
 
       fireEvent.paste(
-        screen.getAllByPlaceholderText("Paste JSON / JSONL, or drop a file here.")[0]!,
+        screen.getAllByPlaceholderText("Paste JSON, JSONL, or SSE, or drop a file here.")[0]!,
         {
           clipboardData: { files: [file], items: [], types: ["Files"] },
         },

@@ -45,7 +45,8 @@ export default defineConfig({
         handler(html) {
           const slug = html.match(/\sdata-guide="([^"]+)"/)?.[1];
           if (!slug) return html;
-          return renderGuidePage(slug);
+          const locale = html.match(/\sdata-guide-locale="([^"]+)"/)?.[1] ?? "en";
+          return renderGuidePage(slug, locale);
         },
       },
     },
@@ -77,6 +78,11 @@ export default defineConfig({
         jsonlViewer: path.resolve(__dirname, "./jsonl-viewer/index.html"),
         jsonUnescape: path.resolve(__dirname, "./json-unescape/index.html"),
         agentLogViewer: path.resolve(__dirname, "./agent-log-viewer/index.html"),
+        sseViewer: path.resolve(__dirname, "./sse-viewer/index.html"),
+        jsonlViewerZhCN: path.resolve(__dirname, "./zh-CN/jsonl-viewer/index.html"),
+        jsonUnescapeZhCN: path.resolve(__dirname, "./zh-CN/json-unescape/index.html"),
+        agentLogViewerZhCN: path.resolve(__dirname, "./zh-CN/agent-log-viewer/index.html"),
+        sseViewerZhCN: path.resolve(__dirname, "./zh-CN/sse-viewer/index.html"),
         notFound: path.resolve(__dirname, "./404.html"),
       },
     },
